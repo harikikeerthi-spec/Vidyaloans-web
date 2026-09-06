@@ -19,6 +19,7 @@ model User {
   referralCode     String?           @unique
   referredById     String?
   role             String            @default("user") // user, admin, super_admin
+  staffId          String?           @unique
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @default(now()) @updatedAt
   registeredAtIndia String?
@@ -296,6 +297,15 @@ model LoanApplication {
   evvWeightBreakdown   Json?     // Weight contributions breakdown
 
   // Timestamps
+  // Assignment Engine
+  assignedStaffId       String?
+  assignedAt            DateTime?
+  assignmentStatus      String?   @default("unassigned")
+  priority              String?   @default("standard")
+  lockedAt              DateTime?
+  lockedByStaffId       String?
+  lastActivityAt        DateTime?
+
   submittedAt           DateTime?
   reviewStartedAt       DateTime?
   estimatedCompletionAt DateTime?

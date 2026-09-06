@@ -3,9 +3,10 @@
  * Assigns VL-SF-XXX staff IDs to existing staff/admin users who don't have one yet.
  */
 const { Client } = require('pg');
+require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
 
 const client = new Client({
-  connectionString: 'postgresql://postgres.mhhmqdbzsmwyizmvwtsx:VidhyaLOan2@13.239.87.90:5432/postgres',
+  connectionString: process.env.DIRECT_URL || process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
 });
 
@@ -54,6 +55,10 @@ async function run() {
       );
       console.log(`🔑 Assigned ${staffId} → ${user.email} (${user.role})`);
     }
+
+    console.log('\n🔄 Reloading PostgREST schema cache...');
+    await client.query(`NOTIFY pgrst, 'reload schema';`);
+    console.log('✅ PostgREST schema cache reload triggered.');
 
     console.log('\n✅ All staff IDs assigned successfully!');
   } catch (err) {

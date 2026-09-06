@@ -16,7 +16,6 @@ import {
   Search,
   Globe,
   Mail,
-  CreditCard,
   Building2,
   Calendar,
   RotateCcw,
@@ -198,7 +197,6 @@ const DEFAULT_FORM: SiteSettings = {
 
 type TabType =
   | "general"
-  | "payments"
   | "ai"
   | "security"
   | "discovery"
@@ -394,7 +392,6 @@ export default function SiteSettingsSection() {
 
   const tabs: { id: TabType; label: string; icon: React.ReactNode }[] = [
     { id: "general", label: "General & Branding", icon: <Building2 className="w-4 h-4" /> },
-    { id: "payments", label: "Payments", icon: <CreditCard className="w-4 h-4" /> },
     { id: "ai", label: "AI Integration", icon: <Cpu className="w-4 h-4" /> },
     { id: "security", label: "Security & Disposable Shield", icon: <Shield className="w-4 h-4" /> },
     { id: "discovery", label: "Google & Social Discovery", icon: <Globe className="w-4 h-4" /> },
@@ -847,54 +844,6 @@ export default function SiteSettingsSection() {
       {/* ────────────────────────────────────────────────────────────────────────── */}
       {activeTab === "general" && (
         <div className="space-y-6 animate-fade-in">
-          {/* Live Preview Card */}
-          <div className="bg-gradient-to-br from-slate-900 via-slate-850 to-indigo-950 p-6 rounded-2xl border border-slate-700/60 shadow-xl text-white">
-            <div className="flex items-center justify-between mb-4 pb-3 border-b border-white/10">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">Live Website Header Preview (Real-Time Reflection)</h3>
-              </div>
-              <span className="text-[11px] font-mono text-indigo-300 bg-indigo-500/20 px-2.5 py-0.5 rounded-full border border-indigo-400/30">
-                Instant DOM Sync
-              </span>
-            </div>
-
-            {/* Simulated Live Navbar */}
-            <div className="bg-white/95 backdrop-blur-md rounded-xl p-4 text-slate-900 flex flex-wrap items-center justify-between gap-4 shadow-lg border border-white/40">
-              <div className="flex items-center gap-3">
-                <img
-                  src={form.logoLightUrl || "/images/vidyaloans-logo-transparent.png"}
-                  alt="Live Logo Preview"
-                  className="w-9 h-9 object-contain drop-shadow-sm"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = "/images/vidyaloans-logo-transparent.png";
-                  }}
-                />
-                <div>
-                  <div className="text-lg font-bold tracking-tight text-slate-900 font-display flex items-center gap-1.5">
-                    {form.siteName || "VidyaLoans"}
-                  </div>
-                  <div className="text-[11px] text-slate-500 max-w-sm truncate">
-                    {form.tagline || "Overseas Education Financing & Study Abroad Loan Portal"}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div className="hidden sm:flex flex-col text-right text-[11px] text-slate-600">
-                  <span className="font-semibold text-slate-800">Helpline: {form.phone || "+91 8143797779"}</span>
-                  <span className="text-slate-500">{form.supportEmail || "support@vidyaloans.com"}</span>
-                </div>
-                <button
-                  style={{ backgroundColor: form.primaryColor || "#6605c7" }}
-                  className="px-4 py-2 rounded-xl text-white text-xs font-bold shadow-md transition-transform active:scale-95"
-                >
-                  Apply Now
-                </button>
-              </div>
-            </div>
-          </div>
-
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Core Site Identity & SEO */}
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-[0_8px_30px_rgb(0,0,0,0.04)] space-y-4">
@@ -1168,76 +1117,22 @@ export default function SiteSettingsSection() {
               </div>
             </div>
 
-            {/* Social Media & Live Chat Overrides */}
+            {/* Custom CSS & Styling Overrides */}
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-[0_8px_30px_rgb(0,0,0,0.04)] space-y-4">
               <div className="flex items-center gap-2 text-indigo-600 font-bold text-sm border-b pb-3">
-                <Globe className="w-4 h-4" />
-                <h3>Social Channels & WhatsApp Widget</h3>
+                <Code className="w-4 h-4" />
+                <h3>Custom CSS & Styling Injection</h3>
               </div>
+              <p className="text-xs text-slate-500">
+                Inject custom CSS overrides and root styling variables dynamically across the entire website.
+              </p>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  WhatsApp Support Number (Powers Floating Chat Widget)
-                </label>
-                <input
-                  type="text"
-                  value={form.whatsappNumber}
-                  onChange={(e) => handleChange("whatsappNumber", e.target.value)}
-                  placeholder="+918143797779"
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 text-xs font-mono"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Instagram URL</label>
-                  <input
-                    type="text"
-                    value={form.instagramUrl}
-                    onChange={(e) => handleChange("instagramUrl", e.target.value)}
-                    placeholder="https://instagram.com/..."
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">LinkedIn URL</label>
-                  <input
-                    type="text"
-                    value={form.linkedinUrl}
-                    onChange={(e) => handleChange("linkedinUrl", e.target.value)}
-                    placeholder="https://linkedin.com/company/..."
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">YouTube Channel URL</label>
-                  <input
-                    type="text"
-                    value={form.youtubeUrl}
-                    onChange={(e) => handleChange("youtubeUrl", e.target.value)}
-                    placeholder="https://youtube.com/@..."
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Telegram Community URL</label>
-                  <input
-                    type="text"
-                    value={form.telegramUrl}
-                    onChange={(e) => handleChange("telegramUrl", e.target.value)}
-                    placeholder="https://t.me/..."
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Custom CSS Styling Injection</label>
                 <textarea
-                  rows={3}
+                  rows={5}
                   value={form.customCss}
                   onChange={(e) => handleChange("customCss", e.target.value)}
-                  placeholder="/* Overwrite default site styling */ :root { --brand-primary: #6605c7; }"
-                  className="w-full p-2.5 rounded-xl border border-slate-300 font-mono text-xs bg-slate-950 text-indigo-300 shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]"
+                  placeholder="/* Overwrite default site styling */&#10;:root {&#10;  --brand-primary: #6605c7;&#10;}"
+                  className="w-full p-3 rounded-xl border border-slate-300 font-mono text-xs bg-slate-950 text-indigo-300 shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)] focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
             </div>
@@ -1245,82 +1140,7 @@ export default function SiteSettingsSection() {
         </div>
       )}
 
-      {/* ────────────────────────────────────────────────────────────────────────── */}
-      {/* ── TAB: PAYMENTS & ADS ── */}
-      {/* ────────────────────────────────────────────────────────────────────────── */}
-      {activeTab === "payments" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-[0_8px_30px_rgb(0,0,0,0.04)] space-y-4">
-            <div className="flex items-center gap-2 text-indigo-600 font-bold text-sm border-b pb-3">
-              <CreditCard className="w-4 h-4" />
-              <h3>Razorpay Gateway Config</h3>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Key ID</label>
-              <input
-                type="text"
-                value={form.razorpayKeyId}
-                onChange={(e) => handleChange("razorpayKeyId", e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Key Secret</label>
-              <div className="relative">
-                <input
-                  type={showRazorpaySecret ? "text" : "password"}
-                  value={form.razorpayKeySecret}
-                  onChange={(e) => handleChange("razorpayKeySecret", e.target.value)}
-                  className="w-full px-3 py-2 pr-10 rounded-xl border border-slate-300 text-xs font-mono shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowRazorpaySecret(!showRazorpaySecret)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-indigo-600"
-                >
-                  {showRazorpaySecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-          </div>
 
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-[0_8px_30px_rgb(0,0,0,0.04)] space-y-4">
-            <div className="flex items-center gap-2 text-indigo-600 font-bold text-sm border-b pb-3">
-              <CreditCard className="w-4 h-4" />
-              <h3>Stripe Gateway Config</h3>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Publishable Key</label>
-              <input
-                type="text"
-                value={form.stripePublishableKey}
-                onChange={(e) => handleChange("stripePublishableKey", e.target.value)}
-                placeholder="pk_live_..."
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Secret Key</label>
-              <div className="relative">
-                <input
-                  type={showStripeSecret ? "text" : "password"}
-                  value={form.stripeSecretKey}
-                  onChange={(e) => handleChange("stripeSecretKey", e.target.value)}
-                  placeholder="sk_live_..."
-                  className="w-full px-3 py-2 pr-10 rounded-xl border border-slate-300 text-xs font-mono shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowStripeSecret(!showStripeSecret)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-indigo-600"
-                >
-                  {showStripeSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ────────────────────────────────────────────────────────────────────────── */}
       {/* ── TAB: GOOGLE & SOCIAL DISCOVERY ── */}
@@ -1366,8 +1186,20 @@ export default function SiteSettingsSection() {
 
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-[0_8px_30px_rgb(0,0,0,0.04)] space-y-4">
               <div className="flex items-center gap-2 text-indigo-600 font-bold text-sm border-b pb-3">
-                <span className="material-symbols-outlined">share</span>
-                <h3>Social Media Handles</h3>
+                <Globe className="w-4 h-4" />
+                <h3>Social Channels & WhatsApp Widget</h3>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  WhatsApp Support Number (Powers Floating Chat Widget)
+                </label>
+                <input
+                  type="text"
+                  value={form.whatsappNumber}
+                  onChange={(e) => handleChange("whatsappNumber", e.target.value)}
+                  placeholder="+918143797779"
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 text-xs font-mono"
+                />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -1376,6 +1208,7 @@ export default function SiteSettingsSection() {
                     type="text"
                     value={form.facebookUrl}
                     onChange={(e) => handleChange("facebookUrl", e.target.value)}
+                    placeholder="https://facebook.com/..."
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]"
                   />
                 </div>
@@ -1385,6 +1218,7 @@ export default function SiteSettingsSection() {
                     type="text"
                     value={form.instagramUrl}
                     onChange={(e) => handleChange("instagramUrl", e.target.value)}
+                    placeholder="https://instagram.com/..."
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]"
                   />
                 </div>
@@ -1394,6 +1228,7 @@ export default function SiteSettingsSection() {
                     type="text"
                     value={form.twitterUrl}
                     onChange={(e) => handleChange("twitterUrl", e.target.value)}
+                    placeholder="https://x.com/..."
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]"
                   />
                 </div>
@@ -1403,6 +1238,27 @@ export default function SiteSettingsSection() {
                     type="text"
                     value={form.linkedinUrl}
                     onChange={(e) => handleChange("linkedinUrl", e.target.value)}
+                    placeholder="https://linkedin.com/company/..."
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">YouTube Channel URL</label>
+                  <input
+                    type="text"
+                    value={form.youtubeUrl}
+                    onChange={(e) => handleChange("youtubeUrl", e.target.value)}
+                    placeholder="https://youtube.com/@..."
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Telegram Community URL</label>
+                  <input
+                    type="text"
+                    value={form.telegramUrl}
+                    onChange={(e) => handleChange("telegramUrl", e.target.value)}
+                    placeholder="https://t.me/..."
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]"
                   />
                 </div>

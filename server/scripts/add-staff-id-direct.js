@@ -4,9 +4,10 @@
  * Run: node scripts/add-staff-id-direct.js
  */
 const { Client } = require('pg');
+require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
 
 const client = new Client({
-  connectionString: 'postgresql://postgres.mhhmqdbzsmwyizmvwtsx:VidhyaLOan2@13.239.87.90:5432/postgres',
+  connectionString: process.env.DIRECT_URL || process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
 });
 

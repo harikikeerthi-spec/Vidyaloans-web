@@ -29,6 +29,14 @@ export const metadata: Metadata = {
       "Compare education loans from our curated network of top lending partners. Get the best rates, quick approvals, and expert guidance.",
     type: "website",
   },
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.png", type: "image/png" },
+    ],
+    shortcut: "/favicon.ico",
+    apple: "/icon.png",
+  },
 };
 
 const GTM_ID = process.env.NEXT_PUBLIC_GTM_ID || "GTM-PSHKZ8FK";
@@ -42,6 +50,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" type="image/png" href="/icon.png" />
+        <link rel="apple-touch-icon" href="/icon.png" />
         {/* Google Tag Manager (Head Script) */}
         <script
           dangerouslySetInnerHTML={{

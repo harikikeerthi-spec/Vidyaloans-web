@@ -328,16 +328,14 @@ export class UsersService implements OnModuleInit {
     const prefix = 'VL-STF-';
 
     try {
-      // Fetch all staff IDs — if staffId column doesn't exist in schema cache
-      // (PGRST204), fall through to the catch block and use a random ID
+      // Fetch all staff IDs
       const { data: allIds, error } = await this.db
         .from('User')
         .select('staffId')
-        .not('staffId', 'is', null)
-        .like('staffId', `${prefix}%`);
+        .not('staffId', 'is', null);
 
       if (error) {
-        if (error.code === 'PGRST204') {
+        if (error.code === 'PGRST204' || error.message?.includes('staffId')) {
           console.warn('[UsersService] staffId column not in schema cache — using random staff ID fallback');
           const seq = String(Math.floor(Math.random() * 1_000)).padStart(3, '0');
           return `${prefix}${seq}`;
@@ -348,12 +346,12 @@ export class UsersService implements OnModuleInit {
       let nextSeq = 1;
 
       if (allIds && allIds.length > 0) {
-        // Extract numeric suffixes and find the maximum
+        // Extract numeric suffixes from any staffId prefix (VL-STF-XXX or VL-SF-XXX)
         const numericIds = allIds
           .map(u => {
             if (!u.staffId) return 0;
-            const suffix = u.staffId.substring(prefix.length);
-            const num = parseInt(suffix, 10);
+            const match = String(u.staffId).match(/\d+/);
+            const num = match ? parseInt(match[0], 10) : 0;
             return isNaN(num) ? 0 : num;
           })
           .filter(n => n > 0);
@@ -496,16 +494,31 @@ export class UsersService implements OnModuleInit {
       insertPayload.staffId = staffId;
     }
 
-    const { data: user, error } = await this.db
+    let user: any = null;
+    let { data: insertedUser, error } = await this.db
       .from('User')
       .insert(insertPayload)
       .select()
       .single();
 
+    if (error && (error.code === 'PGRST204' || error.message?.includes('staffId')) && insertPayload.staffId) {
+      console.warn('[UsersService.create] staffId column not recognized by PostgREST schema cache — retrying insert without staffId:', error.message);
+      const { staffId: _removed, ...payloadWithoutStaffId } = insertPayload;
+      const retryResult = await this.db
+        .from('User')
+        .insert(payloadWithoutStaffId)
+        .select()
+        .single();
+      insertedUser = retryResult.data;
+      error = retryResult.error;
+    }
+
     if (error) {
       console.error('Supabase insert error:', error);
       throw error;
     }
+
+    user = insertedUser;
 
     // Insert into referral_codes table
     try {

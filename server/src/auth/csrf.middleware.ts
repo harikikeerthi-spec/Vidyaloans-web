@@ -23,13 +23,23 @@ export class CsrfMiddleware implements NestMiddleware {
       cleanUrl.includes('/auth/landing-page-submit') ||
       cleanUrl.includes('/auth/refresh') ||
       cleanUrl.includes('/auth/login') ||
+      cleanUrl.includes('/auth/logout') ||
+      cleanUrl.includes('/auth/dashboard') ||
+      cleanUrl.includes('/auth/dashboard-data') ||
+      cleanUrl.includes('/auth/user-details') ||
       cleanUrl.includes('/digilocker/callback')
     );
   }
 
   use(req: Request, res: Response, next: NextFunction) {
-    // Exempt GET, HEAD, OPTIONS and exempted public auth/webhook/callback paths
-    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method.toUpperCase()) || this.isExemptPath(req.originalUrl || req.url)) {
+    // Exempt GET, HEAD, OPTIONS, exempted public auth/webhook/callback paths,
+    // and requests with Bearer tokens (immune to CSRF attacks)
+    const hasBearerAuth = req.headers['authorization']?.startsWith('Bearer ');
+    if (
+      ['GET', 'HEAD', 'OPTIONS'].includes(req.method.toUpperCase()) ||
+      this.isExemptPath(req.originalUrl || req.url) ||
+      hasBearerAuth
+    ) {
       return next();
     }
 
