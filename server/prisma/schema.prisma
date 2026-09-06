@@ -20,6 +20,9 @@ model User {
   referredById     String?
   role             String            @default("user") // user, admin, super_admin
   staffId          String?           @unique
+  officeId         String?
+  officeLocation   String?
+  office           Office?           @relation(fields: [officeId], references: [id], onDelete: SetNull)
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @default(now()) @updatedAt
   registeredAtIndia String?
@@ -832,6 +835,19 @@ model Country {
 
   @@index([region])
   @@index([popularForStudy])
+}
+
+model Office {
+  id        String   @id @default(uuid())
+  name      String
+  city      String
+  location  String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  users     User[]
+
+  @@map("Office")
 }
 
 model Scholarship {

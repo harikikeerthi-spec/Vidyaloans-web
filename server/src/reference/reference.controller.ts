@@ -367,4 +367,48 @@ export class ReferenceController {
     async getCoursesByField(@Param('field') field: string) {
         return this.referenceService.getCoursesByField(field);
     }
+
+    // ==================== OFFICES ====================
+
+    /**
+     * Get all offices
+     * GET /reference/offices
+     */
+    @Get('offices')
+    async getAllOffices() {
+        return this.referenceService.getAllOffices();
+    }
+
+    /**
+     * Create office
+     * POST /reference/offices
+     */
+    @UseGuards(AdminGuard)
+    @Post('offices')
+    async createOffice(@Body() body: { name: string; city: string; location: string }) {
+        return this.referenceService.createOffice(body);
+    }
+
+    /**
+     * Update office
+     * PUT /reference/offices/:id
+     */
+    @UseGuards(AdminGuard)
+    @Put('offices/:id')
+    async updateOffice(
+        @Param('id') id: string,
+        @Body() body: { name?: string; city?: string; location?: string; isActive?: boolean }
+    ) {
+        return this.referenceService.updateOffice(id, body);
+    }
+
+    /**
+     * Delete office
+     * DELETE /reference/offices/:id
+     */
+    @UseGuards(AdminGuard)
+    @Delete('offices/:id')
+    async deleteOffice(@Param('id') id: string) {
+        return this.referenceService.deleteOffice(id);
+    }
 }

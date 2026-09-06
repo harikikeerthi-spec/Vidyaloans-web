@@ -395,17 +395,19 @@ export class AuthService {
    * Send OTP to email - works for both new and existing users
    * Step 1 of unified flow
    */
-  async sendOtpUnified(email: string) {
+  async sendOtpUnified(email: string, portal?: string) {
     // Validate email format
     if (!email || email.trim() === '') {
       return { success: false, message: 'Please enter your email address' };
     }
 
-    if (!email.includes('@')) {
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (!cleanEmail.includes('@')) {
       return { success: false, message: 'Email must contain @ symbol' };
     }
 
-    const emailParts = email.split('@');
+    const emailParts = cleanEmail.split('@');
     if (emailParts.length !== 2 || !emailParts[1].includes('.')) {
       return { success: false, message: 'Email must have a valid domain (e.g., .com, .org)' };
     }
@@ -413,7 +415,7 @@ export class AuthService {
     const username = emailParts[0];
     const domain = emailParts[1];
 
-    const disposableCheck = await this.siteSettingsService.checkDisposableEmail(email);
+    const disposableCheck = await this.siteSettingsService.checkDisposableEmail(cleanEmail);
     if (disposableCheck.blocked) {
       return {
         success: false,
@@ -421,12 +423,96 @@ export class AuthService {
       };
     }
 
-    // Check if user exists first to allow existing/testing/unauthorized accounts to login
+    // Check if user exists first
     let existingUser: any = null;
     try {
-      existingUser = await this.usersService.findOne(email);
+      existingUser = await this.usersService.findOne(cleanEmail);
     } catch (err) {
       console.warn(`[AuthService] Error checking user existence:`, err);
+    }
+
+    // ── Pre-OTP Portal Access Authorization Check ────────────────────────
+    const targetPortal = (portal || '').toLowerCase().trim();
+    if (targetPortal && targetPortal !== 'user' && targetPortal !== 'student') {
+      if (!existingUser) {
+        if (targetPortal === 'admin') {
+          return {
+            success: false,
+            message: 'Access Denied: No administrator account found with this email address.',
+            userExists: false
+          };
+        }
+        if (targetPortal === 'staff') {
+          return {
+            success: false,
+            message: 'Access Denied: No staff account found with this email. Staff portal is restricted to authorized personnel.',
+            userExists: false
+          };
+        }
+        if (targetPortal === 'bank') {
+          return {
+            success: false,
+            message: 'Access Denied: No bank officer account found with this email address.',
+            userExists: false
+          };
+        }
+        if (targetPortal === 'agent') {
+          return {
+            success: false,
+            message: 'Access Denied: No agent partner account found with this email address.',
+            userExists: false
+          };
+        }
+      } else {
+        const userRole = (existingUser.role || '').toLowerCase();
+        if (targetPortal === 'admin') {
+          if (userRole !== 'admin' && userRole !== 'super_admin') {
+            return {
+              success: false,
+              message: 'Access Denied: This account does not have administrator privileges.',
+              userExists: true
+            };
+          }
+        } else if (targetPortal === 'staff') {
+          if (existingUser.isResigned || existingUser.status === 'resigned') {
+            return {
+              success: false,
+              message: 'Access Denied: This staff account has been marked as resigned or inactive.',
+              userExists: true
+            };
+          }
+          if (!['staff', 'staff_admin', 'it'].includes(userRole)) {
+            return {
+              success: false,
+              message: 'Access Denied: Staff portal is strictly for authorized staff members.',
+              userExists: true
+            };
+          }
+        } else if (targetPortal === 'bank') {
+          if (userRole === 'admin' || userRole === 'super_admin') {
+            return {
+              success: false,
+              message: 'Access Denied: Administrator accounts must log in via the Admin Login Page.',
+              userExists: true
+            };
+          }
+          if (!['bank', 'partner_bank'].includes(userRole)) {
+            return {
+              success: false,
+              message: 'Access Denied: This account does not have bank officer privileges.',
+              userExists: true
+            };
+          }
+        } else if (targetPortal === 'agent') {
+          if (!['agent', 'partner_agent', 'admin', 'super_admin'].includes(userRole)) {
+            return {
+              success: false,
+              message: 'Access Denied: You do not have agent partner privileges to access this portal.',
+              userExists: true
+            };
+          }
+        }
+      }
     }
 
     if (!existingUser) {

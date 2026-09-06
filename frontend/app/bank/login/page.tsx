@@ -243,9 +243,9 @@ function BankLoginContent() {
         try {
             sessionStorage.setItem("selectedBank", bankId);
             localStorage.setItem("selectedBank", bankId);
-            const res = await authApi.sendOtp(email.trim()) as { success: boolean; message?: string; otp?: string };
+            const res = await authApi.sendOtp(email.trim(), "bank") as { success: boolean; message?: string; otp?: string };
             if (res && res.success === false) {
-                setError(res.message || "Invalid email address");
+                setError(res.message || "Access Denied: Bank partner officer access required.");
                 setLoading(false);
                 return;
             }

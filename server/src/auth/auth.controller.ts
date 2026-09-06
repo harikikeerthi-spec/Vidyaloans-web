@@ -51,18 +51,19 @@ export class AuthController {
    * @returns { success: boolean, message: string, userExists: boolean }
    */
   @Post('send-otp')
-  async sendOtp(@Body() body: { email: string }) {
+  async sendOtp(@Body() body: { email: string; portal?: string; role?: string; requiredRole?: string }) {
     if (!body || !body.email) {
       return {
         success: false,
         message: 'Email address is required',
       };
     }
-    return this.authService.sendOtpUnified(body.email);
+    const portal = body.portal || body.role || body.requiredRole;
+    return this.authService.sendOtpUnified(body.email, portal);
   }
 
   @Post('request-otp')
-  async requestOtp(@Body() body: { email: string }) {
+  async requestOtp(@Body() body: { email: string; portal?: string }) {
     if (!body || !body.email) {
       return {
         success: false,
@@ -70,14 +71,17 @@ export class AuthController {
       };
     }
     const user = await this.usersService.findOne(body.email);
-    if (!user || !['agent', 'partner_agent', 'staff', 'admin', 'super_admin'].includes(user.role)) {
+    if (!user || !['agent', 'partner_agent', 'admin', 'super_admin'].includes(user.role)) {
       return {
         success: false,
-        message: 'Access Denied: Agent privileges required.',
+        message: 'Access Denied: No agent partner account found with this email address.',
       };
     }
 
-    const result = await this.authService.sendOtpUnified(body.email);
+    const result = await this.authService.sendOtpUnified(body.email, 'agent');
+    if (!result.success) {
+      return result;
+    }
 
     let businessName = `${user.firstName || 'Partner'} Agency`;
     try {
@@ -298,18 +302,19 @@ export class AuthController {
   }
 
   /**
-   * Update user details (first name, last name, pincode, target university, etc.)
-   * Note: Email, Phone Number, and Date of Birth are IMMUTABLE once set and cannot be overwritten.
+   * Update user details (first name, last name, email, phone/mobile, DOB, passport, academic, etc.)
    * POST /auth/update-details
    */
   @Post('update-details')
   async updateUserDetails(@Body() body: {
-    email: string;
+    email?: string;
+    newEmail?: string;
     firstName?: string;
     lastName?: string;
     phoneNumber?: string;
+    mobile?: string;
     dateOfBirth?: string;
-    intakeSeason?: string;
+    dob?: string;
     profileImage?: string;
     pincode?: string;
     targetUniversity?: string;
@@ -324,8 +329,9 @@ export class AuthController {
     coApplicantRelation?: string;
     academic?: any;
     userId?: string;
+    passport?: any;
   }) {
-    if (!body || (!body.email && !body.userId)) {
+    if (!body || (!body.email && !body.userId && !body.newEmail)) {
       return {
         success: false,
         message: 'Email or userId is required',
@@ -343,13 +349,17 @@ export class AuthController {
     if (body.coApplicantEmail) coApplicantPayload.email = coApplicantPayload.email || body.coApplicantEmail;
     if (body.coApplicantRelation) coApplicantPayload.relation = coApplicantPayload.relation || body.coApplicantRelation;
 
+    const phone = body.phoneNumber || body.mobile;
+    const dob = body.dateOfBirth || body.dob;
+    const targetEmail = (body.newEmail || body.email || '').trim();
+
     const result = await this.usersService.updateUserDetails(
-      body.email,
+      targetEmail,
       body.firstName,
       body.lastName,
-      body.phoneNumber,
-      body.dateOfBirth,
-      body.intakeSeason,
+      phone,
+      dob,
+      undefined,
       body.profileImage,
       body.pincode,
       body.targetUniversity,
@@ -359,16 +369,9 @@ export class AuthController {
       body.family,
       Object.keys(coApplicantPayload).length > 0 ? coApplicantPayload : body.coApplicant,
       body.academic,
-      body.userId
+      body.userId,
+      body.passport
     );
-
-    // Automatically send welcome registration email to the user
-    const targetEmail = body.email || (result as any)?.user?.email;
-    const targetFirst = body.firstName || (result as any)?.user?.firstName;
-    const targetLast = body.lastName || (result as any)?.user?.lastName;
-    if (targetEmail) {
-      void this.emailService.sendDashboardWelcomeEmail(targetEmail, targetFirst, targetLast);
-    }
 
     return result;
   }

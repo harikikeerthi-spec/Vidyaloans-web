@@ -35,9 +35,9 @@ function AdminLoginContent() {
         setLoading(true);
         setError("");
         try {
-            const res = await authApi.sendOtp(email.trim()) as { success: boolean; message?: string; otp?: string; userExists: boolean };
+            const res = await authApi.sendOtp(email.trim(), "admin") as { success: boolean; message?: string; otp?: string; userExists: boolean };
             if (res && res.success === false) {
-                setError(res.message || "Invalid email address");
+                setError(res.message || "Access Denied: You do not have administrator access.");
                 setLoading(false);
                 return;
             }

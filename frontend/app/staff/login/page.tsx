@@ -42,9 +42,9 @@ function StaffLoginContent() {
         setLoading(true);
         setError("");
         try {
-            const res = await authApi.sendOtp(email.trim()) as { success: boolean; message?: string; otp?: string; userExists: boolean };
+            const res = await authApi.sendOtp(email.trim(), "staff") as { success: boolean; message?: string; otp?: string; userExists: boolean };
             if (res && res.success === false) {
-                setError(res.message || "Invalid email address");
+                setError(res.message || "Access Denied: Staff portal is strictly for authorized staff members.");
                 setLoading(false);
                 return;
             }

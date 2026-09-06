@@ -580,16 +580,16 @@ async function fetchBlob(
 
 // ─── Auth ─────────────────────────────────────────────────────────────
 export const authApi = {
-    sendOtp: (email: string) =>
+    sendOtp: (email: string, portal?: string) =>
         apiFetch(HttpApiPaths.auth.sendOtp(), {
             method: "POST",
-            body: JSON.stringify({ email }),
+            body: JSON.stringify({ email, portal }),
         }),
 
-    requestOtp: (email: string) =>
+    requestOtp: (email: string, portal?: string) =>
         apiFetch(`${API_URL}/auth/request-otp`, {
             method: "POST",
-            body: JSON.stringify({ email }),
+            body: JSON.stringify({ email, portal: portal || "agent" }),
         }),
 
     verifyOtp: (email: string, otp: string, referralCode?: string) =>
@@ -952,6 +952,22 @@ export const referenceApi = {
         apiFetch(HttpApiPaths.reference.universities()),
     getPlatformStats: () =>
         apiFetch(`${API_URL}/reference/platform-stats`),
+    getOffices: () =>
+        apiFetch(HttpApiPaths.reference.offices()),
+    createOffice: (data: { name: string; city: string; location: string }) =>
+        apiFetch(HttpApiPaths.reference.offices(), {
+            method: "POST",
+            body: JSON.stringify(data),
+        }),
+    updateOffice: (id: string, data: any) =>
+        apiFetch(HttpApiPaths.reference.officeById(id), {
+            method: "PUT",
+            body: JSON.stringify(data),
+        }),
+    deleteOffice: (id: string) =>
+        apiFetch(HttpApiPaths.reference.officeById(id), {
+            method: "DELETE",
+        }),
 };
 
 // ─── Onboarding ───────────────────────────────────────────────────────
@@ -1220,11 +1236,17 @@ export const adminApi = {
             method: "POST",
             body: JSON.stringify(data),
         }),
-    updateUserDetails: (data: { userId?: string; email: string; firstName: string; lastName: string; phoneNumber: string; dateOfBirth: string; targetUniversity?: string; studyDestination?: string; fatherName?: string; motherName?: string; family?: any; coApplicant?: any; academic?: any; passport?: any }) =>
+    updateUserDetails: (data: { userId?: string; email: string; firstName: string; lastName: string; phoneNumber: string; dateOfBirth: string; targetUniversity?: string; studyDestination?: string; fatherName?: string; motherName?: string; family?: any; coApplicant?: any; academic?: any; passport?: any; officeId?: string; officeLocation?: string }) =>
         apiFetch(HttpApiPaths.admin.usersUpdateDetails(), {
             method: "POST",
             body: JSON.stringify(data),
         }),
+    getOffices: () =>
+        referenceApi.getOffices(),
+    createOffice: (data: { name: string; city: string; location: string }) =>
+        referenceApi.createOffice(data),
+    deleteOffice: (id: string) =>
+        referenceApi.deleteOffice(id),
 
     updateUserStatus: (userId: string, status: string, rejectionReason?: string) =>
         apiFetch(HttpApiPaths.admin.usersUpdateStatus(), {

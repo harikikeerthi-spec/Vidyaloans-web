@@ -490,4 +490,83 @@ export class ReferenceService {
       .order('name', { ascending: true });
     return { success: true, data: data || [] };
   }
+
+  // ==================== OFFICES ====================
+
+  async getAllOffices() {
+    try {
+      const { data, error } = await this.db
+        .from('Office')
+        .select('*')
+        .eq('isActive', true)
+        .order('city', { ascending: true })
+        .order('name', { ascending: true });
+      if (error) {
+        console.error('[ReferenceService.getAllOffices] Error:', error);
+        return { success: false, data: [] };
+      }
+      return { success: true, data: data || [] };
+    } catch (e: any) {
+      console.error('[ReferenceService.getAllOffices] Exception:', e);
+      return { success: false, data: [] };
+    }
+  }
+
+  async createOffice(data: { name: string; city: string; location: string }) {
+    if (!data.name || !data.city || !data.location) {
+      throw new Error('Office name, city, and location are required');
+    }
+    const id = randomUUID();
+    const { data: created, error } = await this.db
+      .from('Office')
+      .insert({
+        id,
+        name: data.name.trim(),
+        city: data.city.trim(),
+        location: data.location.trim(),
+        isActive: true,
+      })
+      .select('*')
+      .single();
+
+    if (error) {
+      console.error('[ReferenceService.createOffice] Error:', error);
+      throw error;
+    }
+    return { success: true, data: created };
+  }
+
+  async updateOffice(id: string, data: { name?: string; city?: string; location?: string; isActive?: boolean }) {
+    const updatePayload: any = { updatedAt: new Date() };
+    if (data.name !== undefined) updatePayload.name = data.name.trim();
+    if (data.city !== undefined) updatePayload.city = data.city.trim();
+    if (data.location !== undefined) updatePayload.location = data.location.trim();
+    if (data.isActive !== undefined) updatePayload.isActive = data.isActive;
+
+    const { data: updated, error } = await this.db
+      .from('Office')
+      .update(updatePayload)
+      .eq('id', id)
+      .select('*')
+      .single();
+
+    if (error) {
+      console.error('[ReferenceService.updateOffice] Error:', error);
+      throw error;
+    }
+    return { success: true, data: updated };
+  }
+
+  async deleteOffice(id: string) {
+    const { error } = await this.db
+      .from('Office')
+      .update({ isActive: false, updatedAt: new Date() })
+      .eq('id', id);
+
+    if (error) {
+      console.error('[ReferenceService.deleteOffice] Error:', error);
+      throw error;
+    }
+    return { success: true, message: 'Office deleted successfully' };
+  }
 }

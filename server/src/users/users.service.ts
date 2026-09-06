@@ -40,6 +40,8 @@ export const USER_VALID_COLUMNS = new Set([
   'tests',
   'family',
   'coApplicant',
+  'officeId',
+  'officeLocation',
 ]);
 
 export function sanitizeUserPayload(payload: any): Record<string, any> {
@@ -446,6 +448,8 @@ export class UsersService implements OnModuleInit {
     mobile?: string;
     password?: string;
     role?: string;
+    officeId?: string;
+    officeLocation?: string;
   }) {
     const dobDate = this.parseDate(data.dateOfBirth);
     const now = new Date();
@@ -489,6 +493,13 @@ export class UsersService implements OnModuleInit {
       registeredAtIndia: registeredAtIndia,
       referralCode,
     };
+
+    if (data.officeId) {
+      insertPayload.officeId = data.officeId;
+    }
+    if (data.officeLocation) {
+      insertPayload.officeLocation = data.officeLocation;
+    }
 
     if (data.role === 'staff' && staffId) {
       insertPayload.staffId = staffId;
@@ -622,7 +633,9 @@ export class UsersService implements OnModuleInit {
     coApplicant?: any,
     academic?: any,
     userId?: string,
-    passport?: any
+    passport?: any,
+    officeId?: string,
+    officeLocation?: string
   ) {
     const dobDate = dateOfBirth ? this.parseDate(dateOfBirth) : null;
 
@@ -666,6 +679,9 @@ export class UsersService implements OnModuleInit {
 
     // Prepare update payload for User table
     const updatePayload: any = {};
+    if (email && email.trim() && targetUser.email !== email.trim().toLowerCase()) {
+      updatePayload.email = email.trim().toLowerCase();
+    }
     if (firstName !== undefined && firstName !== null && firstName !== '') updatePayload.firstName = firstName;
     if (lastName !== undefined && lastName !== null && lastName !== '') updatePayload.lastName = lastName;
 
@@ -684,6 +700,8 @@ export class UsersService implements OnModuleInit {
     if (pincode !== undefined && pincode !== null && pincode !== '') updatePayload.pincode = pincode;
     if (targetUniversity !== undefined && targetUniversity !== null && targetUniversity !== '') updatePayload.targetUniversity = targetUniversity;
     if (studyDestination !== undefined && studyDestination !== null && studyDestination !== '') updatePayload.studyDestination = studyDestination;
+    if (officeId !== undefined) updatePayload.officeId = officeId;
+    if (officeLocation !== undefined) updatePayload.officeLocation = officeLocation;
 
     // Parse and handle academic object
     let parsedAcademic: any = {};

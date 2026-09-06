@@ -35,13 +35,14 @@ export default function UserProfileEdit({ params }: { params?: Promise<{ id: str
                 const token = typeof window !== 'undefined'
                     ? (localStorage.getItem('adminAccessToken') || localStorage.getItem('staffAccessToken') || localStorage.getItem('accessToken') || '')
                     : '';
-                const response = await fetch(`/api/admin/users/${userId}`, {
+                const response = await fetch(`/api/users/admin/${userId}`, {
                     headers: token ? { 'Authorization': `Bearer ${token}` } : {},
                 });
                 if (!response.ok) {
                     throw new Error("Failed to fetch user data");
                 }
-                const data = await response.json();
+                const resJson = await response.json();
+                const data = resJson.data || resJson.user || resJson;
                 setUserData(data);
                 
                 // Populate form with user data
@@ -50,7 +51,7 @@ export default function UserProfileEdit({ params }: { params?: Promise<{ id: str
                     firstName: data.firstName || "",
                     lastName: data.lastName || "",
                     email: data.email || "",
-                    primaryContact: data.phoneNumber || "",
+                    primaryContact: data.phoneNumber || data.mobile || "",
                     dob: data.dateOfBirth || "",
                 }));
             } catch (err) {
@@ -113,14 +114,25 @@ export default function UserProfileEdit({ params }: { params?: Promise<{ id: str
             {/* Header / Breadcrumbs */}
             <div className="bg-white border-b border-slate-200 sticky top-0 z-30">
                 <div className="max-w-7xl mx-auto px-6 py-4 flex items-center gap-2 text-sm font-medium text-slate-500">
-                    <Link href="/admin" className="hover:text-indigo-600 transition-colors">Students</Link>
+                    <Link 
+                        href={
+                            userData?.role === 'bank' ? "/admin/users/banks" :
+                            userData?.role === 'staff' ? "/admin/users/staff" :
+                            userData?.role === 'agent' ? "/admin/users/agents" : "/admin/users/students"
+                        } 
+                        className="hover:text-indigo-600 transition-colors"
+                    >
+                        {userData?.role === 'bank' ? "Bank Partners" :
+                         userData?.role === 'staff' ? "Staff Operations" :
+                         userData?.role === 'agent' ? "Agent Partners" : "Students"}
+                    </Link>
                     <span className="material-symbols-outlined text-[16px]">chevron_right</span>
                     <span className="text-slate-900 font-bold">{form.firstName || "Loading..."} {form.lastName}</span>
                 </div>
                 
                 <div className="max-w-7xl mx-auto px-6 pb-6 pt-2 flex items-start justify-between">
                     <div className="flex items-center gap-5">
-                        <button onClick={() => router.back()} className="w-10 h-10 rounded-full border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-colors">
+                        <button onClick={() => router.back()} className="w-10 h-10 rounded-full border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-colors cursor-pointer">
                             <span className="material-symbols-outlined">arrow_back</span>
                         </button>
                         <div className="w-16 h-16 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xl font-black shadow-md border-4 border-white">
@@ -131,7 +143,7 @@ export default function UserProfileEdit({ params }: { params?: Promise<{ id: str
                                 {loading ? (
                                     <div className="h-8 w-48 bg-slate-200 rounded animate-pulse"></div>
                                 ) : (
-                                    `${form.firstName || "Student"} ${form.lastName}`
+                                    `${form.firstName || (userData?.role === 'bank' ? 'Bank Representative' : 'User')} ${form.lastName || ''}`
                                 )}
                             </h1>
                             <div className="flex items-center gap-3 mt-1.5 flex-wrap">
@@ -143,7 +155,7 @@ export default function UserProfileEdit({ params }: { params?: Promise<{ id: str
                                 ) : (
                                     <>
                                         <span className="bg-slate-100 text-slate-600 px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider border border-slate-200">
-                                            Student ID: {userId}
+                                            ID: {userId}
                                         </span>
                                         <span className="bg-emerald-50 text-emerald-600 px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider border border-emerald-200 flex items-center gap-1">
                                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
@@ -152,9 +164,11 @@ export default function UserProfileEdit({ params }: { params?: Promise<{ id: str
                                         <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded border flex items-center gap-1 ${
                                             userData?.role === 'admin' ? 'bg-purple-50 text-purple-600 border-purple-200' :
                                             userData?.role === 'staff' ? 'bg-indigo-50 text-indigo-600 border-indigo-200' :
+                                            userData?.role === 'bank' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                            userData?.role === 'agent' ? 'bg-amber-50 text-amber-700 border-amber-200' :
                                             'bg-blue-50 text-blue-600 border-blue-200'
                                         }`}>
-                                            {userData?.role?.charAt(0).toUpperCase() + (userData?.role?.slice(1) || 'User')}
+                                            {userData?.role ? userData.role.toUpperCase() : 'USER'}
                                         </span>
                                     </>
                                 )}

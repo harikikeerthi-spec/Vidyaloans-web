@@ -2621,4 +2621,127 @@ export class EmailService {
       console.error(`[EmailService] Failed to send document rejection email to ${email}:`, error?.message || error);
     }
   }
+
+  /**
+   * Send official welcome & activation email to newly onboarded Agent Partner
+   */
+  async sendAgentWelcomeEmail(
+    email: string,
+    agentName: string,
+    partnerId: string,
+    partnershipType: string = 'Channel Partner',
+    percentage: string | number = '1.5'
+  ) {
+    const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '');
+    const loginLink = `${frontendUrl}/agent/login`;
+
+    const mailOptions = {
+      from: `"VidyaLoans Partner Network" <${process.env.EMAIL_USER || 'noreply@vidyaloans.in'}>`,
+      to: email,
+      subject: `🎉 Congratulations ${agentName}! Your VidyaLoans Agent Partner Account is Active`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Welcome to VidyaLoans Partner Network</title>
+        </head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 30px 10px;">
+          <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1); border: 1px solid #e2e8f0;">
+            
+            <!-- Header Banner -->
+            <div style="background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #4338ca 100%); padding: 35px 30px; text-align: center;">
+              <span style="display: inline-block; background: rgba(255, 255, 255, 0.15); border: 1px solid rgba(255, 255, 255, 0.25); color: #ffffff; padding: 5px 14px; border-radius: 20px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px;">
+                Verified Partner Network
+              </span>
+              <h1 style="color: #ffffff; margin: 0 0 8px 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px;">
+                Congratulations, ${agentName}!
+              </h1>
+              <p style="color: #cbd5e1; margin: 0; font-size: 14px; font-weight: 500;">
+                You are officially activated as an Education Loan Channel Partner with VidyaLoans.
+              </p>
+            </div>
+
+            <!-- Content Area -->
+            <div style="padding: 32px 30px;">
+              <p style="font-size: 15px; color: #334155; line-height: 1.6; margin: 0 0 20px 0;">
+                Dear <strong>${agentName}</strong>,<br><br>
+                Welcome to the VidyaLoans partner ecosystem! Your agent partner profile has been reviewed, approved, and activated. You can now refer study abroad students, track loan applications in real time, and earn commission payouts.
+              </p>
+
+              <!-- Partner Credentials Card -->
+              <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 24px; margin: 24px 0;">
+                <h3 style="margin: 0 0 14px 0; font-size: 13px; font-weight: 800; color: #4338ca; text-transform: uppercase; letter-spacing: 0.8px;">
+                  Partner Account Overview
+                </h3>
+                <table cellpadding="0" cellspacing="0" width="100%" style="font-size: 14px; border-collapse: collapse;">
+                  <tr>
+                    <td style="padding: 8px 0; color: #64748b; font-weight: 600; width: 160px; border-bottom: 1px dashed #e2e8f0;">Partner ID:</td>
+                    <td style="padding: 8px 0; color: #0f172a; font-weight: 700; border-bottom: 1px dashed #e2e8f0;">
+                      <code style="background: #e0e7ff; color: #3730a3; padding: 3px 8px; border-radius: 6px; font-family: monospace;">${partnerId}</code>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0; color: #64748b; font-weight: 600; border-bottom: 1px dashed #e2e8f0;">Registered Email:</td>
+                    <td style="padding: 8px 0; color: #0f172a; font-weight: 600; border-bottom: 1px dashed #e2e8f0;">${email}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0; color: #64748b; font-weight: 600; border-bottom: 1px dashed #e2e8f0;">Partnership Tier:</td>
+                    <td style="padding: 8px 0; color: #0f172a; font-weight: 600; border-bottom: 1px dashed #e2e8f0;">${partnershipType}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0; color: #64748b; font-weight: 600;">Referral Commission:</td>
+                    <td style="padding: 8px 0; color: #059669; font-weight: 800; font-size: 15px;">${percentage}% on Disbursements</td>
+                  </tr>
+                </table>
+              </div>
+
+              <!-- How to Log In -->
+              <div style="background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 16px 20px; border-radius: 8px; margin: 24px 0;">
+                <p style="margin: 0; font-size: 13px; color: #1e40af; font-weight: 600; line-height: 1.5;">
+                  🔑 <strong>How to Access:</strong> Simply click the button below and enter your registered email address <strong>(${email})</strong>. You will receive a secure One-Time Password (OTP) to log in instantly.
+                </p>
+              </div>
+
+              <!-- CTA Button -->
+              <div style="text-align: center; margin: 32px 0 24px 0;">
+                <a href="${loginLink}" target="_blank" style="display: inline-block; background: linear-gradient(135deg, #4338ca 0%, #6366f1 100%); color: #ffffff; text-decoration: none; padding: 16px 36px; border-radius: 12px; font-weight: 700; font-size: 15px; box-shadow: 0 4px 14px rgba(67, 56, 202, 0.35);">
+                  🚀 Access Agent Partner Portal →
+                </a>
+              </div>
+
+              <p style="font-size: 12px; color: #94a3b8; text-align: center; margin: 0;">
+                Direct link: <a href="${loginLink}" style="color: #4338ca; text-decoration: underline;">${loginLink}</a>
+              </p>
+
+              <hr style="border: none; border-top: 1px solid #f1f5f9; margin: 30px 0 20px 0;" />
+              <p style="font-size: 12px; color: #94a3b8; text-align: center; margin: 0; line-height: 1.4;">
+                VidyaLoans Partner Operations Desk • Support: <a href="mailto:partners@vidyaloans.in" style="color: #6366f1;">partners@vidyaloans.in</a><br>
+                This is an official automated onboarding notification.
+              </p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+      text: `Congratulations ${agentName}!\n\nYou are officially activated as an Education Loan Channel Partner with VidyaLoans.\n\nPartner ID: ${partnerId}\nRegistered Email: ${email}\nPartnership Tier: ${partnershipType}\nCommission Rate: ${percentage}%\n\nAccess your Agent Portal here: ${loginLink}\n\nLogin using your email address and OTP.`,
+    };
+
+    try {
+      console.log(`[EmailService] Sending agent welcome email to: ${email} (Partner ID: ${partnerId})`);
+      if (this.hasCredentials()) {
+        await this.transporter.sendMail(mailOptions);
+        console.log(`[EmailService] Agent welcome email sent successfully to ${email}`);
+        return true;
+      } else {
+        console.log(`[EmailService] EMAIL CREDENTIALS NOT CONFIGURED – Agent Welcome Email logged to console:`);
+        console.log(`Target: ${email} | Login Link: ${loginLink}`);
+        return true;
+      }
+    } catch (err: any) {
+      console.error(`[EmailService] Failed to send agent welcome email to ${email}:`, err?.message || err);
+      return false;
+    }
+  }
 }

@@ -353,26 +353,43 @@ export default function AdminDashboardPage() {
     const [createUserLoading, setCreateUserLoading] = useState(false);
     const [newUserQuery, setNewUserQuery] = useState({
         email: "", firstName: "", lastName: "", middleName: "", mobile: "", role: "user", bank: "",
+        officeId: "", officeLocation: "",
         dob: "", gender: "", maritalStatus: "",
         mailingAddress: { address1: "", address2: "", city: "", state: "", country: "", pincode: "" },
         permanentAddress: { address1: "", address2: "", city: "", state: "", country: "", pincode: "" },
         passport: { number: "", issueDate: "", expiryDate: "", issueCountry: "", birthCity: "", birthCountry: "" },
         nationality: { name: "", citizenship: "", dualCitizenship: "No", dualNational: "", livingOtherCountry: "No", livingOtherCountryName: "" },
         background: { immigrationApplied: "No", immigrationAppliedCountry: "", medicalCondition: "No", medicalConditionDetails: "", visaRefusal: "No", visaRefusalDetails: "", criminalOffence: "No", criminalOffenceDetails: "" },
-        emergencyContact: { name: "", phone: "", email: "", relation: "" }
+        emergencyContact: { name: "", phone: "", email: "", relation: "" },
+        // Agent Partner specific fields
+        partnership: "Individual Consultant",
+        percentage: "1.5",
+        panNumber: "",
+        businessName: "",
+        profilePhoto: "",
+        gstin: "",
+        officeAddress: "",
+        documents: [] as { name: string; type: string; url?: string; uploadedAt?: string }[]
     });
 
     const openCreateUserModal = (defaultRole = "user") => {
+        loadOffices();
         setNewUserQuery(prev => ({
             ...prev,
             role: defaultRole,
-            bank: prev.bank || (bankPartners[0]?.shortName || "")
+            bank: ""
         }));
         setShowCreateUserModal(true);
     };
 
     const [editingUser, setEditingUser] = useState<any>(null);
     const [updateLoading, setUpdateLoading] = useState(false);
+
+    // Email User Modal State
+    const [emailModalUser, setEmailModalUser] = useState<any | null>(null);
+    const [emailSubject, setEmailSubject] = useState<string>("");
+    const [emailContent, setEmailContent] = useState<string>("");
+    const [sendingEmail, setSendingEmail] = useState<boolean>(false);
 
     // AI Review
     const [aiReview, setAiReview] = useState<any>(null);
@@ -439,6 +456,64 @@ export default function AdminDashboardPage() {
     const [resignTargetStaff, setResignTargetStaff] = useState<string>('auto');
     const [resignSubmitting, setResignSubmitting] = useState(false);
 
+    // ── Office & Work Location Management ─────────────────────────────────────
+    const [offices, setOffices] = useState<any[]>([]);
+    const [officesLoading, setOfficesLoading] = useState(false);
+    const [showAddOfficeModal, setShowAddOfficeModal] = useState(false);
+    const [newOfficeData, setNewOfficeData] = useState({ name: "", city: "", location: "" });
+    const [createOfficeLoading, setCreateOfficeLoading] = useState(false);
+
+    const loadOffices = useCallback(async () => {
+        setOfficesLoading(true);
+        try {
+            const res: any = await referenceApi.getOffices();
+            if (res && res.success && Array.isArray(res.data)) {
+                setOffices(res.data);
+            }
+        } catch (e) {
+            console.error("Error loading offices:", e);
+        } finally {
+            setOfficesLoading(false);
+        }
+    }, []);
+
+    const handleCreateOffice = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newOfficeData.name || !newOfficeData.city || !newOfficeData.location) {
+            alert("Please provide Office Name, City, and Location.");
+            return;
+        }
+        setCreateOfficeLoading(true);
+        try {
+            const res: any = await referenceApi.createOffice(newOfficeData);
+            if (res && res.success) {
+                alert("Office location created successfully!");
+                setNewOfficeData({ name: "", city: "", location: "" });
+                await loadOffices();
+                setShowAddOfficeModal(false);
+            } else {
+                alert("Failed to create office: " + (res?.message || "Unknown error"));
+            }
+        } catch (err: any) {
+            alert("Error creating office: " + (err.message || err));
+        } finally {
+            setCreateOfficeLoading(false);
+        }
+    };
+
+    const handleDeleteOffice = async (officeId: string, officeName: string) => {
+        if (!confirm(`Are you sure you want to remove office "${officeName}"?`)) return;
+        try {
+            const res: any = await referenceApi.deleteOffice(officeId);
+            if (res && res.success) {
+                setOffices(prev => prev.filter(o => o.id !== officeId));
+                alert("Office removed successfully.");
+            }
+        } catch (err: any) {
+            alert("Failed to delete office: " + (err.message || err));
+        }
+    };
+
     // ─── Data loaders ──────────────────────────────────────────────────────────
 
     const loadCommunityData = useCallback(async () => {
@@ -502,9 +577,12 @@ export default function AdminDashboardPage() {
             setData([]);
         }
         try {
-            // Always ensure bank partners are loaded for filtering & comparison
+            // Always ensure bank partners and office locations are loaded
             referenceApi.getBanks().then((res: any) => {
                 if (res?.success && Array.isArray(res.data)) setBankPartners(res.data);
+            }).catch(() => {});
+            referenceApi.getOffices().then((res: any) => {
+                if (res?.success && Array.isArray(res.data)) setOffices(res.data);
             }).catch(() => {});
 
             let res: any;
@@ -1029,25 +1107,56 @@ export default function AdminDashboardPage() {
         }
     };
 
-    const handleCreateUser = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleCreateUser = async (e?: React.FormEvent, isDraft = false) => {
+        if (e) e.preventDefault();
+        if (newUserQuery.role === 'bank' && (!newUserQuery.bank || !newUserQuery.bank.trim())) {
+            alert("Error: Please select an Assigned Lending Bank Partner before creating the Bank Representative profile.");
+            return;
+        }
         setCreateUserLoading(true);
         try {
-            const res: any = await adminApi.createUser(newUserQuery);
+            const payload = {
+                ...newUserQuery,
+                isDraft
+            };
+            const res: any = await adminApi.createUser(payload);
             if (res.success && res.user?.id) {
-                alert("New user account created successfully.");
+                const roleLabels: Record<string, string> = {
+                    bank: "Bank Representative",
+                    staff: "Staff Member",
+                    agent: "Agent Partner",
+                    user: "Student",
+                    student: "Student"
+                };
+                const label = roleLabels[newUserQuery.role] || "User";
+                if (isDraft) {
+                    alert(`Agent profile saved as Draft successfully. An onboarding email will only be sent when the profile is submitted and activated.`);
+                } else if (newUserQuery.role === 'agent') {
+                    alert(`Agent Partner profile created & activated! Congratulations welcome email with portal link sent to: ${res.user.email || ''}`);
+                } else {
+                    alert(`New ${label} account created successfully: ${res.user.email || ''}`);
+                }
                 setShowCreateUserModal(false);
                 setNewUserQuery({
                     email: "", firstName: "", lastName: "", middleName: "", mobile: "", role: "user", bank: "",
+                    officeId: "", officeLocation: "",
                     dob: "", gender: "", maritalStatus: "",
                     mailingAddress: { address1: "", address2: "", city: "", state: "", country: "", pincode: "" },
                     permanentAddress: { address1: "", address2: "", city: "", state: "", country: "", pincode: "" },
                     passport: { number: "", issueDate: "", expiryDate: "", issueCountry: "", birthCity: "", birthCountry: "" },
                     nationality: { name: "", citizenship: "", dualCitizenship: "No", dualNational: "", livingOtherCountry: "No", livingOtherCountryName: "" },
                     background: { immigrationApplied: "No", immigrationAppliedCountry: "", medicalCondition: "No", medicalConditionDetails: "", visaRefusal: "No", visaRefusalDetails: "", criminalOffence: "No", criminalOffenceDetails: "" },
-                    emergencyContact: { name: "", phone: "", email: "", relation: "" }
+                    emergencyContact: { name: "", phone: "", email: "", relation: "" },
+                    partnership: "Individual Consultant",
+                    percentage: "1.5",
+                    panNumber: "",
+                    businessName: "",
+                    profilePhoto: "",
+                    gstin: "",
+                    officeAddress: "",
+                    documents: []
                 });
-                router.push(`/admin/users/${res.user.id}`);
+                await loadData();
             } else {
                 alert("Failed to create profile: " + (res.message || "Unknown error"));
             }
@@ -1058,20 +1167,83 @@ export default function AdminDashboardPage() {
 
     const handleUpdateUser = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!editingUser.email || !editingUser.email.trim()) {
+            alert("Email Address is required.");
+            return;
+        }
         setUpdateLoading(true);
         try {
             await adminApi.updateUserDetails({
-                email: editingUser.email,
+                userId: editingUser.id,
+                email: editingUser.email.trim(),
                 firstName: editingUser.firstName,
                 lastName: editingUser.lastName,
                 phoneNumber: editingUser.phoneNumber || editingUser.mobile || "",
-                dateOfBirth: editingUser.dateOfBirth || ""
+                dateOfBirth: editingUser.dateOfBirth || "",
+                officeId: editingUser.officeId,
+                officeLocation: editingUser.officeLocation
             });
             alert("User updated successfully.");
-            setEditingUser(null); loadData();
+            setEditingUser(null);
+            loadData();
         } catch (e: any) {
             alert("Failed to update user: " + e.message);
         } finally { setUpdateLoading(false); }
+    };
+
+    const handleOpenEmailModal = (user: any) => {
+        setEmailModalUser(user);
+        setEmailSubject(`Important update from VidyaLoans Admin regarding your account`);
+        setEmailContent(`Dear ${user.firstName || 'User'},\n\nWe are reaching out regarding your profile and active services on the VidyaLoans platform.\n\nPlease feel free to reply to this email or reach out to your assigned representative if you have any questions.\n\nBest regards,\nVidyaLoans Admin Team`);
+    };
+
+    const handleSelectTemplate = (type: string) => {
+        if (!emailModalUser) return;
+        const name = emailModalUser.firstName || 'User';
+        switch (type) {
+            case 'status':
+                setEmailSubject(`Status Update: Your Education Loan Application`);
+                setEmailContent(`Dear ${name},\n\nYour application status has been reviewed and updated by our underwriting team. Please log in to your dashboard to review the latest milestones and next steps.\n\nDashboard: https://vidyaloans.in/dashboard\n\nWarm regards,\nVidyaLoans Operations Team`);
+                break;
+            case 'docs':
+                setEmailSubject(`Action Required: Verification Documents Requested`);
+                setEmailContent(`Dear ${name},\n\nTo proceed with your application, additional KYC / financial documentation is required. Please upload the requested files through your portal account at your earliest convenience.\n\nIf you have any difficulty uploading, reply to this email with the attachments.\n\nWarm regards,\nVidyaLoans Verification Desk`);
+                break;
+            case 'welcome':
+                setEmailSubject(`Welcome to VidyaLoans: Getting Started`);
+                setEmailContent(`Dear ${name},\n\nWelcome to VidyaLoans! Your profile has been successfully configured. You can now access all portal features and track your loan proposals in real time.\n\nPortal: https://vidyaloans.in\n\nBest regards,\nVidyaLoans Support`);
+                break;
+            default:
+                break;
+        }
+    };
+
+    const handleSendEmail = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!emailModalUser) return;
+        if (!emailSubject.trim() || !emailContent.trim()) {
+            alert("Subject and content are required.");
+            return;
+        }
+
+        setSendingEmail(true);
+        try {
+            const res: any = await adminApi.sendEmail({
+                to: emailModalUser.email,
+                subject: emailSubject.trim(),
+                content: emailContent.trim(),
+            });
+            if (res?.success) {
+                alert(`Email successfully dispatched to ${emailModalUser.email}!`);
+                setEmailModalUser(null);
+            } else {
+                alert(res?.message || "Failed to send email");
+            }
+        } catch (err: any) {
+            alert("Error sending email: " + (err?.message || err));
+        } finally {
+            setSendingEmail(false);
+        }
     };
 
     const handleDeleteUser = async (userId: string, userName: string) => {
@@ -2222,36 +2394,6 @@ export default function AdminDashboardPage() {
                     {/* ─── USERS MANAGEMENT DASHBOARD ──────────────────────────────────────── */}
                     {isUserSection && (
                         <div className="space-y-6 animate-fade-in max-w-[1400px] mx-auto">
-                            {/* Top Role Category Navigation Pill Tabs */}
-                            <div className="flex flex-wrap items-center gap-2 p-1.5 bg-slate-200/50 rounded-2xl border border-slate-200/80 w-fit">
-                                {[
-                                    { sec: "users_students", label: "Students / Users", icon: "school", count: stats.studentCount || 0 },
-                                    { sec: "users_staff", label: "Staff Operations", icon: "badge", count: stats.staffCount || 0 },
-                                    { sec: "users_agents", label: "Agents & Partners", icon: "support_agent", count: stats.agentCount || 0 },
-                                    { sec: "users_banks", label: "Bank Representatives", icon: "account_balance", count: stats.bankCount || 0 },
-                                ].map(tab => (
-                                    <button
-                                        key={tab.sec}
-                                        onClick={() => setActiveSection(tab.sec)}
-                                        className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
-                                            activeSection === tab.sec
-                                                ? 'bg-white text-indigo-700 shadow-sm font-bold border border-slate-200/80'
-                                                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-                                        }`}
-                                    >
-                                        <span className="material-symbols-outlined text-[17px]">{tab.icon}</span>
-                                        <span>{tab.label}</span>
-                                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                                            activeSection === tab.sec
-                                                ? 'bg-indigo-50 text-indigo-700 border border-indigo-200/60'
-                                                : 'bg-slate-200/80 text-slate-600'
-                                        }`}>
-                                            {tab.count}
-                                        </span>
-                                    </button>
-                                ))}
-                            </div>
-
                             {/* Section Header */}
                             <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
                                 <div>
@@ -2276,13 +2418,31 @@ export default function AdminDashboardPage() {
                                          `Managing ${stats.userCount || 0} authenticated platform identity nodes`}
                                     </p>
                                 </div>
-                                <div className="flex gap-2">
+                                <div className="flex gap-2 items-center">
+                                    {activeSection === "users_staff" && (
+                                        <button 
+                                            onClick={() => {
+                                                loadOffices();
+                                                setShowAddOfficeModal(true);
+                                            }} 
+                                            className="px-3.5 py-2 bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300 rounded-lg text-xs font-semibold transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                                            title="Register new office location (Location, City, Office)"
+                                        >
+                                            <span className="material-symbols-outlined text-[16px] text-indigo-600">domain_add</span>
+                                            Add Office
+                                        </button>
+                                    )}
                                     <button 
-                                        onClick={() => openCreateUserModal(
-                                            activeSection === "users_staff" ? "staff" :
-                                            activeSection === "users_agents" ? "agent" :
-                                            activeSection === "users_banks" ? "bank" : "user"
-                                        )} 
+                                        onClick={() => {
+                                            if (activeSection === "users_agents") {
+                                                router.push("/admin/users/agents/create");
+                                            } else {
+                                                openCreateUserModal(
+                                                    activeSection === "users_staff" ? "staff" :
+                                                    activeSection === "users_banks" ? "bank" : "user"
+                                                );
+                                            }
+                                        }} 
                                         className="px-3.5 py-2 bg-indigo-600 text-white rounded-lg text-xs font-semibold hover:bg-indigo-700 transition-colors shadow-sm flex items-center gap-1.5 cursor-pointer"
                                     >
                                         <span className="material-symbols-outlined text-[16px]">person_add</span>
@@ -2396,11 +2556,16 @@ export default function AdminDashboardPage() {
                                         )}
                                         {selectedUsers.length > 0 && (
                                             <button
-                                                disabled
-                                                className="px-3 py-1.5 bg-slate-300 text-slate-500 rounded text-[10px] font-semibold uppercase tracking-wider cursor-not-allowed"
-                                                title="Email feature disabled"
+                                                type="button"
+                                                onClick={() => {
+                                                    const firstSelected = (filteredData || []).find((u: any) => selectedUsers.includes(u.id));
+                                                    if (firstSelected) handleOpenEmailModal(firstSelected);
+                                                }}
+                                                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[10px] font-semibold uppercase tracking-wider cursor-pointer shadow-xs transition-all flex items-center gap-1.5"
+                                                title="Send email to selected user"
                                             >
-                                                Email {selectedUsers.length}
+                                                <span className="material-symbols-outlined text-[13px]">mail</span>
+                                                Email ({selectedUsers.length})
                                             </button>
                                         )}
                                     </div>
@@ -2453,8 +2618,40 @@ export default function AdminDashboardPage() {
                                                                         {item.isOnLeave && (
                                                                             <span className="text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">On Leave</span>
                                                                         )}
+                                                                        {(item.role === 'agent' || item.isDraft || item.status === 'draft') && (
+                                                                            item.isDraft || item.status === 'draft' ? (
+                                                                                <span className="text-[9px] font-extrabold text-amber-800 bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                                                                                    <span className="material-symbols-outlined text-[10px]">edit_document</span>
+                                                                                    Draft
+                                                                                </span>
+                                                                            ) : (
+                                                                                <span className="text-[9px] font-extrabold text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                                                                                    <span className="material-symbols-outlined text-[10px]">verified</span>
+                                                                                    Active Partner
+                                                                                </span>
+                                                                            )
+                                                                        )}
                                                                     </p>
-                                                                    <p className="text-[10px] text-slate-500 font-medium">{item.email}</p>
+                                                                    <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                                                                        <p className="text-[10px] text-slate-500 font-medium">{item.email}</p>
+                                                                        {(item.officeLocation || item.officeId) && (
+                                                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100" title={`Assigned Office: ${item.officeLocation || item.officeId}`}>
+                                                                                <span className="material-symbols-outlined text-[11px] text-indigo-500">apartment</span>
+                                                                                {item.officeLocation ? item.officeLocation.split(' - ')[0] : 'Office'}
+                                                                            </span>
+                                                                        )}
+                                                                        {item.role === 'agent' && (item.partnership || item.percentage) && (
+                                                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                                                                                <span className="material-symbols-outlined text-[11px] text-amber-600">handshake</span>
+                                                                                {item.partnership || 'Partner'} {item.percentage ? `· ${item.percentage}%` : ''}
+                                                                            </span>
+                                                                        )}
+                                                                        {item.role === 'agent' && item.panNumber && (
+                                                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono bg-slate-100 text-slate-700 border border-slate-200" title="PAN Number">
+                                                                                PAN: {item.panNumber}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
                                                                 </div>
                                                             </button>
                                                         </td>
@@ -2538,20 +2735,17 @@ export default function AdminDashboardPage() {
                                                         <td className="px-5 py-3 text-right">
                                                             <div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
                                                                 <button
-                                                                    onClick={() => handleViewUserProfile(item, item.role === 'bank' ? 'bank_compare' : 'credentials')}
-                                                                    className={`p-1.5 rounded transition-all border cursor-pointer ${
-                                                                        item.role === 'bank' 
-                                                                            ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border-emerald-200 shadow-xs' 
-                                                                            : 'text-slate-400 hover:text-indigo-600 rounded hover:bg-indigo-50 border-transparent hover:border-indigo-100'
-                                                                    }`}
-                                                                    title={item.role === 'bank' ? "Compare Bank Profile & Partners" : "View Identity Profile"}
+                                                                    onClick={() => window.open(`/admin/user-details/${item.id}`, '_blank')}
+                                                                    className="p-1.5 text-slate-400 hover:text-indigo-600 rounded hover:bg-indigo-50 transition-all border border-transparent hover:border-indigo-100 cursor-pointer"
+                                                                    title="View Identity Profile"
                                                                 >
-                                                                    <span className="material-symbols-outlined text-[16px]">{item.role === 'bank' ? 'compare_arrows' : 'visibility'}</span>
+                                                                    <span className="material-symbols-outlined text-[16px]">visibility</span>
                                                                 </button>
                                                                 <button
-                                                                    disabled
-                                                                    className="p-1.5 text-slate-400 hover:text-indigo-600 rounded hover:bg-indigo-50 transition-all border border-transparent hover:border-indigo-100"
-                                                                    title="Email User"
+                                                                    type="button"
+                                                                    onClick={() => handleOpenEmailModal(item)}
+                                                                    className="p-1.5 text-slate-400 hover:text-indigo-600 rounded hover:bg-indigo-50 transition-all border border-transparent hover:border-indigo-100 cursor-pointer"
+                                                                    title="Send Email to User"
                                                                 >
                                                                     <span className="material-symbols-outlined text-[16px]">mail</span>
                                                                 </button>
@@ -3727,73 +3921,597 @@ export default function AdminDashboardPage() {
                 }
             `}</style>
 
-            {/* ─── Create User Modal ──────────────────────────────────────── */}
+            {/* ─── Create User / Staff Modal ─────────────────────────────── */}
+            {/* ─── Create User / Staff Modal ─────────────────────────────── */}
             {showCreateUserModal && (
-                <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={() => setShowCreateUserModal(false)} />
-                    <div className="relative w-full max-w-4xl glass-card bg-white rounded-[2.5rem] shadow-2xl overflow-hidden animate-fade-in flex flex-col max-h-[90vh]">
-                        <div className="p-10 pb-6 border-b border-gray-100 shrink-0">
-                            <h3 className="text-2xl font-black font-display text-gray-900 mb-2 flex items-center gap-3">
-                                <span className="material-symbols-outlined text-[#6605c7]">
-                                    {newUserQuery.role === 'staff' ? 'badge' :
-                                     newUserQuery.role === 'agent' ? 'support_agent' :
-                                     newUserQuery.role === 'bank' ? 'account_balance' : 'school'}
-                                </span>
-                                {newUserQuery.role === 'staff' ? 'Create Staff Profile' :
-                                 newUserQuery.role === 'agent' ? 'Create Agent Partner Profile' :
-                                 newUserQuery.role === 'bank' ? 'Create Bank Representative Profile' : 'Create Student Profile'}
-                            </h3>
-                            <p className="text-xs font-medium text-gray-500">
-                                {newUserQuery.role === 'staff' ? 'Register and onboard a new loan processing officer or operations staff member.' :
-                                 newUserQuery.role === 'agent' ? 'Register a new education consultant or referral channel partner.' :
-                                 newUserQuery.role === 'bank' ? 'Register a new lending partner officer or bank representative.' :
-                                 'Comprehensive registration and account setup for study abroad student applicants.'}
-                            </p>
+                (newUserQuery.role === 'staff' || newUserQuery.role === 'staff_admin') ? (
+                    <div 
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="create-staff-modal-title"
+                        className="fixed inset-0 z-[70] flex items-center justify-center p-4 sm:p-6"
+                    >
+                        <div 
+                            className="absolute inset-0 bg-slate-950/60 backdrop-blur-xs transition-opacity" 
+                            onClick={() => setShowCreateUserModal(false)} 
+                        />
+                        <div className="relative w-full max-w-[540px] bg-white rounded-xl shadow-2xl overflow-hidden border border-[#E2E8F0] flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
+                            {/* 1. Header (Left-Aligned with 1px Divider) */}
+                            <div className="px-6 py-5 border-b border-[#E2E8F0] shrink-0 flex items-start justify-between gap-4 bg-white">
+                                <div className="min-w-0">
+                                    <h3 id="create-staff-modal-title" className="text-lg font-bold text-slate-900 tracking-tight">
+                                        Create Staff Profile
+                                    </h3>
+                                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                                        Register and onboard a new loan processing officer, verification staff, or team lead.
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowCreateUserModal(false)}
+                                    aria-label="Close dialog"
+                                    className="w-8 h-8 rounded-md flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
+                                >
+                                    <span className="material-symbols-outlined text-[20px]" aria-hidden="true">close</span>
+                                </button>
+                            </div>
+
+                            {/* 2 & 3. Form Area (Unified Pure White Background, 4-6px inputs, no icons, tight asterisks) */}
+                            <div className="overflow-y-auto p-6 bg-white flex-1">
+                                <form id="staff-creation-form" onSubmit={handleCreateUser} className="space-y-6">
+                                    {/* Section 1: Basic Information */}
+                                    <div>
+                                        <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-4">
+                                            Basic Information
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label htmlFor="create-staff-first-name" className="text-[13px] font-medium text-slate-700 mb-1.5 block">
+                                                    First Name<span className="text-rose-500">*</span>
+                                                </label>
+                                                <input 
+                                                    id="create-staff-first-name"
+                                                    required 
+                                                    type="text" 
+                                                    value={newUserQuery.firstName} 
+                                                    onChange={e => setNewUserQuery({ ...newUserQuery, firstName: e.target.value })} 
+                                                    className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-[6px] text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400" 
+                                                    placeholder="E.g. Hari" 
+                                                />
+                                            </div>
+                                            <div>
+                                                <label htmlFor="create-staff-last-name" className="text-[13px] font-medium text-slate-700 mb-1.5 block">
+                                                    Last Name<span className="text-rose-500">*</span>
+                                                </label>
+                                                <input 
+                                                    id="create-staff-last-name"
+                                                    required 
+                                                    type="text" 
+                                                    value={newUserQuery.lastName} 
+                                                    onChange={e => setNewUserQuery({ ...newUserQuery, lastName: e.target.value })} 
+                                                    className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-[6px] text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400" 
+                                                    placeholder="E.g. Kalyan" 
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-4 mt-4">
+                                            <div>
+                                                <label htmlFor="create-staff-email" className="text-[13px] font-medium text-slate-700 mb-1.5 block">
+                                                    Email Address<span className="text-rose-500">*</span>
+                                                </label>
+                                                <input 
+                                                    id="create-staff-email"
+                                                    required 
+                                                    type="email" 
+                                                    value={newUserQuery.email} 
+                                                    onChange={e => setNewUserQuery({ ...newUserQuery, email: e.target.value })} 
+                                                    className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-[6px] text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400" 
+                                                    placeholder="staff.name@vidyaloans.com" 
+                                                />
+                                            </div>
+                                            <div>
+                                                <label htmlFor="create-staff-mobile" className="text-[13px] font-medium text-slate-700 mb-1.5 block">
+                                                    Mobile Number<span className="text-rose-500">*</span>
+                                                </label>
+                                                <input 
+                                                    id="create-staff-mobile"
+                                                    required 
+                                                    type="tel" 
+                                                    value={newUserQuery.mobile} 
+                                                    onChange={e => setNewUserQuery({ ...newUserQuery, mobile: e.target.value })} 
+                                                    className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-[6px] text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400" 
+                                                    placeholder="+91 98765 43210" 
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Standard 1px Section Divider */}
+                                    <div className="border-t border-[#E2E8F0]" />
+
+                                    {/* Section 2: Office & Work Location */}
+                                    <div>
+                                        <div className="flex items-center justify-between mb-3">
+                                            <label htmlFor="create-staff-office" className="text-xs font-semibold uppercase tracking-wider text-slate-500 block">
+                                                Office & Work Location<span className="text-rose-500">*</span>
+                                            </label>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    loadOffices();
+                                                    setShowAddOfficeModal(true);
+                                                }}
+                                                className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-slate-600 bg-white border border-[#CBD5E1] rounded-[6px] hover:bg-slate-50 hover:border-slate-400 hover:text-slate-900 transition-colors cursor-pointer"
+                                            >
+                                                <span className="material-symbols-outlined text-[14px]">add</span>
+                                                Add Office
+                                            </button>
+                                        </div>
+
+                                        <select
+                                            id="create-staff-office"
+                                            required
+                                            value={newUserQuery.officeId || ""}
+                                            onChange={e => {
+                                                const selected = offices.find(o => o.id === e.target.value);
+                                                setNewUserQuery({
+                                                    ...newUserQuery,
+                                                    officeId: e.target.value,
+                                                    officeLocation: selected ? `${selected.name} - ${selected.city} (${selected.location})` : ""
+                                                });
+                                            }}
+                                            className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-[6px] text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 cursor-pointer"
+                                        >
+                                            <option value="">-- Select Office Location ({offices.length} Registered) --</option>
+                                            {offices.map((off: any) => (
+                                                <option key={off.id} value={off.id}>
+                                                    {off.name} · {off.city} ({off.location})
+                                                </option>
+                                            ))}
+                                        </select>
+
+                                        {/* 4. Inline Alert Box for Helper Text */}
+                                        <div className="bg-slate-50 border border-[#E2E8F0] rounded-[4px] p-3 flex items-start gap-2.5 mt-3">
+                                            <span className="material-symbols-outlined text-slate-400 text-[18px] shrink-0 mt-0.5">info</span>
+                                            <p className="text-[12px] text-slate-600 leading-relaxed">
+                                                Assigns the staff member to an operational branch and sets their queue allocation. Staff can log in directly at <code className="bg-slate-200/70 px-1 py-0.5 rounded text-slate-800 font-mono text-[11px]">/staff/login</code>.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+
+                            {/* 5. Sticky Action Footer (Right-Aligned Buttons) */}
+                            <div className="sticky bottom-0 bg-white border-t border-[#E2E8F0] px-6 py-4 flex items-center justify-end gap-3 z-10 shrink-0">
+                                <button 
+                                    type="button" 
+                                    onClick={() => setShowCreateUserModal(false)} 
+                                    className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-[6px] transition-colors cursor-pointer"
+                                >
+                                    Cancel
+                                </button>
+                                <button 
+                                    form="staff-creation-form" 
+                                    type="submit" 
+                                    disabled={createUserLoading} 
+                                    className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white text-sm font-medium rounded-[6px] shadow-sm transition-all flex items-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                                >
+                                    {createUserLoading ? (
+                                        <>
+                                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                            <span>Creating...</span>
+                                        </>
+                                    ) : (
+                                        <span>Create Staff Profile</span>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                ) : (
+                <div 
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="create-user-modal-title"
+                    className="fixed inset-0 z-[70] flex items-center justify-center p-4 sm:p-6"
+                >
+                    <div 
+                        className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm transition-opacity" 
+                        onClick={() => setShowCreateUserModal(false)} 
+                    />
+                    <div className="relative w-full max-w-3xl bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200/80 flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
+                        {/* Modal Header */}
+                        <div className="p-6 sm:p-8 pb-5 border-b border-slate-100 shrink-0 flex items-start justify-between gap-4 bg-slate-50/50">
+                            <div className="flex items-center gap-3.5">
+                                <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center shrink-0 shadow-xs">
+                                    <span className="material-symbols-outlined text-2xl">
+                                        {newUserQuery.role === 'staff' || newUserQuery.role === 'staff_admin' ? 'badge' :
+                                         newUserQuery.role === 'agent' ? 'support_agent' :
+                                         newUserQuery.role === 'bank' ? 'account_balance' : 'school'}
+                                    </span>
+                                </div>
+                                <div>
+                                    <h3 id="create-user-modal-title" className="text-xl sm:text-2xl font-bold font-display text-slate-900 tracking-tight flex items-center gap-2">
+                                        {newUserQuery.role === 'staff' || newUserQuery.role === 'staff_admin' ? 'Create Staff Profile' :
+                                         newUserQuery.role === 'agent' ? 'Create Agent Partner Profile' :
+                                         newUserQuery.role === 'bank' ? 'Create Bank Representative Profile' : 'Create Student Profile'}
+                                    </h3>
+                                    <p className="text-xs sm:text-sm font-normal text-slate-500 mt-0.5">
+                                        {newUserQuery.role === 'staff' || newUserQuery.role === 'staff_admin' ? 'Register and onboard a new loan processing officer, verification staff, or team lead.' :
+                                         newUserQuery.role === 'agent' ? 'Register a new education consultant or referral channel partner.' :
+                                         newUserQuery.role === 'bank' ? 'Register a new lending partner officer or bank representative.' :
+                                         'Comprehensive registration and account setup for study abroad student applicants.'}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Accessible Large Close Button (48x48px target) outside form inputs */}
+                            <button
+                                type="button"
+                                onClick={() => setShowCreateUserModal(false)}
+                                aria-label="Close dialog"
+                                className="w-12 h-12 -mr-2 -mt-2 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shrink-0"
+                            >
+                                <span className="material-symbols-outlined text-2xl" aria-hidden="true">close</span>
+                            </button>
                         </div>
 
-                        <div className="overflow-y-auto no-scrollbar p-10 pt-6 space-y-8">
-                            <form id="student-creation-form" onSubmit={handleCreateUser} className="space-y-8">
+                        {/* Modal Body */}
+                        <div className="overflow-y-auto no-scrollbar p-6 sm:p-8 space-y-6">
+                            <form id="student-creation-form" onSubmit={handleCreateUser} className="space-y-6">
                                 <section>
-                                    <div className="flex items-center gap-2 mb-6 text-indigo-600 font-bold text-xs uppercase tracking-widest">
-                                        <span className="material-symbols-outlined text-lg">face</span>
+                                    <div className="flex items-center gap-2 mb-5 text-indigo-600 font-bold text-xs uppercase tracking-widest">
+                                        <span className="material-symbols-outlined text-base">face</span>
                                         Basic Information
                                     </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                                         <div>
-                                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 block ml-1">First Name*</label>
-                                            <input required type="text" value={newUserQuery.firstName} onChange={e => setNewUserQuery({ ...newUserQuery, firstName: e.target.value })} className="w-full px-5 py-3.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#6605c7]/10 transition-all font-medium" placeholder="E.g. Hari" />
+                                            <label htmlFor="create-user-first-name" className="text-xs font-bold text-slate-700 mb-1.5 block">
+                                                First Name <span className="text-rose-500">*</span>
+                                            </label>
+                                            <input 
+                                                id="create-user-first-name"
+                                                required 
+                                                type="text" 
+                                                value={newUserQuery.firstName} 
+                                                onChange={e => setNewUserQuery({ ...newUserQuery, firstName: e.target.value })} 
+                                                className="w-full min-h-[48px] px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400" 
+                                                placeholder="E.g. Hari" 
+                                            />
                                         </div>
                                         <div>
-                                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 block ml-1">Last Name*</label>
-                                            <input required type="text" value={newUserQuery.lastName} onChange={e => setNewUserQuery({ ...newUserQuery, lastName: e.target.value })} className="w-full px-5 py-3.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#6605c7]/10 transition-all font-medium" placeholder="E.g. Kalyan" />
+                                            <label htmlFor="create-user-last-name" className="text-xs font-bold text-slate-700 mb-1.5 block">
+                                                Last Name <span className="text-rose-500">*</span>
+                                            </label>
+                                            <input 
+                                                id="create-user-last-name"
+                                                required 
+                                                type="text" 
+                                                value={newUserQuery.lastName} 
+                                                onChange={e => setNewUserQuery({ ...newUserQuery, lastName: e.target.value })} 
+                                                className="w-full min-h-[48px] px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400" 
+                                                placeholder="E.g. Kalyan" 
+                                            />
                                         </div>
                                     </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mt-4">
                                         <div>
-                                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 block ml-1">Email Address*</label>
+                                            <label htmlFor="create-user-email" className="text-xs font-bold text-slate-700 mb-1.5 block">
+                                                Email Address <span className="text-rose-500">*</span>
+                                            </label>
                                             <div className="relative">
-                                                <input required type="email" value={newUserQuery.email} onChange={e => setNewUserQuery({ ...newUserQuery, email: e.target.value })} className="w-full pl-12 pr-5 py-3.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#6605c7]/10 transition-all font-medium" placeholder="example@gmail.com" />
-                                                <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-lg">mail</span>
+                                                <input 
+                                                    id="create-user-email"
+                                                    required 
+                                                    type="email" 
+                                                    value={newUserQuery.email} 
+                                                    onChange={e => setNewUserQuery({ ...newUserQuery, email: e.target.value })} 
+                                                    className="w-full min-h-[48px] pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400" 
+                                                    placeholder={newUserQuery.role === 'staff' ? 'staff.name@vidyaloans.com' : 'example@gmail.com'} 
+                                                />
+                                                <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-lg pointer-events-none">mail</span>
                                             </div>
                                         </div>
                                         <div>
-                                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 block ml-1">Mobile Number*</label>
+                                            <label htmlFor="create-user-mobile" className="text-xs font-bold text-slate-700 mb-1.5 block">
+                                                Mobile Number <span className="text-rose-500">*</span>
+                                            </label>
                                             <div className="relative">
-                                                <input required type="tel" value={newUserQuery.mobile} onChange={e => setNewUserQuery({ ...newUserQuery, mobile: e.target.value })} className="w-full pl-12 pr-5 py-3.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#6605c7]/10 transition-all font-medium" placeholder="+91 0000000000" />
-                                                <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-lg">call</span>
+                                                <input 
+                                                    id="create-user-mobile"
+                                                    required 
+                                                    type="tel" 
+                                                    value={newUserQuery.mobile} 
+                                                    onChange={e => setNewUserQuery({ ...newUserQuery, mobile: e.target.value })} 
+                                                    className="w-full min-h-[48px] pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400" 
+                                                    placeholder="+91 98765 43210" 
+                                                />
+                                                <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-lg pointer-events-none">call</span>
                                             </div>
                                         </div>
                                     </div>
 
+                                    {/* Office Location for Staff */}
+                                    {newUserQuery.role === 'staff' && (
+                                        <div className="mt-6 p-5 sm:p-6 rounded-2xl bg-indigo-50/70 border border-indigo-100/90 space-y-3">
+                                            <div>
+                                                <div className="flex items-center justify-between mb-1.5">
+                                                    <label htmlFor="create-staff-office" className="text-xs font-bold text-indigo-950 block">
+                                                        Office & Work Location <span className="text-rose-500">*</span>
+                                                    </label>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            loadOffices();
+                                                            setShowAddOfficeModal(true);
+                                                        }}
+                                                        className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 bg-white px-2.5 py-1 rounded-lg border border-indigo-200 shadow-2xs hover:bg-indigo-50 transition-all cursor-pointer"
+                                                    >
+                                                        <span className="material-symbols-outlined text-[15px]">add_circle</span>
+                                                        Add Office
+                                                    </button>
+                                                </div>
+                                                <select
+                                                    id="create-staff-office"
+                                                    value={newUserQuery.officeId || ""}
+                                                    onChange={e => {
+                                                        const selected = offices.find(o => o.id === e.target.value);
+                                                        setNewUserQuery({
+                                                            ...newUserQuery,
+                                                            officeId: e.target.value,
+                                                            officeLocation: selected ? `${selected.name} - ${selected.city} (${selected.location})` : ""
+                                                        });
+                                                    }}
+                                                    className="w-full min-h-[48px] px-4 py-3 bg-white border border-indigo-200 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 cursor-pointer shadow-xs"
+                                                >
+                                                    <option value="">-- Select Office Location ({offices.length} Registered) --</option>
+                                                    {offices.map((off: any) => (
+                                                        <option key={off.id} value={off.id}>
+                                                            {off.name} · {off.city} ({off.location})
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+
+                                            <div className="flex items-start gap-2 pt-1">
+                                                <span className="material-symbols-outlined text-indigo-600 text-base mt-0.5 shrink-0">info</span>
+                                                <p className="text-xs text-indigo-900/80 font-medium leading-relaxed">
+                                                    Assigns the staff member to an operational branch and sets their queue allocation. Staff can log in directly at <code className="bg-indigo-100 px-1 py-0.5 rounded text-indigo-800 font-mono">/staff/login</code>.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Agent Partner Specific Details */}
+                                    {newUserQuery.role === 'agent' && (
+                                        <div className="mt-6 p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-amber-50/80 via-orange-50/40 to-amber-50/90 border border-amber-200/80 space-y-5 shadow-xs">
+                                            <div className="flex items-center justify-between border-b border-amber-200/60 pb-3">
+                                                <div className="flex items-center gap-2 text-amber-900 font-bold text-xs uppercase tracking-wider">
+                                                    <span className="material-symbols-outlined text-amber-600 text-lg">handshake</span>
+                                                    Channel Partnership & Compliance Setup
+                                                </div>
+                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                                                    Draft Enabled
+                                                </span>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                                                <div>
+                                                    <label htmlFor="create-agent-partnership" className="text-xs font-bold text-slate-800 mb-1.5 block">
+                                                        Partnership Type / Channel <span className="text-rose-500">*</span>
+                                                    </label>
+                                                    <select
+                                                        id="create-agent-partnership"
+                                                        value={newUserQuery.partnership || "Individual Consultant"}
+                                                        onChange={e => setNewUserQuery({ ...newUserQuery, partnership: e.target.value })}
+                                                        className="w-full min-h-[48px] px-4 py-3 bg-white border border-amber-300/80 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/30 cursor-pointer shadow-xs"
+                                                    >
+                                                        <option value="Individual Consultant">Individual Education Consultant</option>
+                                                        <option value="Study Abroad Consultancy">Study Abroad Consultancy / Firm</option>
+                                                        <option value="University Referral Partner">University Referral Partner</option>
+                                                        <option value="Corporate Channel Partner">Corporate Channel Partner</option>
+                                                        <option value="Financial Advisor">Financial Advisor / DSA</option>
+                                                    </select>
+                                                </div>
+
+                                                <div>
+                                                    <label htmlFor="create-agent-percentage" className="text-xs font-bold text-slate-800 mb-1.5 block">
+                                                        Commission Rate (%) <span className="text-rose-500">*</span>
+                                                    </label>
+                                                    <div className="relative">
+                                                        <input
+                                                            id="create-agent-percentage"
+                                                            type="number"
+                                                            step="0.1"
+                                                            min="0"
+                                                            max="25"
+                                                            value={newUserQuery.percentage || "1.5"}
+                                                            onChange={e => setNewUserQuery({ ...newUserQuery, percentage: e.target.value })}
+                                                            className="w-full min-h-[48px] pl-4 pr-11 py-3 bg-white border border-amber-300/80 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/30 shadow-xs"
+                                                            placeholder="1.5"
+                                                        />
+                                                        <span className="material-symbols-outlined absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-lg pointer-events-none">percent</span>
+                                                    </div>
+                                                    <p className="text-[10px] text-slate-500 mt-1">Agreed payout % on disbursed student loan value.</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                                                <div>
+                                                    <label htmlFor="create-agent-pan" className="text-xs font-bold text-slate-800 mb-1.5 block">
+                                                        Agent / Company PAN Number <span className="text-rose-500">*</span>
+                                                    </label>
+                                                    <div className="relative">
+                                                        <input
+                                                            id="create-agent-pan"
+                                                            type="text"
+                                                            maxLength={10}
+                                                            value={newUserQuery.panNumber || ""}
+                                                            onChange={e => setNewUserQuery({ ...newUserQuery, panNumber: e.target.value.toUpperCase() })}
+                                                            className="w-full min-h-[48px] pl-11 pr-4 py-3 bg-white border border-amber-300/80 rounded-xl text-sm font-semibold tracking-wider text-slate-900 uppercase focus:outline-none focus:ring-2 focus:ring-amber-500/30 shadow-xs"
+                                                            placeholder="ABCDE1234F"
+                                                        />
+                                                        <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-amber-600 text-lg pointer-events-none">badge</span>
+                                                    </div>
+                                                </div>
+
+                                                <div>
+                                                    <label htmlFor="create-agent-business" className="text-xs font-bold text-slate-800 mb-1.5 block">
+                                                        Business / Consultancy Name
+                                                    </label>
+                                                    <div className="relative">
+                                                        <input
+                                                            id="create-agent-business"
+                                                            type="text"
+                                                            value={newUserQuery.businessName || ""}
+                                                            onChange={e => setNewUserQuery({ ...newUserQuery, businessName: e.target.value })}
+                                                            className="w-full min-h-[48px] pl-11 pr-4 py-3 bg-white border border-amber-300/80 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/30 shadow-xs"
+                                                            placeholder="E.g. Global EdTech Advisors"
+                                                        />
+                                                        <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-lg pointer-events-none">business</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                                                <div>
+                                                    <label htmlFor="create-agent-gstin" className="text-xs font-bold text-slate-800 mb-1.5 block">
+                                                        GSTIN / Registration No. (Optional)
+                                                    </label>
+                                                    <input
+                                                        id="create-agent-gstin"
+                                                        type="text"
+                                                        value={newUserQuery.gstin || ""}
+                                                        onChange={e => setNewUserQuery({ ...newUserQuery, gstin: e.target.value.toUpperCase() })}
+                                                        className="w-full min-h-[48px] px-4 py-3 bg-white border border-amber-300/80 rounded-xl text-sm font-medium uppercase text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/30 shadow-xs"
+                                                        placeholder="22AAAAA0000A1Z5"
+                                                    />
+                                                </div>
+
+                                                <div>
+                                                    <label htmlFor="create-agent-photo" className="text-xs font-bold text-slate-800 mb-1.5 block">
+                                                        Profile Photo URL or File
+                                                    </label>
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-12 h-12 rounded-xl border border-amber-200 bg-white overflow-hidden flex items-center justify-center shrink-0 shadow-2xs">
+                                                            {newUserQuery.profilePhoto ? (
+                                                                <img src={newUserQuery.profilePhoto} alt="Preview" className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                <span className="material-symbols-outlined text-amber-500 text-2xl">account_circle</span>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex-1 flex gap-2">
+                                                            <input
+                                                                id="create-agent-photo"
+                                                                type="text"
+                                                                value={newUserQuery.profilePhoto || ""}
+                                                                onChange={e => setNewUserQuery({ ...newUserQuery, profilePhoto: e.target.value })}
+                                                                className="flex-1 min-h-[48px] px-3 py-2 bg-white border border-amber-300/80 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/30 shadow-xs"
+                                                                placeholder="https://... or upload"
+                                                            />
+                                                            <label className="min-h-[48px] px-3.5 bg-white hover:bg-amber-50 text-amber-800 border border-amber-300/80 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs transition-all shrink-0">
+                                                                <span className="material-symbols-outlined text-sm">upload</span>
+                                                                <span>Upload</span>
+                                                                <input
+                                                                    type="file"
+                                                                    accept="image/*"
+                                                                    className="hidden"
+                                                                    onChange={e => {
+                                                                        const file = e.target.files?.[0];
+                                                                        if (file) {
+                                                                            const reader = new FileReader();
+                                                                            reader.onload = () => {
+                                                                                setNewUserQuery(prev => ({ ...prev, profilePhoto: reader.result as string }));
+                                                                            };
+                                                                            reader.readAsDataURL(file);
+                                                                        }
+                                                                    }}
+                                                                />
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Document Checklist & Uploads */}
+                                            <div className="pt-2">
+                                                <label className="text-xs font-bold text-slate-800 mb-2 block flex items-center justify-between">
+                                                    <span>Agent KYC & Agreement Documents</span>
+                                                    <span className="text-[10px] font-normal text-slate-500">Attach now or Save as Draft to complete later</span>
+                                                </label>
+                                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                                    {[
+                                                        { key: 'pan_card', label: 'PAN Card Copy' },
+                                                        { key: 'business_registration', label: 'Registration / GST' },
+                                                        { key: 'signed_agreement', label: 'Partner Agreement' }
+                                                    ].map(doc => {
+                                                        const isUploaded = (newUserQuery.documents || []).some(d => d.type === doc.key);
+                                                        return (
+                                                            <label 
+                                                                key={doc.key}
+                                                                className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-all ${
+                                                                    isUploaded 
+                                                                        ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
+                                                                        : 'bg-white border-dashed border-amber-300 hover:border-amber-400 text-slate-600'
+                                                                }`}
+                                                            >
+                                                                <span className="material-symbols-outlined text-xl">
+                                                                    {isUploaded ? 'task_alt' : 'note_add'}
+                                                                </span>
+                                                                <span className="text-xs font-bold text-center leading-tight">{doc.label}</span>
+                                                                <span className="text-[10px] text-slate-400">
+                                                                    {isUploaded ? 'Attached ✓' : 'Click to attach'}
+                                                                </span>
+                                                                <input
+                                                                    type="file"
+                                                                    className="hidden"
+                                                                    onChange={e => {
+                                                                        const file = e.target.files?.[0];
+                                                                        if (file) {
+                                                                            setNewUserQuery(prev => {
+                                                                                const updatedDocs = (prev.documents || []).filter(d => d.type !== doc.key);
+                                                                                return {
+                                                                                    ...prev,
+                                                                                    documents: [
+                                                                                        ...updatedDocs,
+                                                                                        {
+                                                                                            name: file.name,
+                                                                                            type: doc.key,
+                                                                                            uploadedAt: new Date().toISOString()
+                                                                                        }
+                                                                                    ]
+                                                                                };
+                                                                            });
+                                                                        }
+                                                                    }}
+                                                                />
+                                                            </label>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+
+                                            <div className="p-3 bg-amber-100/60 rounded-xl border border-amber-200 text-amber-900 text-xs flex items-start gap-2">
+                                                <span className="material-symbols-outlined text-amber-700 text-base mt-0.5 shrink-0">info</span>
+                                                <p className="leading-relaxed">
+                                                    <strong>Draft Mode:</strong> If documents or PAN details are not yet complete, select <strong>"Save as Draft"</strong>. No email will be sent until the agent profile is formally submitted and activated.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {newUserQuery.role === 'bank' && (
-                                        <div className="mt-6 p-5 rounded-2xl bg-emerald-50/70 border border-emerald-100">
-                                            <div className="flex items-center gap-2 mb-2">
+                                        <div className="mt-6 p-5 sm:p-6 rounded-2xl bg-emerald-50/70 border border-emerald-100 space-y-3">
+                                            <div className="flex items-center gap-2 mb-1">
                                                 <span className="material-symbols-outlined text-emerald-700 text-lg">account_balance</span>
-                                                <label className="text-[11px] font-black uppercase tracking-widest text-emerald-900 block">
-                                                    Assigned Lending Bank Partner *
+                                                <label htmlFor="create-bank-select" className="text-xs font-bold text-emerald-950 block">
+                                                    Assigned Lending Bank Partner <span className="text-rose-500">*</span>
                                                 </label>
                                             </div>
                                             <select
+                                                id="create-bank-select"
+                                                required
                                                 value={newUserQuery.bank || ""}
                                                 onChange={e => {
                                                     const selected = bankPartners.find(b => b.shortName === e.target.value);
@@ -3803,7 +4521,7 @@ export default function AdminDashboardPage() {
                                                         firstName: newUserQuery.firstName || (selected?.shortName || e.target.value)
                                                     });
                                                 }}
-                                                className="w-full px-4 py-3 bg-white border border-emerald-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 cursor-pointer shadow-xs"
+                                                className="w-full min-h-[48px] px-4 py-3 bg-white border border-emerald-300 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 cursor-pointer shadow-xs"
                                             >
                                                 <option value="">-- Select Bank Partner ({bankPartners.length} Active Partners) --</option>
                                                 {bankPartners.map((bp: any) => (
@@ -3812,7 +4530,13 @@ export default function AdminDashboardPage() {
                                                     </option>
                                                 ))}
                                             </select>
-                                            <p className="text-[10px] text-emerald-700 mt-2 font-medium">
+                                            {!newUserQuery.bank && (
+                                                <p className="text-[11px] text-rose-600 font-bold flex items-center gap-1">
+                                                    <span className="material-symbols-outlined text-[13px]">warning</span>
+                                                    Selecting a bank partner is required before submitting.
+                                                </p>
+                                            )}
+                                            <p className="text-xs text-emerald-800 font-medium">
                                                 Links the officer profile to the selected lender's underwriting portal, auto-allocation queue, and decision system.
                                             </p>
                                         </div>
@@ -3821,20 +4545,51 @@ export default function AdminDashboardPage() {
                             </form>
                         </div>
 
-                        <div className="p-8 bg-gray-50 border-t border-gray-100 flex gap-4 shrink-0">
-                            <button type="button" onClick={() => setShowCreateUserModal(false)} className="flex-1 px-8 py-4 bg-white text-gray-500 rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-gray-100 border border-gray-200 transition-all">Cancel</button>
-                            <button form="student-creation-form" type="submit" disabled={createUserLoading} className="flex-[2] bg-slate-900 text-white py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 shadow-xl shadow-slate-900/10 active:scale-95 transition-all">
+                        {/* Modal Footer with 48px min-height buttons */}
+                        <div className="p-5 sm:p-6 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-center gap-3 shrink-0">
+                            <button 
+                                type="button" 
+                                onClick={() => setShowCreateUserModal(false)} 
+                                className="w-full sm:w-auto min-h-[48px] px-6 py-3 bg-white hover:bg-slate-100 text-slate-700 rounded-xl font-bold text-xs uppercase tracking-wider border border-slate-200 transition-all cursor-pointer text-center"
+                            >
+                                Cancel
+                            </button>
+
+                            {/* Save as Draft Button for Agents */}
+                            {newUserQuery.role === 'agent' && (
+                                <button
+                                    type="button"
+                                    disabled={createUserLoading || !newUserQuery.email || !newUserQuery.firstName}
+                                    onClick={() => handleCreateUser(undefined, true)}
+                                    className="w-full sm:w-auto min-h-[48px] px-6 py-3 bg-amber-50 hover:bg-amber-100 text-amber-900 rounded-xl font-bold text-xs uppercase tracking-wider border border-amber-300 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                                    title="Save agent information with incomplete details as Draft without sending notification email"
+                                >
+                                    <span className="material-symbols-outlined text-base">save</span>
+                                    Save as Draft
+                                </button>
+                            )}
+
+                            <button 
+                                form="student-creation-form" 
+                                type="submit" 
+                                disabled={createUserLoading} 
+                                className="w-full sm:flex-1 min-h-[48px] bg-slate-900 hover:bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-slate-900/10 active:scale-98 transition-all cursor-pointer disabled:opacity-60"
+                            >
                                 {createUserLoading ? (
-                                    <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                                 ) : (
-                                    newUserQuery.role === 'staff' ? 'Create Staff Profile' :
-                                    newUserQuery.role === 'agent' ? 'Create Agent Profile' :
-                                    newUserQuery.role === 'bank' ? 'Create Bank Officer Profile' : 'Create Student Profile'
+                                    <>
+                                        <span className="material-symbols-outlined text-lg">check_circle</span>
+                                        {newUserQuery.role === 'staff' || newUserQuery.role === 'staff_admin' ? 'Create Staff Profile' :
+                                         newUserQuery.role === 'agent' ? 'Submit & Activate Agent Profile' :
+                                         newUserQuery.role === 'bank' ? 'Create Bank Officer Profile' : 'Create Student Profile'}
+                                    </>
                                 )}
                             </button>
                         </div>
                     </div>
                 </div>
+                )
             )}
 
             {/* ─── Edit User Modal ─────────────────────────────────────────── */}
@@ -3865,13 +4620,39 @@ export default function AdminDashboardPage() {
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Contact Interface</label>
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Contact Phone Number</label>
                                     <input type="tel" value={editingUser.phoneNumber || editingUser.mobile || ""} onChange={e => setEditingUser({ ...editingUser, phoneNumber: e.target.value, mobile: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-400 transition-all" placeholder="+91 XXXX-XXXXXX" />
                                 </div>
                                 <div>
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Temporal Anchor (Birthdate)</label>
-                                    <input type="text" placeholder="DD-MM-YYYY" value={editingUser.dateOfBirth || ""} onChange={e => setEditingUser({ ...editingUser, dateOfBirth: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-400 transition-all" />
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Email Address</label>
+                                    <input required type="email" value={editingUser.email || ""} onChange={e => setEditingUser({ ...editingUser, email: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all" placeholder="user@example.com" />
                                 </div>
+                                {(editingUser.role === 'staff' || editingUser.role === 'staff_admin') && (
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">
+                                            Assigned Office & Location
+                                        </label>
+                                        <select
+                                            value={editingUser.officeId || ""}
+                                            onChange={e => {
+                                                const sel = offices.find(o => o.id === e.target.value);
+                                                setEditingUser({
+                                                    ...editingUser,
+                                                    officeId: e.target.value,
+                                                    officeLocation: sel ? `${sel.name} - ${sel.city} (${sel.location})` : ""
+                                                });
+                                            }}
+                                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-400 transition-all cursor-pointer"
+                                        >
+                                            <option value="">-- Select Office Location --</option>
+                                            {offices.map((off: any) => (
+                                                <option key={off.id} value={off.id}>
+                                                    {off.name} · {off.city} ({off.location})
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
                                 <div className="pt-4 flex gap-4">
                                     <button type="button" onClick={() => setEditingUser(null)} className="flex-1 px-6 py-3 bg-slate-50 text-slate-400 rounded-lg font-black uppercase tracking-widest text-[10px] hover:bg-slate-100 hover:text-slate-600 transition-all border border-slate-100">Cancel</button>
                                     <button type="submit" disabled={updateLoading} className="flex-[2] bg-slate-900 text-white py-3 rounded-lg font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 shadow-lg shadow-slate-900/10 active:scale-95 transition-all">
@@ -3879,6 +4660,332 @@ export default function AdminDashboardPage() {
                                     </button>
                                 </div>
                             </form>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ─── Send Email Modal ─────────────────────────────────────────── */}
+            {emailModalUser && (
+                <div className="fixed inset-0 z-[125] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+                    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity" onClick={() => setEmailModalUser(null)} />
+                    <div className="relative w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in duration-200 my-auto">
+                        {/* Header */}
+                        <div className="px-6 sm:px-8 pt-7 pb-5 bg-gradient-to-br from-indigo-50/70 via-slate-50 to-white border-b border-slate-100">
+                            <div className="flex items-start justify-between">
+                                <div className="flex items-center gap-3.5">
+                                    <div className="w-11 h-11 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-600/20">
+                                        <span className="material-symbols-outlined text-[22px]">outgoing_mail</span>
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                                            Send Email Message
+                                            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">Direct Dispatch</span>
+                                        </h3>
+                                        <p className="text-xs text-slate-500 font-medium mt-0.5">
+                                            Communicate directly with this account holder
+                                        </p>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setEmailModalUser(null)}
+                                    className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                                >
+                                    <span className="material-symbols-outlined text-[18px]">close</span>
+                                </button>
+                            </div>
+
+                            {/* Recipient summary card */}
+                            <div className="mt-4 p-3 rounded-xl bg-white border border-slate-200/80 shadow-xs flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-9 h-9 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-xs">
+                                        {((emailModalUser.firstName?.[0] || '') + (emailModalUser.lastName?.[0] || 'U')).toUpperCase()}
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs font-bold text-slate-900">
+                                                {emailModalUser.firstName} {emailModalUser.lastName}
+                                            </span>
+                                            <span className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
+                                                {emailModalUser.role || 'user'}
+                                            </span>
+                                        </div>
+                                        <div className="text-[11px] text-slate-500 font-mono mt-0.5 flex items-center gap-1">
+                                            <span className="material-symbols-outlined text-[12px] text-slate-400">mail</span>
+                                            {emailModalUser.email}
+                                        </div>
+                                    </div>
+                                </div>
+                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                    Verified Target
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Form Body */}
+                        <form onSubmit={handleSendEmail} className="p-6 sm:p-8 space-y-5">
+                            {/* Quick Template Selector */}
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block flex items-center justify-between">
+                                    <span>Quick Preset Templates</span>
+                                    <span className="text-slate-400 font-normal">Click to auto-fill</span>
+                                </label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => handleSelectTemplate('status')}
+                                        className="text-left p-2.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-200 transition-all group"
+                                    >
+                                        <div className="text-[11px] font-bold text-slate-800 group-hover:text-indigo-700 flex items-center gap-1.5">
+                                            <span className="material-symbols-outlined text-[14px] text-indigo-500">sync_alt</span>
+                                            Status Update
+                                        </div>
+                                        <div className="text-[10px] text-slate-400 mt-0.5 truncate">Application review note</div>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleSelectTemplate('docs')}
+                                        className="text-left p-2.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-200 transition-all group"
+                                    >
+                                        <div className="text-[11px] font-bold text-slate-800 group-hover:text-indigo-700 flex items-center gap-1.5">
+                                            <span className="material-symbols-outlined text-[14px] text-amber-500">upload_file</span>
+                                            Request Docs
+                                        </div>
+                                        <div className="text-[10px] text-slate-400 mt-0.5 truncate">KYC / Missing files</div>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleSelectTemplate('welcome')}
+                                        className="text-left p-2.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-200 transition-all group"
+                                    >
+                                        <div className="text-[11px] font-bold text-slate-800 group-hover:text-indigo-700 flex items-center gap-1.5">
+                                            <span className="material-symbols-outlined text-[14px] text-emerald-500">waving_hand</span>
+                                            Welcome Note
+                                        </div>
+                                        <div className="text-[10px] text-slate-400 mt-0.5 truncate">Onboarding greeting</div>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Subject Line */}
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 block">
+                                    Email Subject <span className="text-rose-500">*</span>
+                                </label>
+                                <input
+                                    required
+                                    type="text"
+                                    value={emailSubject}
+                                    onChange={e => setEmailSubject(e.target.value)}
+                                    placeholder="Enter concise email subject..."
+                                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all"
+                                />
+                            </div>
+
+                            {/* Body Message */}
+                            <div>
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">
+                                        Message Body <span className="text-rose-500">*</span>
+                                    </label>
+                                    <span className="text-[10px] text-slate-400 font-mono">
+                                        {emailContent.length} chars
+                                    </span>
+                                </div>
+                                <textarea
+                                    required
+                                    rows={6}
+                                    value={emailContent}
+                                    onChange={e => setEmailContent(e.target.value)}
+                                    placeholder="Type your message here..."
+                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all resize-y font-sans leading-relaxed"
+                                />
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="pt-2 flex items-center gap-3 border-t border-slate-100">
+                                <button
+                                    type="button"
+                                    onClick={() => setEmailModalUser(null)}
+                                    disabled={sendingEmail}
+                                    className="flex-1 px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg font-bold text-xs tracking-wider uppercase transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={sendingEmail}
+                                    className="flex-[2] px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white rounded-lg font-bold text-xs tracking-wider uppercase transition-all shadow-md shadow-indigo-600/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                                >
+                                    {sendingEmail ? (
+                                        <>
+                                            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                                            Sending Email...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span className="material-symbols-outlined text-[16px]">send</span>
+                                            Send Email Message
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* ─── Add Office Modal ──────────────────────────────────────── */}
+            {showAddOfficeModal && (
+                <div className="fixed inset-0 z-[130] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={() => setShowAddOfficeModal(false)} />
+                    <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden animate-fade-in flex flex-col max-h-[90vh] border border-slate-200">
+                        {/* Modal Header */}
+                        <div className="p-6 sm:p-8 pb-4 border-b border-slate-100 shrink-0 bg-slate-50/50">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center">
+                                        <span className="material-symbols-outlined text-[22px]">domain_add</span>
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-bold text-slate-900 tracking-tight">Add Office & Location</h3>
+                                        <p className="text-xs text-slate-500 font-medium mt-0.5">
+                                            Define new branches, cities, and physical office locations for staff deployment
+                                        </p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setShowAddOfficeModal(false)}
+                                    className="p-2 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                                >
+                                    <span className="material-symbols-outlined text-[20px]">close</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Modal Body */}
+                        <div className="overflow-y-auto p-6 sm:p-8 space-y-6">
+                            <form id="add-office-form" onSubmit={handleCreateOffice} className="space-y-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5 block">
+                                            Office / Branch Name *
+                                        </label>
+                                        <input
+                                            required
+                                            type="text"
+                                            value={newOfficeData.name}
+                                            onChange={e => setNewOfficeData({ ...newOfficeData, name: e.target.value })}
+                                            placeholder="e.g. VidyaLoans HQ / South Hub"
+                                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5 block">
+                                            City *
+                                        </label>
+                                        <input
+                                            required
+                                            type="text"
+                                            value={newOfficeData.city}
+                                            onChange={e => setNewOfficeData({ ...newOfficeData, city: e.target.value })}
+                                            placeholder="e.g. Hyderabad, Bengaluru, Mumbai"
+                                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5 block">
+                                        Location / Address Details *
+                                    </label>
+                                    <input
+                                        required
+                                        type="text"
+                                        value={newOfficeData.location}
+                                        onChange={e => setNewOfficeData({ ...newOfficeData, location: e.target.value })}
+                                        placeholder="e.g. Cyber Towers, Phase 2, HITEC City"
+                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                                    />
+                                </div>
+                            </form>
+
+                            {/* Existing Offices List */}
+                            <div className="pt-4 border-t border-slate-100">
+                                <div className="flex items-center justify-between mb-3">
+                                    <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                                        <span className="material-symbols-outlined text-[16px] text-indigo-600">apartment</span>
+                                        Registered Offices ({offices.length})
+                                    </h4>
+                                    {officesLoading && (
+                                        <div className="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                                    )}
+                                </div>
+
+                                {offices.length === 0 ? (
+                                    <div className="p-6 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                                        <span className="material-symbols-outlined text-3xl text-slate-300 block mb-1">domain</span>
+                                        <p className="text-xs text-slate-500 font-medium">No offices registered yet. Fill out the form above to add the first office.</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                                        {offices.map((off: any) => (
+                                            <div key={off.id} className="p-3 bg-slate-50 hover:bg-indigo-50/40 border border-slate-200 rounded-xl flex items-center justify-between transition-colors">
+                                                <div className="flex items-start gap-2.5">
+                                                    <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-indigo-600 shrink-0 mt-0.5">
+                                                        <span className="material-symbols-outlined text-[16px]">location_on</span>
+                                                    </div>
+                                                    <div>
+                                                        <div className="flex items-center gap-2">
+                                                            <p className="text-xs font-bold text-slate-900">{off.name}</p>
+                                                            <span className="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 text-[9px] font-bold">
+                                                                {off.city}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-[11px] text-slate-500 mt-0.5">{off.location}</p>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleDeleteOffice(off.id, off.name)}
+                                                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                                    title="Delete office"
+                                                >
+                                                    <span className="material-symbols-outlined text-[16px]">delete</span>
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-3 shrink-0">
+                            <button
+                                type="button"
+                                onClick={() => setShowAddOfficeModal(false)}
+                                className="flex-1 px-6 py-3 bg-white text-slate-600 rounded-xl font-bold text-xs hover:bg-slate-100 border border-slate-200 transition-all cursor-pointer"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                form="add-office-form"
+                                type="submit"
+                                disabled={createOfficeLoading}
+                                className="flex-[2] bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-indigo-600/20 active:scale-95 transition-all cursor-pointer"
+                            >
+                                {createOfficeLoading ? (
+                                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                ) : (
+                                    <>
+                                        <span className="material-symbols-outlined text-[16px]">save</span>
+                                        Save Office
+                                    </>
+                                )}
+                            </button>
                         </div>
                     </div>
                 </div>

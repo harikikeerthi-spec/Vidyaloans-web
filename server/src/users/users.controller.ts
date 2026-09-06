@@ -3,6 +3,39 @@ import { UsersService } from './users.service';
 import { AdminGuard } from '../auth/admin.guard';
 import { SuperAdminGuard } from '../auth/super-admin.guard';
 import { EmailService } from '../auth/email.service';
+import * as fs from 'fs';
+import * as path from 'path';
+
+function getAgentProfilePath() {
+    const dir = path.join(process.cwd(), 'scratch');
+    if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+    }
+    return path.join(dir, 'agent_profiles.json');
+}
+
+function readAllAgentProfiles(): Record<string, any> {
+    const file = getAgentProfilePath();
+    if (!fs.existsSync(file)) return {};
+    try {
+        return JSON.parse(fs.readFileSync(file, 'utf8')) || {};
+    } catch {
+        return {};
+    }
+}
+
+function writeAgentProfile(agentId: string, payload: any) {
+    const file = getAgentProfilePath();
+    let data: Record<string, any> = {};
+    if (fs.existsSync(file)) {
+        try {
+            data = JSON.parse(fs.readFileSync(file, 'utf8')) || {};
+        } catch {}
+    }
+    data[agentId] = { ...(data[agentId] || {}), ...payload };
+    fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf8');
+    return data[agentId];
+}
 
 @Controller('users')
 export class UsersController {
@@ -124,23 +157,37 @@ export class UsersController {
             console.log('[UsersController.listUsers] Calling usersService.findAll()...');
             const result = await this.usersService.findAll(l, o, search, role, excludeRoles);
             const users = result.data;
+            const agentProfiles = readAllAgentProfiles();
             console.log(`[UsersController.listUsers] Found ${users?.length || 0} users (Total: ${result.total})`);
 
             if (!users) return { success: true, data: [], total: 0 };
 
             return {
                 success: true,
-                data: users.map(u => ({
-                    id: u?.id || '',
-                    email: u?.email || '',
-                    firstName: u?.firstName || '',
-                    lastName: u?.lastName || '',
-                    phoneNumber: u?.phoneNumber || '',
-                    mobile: u?.mobile || '',
-                    role: u?.role || 'user',
-                    createdAt: u?.createdAt || u?.created_at || new Date().toISOString(),
-                    registeredAtIndia: u?.registeredAtIndia || ''
-                })),
+                data: users.map(u => {
+                    const ap = (u?.id && agentProfiles[u.id]) || {};
+                    return {
+                        id: u?.id || '',
+                        email: u?.email || '',
+                        firstName: u?.firstName || '',
+                        lastName: u?.lastName || '',
+                        phoneNumber: u?.phoneNumber || '',
+                        mobile: u?.mobile || '',
+                        role: u?.role || 'user',
+                        createdAt: u?.createdAt || u?.created_at || new Date().toISOString(),
+                        registeredAtIndia: u?.registeredAtIndia || '',
+                        staffId: u?.staffId || '',
+                        officeId: u?.officeId || '',
+                        officeLocation: u?.officeLocation || '',
+                        status: u?.status || ap.status || 'active',
+                        panNumber: u?.panNumber || ap.panNumber || '',
+                        partnership: ap.partnership || '',
+                        percentage: ap.percentage || '',
+                        businessName: ap.businessName || '',
+                        profilePhoto: ap.profilePhoto || '',
+                        isDraft: (u?.status === 'draft' || ap.status === 'draft')
+                    };
+                }),
                 total: result.total,
                 limit: l,
                 offset: o
@@ -253,7 +300,24 @@ export class UsersController {
             firstName: string;
             lastName: string;
             mobile: string;
-            role: string
+            role: string;
+            officeId?: string;
+            officeLocation?: string;
+            office?: string;
+            // Agent-specific fields
+            partnership?: string;
+            percentage?: string | number;
+            panNumber?: string;
+            pan?: string;
+            profilePhoto?: string;
+            profileImage?: string;
+            businessName?: string;
+            officeAddress?: string;
+            gstin?: string;
+            documents?: any[];
+            isDraft?: boolean;
+            status?: string;
+            bank?: string;
         }
     ) {
         console.log('=== ADMIN CREATE USER START ===');
@@ -264,18 +328,32 @@ export class UsersController {
             return { success: false, message: 'Email and role are required' };
         }
 
+        if (body.role === 'bank' && (!body.bank || !String(body.bank).trim())) {
+            console.log('Validation failed: missing assigned lending bank partner for bank role');
+            return {
+                success: false,
+                message: 'Assigned Lending Bank Partner is required. Please select a bank partner.'
+            };
+        }
+
         const existing = await this.usersService.findOne(body.email);
         if (existing) {
             return { success: false, message: 'User with this email already exists' };
         }
 
         try {
+            const isAgent = body.role === 'agent' || body.role === 'partner_agent';
+            const isDraft = !!body.isDraft;
+            const effectiveStatus = isDraft ? 'draft' : 'active';
+
             const newUser = await this.usersService.create({
                 email: body.email,
                 firstName: body.firstName,
                 lastName: body.lastName,
                 mobile: body.mobile,
                 role: body.role,
+                officeId: body.officeId,
+                officeLocation: body.officeLocation || body.office,
                 password: Math.random().toString(36).slice(-12), // Generate a dummy password
             });
 
@@ -286,22 +364,65 @@ export class UsersController {
                 keys: Object.keys(newUser || {})
             });
 
-            // Send invitation/welcome email (non-blocking)
-            try {
-                await this.emailService.sendMail(
-                    newUser.email,
-                    `Welcome to VidyaLoan - Your ${body.role} Account`,
-                    `<div style="font-family: sans-serif; padding: 20px;">
-                        <h2>Welcome to the Matrix, ${body.firstName}!</h2>
-                        <p>Your account as an <strong>${body.role}</strong> has been created by the administrator.</p>
-                        <p>You can now log in using your email: <strong>${body.email}</strong></p>
-                        <p>Proceed to the dashboard to complete your profile.</p>
-                    </div>`,
-                    `Welcome to VidyaLoan! Your ${body.role} account has been created.`
-                );
-            } catch (emailErr) {
-                console.warn('Email sending failed (non-blocking):', emailErr?.message);
-                // Continue anyway - don't fail user creation for email issues
+            if (isAgent) {
+                // Persist full Agent Partner profile
+                writeAgentProfile(newUser.id, {
+                    id: newUser.id,
+                    firstName: body.firstName,
+                    lastName: body.lastName,
+                    email: body.email,
+                    phoneNumber: body.mobile,
+                    role: body.role,
+                    businessName: body.businessName || `${body.firstName || 'Agent'} Agency`,
+                    partnership: body.partnership || 'Individual Consultant',
+                    percentage: body.percentage || '1.5',
+                    panNumber: body.panNumber || body.pan || '',
+                    profilePhoto: body.profilePhoto || body.profileImage || '',
+                    officeAddress: body.officeAddress || body.officeLocation || '',
+                    gstin: body.gstin || '',
+                    documents: body.documents || [],
+                    status: effectiveStatus,
+                    kycStatus: isDraft ? 'incomplete' : 'verified',
+                    createdAt: new Date().toISOString(),
+                });
+
+                // Update status in User table if supported
+                try {
+                    await this.usersService.updateUserStatus(newUser.id, effectiveStatus);
+                } catch (statusErr) {
+                    console.warn('[adminCreateUser] Non-blocking status update failed:', statusErr);
+                }
+
+                // If final submission (not draft), dispatch the congratulations welcome email with portal link
+                if (!isDraft) {
+                    try {
+                        await this.emailService.sendAgentWelcomeEmail(
+                            newUser.email,
+                            `${body.firstName || ''} ${body.lastName || ''}`.trim() || 'Partner',
+                            newUser.id,
+                            body.partnership || 'Channel Partner',
+                            body.percentage || '1.5'
+                        );
+                    } catch (emailErr: any) {
+                        console.warn('[adminCreateUser] Agent welcome email non-blocking failed:', emailErr?.message);
+                    }
+                }
+            } else {
+                // Send standard welcome email for non-agents
+                try {
+                    await this.emailService.sendMail(
+                        newUser.email,
+                        `Welcome to VidyaLoan - Your ${body.role} Account`,
+                        `<div style="font-family: sans-serif; padding: 20px;">
+                            <h2>Welcome, ${body.firstName}!</h2>
+                            <p>Your account as an <strong>${body.role}</strong> has been created by the administrator.</p>
+                            <p>You can now log in using your email: <strong>${body.email}</strong></p>
+                        </div>`,
+                        `Welcome to VidyaLoan! Your ${body.role} account has been created.`
+                    );
+                } catch (emailErr) {
+                    console.warn('Email sending failed (non-blocking):', emailErr?.message);
+                }
             }
 
             const responseUser = {
@@ -309,15 +430,20 @@ export class UsersController {
                 email: newUser?.email,
                 firstName: newUser?.firstName,
                 lastName: newUser?.lastName,
-                role: newUser?.role
+                role: newUser?.role,
+                status: effectiveStatus,
+                isDraft
             };
 
             console.log('Sending response:', { success: true, user: responseUser });
 
             const finalResponse = {
                 success: true,
-                message: 'User created successfully',
-                user: responseUser
+                message: isDraft 
+                    ? 'Agent profile saved as draft successfully' 
+                    : (isAgent ? 'Agent profile created and welcome email sent with login link' : 'User created successfully'),
+                user: responseUser,
+                isDraft
             };
 
             console.log('=== ADMIN CREATE USER END ===');
@@ -356,7 +482,9 @@ export class UsersController {
                 body.coApplicant,
                 body.academic,
                 body.userId,
-                body.passport
+                body.passport,
+                body.officeId,
+                body.officeLocation || body.office
             );
             return { success: true, message: 'User updated successfully', user: updated };
         } catch (error: any) {

@@ -41,6 +41,8 @@ export const HttpApiPaths = {
         banks: () => `${HTTP_API_PREFIX}/reference/banks`,
         countries: () => `${HTTP_API_PREFIX}/reference/countries`,
         universities: () => `${HTTP_API_PREFIX}/reference/universities`,
+        offices: () => `${HTTP_API_PREFIX}/reference/offices`,
+        officeById: (id: string) => `${HTTP_API_PREFIX}/reference/offices/${enc(id)}`,
     },
 
     onboarding: {

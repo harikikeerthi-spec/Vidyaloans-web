@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { referenceApi, adminApi } from "@/lib/api";
 
 interface BankPartner {
@@ -27,6 +28,7 @@ interface BankPartner {
 }
 
 export default function AdminBanksSection() {
+    const router = useRouter();
     const [banks, setBanks] = useState<BankPartner[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -93,30 +95,21 @@ export default function AdminBanksSection() {
     }, []);
 
     const handleOpenAdd = () => {
-        setEditingBank(null);
-        setForm({
-            name: "",
-            shortName: "",
-            country: "India",
-            type: "NBFC",
-            loanTypes: ["Education Loan"],
-            educationLoan: true,
-            interestRateMin: 10.25,
-            interestRateMax: 14.5,
-            maxLoanAmount: "No Limit",
-            collateralRequired: false,
-            collateralFreeLimit: "50 Lakhs",
-            processingFee: "1% + GST",
-            processingTime: "48 hours",
-            features: ["100% Financing: Covers tuition fees, living costs, and travel expenses"],
-            website: "",
-            contactNumber: "",
-            email: "",
-            logoUrl: "",
-            isPopular: false
-        });
-        setFeatureInput("");
-        setShowModal(true);
+        router.push("/admin/banks/create");
+    };
+
+    const handleModalLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (file.size > 2 * 1024 * 1024) {
+            alert("File size exceeds 2MB limit. Please choose a smaller image.");
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+            setForm(prev => ({ ...prev, logoUrl: reader.result as string }));
+        };
+        reader.readAsDataURL(file);
     };
 
     const handleOpenEdit = (bank: BankPartner) => {
@@ -192,13 +185,6 @@ export default function AdminBanksSection() {
         } finally {
             setSavingRoi(false);
         }
-    };
-
-    const handleAccessBank = (bank: BankPartner) => {
-        localStorage.setItem("currentBankId", bank.shortName);
-        localStorage.setItem("currentBankName", bank.name);
-        localStorage.setItem("bankId", bank.shortName);
-        window.open(`/bank/decisions?bankId=${encodeURIComponent(bank.shortName)}`, "_blank");
     };
 
     const handleDelete = async (id: string, name: string) => {
@@ -448,14 +434,6 @@ export default function AdminBanksSection() {
                                         <td className="px-5 py-4 text-right">
                                             <div className="flex justify-end items-center gap-2">
                                                 <button
-                                                    onClick={() => handleAccessBank(bank)}
-                                                    className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 rounded-md text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer shadow-sm"
-                                                    title="Access Bank Underwriting Portal"
-                                                >
-                                                    <span className="material-symbols-outlined text-[13px]">open_in_new</span>
-                                                    Access Bank
-                                                </button>
-                                                <button
                                                     onClick={() => handleOpenEdit(bank)}
                                                     className="p-1 text-slate-600 hover:text-indigo-600 hover:bg-slate-100 rounded transition-colors cursor-pointer"
                                                     title="Edit Partner Details & ROI"
@@ -616,7 +594,7 @@ export default function AdminBanksSection() {
                                             className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-bold focus:outline-none focus:border-indigo-600 text-slate-900"
                                         />
                                     </div>
-                                    <div>
+                                    <div className="md:col-span-2">
                                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block mb-1">
                                             Institution Type
                                         </label>
@@ -630,18 +608,6 @@ export default function AdminBanksSection() {
                                             <option value="Private">Private Commercial Bank</option>
                                             <option value="International">International Fintech / Cross-border</option>
                                         </select>
-                                    </div>
-                                    <div>
-                                        <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block mb-1">
-                                            Country of Origin
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={form.country}
-                                            onChange={e => setForm({ ...form, country: e.target.value })}
-                                            placeholder="India"
-                                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:border-indigo-600 text-slate-900"
-                                        />
                                     </div>
                                 </div>
                             </div>
@@ -735,11 +701,11 @@ export default function AdminBanksSection() {
                                 <label className="flex items-center gap-2 cursor-pointer select-none">
                                     <input
                                         type="checkbox"
-                                        checked={form.collateralRequired}
-                                        onChange={e => setForm({ ...form, collateralRequired: e.target.checked })}
-                                        className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
+                                        checked={!form.collateralRequired}
+                                        onChange={e => setForm({ ...form, collateralRequired: !e.target.checked })}
+                                        className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
                                     />
-                                    <span className="text-xs font-semibold text-slate-700">Collateral Required Mandatory</span>
+                                    <span className="text-xs font-semibold text-slate-700">Offers Non-Collateral Loans</span>
                                 </label>
                                 <label className="flex items-center gap-2 cursor-pointer select-none">
                                     <input
@@ -849,14 +815,24 @@ export default function AdminBanksSection() {
                                     </div>
                                     <div>
                                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block mb-1">
-                                            Bank Logo URL
+                                            Bank Logo (Upload or URL)
                                         </label>
                                         <div className="flex gap-2 items-center">
+                                            <label className="px-2.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold cursor-pointer shrink-0 flex items-center gap-1 transition-colors">
+                                                <span className="material-symbols-outlined text-[16px]">upload_file</span>
+                                                <span>Upload</span>
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    onChange={handleModalLogoUpload}
+                                                    className="hidden"
+                                                />
+                                            </label>
                                             <input
-                                                type="url"
+                                                type="text"
                                                 value={form.logoUrl}
                                                 onChange={e => setForm({ ...form, logoUrl: e.target.value })}
-                                                placeholder="https://logo.clearbit.com/hdfccredila.com"
+                                                placeholder="https://... or upload image"
                                                 className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:border-indigo-600 text-slate-900"
                                             />
                                             {form.logoUrl && (
