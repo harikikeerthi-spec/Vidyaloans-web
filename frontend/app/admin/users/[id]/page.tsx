@@ -3,6 +3,7 @@
 import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
+import { referenceApi } from "@/lib/api";
 
 export default function UserProfileEdit({ params }: { params?: Promise<{ id: string }> | { id: string } }) {
     const router = useRouter();
@@ -16,6 +17,8 @@ export default function UserProfileEdit({ params }: { params?: Promise<{ id: str
     const [activeStep, setActiveStep] = useState(1);
     const [activeTab, setActiveTab] = useState("personal");
     const [userData, setUserData] = useState<any>(null);
+    const [bankPartners, setBankPartners] = useState<any[]>([]);
+    const [assignedBank, setAssignedBank] = useState<any>(null);
 
     const [form, setForm] = useState({
         firstName: "", middleName: "", lastName: "",
@@ -35,15 +38,63 @@ export default function UserProfileEdit({ params }: { params?: Promise<{ id: str
                 const token = typeof window !== 'undefined'
                     ? (localStorage.getItem('adminAccessToken') || localStorage.getItem('staffAccessToken') || localStorage.getItem('accessToken') || '')
                     : '';
-                const response = await fetch(`/api/users/admin/${userId}`, {
-                    headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-                });
+                const [response, banksRes] = await Promise.all([
+                    fetch(`/api/users/admin/${userId}`, {
+                        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+                    }),
+                    referenceApi.getBanks().catch(() => ({ data: [] }))
+                ]);
                 if (!response.ok) {
                     throw new Error("Failed to fetch user data");
                 }
                 const resJson = await response.json();
                 const data = resJson.data || resJson.user || resJson;
                 setUserData(data);
+
+                const banks = (banksRes as any)?.success && Array.isArray((banksRes as any)?.data) ? (banksRes as any).data : [];
+                setBankPartners(banks);
+
+                const rawBank = (data.bank || data.partnerBank || data.bankId || '').toString().trim();
+                const cleanBank = rawBank.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+                let matchedBank: any = null;
+                if (cleanBank && Array.isArray(banks) && banks.length > 0) {
+                    matchedBank = banks.find((b: any) => {
+                        const bShort = (b.shortName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                        const bName = (b.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                        const bId = (b.id || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                        return bShort === cleanBank || bName === cleanBank || bId === cleanBank ||
+                               cleanBank.includes(bShort) || (bShort && bShort.includes(cleanBank)) ||
+                               cleanBank.includes(bName) || (bName && bName.includes(cleanBank));
+                    });
+                }
+                if (!matchedBank && data.email && Array.isArray(banks) && banks.length > 0) {
+                    const domain = (data.email.split('@')[1] || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                    matchedBank = banks.find((b: any) => {
+                        const bShort = (b.shortName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                        const bName = (b.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                        return (bShort && domain.includes(bShort)) || (bName && domain.includes(bName));
+                    });
+                }
+                if (!matchedBank && rawBank) {
+                    matchedBank = {
+                        id: rawBank,
+                        name: rawBank.split(/[-_]/).map((s: string) => s.charAt(0).toUpperCase() + s.slice(1)).join(' '),
+                        shortName: rawBank.toUpperCase(),
+                        type: 'Partner Bank Institution',
+                        interestRateMin: 8.5,
+                        interestRateMax: 13.5,
+                        maxLoanAmount: '₹1.50 Cr',
+                        collateralFreeLimit: '₹50 Lakhs',
+                        processingTime: '3-5 Days',
+                        processingFee: '0.5% - 1%',
+                        features: ['Direct Sanction Line', 'Pre-Visa Disbursal', 'Competitive ROI']
+                    };
+                }
+                if (!matchedBank && banks.length > 0 && (data.role === 'bank' || data.role === 'partner_bank')) {
+                    matchedBank = banks[0];
+                }
+                setAssignedBank(matchedBank);
                 
                 // Populate form with user data
                 setForm(prev => ({
@@ -170,6 +221,16 @@ export default function UserProfileEdit({ params }: { params?: Promise<{ id: str
                                         }`}>
                                             {userData?.role ? userData.role.toUpperCase() : 'USER'}
                                         </span>
+                                        {assignedBank && (userData?.role === 'bank' || userData?.bank) && (
+                                            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded text-xs font-black shadow-xs">
+                                                {assignedBank.logoUrl ? (
+                                                    <img src={assignedBank.logoUrl} alt="" className="w-4 h-4 object-contain" />
+                                                ) : (
+                                                    <span className="material-symbols-outlined text-[15px] text-emerald-600">account_balance</span>
+                                                )}
+                                                <span>Assigned Bank: {assignedBank.name} ({assignedBank.shortName})</span>
+                                            </span>
+                                        )}
                                     </>
                                 )}
                             </div>
@@ -230,6 +291,75 @@ export default function UserProfileEdit({ params }: { params?: Promise<{ id: str
                         <div className="flex-1 bg-white border border-slate-200 rounded-xl shadow-sm p-8 pb-12">
                             {activeTab === "account" && (
                                 <div className="space-y-8">
+                                    {/* Assigned Lending Partner Institution Card */}
+                                    {assignedBank && (userData?.role === 'bank' || userData?.bank) && (
+                                        <div className="bg-gradient-to-br from-emerald-50/90 via-teal-50/30 to-white border-2 border-emerald-200 rounded-2xl p-6 shadow-sm space-y-4">
+                                            <div className="flex items-center justify-between border-b border-emerald-200/80 pb-4 flex-wrap gap-3">
+                                                <div className="flex items-center gap-3.5">
+                                                    {assignedBank.logoUrl ? (
+                                                        <img src={assignedBank.logoUrl} alt="" className="w-12 h-12 object-contain bg-white rounded-xl p-1.5 border border-emerald-200 shadow-xs" />
+                                                    ) : (
+                                                        <div className="w-12 h-12 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black text-xl shadow-xs">
+                                                            <span className="material-symbols-outlined text-[24px]">account_balance</span>
+                                                        </div>
+                                                    )}
+                                                    <div>
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            <h4 className="text-base font-black text-slate-900">{assignedBank.name}</h4>
+                                                            <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-emerald-600 text-white shadow-xs">
+                                                                {assignedBank.shortName}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider mt-0.5">
+                                                            {assignedBank.type || 'Lending Partner Institution'} • Assigned Underwriting Officer
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                                                <div className="p-3 bg-white rounded-lg border border-emerald-100 shadow-2xs">
+                                                    <span className="text-[9px] font-black uppercase tracking-wider text-emerald-800 block">Interest Rate (ROI)</span>
+                                                    <p className="text-sm font-black text-emerald-950 mt-0.5">
+                                                        {assignedBank.interestRateMin || 8.5}% - {assignedBank.interestRateMax || 14.5}% p.a.
+                                                    </p>
+                                                </div>
+                                                <div className="p-3 bg-white rounded-lg border border-emerald-100 shadow-2xs">
+                                                    <span className="text-[9px] font-black uppercase tracking-wider text-emerald-800 block">Max Sanction Cap</span>
+                                                    <p className="text-sm font-black text-slate-900 mt-0.5">
+                                                        {assignedBank.maxLoanAmount || '₹1.50 Cr'}
+                                                    </p>
+                                                </div>
+                                                <div className="p-3 bg-white rounded-lg border border-emerald-100 shadow-2xs">
+                                                    <span className="text-[9px] font-black uppercase tracking-wider text-emerald-800 block">Collateral-Free</span>
+                                                    <p className="text-sm font-black text-slate-900 mt-0.5">
+                                                        {assignedBank.collateralFreeLimit || '₹50 Lakhs'}
+                                                    </p>
+                                                </div>
+                                                <div className="p-3 bg-white rounded-lg border border-emerald-100 shadow-2xs">
+                                                    <span className="text-[9px] font-black uppercase tracking-wider text-emerald-800 block">Processing SLA</span>
+                                                    <p className="text-sm font-black text-slate-900 mt-0.5">
+                                                        {assignedBank.processingTime || '3-5 Days'}
+                                                    </p>
+                                                    <span className="text-[10px] text-slate-500 font-medium">Fee: {assignedBank.processingFee || '0.5% - 1%'}</span>
+                                                </div>
+                                            </div>
+
+                                            {Array.isArray(assignedBank.features) && assignedBank.features.length > 0 && (
+                                                <div className="pt-1">
+                                                    <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block mb-1.5">Approved Loan Products & Schemes</span>
+                                                    <div className="flex flex-wrap gap-1.5">
+                                                        {assignedBank.features.map((f: string, idx: number) => (
+                                                            <span key={idx} className="px-2.5 py-0.5 bg-white border border-emerald-200 text-emerald-900 rounded text-[10px] font-bold shadow-2xs">
+                                                                ✓ {f}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
                                     {/* Account Overview Card */}
                                     <section>
                                         <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-6 border-b border-slate-100 pb-3 flex items-center gap-2">

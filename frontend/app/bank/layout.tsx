@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useSiteSettings } from "@/contexts/SiteSettingsContext";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { adminApi } from "@/lib/api";
+import { adminApi, referenceApi } from "@/lib/api";
 import { format } from "date-fns";
 import BankNotificationsPanel from "@/components/bank/BankNotificationsPanel";
 import SupportTicketModal from "@/components/SupportTicketModal";
@@ -78,9 +78,10 @@ export default function BankLayout({ children }: { children: React.ReactNode }) 
     const [loggedCount, setLoggedCount] = useState(0);
     const [chatCount, setChatCount] = useState(0);
 
-    const [bankName, setBankName] = useState("SBI");
-    const [selectedBankKey, setSelectedBankKey] = useState("idfc");
-    const [branchName, setBranchName] = useState("Hyderabad Branch");
+    const [bankName, setBankName] = useState("Partner Bank");
+    const [selectedBankKey, setSelectedBankKey] = useState("");
+    const [bankLogo, setBankLogo] = useState<string | null>(null);
+    const [branchName, setBranchName] = useState("Regional Branch");
 
     // Fetch unread chat count dynamically on 15s interval
     useEffect(() => {
@@ -207,23 +208,66 @@ export default function BankLayout({ children }: { children: React.ReactNode }) 
     }, [user, isLoading, isBank, isAdmin, pathname]);
 
     useEffect(() => {
-        if (typeof window !== "undefined") {
-            const selected = sessionStorage.getItem("selectedBank") || localStorage.getItem("selectedBank");
-            if (selected) {
-                setSelectedBankKey(selected);
-                const map: Record<string, string> = {
+        let isMounted = true;
+        const resolveBank = async () => {
+            if (typeof window === "undefined") return;
+
+            const userBankName = user?.bankName || (user as any)?.bank;
+            const userBankLogo = (user as any)?.bankLogo;
+            const userBankId = (user as any)?.bankId || (user as any)?.bank;
+
+            const storedBank = sessionStorage.getItem("selectedBank") || localStorage.getItem("selectedBank");
+            const storedBankName = sessionStorage.getItem("selectedBankName") || localStorage.getItem("selectedBankName");
+            const storedBankLogo = sessionStorage.getItem("selectedBankLogo") || localStorage.getItem("selectedBankLogo");
+
+            let currentKey = storedBank || userBankId || "idfc";
+            let currentName = storedBankName || userBankName || "";
+            let currentLogo = storedBankLogo || userBankLogo || "";
+
+            try {
+                const res: any = await referenceApi.getBanks();
+                const list = res?.data || res || [];
+                if (Array.isArray(list) && list.length > 0) {
+                    const match = list.find((b: any) =>
+                        (currentKey && (b.id === currentKey || b.shortName?.toLowerCase() === currentKey.toLowerCase())) ||
+                        (currentName && (b.name?.toLowerCase() === currentName.toLowerCase() || b.shortName?.toLowerCase() === currentName.toLowerCase())) ||
+                        (user?.email && b.shortName && user.email.toLowerCase().includes(b.shortName.toLowerCase()))
+                    );
+
+                    if (match && isMounted) {
+                        currentName = match.name;
+                        currentLogo = match.logoUrl || match.logo || currentLogo;
+                        currentKey = match.shortName?.toLowerCase() || match.id;
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to load reference banks for bank layout:", err);
+            }
+
+            if (!currentName) {
+                const legacyMap: Record<string, string> = {
                     auxilo: "Auxilo Finserve",
                     avanse: "Avanse Financial",
                     credila: "HDFC Credila",
                     idfc: "IDFC FIRST Bank",
                     poonawalla: "Poonawalla Fincorp",
                 };
-                setBankName(map[selected] || selected.toUpperCase());
-            } else if (user?.firstName) {
-                setSelectedBankKey("idfc");
-                setBankName(user.firstName);
+                currentName = legacyMap[currentKey] || user?.firstName || (currentKey ? currentKey.toUpperCase() : "Partner Bank");
             }
-        }
+
+            if (!currentLogo && bankLogos[currentKey]) {
+                currentLogo = bankLogos[currentKey];
+            }
+
+            if (isMounted) {
+                setSelectedBankKey(currentKey);
+                setBankName(currentName);
+                setBankLogo(currentLogo || null);
+            }
+        };
+
+        resolveBank();
+        return () => { isMounted = false; };
     }, [user]);
 
     const categorizedNav = useMemo(() => [
@@ -233,7 +277,6 @@ export default function BankLayout({ children }: { children: React.ReactNode }) 
                 { icon: "dashboard", label: "Overview Dashboard", path: "/bank/dashboard" },
                 { icon: "download", label: "Incoming Queue", path: "/bank/incoming", badge: incomingCount },
                 { icon: "assignment", label: "My Files (Logged)", path: "/bank/applications", badge: loggedCount },
-                { icon: "view_kanban", label: "Kanban Files Board", path: "/bank/kanban" },
                 { icon: "gavel", label: "Decisions Hub", path: "/bank/decisions" },
                 { icon: "payments", label: "Disbursement Board", path: "/bank/disbursements" },
             ]
@@ -253,9 +296,6 @@ export default function BankLayout({ children }: { children: React.ReactNode }) 
             category: "Analytics & Settings",
             items: [
                 { icon: "monitoring", label: "Analytics & SLA", path: "/bank/analytics" },
-                { icon: "extension", label: "System Integrations", path: "/bank/integrations" },
-                { icon: "lan", label: "Branch Matrix", path: "/bank/branches" },
-                { icon: "shopping_bag", label: "Active Products", path: "/bank/products" },
                 { icon: "settings", label: "Settings & Profile", path: "/bank/settings" },
             ]
         }
@@ -470,18 +510,20 @@ export default function BankLayout({ children }: { children: React.ReactNode }) 
                         </AnimatePresence>
                     </div>
 
-
                     {/* F16 Notification Center & System Ticker */}
                     <div className="flex items-center gap-6">
                         {/* Partner Bank Identity Badge */}
-                        {selectedBankKey && (
+                        {(selectedBankKey || bankName) && (
                             <div className="hidden md:flex items-center gap-3 px-4 py-1.5 rounded-full border border-[#E2E8F0] bg-white shadow-sm">
-                                {bankLogos[selectedBankKey] ? (
+                                {bankLogo || (selectedBankKey && bankLogos[selectedBankKey]) ? (
                                     <img
-                                        src={bankLogos[selectedBankKey]}
+                                        src={bankLogo || bankLogos[selectedBankKey]}
                                         alt={bankName}
                                         className="h-7 max-w-[60px] object-contain rounded"
                                         title={bankName}
+                                        onError={(e) => {
+                                            (e.target as HTMLElement).style.display = 'none';
+                                        }}
                                     />
                                 ) : (
                                     <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[9px] font-black"

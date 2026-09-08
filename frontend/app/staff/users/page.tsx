@@ -338,6 +338,17 @@ export default function UserDirectoryPage() {
                                                     </button>
                                                     <button
                                                         onClick={() => {
+                                                            const email = item.email || '';
+                                                            const slug = email.split('@')[0].toLowerCase().replace(/[^a-z0-9_-]/g, '');
+                                                            window.open(`/staff/inbox?folder=staff/${slug}/&staffEmail=${email}`, '_blank');
+                                                        }}
+                                                        className="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50 flex items-center justify-center transition-all shadow-sm"
+                                                        title="Open Staff S3 Mail Inbox"
+                                                    >
+                                                        <span className="material-symbols-outlined text-[16px]">all_inbox</span>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => {
                                                             if (item.email) openEmailModal(item.email, getUserDisplayName(item));
                                                         }}
                                                         className="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50 flex items-center justify-center transition-all shadow-sm"

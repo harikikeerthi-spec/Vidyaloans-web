@@ -21,6 +21,7 @@ interface MobileLendersCardSliderProps {
 export default function MobileLendersCardSlider({ lenders }: MobileLendersCardSliderProps) {
     const [currentIndex, setCurrentIndex] = useState(0);
     const [selectedCategory, setSelectedCategory] = useState("all");
+    const [imgErrors, setImgErrors] = useState<Record<string, boolean>>({});
 
     if (!lenders || lenders.length === 0) return null;
 
@@ -77,11 +78,18 @@ export default function MobileLendersCardSlider({ lenders }: MobileLendersCardSl
                 <div className="flex items-center justify-between gap-3 pb-4 border-b border-gray-100">
                     <div className="flex items-center gap-3">
                         <div className="w-16 h-12 bg-gray-50/80 rounded-xl p-1.5 flex items-center justify-center border border-gray-100 shadow-xs">
-                            <img
-                                src={current.logo}
-                                alt={current.name}
-                                className="w-full h-full object-contain"
-                            />
+                            {current.logo && !imgErrors[current.name] ? (
+                                <img
+                                    src={current.logo}
+                                    alt={current.name}
+                                    className="w-full h-full object-contain"
+                                    onError={() => setImgErrors(prev => ({ ...prev, [current.name]: true }))}
+                                />
+                            ) : (
+                                <div className="w-9 h-9 rounded-lg bg-purple-100 text-[#6605c7] flex items-center justify-center font-black text-xs">
+                                    {current.name.slice(0, 2).toUpperCase()}
+                                </div>
+                            )}
                         </div>
                         <div>
                             <h3 className="text-base font-black text-gray-900 leading-tight">{current.name}</h3>

@@ -42,6 +42,7 @@ export const USER_VALID_COLUMNS = new Set([
   'coApplicant',
   'officeId',
   'officeLocation',
+  'bank',
 ]);
 
 export function sanitizeUserPayload(payload: any): Record<string, any> {
@@ -439,6 +440,67 @@ export class UsersService implements OnModuleInit {
     throw new Error('Unable to generate a unique user ID');
   }
 
+  /**
+   * Dynamically resolve bank metadata (bankId, bankName, bankLogo) by user's assigned bank or email
+   */
+  async resolveBankInfo(bankIdentifierOrEmail?: string | null): Promise<{ bankId: string | null; bankName: string | null; bankLogo: string | null }> {
+    if (!bankIdentifierOrEmail) return { bankId: null, bankName: null, bankLogo: null };
+
+    const term = bankIdentifierOrEmail.trim();
+    const lower = term.toLowerCase();
+
+    try {
+      // 1. If it looks like an email, first check if the User record has an assigned bank
+      if (lower.includes('@')) {
+        const user = await this.findOne(lower);
+        if (user && user.bank) {
+          return await this.resolveBankInfo(user.bank);
+        }
+      }
+
+      // 2. Query Bank table by shortName, id, or name
+      const { data: bankByExact } = await this.db
+        .from('Bank')
+        .select('id, name, shortName, logoUrl')
+        .or(`shortName.eq."${term}",id.eq."${term}",name.ilike."%${term}%"`)
+        .maybeSingle();
+
+      if (bankByExact) {
+        return {
+          bankId: bankByExact.shortName || bankByExact.id,
+          bankName: bankByExact.name,
+          bankLogo: bankByExact.logoUrl || null,
+        };
+      }
+
+      // 3. Try fuzzy query on Bank table for email terms / domains
+      const { data: allBanks } = await this.db.from('Bank').select('id, name, shortName, logoUrl');
+      if (Array.isArray(allBanks) && allBanks.length > 0) {
+        for (const b of allBanks) {
+          const bShort = (b.shortName || '').toLowerCase();
+          const bName = (b.name || '').toLowerCase();
+          if (bShort && (lower.includes(bShort) || bShort.includes(lower))) {
+            return { bankId: b.shortName || b.id, bankName: b.name, bankLogo: b.logoUrl || null };
+          }
+          if (bName && (lower.includes(bName) || bName.includes(lower))) {
+            return { bankId: b.shortName || b.id, bankName: b.name, bankLogo: b.logoUrl || null };
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[UsersService.resolveBankInfo] Error querying Bank table:', err);
+    }
+
+    // 4. Backward-compatible fallbacks for seed test users
+    if (lower.includes('auxilo') || lower === 'luharika28@gmail.com') return { bankId: 'auxilo', bankName: 'Auxilo Finserve', bankLogo: '/banks/auxilo.png' };
+    if (lower.includes('avanse') || lower === 'ropayi2211@aspensif.com') return { bankId: 'avanse', bankName: 'Avanse Financial', bankLogo: '/banks/avanse.png' };
+    if (lower.includes('credila') || lower.includes('hdfc') || lower === 'keerthichinnu0728@gmail.com') return { bankId: 'credila', bankName: 'HDFC Credila', bankLogo: '/banks/credila.png' };
+    if (lower.includes('idfc') || lower === 'abhimadasu4@gmail.com') return { bankId: 'idfc', bankName: 'IDFC FIRST Bank', bankLogo: '/banks/idfc.png' };
+    if (lower.includes('poonawalla') || lower === 'farmatech@gmail.com') return { bankId: 'poonawalla', bankName: 'Poonawalla Fincorp', bankLogo: '/banks/poonawalla.jpg' };
+
+    return { bankId: null, bankName: null, bankLogo: null };
+  }
+
   async create(data: {
     email: string;
     firstName?: string;
@@ -450,6 +512,7 @@ export class UsersService implements OnModuleInit {
     role?: string;
     officeId?: string;
     officeLocation?: string;
+    bank?: string;
   }) {
     const dobDate = this.parseDate(data.dateOfBirth);
     const now = new Date();
@@ -499,6 +562,9 @@ export class UsersService implements OnModuleInit {
     }
     if (data.officeLocation) {
       insertPayload.officeLocation = data.officeLocation;
+    }
+    if (data.bank) {
+      insertPayload.bank = data.bank;
     }
 
     if (data.role === 'staff' && staffId) {
@@ -635,7 +701,8 @@ export class UsersService implements OnModuleInit {
     userId?: string,
     passport?: any,
     officeId?: string,
-    officeLocation?: string
+    officeLocation?: string,
+    bank?: string
   ) {
     const dobDate = dateOfBirth ? this.parseDate(dateOfBirth) : null;
 
@@ -663,6 +730,7 @@ export class UsersService implements OnModuleInit {
           mobile: phoneNumber || '',
           password: '',
           role: 'user',
+          bank: bank || null,
         })
         .select()
         .maybeSingle();
@@ -702,6 +770,7 @@ export class UsersService implements OnModuleInit {
     if (studyDestination !== undefined && studyDestination !== null && studyDestination !== '') updatePayload.studyDestination = studyDestination;
     if (officeId !== undefined) updatePayload.officeId = officeId;
     if (officeLocation !== undefined) updatePayload.officeLocation = officeLocation;
+    if (bank !== undefined) updatePayload.bank = bank;
 
     // Parse and handle academic object
     let parsedAcademic: any = {};

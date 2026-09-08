@@ -1963,6 +1963,31 @@ export const supportApi = {
     markNotificationRead: (id: string) => apiFetch(`${API_URL}/support/notifications/${id}/read`, { method: "PATCH" }),
 };
 
+export const mailApi = {
+    getInbox: (params: { folder?: string; staffEmail?: string } = {}) => {
+        const q = new URLSearchParams();
+        if (params.folder) q.set("folder", params.folder);
+        if (params.staffEmail) q.set("staffEmail", params.staffEmail);
+        const queryStr = q.toString() ? `?${q.toString()}` : "";
+        return apiFetch(`${API_URL}/mail/inbox${queryStr}`);
+    },
+    getFolders: () => apiFetch(`${API_URL}/mail/folders`),
+    getMail: (id: string) => apiFetch(`${API_URL}/mail/inbox/${id}`),
+    sendMail: (data: {
+        to: string | string[];
+        cc?: string | string[];
+        bcc?: string | string[];
+        subject: string;
+        text?: string;
+        html?: string;
+        replyTo?: string;
+        attachments?: { filename: string; content: string; contentType?: string }[];
+    }) => apiFetch(`${API_URL}/mail/send`, {
+        method: "POST",
+        body: JSON.stringify(data),
+    }),
+};
+
 export const siteSettingsApi = {
     getPublicSettings: () => adminApi.getPublicSiteSettings(),
     getSettings: () => adminApi.getSiteSettings(),

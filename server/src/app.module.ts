@@ -32,6 +32,7 @@ import { SupportModule } from './support/support.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { AssignmentModule } from './assignment/assignment.module';
 import { SiteSettingsModule } from './site-settings/site-settings.module';
+import { MailModule } from './mail/mail.module';
 
 @Module({
   imports: [
@@ -68,6 +69,7 @@ import { SiteSettingsModule } from './site-settings/site-settings.module';
     SupportModule,
     AssignmentModule,
     SiteSettingsModule,
+    MailModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -51,7 +51,7 @@ const DEFAULT_SETTINGS = {
   posthogApiKey: 'phc_vidyaloans_live_key_998877',
   mixpanelToken: 'mp_token_vidyaloans_production',
   hotjarSiteId: '3456789',
-  customHeadScripts: '<!-- Google Tag Manager -->\n<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({\'gtm.start\':new Date().getTime(),event:\'gtm.js\'});})(window,document,\'script\',\'dataLayer\',\'GTM-PSHKZ8FK\');</script>',
+  customHeadScripts: '<!-- Google Tag Manager -->\n<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({\'gtm.start\':new Date().getTime(),event:\'gtm.js\'});})(window,document,\'script\',\'dataLayer\',\'GTM-PSHKZ8FK\');</script>\n<!-- Google tag (gtag.js) -->\n<script async src="https://www.googletagmanager.com/gtag/js?id=G-1Z8RYR9RBW"></script>\n<script>\n  window.dataLayer = window.dataLayer || [];\n  function gtag(){dataLayer.push(arguments);}\n  gtag(\'js\', new Date());\n\n  gtag(\'config\', \'G-1Z8RYR9RBW\');\n</script>',
   customBodyScripts: '<!-- Google Tag Manager (noscript) -->\n<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-PSHKZ8FK" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>',
   webhookUrl: 'https://api.vidyaloans.com/v1/webhooks/events',
 
@@ -78,6 +78,11 @@ const DEFAULT_SETTINGS = {
   smtpPort: Number(process.env.SMTP_PORT) || 587,
   smtpUser: process.env.SMTP_USER || '',
   smtpPassword: process.env.SMTP_PASS || '',
+
+  // Mobile App Download Banner
+  enableAppBanner: true,
+  playStoreUrl: 'https://play.google.com/store/apps/details?id=in.vidyaloans.app&hl=en-US&ah=Vx9t8taW0pweH2uHyGVMktR2FLs',
+  appStoreUrl: '',
 };
 
 const PRISMA_SITE_SETTING_FIELDS = new Set([
@@ -160,7 +165,7 @@ try {
 export class SiteSettingsService {
   private readonly logger = new Logger(SiteSettingsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   private persistToFile(settings: any) {
     try {

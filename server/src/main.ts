@@ -59,7 +59,10 @@ async function bootstrap() {
       url.includes('/ai-search') ||
       url.includes('/ai/') ||
       url.includes('/reference/') ||
-      url.includes('/explore/')
+      url.includes('/explore/') ||
+      url.includes('/mail/') ||
+      url.includes('/support/send') ||
+      url.includes('/send')
     ) {
       return next();
     }

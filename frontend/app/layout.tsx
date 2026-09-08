@@ -7,6 +7,7 @@ import { DialogProvider } from "@/contexts/DialogContext";
 import SelectedUniversityWidget from "@/components/SelectedUniversityWidget";
 import ReferralTracker from "@/components/ReferralTracker";
 import CookieConsentBanner from "@/components/CookieConsentBanner";
+import MobileAppDownloadBanner from "@/components/MobileAppDownloadBanner";
 import ProfileGate from "@/components/ProfileGate";
 
 export const metadata: Metadata = {
@@ -53,6 +54,7 @@ export default function RootLayout({
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="icon" type="image/png" href="/icon.png" />
         <link rel="apple-touch-icon" href="/icon.png" />
+        <meta name="google-play-app" content="app-id=in.vidyaloans.app" />
         {/* Google Tag Manager (Head Script) */}
         <script
           dangerouslySetInnerHTML={{
@@ -139,6 +141,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
                     {children}
                     <SelectedUniversityWidget />
                     <CookieConsentBanner />
+                    <MobileAppDownloadBanner />
                   </ProfileGate>
                 </UniversityProvider>
               </DialogProvider>

@@ -419,7 +419,21 @@ export default function AdminBanksSection() {
                                                 </button>
                                             </div>
                                         </td>
-                                        <td className="px-5 py-4 text-slate-900 font-medium">{bank.maxLoanAmount}</td>
+                                        <td className="px-5 py-4 text-slate-900 font-medium">
+                                            <div>{bank.maxLoanAmount}</div>
+                                            <div className="flex items-center gap-1 mt-1">
+                                                {bank.collateralFreeLimit && bank.collateralFreeLimit !== "None" ? (
+                                                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold" title="Non-Collateral Limit">
+                                                        Non-Collateral: {bank.collateralFreeLimit}
+                                                    </span>
+                                                ) : null}
+                                                {bank.collateralRequired ? (
+                                                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 font-bold" title="Collateral Required">
+                                                        Collateral
+                                                    </span>
+                                                ) : null}
+                                            </div>
+                                        </td>
                                         <td className="px-5 py-4 text-slate-600">{bank.processingFee}</td>
                                         <td className="px-5 py-4">
                                             {bank.isPopular ? (

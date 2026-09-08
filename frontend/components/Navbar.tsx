@@ -6,7 +6,34 @@ import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSiteSettings } from "@/contexts/SiteSettingsContext";
 import { useRouter } from "next/navigation";
-import { authApi } from "@/lib/api";
+import { authApi, referenceApi } from "@/lib/api";
+
+interface DynamicPartner {
+    slug: string;
+    name: string;
+    rate: string;
+    initials: string;
+    color: string;
+    bgColor: string;
+    logo?: string;
+}
+
+const DEFAULT_PARTNERS: DynamicPartner[] = [
+    { slug: "idfc", name: "IDFC First Bank", rate: "From 10.25% p.a.", initials: "IF", color: "text-red-600", bgColor: "bg-red-500/10", logo: "/banks/idfc.png" },
+    { slug: "auxilo", name: "Auxilo Finserve", rate: "From 10.50% p.a.", initials: "AX", color: "text-blue-600", bgColor: "bg-blue-500/10", logo: "/banks/auxilo.png" },
+    { slug: "avanse", name: "Avanse Financial", rate: "From 10.50% p.a.", initials: "AV", color: "text-green-600", bgColor: "bg-green-500/10", logo: "/banks/avanse.png" },
+    { slug: "credila", name: "Credila (HDFC)", rate: "From 10.25% p.a.", initials: "CR", color: "text-indigo-600", bgColor: "bg-indigo-500/10", logo: "/banks/credila.png" },
+    { slug: "poonawalla", name: "Poonawalla Fincorp", rate: "From 11.00% p.a.", initials: "PF", color: "text-orange-600", bgColor: "bg-orange-500/10", logo: "/banks/poonawalla.jpg" },
+];
+
+const COLOR_CYCLE = [
+    { color: "text-red-600", bgColor: "bg-red-500/10" },
+    { color: "text-blue-600", bgColor: "bg-blue-500/10" },
+    { color: "text-green-600", bgColor: "bg-green-500/10" },
+    { color: "text-indigo-600", bgColor: "bg-indigo-500/10" },
+    { color: "text-orange-600", bgColor: "bg-orange-500/10" },
+    { color: "text-purple-600", bgColor: "bg-purple-500/10" },
+];
 
 export default function Navbar() {
     const { user, isAuthenticated, logout } = useAuth();
@@ -30,6 +57,40 @@ export default function Navbar() {
         return false;
     });
     const profileRef = useRef<HTMLDivElement>(null);
+    const [lendingPartners, setLendingPartners] = useState<DynamicPartner[]>(DEFAULT_PARTNERS);
+
+    useEffect(() => {
+        let isMounted = true;
+        const fetchPartners = async () => {
+            try {
+                const res: any = await referenceApi.getBanks();
+                const list = res?.data || res || [];
+                if (Array.isArray(list) && list.length > 0 && isMounted) {
+                    const mapped: DynamicPartner[] = list.map((b: any, idx: number) => {
+                        const style = COLOR_CYCLE[idx % COLOR_CYCLE.length];
+                        const rateStr = b.interestRateMin ? `From ${b.interestRateMin}% p.a.` : (b.interestRate || "From 10.25% p.a.");
+                        const slug = (b.shortName || b.name?.toLowerCase().replace(/[^a-z0-9]/g, "") || "bank").toLowerCase();
+                        const initials = (b.shortName ? b.shortName.slice(0, 2) : b.name?.slice(0, 2) || "BK").toUpperCase();
+                        return {
+                            slug,
+                            name: b.name,
+                            rate: rateStr,
+                            initials,
+                            color: style.color,
+                            bgColor: style.bgColor,
+                            logo: b.logoUrl || b.logo || (slug ? `/banks/${slug}.png` : undefined)
+                        };
+                    });
+                    setLendingPartners(mapped);
+                }
+            } catch (err) {
+                console.error("Failed to load dynamic bank partners in Navbar:", err);
+            }
+        };
+
+        fetchPartners();
+        return () => { isMounted = false; };
+    }, []);
 
     useEffect(() => {
         const onScroll = () => setScrolled(window.scrollY > 50);
@@ -160,14 +221,28 @@ export default function Navbar() {
                                         </div>
 
                                         {/* Column 3: Our Lending Partners */}
-                                        <div className="bg-gray-50/80 -mr-6 -my-6 p-6 border-l border-gray-100 rounded-r-3xl">
-                                            <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-4 pl-3">Our Lending Partners</h3>
-                                            <div className="space-y-1">
-                                                <PartnerItem href="/bank/idfc" initials="IF" name="IDFC First Bank" rate="From 10.25% p.a." color="text-red-600" bgColor="bg-red-500/10" />
-                                                <PartnerItem href="/bank/auxilo" initials="AX" name="Auxilo Finserve" rate="From 10.25% p.a." color="text-blue-600" bgColor="bg-blue-500/10" />
-                                                <PartnerItem href="/bank/avanse" initials="AV" name="Avanse Financial" rate="From 10.25% p.a." color="text-green-600" bgColor="bg-green-500/10" />
-                                                <PartnerItem href="/bank/credila" initials="CR" name="Credila (HDFC)" rate="From 10.25% p.a." color="text-indigo-600" bgColor="bg-indigo-500/10" />
-                                                <PartnerItem href="/bank/poonawalla" initials="PF" name="Poonawalla Fincorp" rate="From 10.25% p.a." color="text-orange-600" bgColor="bg-orange-500/10" />
+                                        <div className="bg-gray-50/80 -mr-6 -my-6 p-6 border-l border-gray-100 rounded-r-3xl flex flex-col justify-between max-h-[420px] overflow-y-auto no-scrollbar">
+                                            <div>
+                                                <div className="flex items-center justify-between mb-4 pl-3 pr-2">
+                                                    <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Our Lending Partners</h3>
+                                                    <span className="text-[9px] font-black text-[#6605c7] bg-purple-50 px-2 py-0.5 rounded-full border border-purple-100">
+                                                        {lendingPartners.length} Partners
+                                                    </span>
+                                                </div>
+                                                <div className="space-y-1">
+                                                    {lendingPartners.map((p) => (
+                                                        <PartnerItem
+                                                            key={p.slug}
+                                                            href={`/bank/${p.slug}`}
+                                                            initials={p.initials}
+                                                            name={p.name}
+                                                            rate={p.rate}
+                                                            color={p.color}
+                                                            bgColor={p.bgColor}
+                                                            logo={p.logo}
+                                                        />
+                                                    ))}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -441,16 +516,27 @@ function MobileLink({ href, label, onClick }: { href: string; label: string; onC
     );
 }
 
-function PartnerItem({ href, initials, name, rate, color, bgColor }: {
-    href: string; initials: string; name: string; rate: string; color: string; bgColor: string;
+function PartnerItem({ href, initials, name, rate, color, bgColor, logo }: {
+    href: string; initials: string; name: string; rate: string; color: string; bgColor: string; logo?: string;
 }) {
+    const [imgFailed, setImgFailed] = useState(false);
+
     return (
         <Link href={href} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white transition-all group/partner">
-            <div className={`w-7 h-7 rounded bg-current/5 flex items-center justify-center flex-shrink-0 ${color} ${bgColor}`}>
-                <span className={`text-[9px] font-bold`}>{initials}</span>
+            <div className={`w-7 h-7 rounded bg-current/5 flex items-center justify-center flex-shrink-0 overflow-hidden ${color} ${bgColor}`}>
+                {logo && !imgFailed ? (
+                    <img
+                        src={logo}
+                        alt={name}
+                        className="w-full h-full object-contain p-0.5"
+                        onError={() => setImgFailed(true)}
+                    />
+                ) : (
+                    <span className={`text-[9px] font-bold`}>{initials}</span>
+                )}
             </div>
-            <div className="flex-1">
-                <div className="text-[11px] font-semibold text-gray-900 group-hover/partner:text-[#6605c7] transition-colors">{name}</div>
+            <div className="flex-1 min-w-0">
+                <div className="text-[11px] font-semibold text-gray-900 group-hover/partner:text-[#6605c7] transition-colors truncate">{name}</div>
                 <div className="text-[9px] text-gray-400 font-medium">{rate}</div>
             </div>
         </Link>

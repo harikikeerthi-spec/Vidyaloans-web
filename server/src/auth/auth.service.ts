@@ -120,7 +120,9 @@ export class AuthService {
 
   private async generateTokens(user: any, originalLoginAt?: number) {
     const isBank = user.role === 'bank' || user.role === 'partner_bank';
-    const { bankId, bankName } = isBank ? this.resolveBankIdFromEmail(user.email) : { bankId: null, bankName: null };
+    const bankInfo = isBank
+      ? await this.usersService.resolveBankInfo(user.bank || user.email)
+      : { bankId: null, bankName: null, bankLogo: null };
 
     const loginAt = originalLoginAt || Date.now();
 
@@ -134,10 +136,12 @@ export class AuthService {
       loginAt,
     };
 
-    // Embed bank identity in JWT so the socket gateway can auto-join the per-bank room
-    if (isBank && bankId) {
-      payload.bankId = bankId;
-      payload.bankName = bankName;
+    // Embed bank identity in JWT so the socket gateway and controllers can auto-resolve
+    if (isBank && bankInfo.bankId) {
+      payload.bankId = bankInfo.bankId;
+      payload.bankName = bankInfo.bankName;
+      payload.bankLogo = bankInfo.bankLogo;
+      payload.bank = bankInfo.bankId;
     }
 
     const isStaff = user.role === 'staff' || user.role === 'staff_admin';
@@ -548,10 +552,18 @@ export class AuthService {
         console.warn(`[AuthService] SMTP failed to send email but OTP is generated: ${otp}`, emailError);
       }
 
+      let bankInfo: any = null;
+      if (targetPortal === 'bank' || existingUser?.role === 'bank' || existingUser?.role === 'partner_bank') {
+        bankInfo = await this.usersService.resolveBankInfo(existingUser?.bank || email);
+      }
+
       return {
         success: true,
         message: 'OTP sent successfully',
         userExists: !!existingUser, // Return whether user exists or not
+        bankId: bankInfo?.bankId || null,
+        bankName: bankInfo?.bankName || null,
+        bankLogo: bankInfo?.bankLogo || null,
         ...(process.env.NODE_ENV === 'development' ? { otp } : {})
       };
     } catch (error) {
@@ -654,6 +666,11 @@ export class AuthService {
         }
       }
 
+      const isBank = user.role === 'bank' || user.role === 'partner_bank';
+      const bankInfo = isBank
+        ? await this.usersService.resolveBankInfo(user.bank || user.email)
+        : { bankId: null, bankName: null, bankLogo: null };
+
       return {
         success: true,
         message: isNewUser ? 'Signup successful. Please complete your profile.' : 'Login successful.',
@@ -667,6 +684,10 @@ export class AuthService {
         phoneNumber: user.phoneNumber || '',
         dateOfBirth: formattedDob || '',
         role: user.role,
+        bank: bankInfo.bankId,
+        bankId: bankInfo.bankId,
+        bankName: bankInfo.bankName,
+        bankLogo: bankInfo.bankLogo,
       };
     } catch (error) {
       console.error('[AuthService] Error in verifyOtpUnified:', error);

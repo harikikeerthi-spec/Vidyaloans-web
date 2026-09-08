@@ -413,6 +413,73 @@ export default function AdminDashboardPage() {
     const [userProfileTab, setUserProfileTab] = useState<'credentials' | 'applications' | 'bank_compare'>('credentials');
     const [updatingUserBank, setUpdatingUserBank] = useState(false);
 
+    // Resolve assigned bank partner helper with authoritative metadata
+    const getAssignedBank = useCallback((userObj: any) => {
+        if (!userObj) return null;
+        const rawBank = (userObj.bank || userObj.partnerBank || userObj.bankId || '').toString().trim();
+        const cleanBank = rawBank.toLowerCase().replace(/[^a-z0-9]/g, '');
+        
+        if (cleanBank && Array.isArray(bankPartners) && bankPartners.length > 0) {
+            const directMatch = bankPartners.find((b: any) => {
+                const bShort = (b.shortName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                const bName = (b.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                const bId = (b.id || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                return bShort === cleanBank || bName === cleanBank || bId === cleanBank ||
+                       cleanBank.includes(bShort) || (bShort && bShort.includes(cleanBank)) ||
+                       cleanBank.includes(bName) || (bName && bName.includes(cleanBank));
+            });
+            if (directMatch) return directMatch;
+        }
+
+        if (userObj.email && Array.isArray(bankPartners) && bankPartners.length > 0) {
+            const domain = (userObj.email.split('@')[1] || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            const emailMatch = bankPartners.find((b: any) => {
+                const bShort = (b.shortName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                const bName = (b.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                return (bShort && domain.includes(bShort)) || (bName && domain.includes(bName));
+            });
+            if (emailMatch) return emailMatch;
+        }
+
+        // Fuzzy match on user's name or email prefix (e.g. firstName: "idfc" or "auxilo")
+        if (Array.isArray(bankPartners) && bankPartners.length > 0) {
+            const nameParts = [userObj.firstName, userObj.lastName, (userObj.email || '').split('@')[0]]
+                .filter(Boolean)
+                .join(' ')
+                .toLowerCase()
+                .replace(/[^a-z0-9\s]/g, '');
+            const nameMatch = bankPartners.find((b: any) => {
+                const bShort = (b.shortName || '').toLowerCase().trim();
+                const bName = (b.name || '').toLowerCase().trim();
+                return (bShort && bShort.length >= 3 && nameParts.includes(bShort)) ||
+                       (bName && bName.length >= 4 && nameParts.includes(bName));
+            });
+            if (nameMatch) return nameMatch;
+        }
+
+        if (rawBank) {
+            const formattedName = rawBank
+                .split(/[-_]/)
+                .map((s: string) => s.charAt(0).toUpperCase() + s.slice(1))
+                .join(' ');
+            return {
+                id: rawBank,
+                name: formattedName,
+                shortName: rawBank.toUpperCase(),
+                type: 'Partner Bank Institution',
+                interestRateMin: 8.5,
+                interestRateMax: 13.5,
+                maxLoanAmount: '₹1.50 Cr',
+                collateralFreeLimit: '₹50 Lakhs',
+                processingTime: '3-5 Days',
+                processingFee: '0.5% - 1%',
+                features: ['Direct Sanction Line', 'Pre-Visa Disbursal', 'Competitive ROI']
+            };
+        }
+
+        return null;
+    }, [bankPartners]);
+
     // Portal control - filter + bulk
     const [roleFilter, setRoleFilter] = useState("all");
     const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
@@ -2579,6 +2646,12 @@ export default function AdminDashboardPage() {
                                                     <input type="checkbox" onChange={e => setSelectedUsers(e.target.checked ? filteredData.map((u: any) => u.id) : [])} className="rounded border-slate-300" />
                                                 </th>
                                                 <th className="px-5 py-3">User Identity</th>
+                                                {activeSection === "users_banks" && (
+                                                    <>
+                                                        <th className="px-5 py-3">Assigned Bank Partner</th>
+                                                        <th className="px-5 py-3">Lending Parameters (ROI & Limits)</th>
+                                                    </>
+                                                )}
                                                 <th className="px-5 py-3">Access Tier</th>
                                                 <th className="px-5 py-3">Registration</th>
                                                 <th className="px-5 py-3">Security / Activity</th>
@@ -2587,11 +2660,13 @@ export default function AdminDashboardPage() {
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
                                             {loading ? (
-                                                <tr><td colSpan={6} className="px-6 py-16 text-center">
+                                                <tr><td colSpan={activeSection === "users_banks" ? 8 : 6} className="px-6 py-16 text-center">
                                                     <div className="w-8 h-8 border-2 border-slate-200 border-t-indigo-600 rounded-full animate-spin mx-auto" />
                                                 </td></tr>
                                             ) : (filteredData.length > 0 ? (
-                                                filteredData.map((item: any, idx: number) => (
+                                                filteredData.map((item: any, idx: number) => {
+                                                    const itemAssignedBank = getAssignedBank(item);
+                                                    return (
                                                     <tr key={idx} className={`group hover:bg-slate-50/50 transition-all ${selectedUsers.includes(item.id) ? 'bg-indigo-50/30' : ''}`}>
                                                         <td className="px-5 py-3">
                                                             <input
@@ -2634,6 +2709,16 @@ export default function AdminDashboardPage() {
                                                                     </p>
                                                                     <div className="flex items-center gap-2 flex-wrap mt-0.5">
                                                                         <p className="text-[10px] text-slate-500 font-medium">{item.email}</p>
+                                                                        {itemAssignedBank && (
+                                                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs" title={`Assigned Bank: ${itemAssignedBank.name}`}>
+                                                                                {itemAssignedBank.logoUrl ? (
+                                                                                    <img src={itemAssignedBank.logoUrl} alt="" className="w-3 h-3 object-contain" />
+                                                                                ) : (
+                                                                                    <span className="material-symbols-outlined text-[11px] text-emerald-600">account_balance</span>
+                                                                                )}
+                                                                                {itemAssignedBank.name} ({itemAssignedBank.shortName})
+                                                                            </span>
+                                                                        )}
                                                                         {(item.officeLocation || item.officeId) && (
                                                                             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100" title={`Assigned Office: ${item.officeLocation || item.officeId}`}>
                                                                                 <span className="material-symbols-outlined text-[11px] text-indigo-500">apartment</span>
@@ -2655,6 +2740,96 @@ export default function AdminDashboardPage() {
                                                                 </div>
                                                             </button>
                                                         </td>
+                                                        {activeSection === "users_banks" && (
+                                                            <>
+                                                                <td className="px-5 py-3">
+                                                                    {itemAssignedBank ? (
+                                                                        <div className="flex items-center gap-2.5">
+                                                                            {itemAssignedBank.logoUrl ? (
+                                                                                <img src={itemAssignedBank.logoUrl} alt="" className="w-8 h-8 rounded-lg object-contain bg-white border border-slate-200 p-1 shadow-xs flex-shrink-0" />
+                                                                            ) : (
+                                                                                <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-black text-xs flex-shrink-0">
+                                                                                    <span className="material-symbols-outlined text-[16px]">account_balance</span>
+                                                                                </div>
+                                                                            )}
+                                                                            <div className="min-w-0 flex-1">
+                                                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                                                    <span className="text-[12px] font-bold text-slate-900 leading-tight">
+                                                                                        {itemAssignedBank.name}
+                                                                                    </span>
+                                                                                    <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200 uppercase">
+                                                                                        {itemAssignedBank.shortName}
+                                                                                    </span>
+                                                                                </div>
+                                                                                <div className="flex items-center gap-2 mt-0.5">
+                                                                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                                                                                        {itemAssignedBank.type || 'Lending Partner'}
+                                                                                    </p>
+                                                                                    {bankPartners.length > 0 && (
+                                                                                        <select
+                                                                                            disabled={updatingUserBank}
+                                                                                            value={(itemAssignedBank.shortName || '').toLowerCase()}
+                                                                                            onChange={(e) => {
+                                                                                                if (e.target.value) handleUpdateUserBank(item.id, item.email, e.target.value);
+                                                                                            }}
+                                                                                            className="text-[9px] font-semibold text-slate-500 hover:text-emerald-700 bg-transparent border-0 underline cursor-pointer p-0 focus:outline-none"
+                                                                                            title="Reassign Partner Bank"
+                                                                                        >
+                                                                                            {bankPartners.map((bp: any) => (
+                                                                                                <option key={bp.id || bp.shortName} value={bp.shortName}>
+                                                                                                    Reassign: {bp.name}
+                                                                                                </option>
+                                                                                            ))}
+                                                                                        </select>
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div className="flex items-center gap-2">
+                                                                            <select
+                                                                                disabled={updatingUserBank}
+                                                                                onChange={(e) => {
+                                                                                    if (e.target.value) handleUpdateUserBank(item.id, item.email, e.target.value);
+                                                                                }}
+                                                                                defaultValue=""
+                                                                                className="text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-lg px-2.5 py-1 cursor-pointer transition-colors shadow-xs"
+                                                                            >
+                                                                                <option value="" disabled>+ Assign Bank Partner</option>
+                                                                                {bankPartners.map((bp: any) => (
+                                                                                    <option key={bp.id || bp.shortName} value={bp.shortName}>
+                                                                                        {bp.name} ({bp.shortName})
+                                                                                    </option>
+                                                                                ))}
+                                                                            </select>
+                                                                        </div>
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-5 py-3">
+                                                                    {itemAssignedBank ? (
+                                                                        <div className="space-y-1">
+                                                                            <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-700">
+                                                                                <span className="material-symbols-outlined text-[13px]">percent</span>
+                                                                                <span>ROI: {itemAssignedBank.interestRateMin || 8.5}% - {itemAssignedBank.interestRateMax || 14.5}% p.a.</span>
+                                                                            </div>
+                                                                            <div className="flex items-center gap-1.5 text-[9px] font-semibold text-slate-600 flex-wrap">
+                                                                                <span className="px-1.5 py-0.5 bg-slate-50 rounded border border-slate-200" title="Max Loan Cap">
+                                                                                    Cap: {itemAssignedBank.maxLoanAmount || '₹1.50 Cr'}
+                                                                                </span>
+                                                                                <span className="px-1.5 py-0.5 bg-slate-50 rounded border border-slate-200" title="Collateral Free Limit">
+                                                                                    Collateral-Free: {itemAssignedBank.collateralFreeLimit || '₹50 L'}
+                                                                                </span>
+                                                                                <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-800 rounded border border-emerald-200" title="Turnaround SLA">
+                                                                                    SLA: {itemAssignedBank.processingTime || '3-5 Days'}
+                                                                                </span>
+                                                                            </div>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <span className="text-[10px] font-medium text-slate-400 italic">Assign bank to view parameters</span>
+                                                                    )}
+                                                                </td>
+                                                            </>
+                                                        )}
                                                         <td className="px-5 py-3">
                                                             <div className="relative inline-block min-w-[125px]">
                                                                 <select
@@ -2766,10 +2941,11 @@ export default function AdminDashboardPage() {
                                                             </div>
                                                         </td>
                                                     </tr>
-                                                ))
+                                                );
+                                            })
                                             ) : (
                                                 <tr>
-                                                    <td colSpan={6} className="px-6 py-12 text-center">
+                                                    <td colSpan={activeSection === "users_banks" ? 8 : 6} className="px-6 py-12 text-center">
                                                         <span className="material-symbols-outlined text-2xl text-slate-300 block mb-2">database_off</span>
                                                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">No matching identity nodes</p>
                                                     </td>
@@ -5005,7 +5181,22 @@ export default function AdminDashboardPage() {
                                         </div>
                                         <div>
                                             <h2 className="text-[20px] font-bold text-slate-900 tracking-tight">{selectedUserProfile.firstName} {selectedUserProfile.lastName}</h2>
-                                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mt-0.5">{selectedUserProfile.email}</p>
+                                            <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                                                <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">{selectedUserProfile.email}</p>
+                                                {(() => {
+                                                    const assignedBank = getAssignedBank(selectedUserProfile);
+                                                    return assignedBank ? (
+                                                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded text-[10px] font-bold shadow-2xs">
+                                                            {assignedBank.logoUrl ? (
+                                                                <img src={assignedBank.logoUrl} alt="" className="w-3.5 h-3.5 object-contain" />
+                                                            ) : (
+                                                                <span className="material-symbols-outlined text-[13px] text-emerald-600">account_balance</span>
+                                                            )}
+                                                            {assignedBank.name} ({assignedBank.shortName})
+                                                        </span>
+                                                    ) : null;
+                                                })()}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -5088,18 +5279,6 @@ export default function AdminDashboardPage() {
                                                         ))}
                                                     </select>
                                                 </div>
-                                                {comparedBankPartner && (
-                                                    <a
-                                                        href={`/bank/decisions?bankId=${encodeURIComponent(comparedBankPartner.shortName)}`}
-                                                        target="_blank"
-                                                        rel="noreferrer"
-                                                        className="px-3 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-1 shadow-sm shrink-0"
-                                                        title="Launch Lender Underwriting Portal"
-                                                    >
-                                                        <span className="material-symbols-outlined text-[14px]">open_in_new</span>
-                                                        Portal
-                                                    </a>
-                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -5368,6 +5547,97 @@ export default function AdminDashboardPage() {
                             ) : (
                                 /* ─── Credentials Tab ─── */
                                 <div className="space-y-6">
+                                    {/* If Bank Officer or has Assigned Bank, show rich Assigned Lending Partner Institution Card */}
+                                    {(() => {
+                                        const assignedBank = getAssignedBank(selectedUserProfile);
+                                        if (!assignedBank && selectedUserProfile?.role !== 'bank') return null;
+                                        const bankObj = assignedBank || {
+                                            name: (selectedUserProfile?.bank || 'Lending Partner').toUpperCase(),
+                                            shortName: (selectedUserProfile?.bank || 'BANK').toUpperCase(),
+                                            type: 'Lending Partner Institution',
+                                            interestRateMin: 8.5,
+                                            interestRateMax: 14.5,
+                                            maxLoanAmount: '₹1.50 Cr',
+                                            collateralFreeLimit: '₹50 Lakhs',
+                                            processingTime: '3-5 Days',
+                                            processingFee: '0.5% - 1%',
+                                            features: ['Direct Sanction Line', 'Pre-Visa Disbursal', 'Competitive ROI']
+                                        };
+                                        return (
+                                            <div className="p-5 bg-gradient-to-br from-emerald-50/90 via-teal-50/40 to-white rounded-2xl border-2 border-emerald-200 shadow-sm space-y-4">
+                                                <div className="flex items-center justify-between border-b border-emerald-200/80 pb-3 flex-wrap gap-3">
+                                                    <div className="flex items-center gap-3">
+                                                        {bankObj.logoUrl ? (
+                                                            <img src={bankObj.logoUrl} alt="" className="w-12 h-12 object-contain bg-white rounded-xl p-1.5 border border-emerald-200 shadow-xs" />
+                                                        ) : (
+                                                            <div className="w-12 h-12 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black text-base shadow-xs">
+                                                                <span className="material-symbols-outlined text-[24px]">account_balance</span>
+                                                            </div>
+                                                        )}
+                                                        <div>
+                                                            <div className="flex items-center gap-2 flex-wrap">
+                                                                <h4 className="text-[15px] font-black text-slate-900">{bankObj.name}</h4>
+                                                                <span className="px-2 py-0.5 bg-emerald-600 text-white rounded text-[9px] font-black uppercase tracking-wider shadow-xs">
+                                                                    {bankObj.shortName}
+                                                                </span>
+                                                            </div>
+                                                            <p className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider mt-0.5 flex items-center gap-1.5">
+                                                                <span>{bankObj.type || 'Lending Partner Institution'}</span>
+                                                                <span>•</span>
+                                                                <span className="text-emerald-700">Assigned Bank Representative</span>
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setUserProfileTab('bank_compare')}
+                                                            className="px-2.5 py-1.5 bg-white text-emerald-800 border border-emerald-300 hover:bg-emerald-50 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors cursor-pointer"
+                                                        >
+                                                            Switch Bank
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px]">
+                                                    <div className="p-3 bg-white rounded-xl border border-emerald-100 shadow-xs">
+                                                        <span className="text-[9px] font-black uppercase tracking-wider text-emerald-800 block">Interest Rate (ROI)</span>
+                                                        <span className="text-sm font-black text-emerald-950 mt-0.5 block">{bankObj.interestRateMin || 8.5}% - {bankObj.interestRateMax || 14.5}%</span>
+                                                        <span className="text-[9px] text-slate-500 font-medium">p.a. floating / fixed</span>
+                                                    </div>
+                                                    <div className="p-3 bg-white rounded-xl border border-emerald-100 shadow-xs">
+                                                        <span className="text-[9px] font-black uppercase tracking-wider text-emerald-800 block">Max Sanction Limit</span>
+                                                        <span className="text-sm font-black text-slate-900 mt-0.5 block">{bankObj.maxLoanAmount || '₹1.50 Cr'}</span>
+                                                        <span className="text-[9px] text-slate-500 font-medium">Sanction Cap</span>
+                                                    </div>
+                                                    <div className="p-3 bg-white rounded-xl border border-emerald-100 shadow-xs">
+                                                        <span className="text-[9px] font-black uppercase tracking-wider text-emerald-800 block">Collateral-Free Limit</span>
+                                                        <span className="text-sm font-black text-slate-900 mt-0.5 block">{bankObj.collateralFreeLimit || '₹50 Lakhs'}</span>
+                                                        <span className="text-[9px] text-slate-500 font-medium">Unsecured threshold</span>
+                                                    </div>
+                                                    <div className="p-3 bg-white rounded-xl border border-emerald-100 shadow-xs">
+                                                        <span className="text-[9px] font-black uppercase tracking-wider text-emerald-800 block">Processing SLA</span>
+                                                        <span className="text-sm font-black text-slate-900 mt-0.5 block">{bankObj.processingTime || '3-5 Days'}</span>
+                                                        <span className="text-[9px] text-slate-500 font-medium">Fee: {bankObj.processingFee || '0.5% - 1%'}</span>
+                                                    </div>
+                                                </div>
+
+                                                {Array.isArray(bankObj.features) && bankObj.features.length > 0 && (
+                                                    <div className="pt-1">
+                                                        <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider block mb-1.5">Approved Lending Products & Schemes</span>
+                                                        <div className="flex flex-wrap gap-1.5">
+                                                            {bankObj.features.map((f: string, idx: number) => (
+                                                                <span key={idx} className="px-2 py-0.5 bg-white border border-emerald-200 text-emerald-900 rounded-md text-[9px] font-bold shadow-2xs">
+                                                                    ✓ {f}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })()}
+
                                     <div className="flex items-center gap-3 mb-4">
                                         <span className="material-symbols-outlined text-indigo-600 text-[20px]">security</span>
                                         <h3 className="text-[13px] font-bold text-slate-900 uppercase tracking-wide">Personal Information</h3>
@@ -5377,7 +5647,14 @@ export default function AdminDashboardPage() {
                                         <DetailRow label="Email" value={userCredentials?.email || selectedUserProfile.email} />
                                         <DetailRow label="Phone" value={userCredentials?.mobile || userCredentials?.phoneNumber || '—'} />
                                         <DetailRow label="Role" value={userCredentials?.role?.toUpperCase() || '—'} />
-                                        <DetailRow label="Assigned Bank" value={selectedUserProfile.bank ? selectedUserProfile.bank.toUpperCase() : '—'} />
+                                        <DetailRow 
+                                            label="Assigned Bank" 
+                                            value={(() => {
+                                                const b = getAssignedBank(selectedUserProfile);
+                                                return b ? `${b.name} (${b.shortName})` : (selectedUserProfile.bank ? selectedUserProfile.bank.toUpperCase() : '—');
+                                            })()} 
+                                            highlight={!!selectedUserProfile.bank} 
+                                        />
                                         <DetailRow label="Date of Birth" value={userCredentials?.dob ? format(new Date(userCredentials.dob), 'dd MMM yyyy') : '—'} />
                                         <DetailRow label="Gender" value={userCredentials?.gender || '—'} />
                                         {userCredentials?.createdAt && (

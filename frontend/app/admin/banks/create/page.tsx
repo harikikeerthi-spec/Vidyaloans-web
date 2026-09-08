@@ -7,10 +7,32 @@ import { adminApi } from "@/lib/api";
 
 const sections = [
     { id: "section-identity", label: "Institution Identity", icon: "domain", num: "1" },
-    { id: "section-rates", label: "Interest Rates & Limits", icon: "percent", num: "2" },
-    { id: "section-schemes", label: "Loan Schemes & Toggles", icon: "shield_person", num: "3" },
-    { id: "section-highlights", label: "Key Highlights & USPs", icon: "verified", num: "4" },
-    { id: "section-uploads", label: "Web, Contact & Logo", icon: "cloud_upload", num: "5" },
+    { id: "section-rates", label: "Base Rates & Parameters", icon: "percent", num: "2" },
+    { id: "section-collateral", label: "Collateral (Secured) Loans", icon: "real_estate_agent", num: "3" },
+    { id: "section-non-collateral", label: "Non-Collateral (Unsecured)", icon: "shield_person", num: "4" },
+    { id: "section-schemes", label: "Loan Schemes & Toggles", icon: "tune", num: "5" },
+    { id: "section-highlights", label: "Key Highlights & USPs", icon: "verified", num: "6" },
+    { id: "section-uploads", label: "Web, Contact & Logo", icon: "cloud_upload", num: "7" },
+];
+
+const COLLATERAL_TYPE_OPTIONS = [
+    "Residential Property (House, Flat, Apartment)",
+    "Commercial Property (Shop, Office Building)",
+    "Fixed Deposit (FD) / Liquid Securities",
+    "Life Insurance Policies (Surrender Value)",
+    "Govt Bonds / Mutual Funds / Shares",
+    "Non-Agricultural Land / Plots"
+];
+
+const ELIGIBLE_COUNTRIES_OPTIONS = [
+    "USA",
+    "UK",
+    "Canada",
+    "Australia",
+    "Ireland",
+    "Germany",
+    "Europe (Schengen)",
+    "Global (All Approved)"
 ];
 
 export default function CreateBankPage() {
@@ -29,10 +51,40 @@ export default function CreateBankPage() {
         interestRateMin: 10.25,
         interestRateMax: 14.5,
         maxLoanAmount: "No Limit",
-        offersNonCollateral: true,
-        nonCollateralLimit: "50 Lakhs",
         processingFee: "1% + GST",
         processingTime: "48 hours",
+
+        // Collateral (Secured) Loan Configuration
+        offersCollateral: true,
+        collateralLimit: "₹2.0 Crore",
+        collateralInterestRateMin: 8.5,
+        collateralInterestRateMax: 11.5,
+        acceptedCollateralTypes: [
+            "Residential Property (House, Flat, Apartment)",
+            "Commercial Property (Shop, Office Building)",
+            "Fixed Deposit (FD) / Liquid Securities"
+        ],
+        collateralMarginMoney: "Nil for Premier, 5-10% Others",
+        collateralProcessingTime: "7 - 12 business days",
+        thirdPartyCollateralAllowed: true,
+
+        // Non-Collateral (Unsecured) Loan Configuration
+        offersNonCollateral: true,
+        nonCollateralLimit: "50 Lakhs",
+        nonCollateralInterestRateMin: 10.25,
+        nonCollateralInterestRateMax: 14.5,
+        nonCollateralMinCibil: "685+",
+        nonCollateralMinIncome: "₹35,000 / month",
+        nonCollateralEligibleCountries: [
+            "USA",
+            "UK",
+            "Canada",
+            "Australia",
+            "Ireland",
+            "Germany"
+        ],
+        preVisaDisbursal: true,
+
         features: [
             "100% Financing: Covers tuition fees, living costs, and travel expenses",
             "Pre-visa disbursement support available",
@@ -44,6 +96,30 @@ export default function CreateBankPage() {
         logoUrl: "",
         isPopular: false
     });
+
+    const toggleCollateralType = (cType: string) => {
+        setForm(prev => {
+            const exists = prev.acceptedCollateralTypes.includes(cType);
+            return {
+                ...prev,
+                acceptedCollateralTypes: exists
+                    ? prev.acceptedCollateralTypes.filter(t => t !== cType)
+                    : [...prev.acceptedCollateralTypes, cType]
+            };
+        });
+    };
+
+    const toggleEligibleCountry = (country: string) => {
+        setForm(prev => {
+            const exists = prev.nonCollateralEligibleCountries.includes(country);
+            return {
+                ...prev,
+                nonCollateralEligibleCountries: exists
+                    ? prev.nonCollateralEligibleCountries.filter(c => c !== country)
+                    : [...prev.nonCollateralEligibleCountries, country]
+            };
+        });
+    };
 
     // Scrollspy tracking
     useEffect(() => {
@@ -139,6 +215,32 @@ export default function CreateBankPage() {
             return;
         }
 
+        if (form.offersCollateral && (Number(form.collateralInterestRateMin) <= 0 || Number(form.collateralInterestRateMax) <= 0)) {
+            alert("Please enter valid Secured / Collateral Interest Rates");
+            scrollToSection("section-collateral");
+            return;
+        }
+        if (form.offersNonCollateral && (Number(form.nonCollateralInterestRateMin) <= 0 || Number(form.nonCollateralInterestRateMax) <= 0)) {
+            alert("Please enter valid Unsecured / Non-Collateral Interest Rates");
+            scrollToSection("section-non-collateral");
+            return;
+        }
+
+        // Auto-generate key highlight bullets for collateral & non-collateral schemes if not already present
+        const dynamicFeatures = [...form.features];
+        if (form.offersNonCollateral) {
+            const nonCollateralHighlight = `Non-Collateral (Unsecured): Up to ${form.nonCollateralLimit} without asset pledge (CIBIL ${form.nonCollateralMinCibil})`;
+            if (!dynamicFeatures.some(f => f.toLowerCase().includes("non-collateral") || f.toLowerCase().includes("unsecured"))) {
+                dynamicFeatures.push(nonCollateralHighlight);
+            }
+        }
+        if (form.offersCollateral) {
+            const collateralHighlight = `Secured Collateral: High-value sanction up to ${form.collateralLimit} starting at ${form.collateralInterestRateMin}% p.a.`;
+            if (!dynamicFeatures.some(f => f.toLowerCase().includes("secured") || f.toLowerCase().includes("collateral:"))) {
+                dynamicFeatures.push(collateralHighlight);
+            }
+        }
+
         const payload = {
             name: form.name.trim(),
             shortName: form.shortName.trim().toLowerCase().replace(/[^a-z0-9_-]/g, ""),
@@ -149,16 +251,33 @@ export default function CreateBankPage() {
             interestRateMin: Number(form.interestRateMin),
             interestRateMax: Number(form.interestRateMax),
             maxLoanAmount: form.maxLoanAmount.trim(),
-            collateralRequired: !form.offersNonCollateral,
-            collateralFreeLimit: form.offersNonCollateral ? form.nonCollateralLimit.trim() : "",
+            collateralRequired: !form.offersNonCollateral || form.offersCollateral,
+            collateralFreeLimit: form.offersNonCollateral ? form.nonCollateralLimit.trim() : "None",
             processingFee: form.processingFee.trim(),
             processingTime: form.processingTime.trim(),
-            features: form.features,
+            features: dynamicFeatures,
             website: form.website.trim(),
             contactNumber: form.contactNumber.trim(),
             email: form.email.trim(),
             logoUrl: form.logoUrl.trim(),
-            isPopular: form.isPopular
+            isPopular: form.isPopular,
+            // Extended Collateral & Non-Collateral properties
+            offersCollateral: form.offersCollateral,
+            collateralLimit: form.collateralLimit.trim(),
+            collateralInterestRateMin: Number(form.collateralInterestRateMin),
+            collateralInterestRateMax: Number(form.collateralInterestRateMax),
+            acceptedCollateralTypes: form.acceptedCollateralTypes,
+            collateralMarginMoney: form.collateralMarginMoney.trim(),
+            collateralProcessingTime: form.collateralProcessingTime.trim(),
+            thirdPartyCollateralAllowed: form.thirdPartyCollateralAllowed,
+            offersNonCollateral: form.offersNonCollateral,
+            nonCollateralLimit: form.nonCollateralLimit.trim(),
+            nonCollateralInterestRateMin: Number(form.nonCollateralInterestRateMin),
+            nonCollateralInterestRateMax: Number(form.nonCollateralInterestRateMax),
+            nonCollateralMinCibil: form.nonCollateralMinCibil.trim(),
+            nonCollateralMinIncome: form.nonCollateralMinIncome.trim(),
+            nonCollateralEligibleCountries: form.nonCollateralEligibleCountries,
+            preVisaDisbursal: form.preVisaDisbursal
         };
 
         setLoading(true);
@@ -272,20 +391,46 @@ export default function CreateBankPage() {
                                     </p>
                                 </div>
                             </div>
-                            <div className="border-t border-slate-100 pt-2.5 space-y-1.5 text-[11px]">
+                            <div className="border-t border-slate-100 pt-2.5 space-y-2 text-[11px]">
                                 <div className="flex justify-between text-slate-500">
                                     <span>Type:</span>
                                     <span className="font-semibold text-slate-800">{form.type}</span>
                                 </div>
                                 <div className="flex justify-between text-slate-500">
-                                    <span>ROI Range:</span>
+                                    <span>Base ROI:</span>
                                     <span className="font-semibold text-slate-800">{form.interestRateMin}% - {form.interestRateMax}%</span>
                                 </div>
-                                <div className="flex justify-between text-slate-500">
-                                    <span>Non-Collateral:</span>
-                                    <span className={`font-semibold ${form.offersNonCollateral ? "text-emerald-600" : "text-slate-400"}`}>
-                                        {form.offersNonCollateral ? `Yes (${form.nonCollateralLimit || "Offered"})` : "No"}
-                                    </span>
+                                <div className="p-2.5 rounded-md bg-blue-50/70 border border-blue-100 space-y-1">
+                                    <div className="flex justify-between items-center text-blue-900 font-bold">
+                                        <span className="flex items-center gap-1">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>
+                                            Collateral (Secured):
+                                        </span>
+                                        <span className={form.offersCollateral ? "text-blue-700 font-extrabold" : "text-slate-400 font-normal"}>
+                                            {form.offersCollateral ? form.collateralLimit : "No"}
+                                        </span>
+                                    </div>
+                                    {form.offersCollateral && (
+                                        <p className="text-[10px] text-blue-600 font-medium">
+                                            ROI: {form.collateralInterestRateMin}% - {form.collateralInterestRateMax}% p.a. • {form.acceptedCollateralTypes.length} asset type{form.acceptedCollateralTypes.length === 1 ? "" : "s"}
+                                        </p>
+                                    )}
+                                </div>
+                                <div className="p-2.5 rounded-md bg-emerald-50/70 border border-emerald-100 space-y-1">
+                                    <div className="flex justify-between items-center text-emerald-900 font-bold">
+                                        <span className="flex items-center gap-1">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                                            Non-Collateral:
+                                        </span>
+                                        <span className={form.offersNonCollateral ? "text-emerald-700 font-extrabold" : "text-slate-400 font-normal"}>
+                                            {form.offersNonCollateral ? form.nonCollateralLimit : "No"}
+                                        </span>
+                                    </div>
+                                    {form.offersNonCollateral && (
+                                        <p className="text-[10px] text-emerald-600 font-medium">
+                                            ROI: {form.nonCollateralInterestRateMin}% - {form.nonCollateralInterestRateMax}% p.a. • CIBIL {form.nonCollateralMinCibil}
+                                        </p>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -451,27 +596,226 @@ export default function CreateBankPage() {
                                 </div>
                             </section>
 
-                            {/* Section 3: Loan Schemes & Toggles */}
-                            <section id="section-schemes" className="bg-white rounded-lg border border-slate-200 shadow-[0_1px_3px_rgba(0,0,0,0.05)] p-6">
+                            {/* Section 3: Collateral (Secured) Loans */}
+                            <section id="section-collateral" className="bg-white rounded-lg border border-slate-200 shadow-[0_1px_3px_rgba(0,0,0,0.05)] p-6">
                                 <div className="flex items-center gap-3 pb-4 mb-5 border-b border-slate-100">
-                                    <span className="w-7 h-7 rounded-md bg-emerald-50 border border-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs shrink-0">
+                                    <span className="w-7 h-7 rounded-md bg-blue-50 border border-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs shrink-0">
                                         3
                                     </span>
-                                    <div>
-                                        <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
-                                            Loan Schemes & Collateral Policies
-                                        </h2>
-                                        <p className="text-[12px] text-slate-400">Configure non-collateral availability, featured status, and loan types via toggles</p>
+                                    <div className="flex-1">
+                                        <div className="flex items-center justify-between">
+                                            <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide flex items-center gap-2">
+                                                <span className="material-symbols-outlined text-blue-600 text-lg">real_estate_agent</span>
+                                                Collateral (Secured) Loans
+                                            </h2>
+                                            <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${form.offersCollateral ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-slate-100 text-slate-500 border-slate-200"}`}>
+                                                {form.offersCollateral ? "Secured Scheme Active" : "Secured Scheme Inactive"}
+                                            </span>
+                                        </div>
+                                        <p className="text-[12px] text-slate-400 mt-0.5">Financing backed by immovable property, fixed deposits, or liquid securities with higher loan caps</p>
                                     </div>
                                 </div>
 
-                                <div className="space-y-4">
-                                    {/* Non-Collateral Toggle Box */}
-                                    <div className="p-4 bg-emerald-50/40 border border-emerald-200/80 rounded-md">
+                                <div className="space-y-5">
+                                    {/* Main Collateral Toggle Banner */}
+                                    <div className="p-4 bg-blue-50/50 border border-blue-200/80 rounded-lg">
                                         <div className="flex items-center justify-between gap-4">
                                             <div className="flex items-start gap-3">
-                                                <div className="w-8 h-8 rounded-md bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
-                                                    <span className="material-symbols-outlined text-lg">shield_person</span>
+                                                <div className="w-9 h-9 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
+                                                    <span className="material-symbols-outlined text-xl">real_estate_agent</span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-xs font-bold text-slate-900 block">
+                                                        Offers Collateral (Secured) Loans
+                                                    </span>
+                                                    <p className="text-[11px] text-slate-600 mt-0.5">
+                                                        Borrowers or co-signers pledge assets to obtain competitive interest rates and high sanction limits.
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            {/* Toggle Switch */}
+                                            <button
+                                                type="button"
+                                                role="switch"
+                                                aria-checked={form.offersCollateral}
+                                                onClick={() => setForm(prev => ({ ...prev, offersCollateral: !prev.offersCollateral }))}
+                                                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500/30 ${
+                                                    form.offersCollateral ? "bg-blue-600" : "bg-slate-300"
+                                                }`}
+                                            >
+                                                <span
+                                                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                                                        form.offersCollateral ? "translate-x-5" : "translate-x-0"
+                                                    }`}
+                                                />
+                                            </button>
+                                        </div>
+
+                                        {form.offersCollateral && (
+                                            <div className="mt-5 pt-4 border-t border-blue-200/70 space-y-4">
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                    <div>
+                                                        <label className="text-[11px] font-bold uppercase tracking-wider text-blue-950 block mb-1">
+                                                            Collateral Max Loan Limit
+                                                        </label>
+                                                        <input
+                                                            type="text"
+                                                            value={form.collateralLimit}
+                                                            onChange={e => setForm({ ...form, collateralLimit: e.target.value })}
+                                                            placeholder="e.g. ₹2.0 Crore or No Limit"
+                                                            className="w-full px-3 py-2 bg-white border border-blue-300 rounded-md text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20 shadow-xs"
+                                                        />
+                                                        <p className="text-[10px] text-blue-700 mt-1">Sanction ceiling for secured applications.</p>
+                                                    </div>
+
+                                                    <div>
+                                                        <label className="text-[11px] font-bold uppercase tracking-wider text-blue-950 block mb-1">
+                                                            Secured Min ROI (% p.a.)
+                                                        </label>
+                                                        <div className="relative">
+                                                            <input
+                                                                type="number"
+                                                                step="0.01"
+                                                                value={form.collateralInterestRateMin}
+                                                                onChange={e => setForm({ ...form, collateralInterestRateMin: parseFloat(e.target.value) || 0 })}
+                                                                className="w-full pl-3 pr-7 py-2 bg-white border border-blue-300 rounded-md text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20 shadow-xs"
+                                                            />
+                                                            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-blue-400 pointer-events-none">%</span>
+                                                        </div>
+                                                        <p className="text-[10px] text-blue-700 mt-1">Typically starting at 8.5% - 9.5% p.a.</p>
+                                                    </div>
+
+                                                    <div>
+                                                        <label className="text-[11px] font-bold uppercase tracking-wider text-blue-950 block mb-1">
+                                                            Secured Max ROI (% p.a.)
+                                                        </label>
+                                                        <div className="relative">
+                                                            <input
+                                                                type="number"
+                                                                step="0.01"
+                                                                value={form.collateralInterestRateMax}
+                                                                onChange={e => setForm({ ...form, collateralInterestRateMax: parseFloat(e.target.value) || 0 })}
+                                                                className="w-full pl-3 pr-7 py-2 bg-white border border-blue-300 rounded-md text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20 shadow-xs"
+                                                            />
+                                                            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-blue-400 pointer-events-none">%</span>
+                                                        </div>
+                                                        <p className="text-[10px] text-blue-700 mt-1">Upper boundary for secured rates.</p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                                                    <div>
+                                                        <label className="text-[11px] font-bold uppercase tracking-wider text-blue-950 block mb-1">
+                                                            Margin Money Requirement
+                                                        </label>
+                                                        <input
+                                                            type="text"
+                                                            value={form.collateralMarginMoney}
+                                                            onChange={e => setForm({ ...form, collateralMarginMoney: e.target.value })}
+                                                            placeholder="e.g. Nil for Premier, 5-10% Others"
+                                                            className="w-full px-3 py-2 bg-white border border-blue-300 rounded-md text-xs font-semibold text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20 shadow-xs"
+                                                        />
+                                                    </div>
+
+                                                    <div>
+                                                        <label className="text-[11px] font-bold uppercase tracking-wider text-blue-950 block mb-1">
+                                                            Legal &amp; Valuation TAT
+                                                        </label>
+                                                        <input
+                                                            type="text"
+                                                            value={form.collateralProcessingTime}
+                                                            onChange={e => setForm({ ...form, collateralProcessingTime: e.target.value })}
+                                                            placeholder="e.g. 7 - 12 business days"
+                                                            className="w-full px-3 py-2 bg-white border border-blue-300 rounded-md text-xs font-semibold text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20 shadow-xs"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                {/* Accepted Collateral Types */}
+                                                <div>
+                                                    <label className="text-[11px] font-bold uppercase tracking-wider text-blue-950 block mb-1.5">
+                                                        Accepted Collateral Security Types
+                                                    </label>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {COLLATERAL_TYPE_OPTIONS.map((cType) => {
+                                                            const isSelected = form.acceptedCollateralTypes.includes(cType);
+                                                            return (
+                                                                <button
+                                                                    key={cType}
+                                                                    type="button"
+                                                                    onClick={() => toggleCollateralType(cType)}
+                                                                    className={`px-3 py-1.5 rounded-md text-xs font-semibold border flex items-center gap-1.5 transition-all cursor-pointer ${
+                                                                        isSelected
+                                                                            ? "bg-blue-600 text-white border-blue-700 shadow-xs"
+                                                                            : "bg-white text-slate-700 border-slate-200 hover:border-blue-300 hover:bg-blue-50/30"
+                                                                    }`}
+                                                                >
+                                                                    <span className="material-symbols-outlined text-[14px]">
+                                                                        {isSelected ? "check" : "add"}
+                                                                    </span>
+                                                                    {cType}
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+
+                                                {/* Third-Party Collateral Toggle */}
+                                                <div className="flex items-center justify-between p-3 border border-blue-200 rounded-md bg-white">
+                                                    <div>
+                                                        <span className="text-xs font-bold text-slate-900 block">Accepts Third-Party / Relative Collateral</span>
+                                                        <span className="text-[11px] text-slate-500">Security pledged by parents, siblings, blood relatives, or legal guardians</span>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        role="switch"
+                                                        aria-checked={form.thirdPartyCollateralAllowed}
+                                                        onClick={() => setForm(prev => ({ ...prev, thirdPartyCollateralAllowed: !prev.thirdPartyCollateralAllowed }))}
+                                                        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                                            form.thirdPartyCollateralAllowed ? "bg-blue-600" : "bg-slate-300"
+                                                        }`}
+                                                    >
+                                                        <span
+                                                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                                                                form.thirdPartyCollateralAllowed ? "translate-x-4" : "translate-x-0"
+                                                            }`}
+                                                        />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </section>
+
+                            {/* Section 4: Non-Collateral (Unsecured) Loans */}
+                            <section id="section-non-collateral" className="bg-white rounded-lg border border-slate-200 shadow-[0_1px_3px_rgba(0,0,0,0.05)] p-6">
+                                <div className="flex items-center gap-3 pb-4 mb-5 border-b border-slate-100">
+                                    <span className="w-7 h-7 rounded-md bg-emerald-50 border border-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs shrink-0">
+                                        4
+                                    </span>
+                                    <div className="flex-1">
+                                        <div className="flex items-center justify-between">
+                                            <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide flex items-center gap-2">
+                                                <span className="material-symbols-outlined text-emerald-600 text-lg">shield_person</span>
+                                                Non-Collateral (Unsecured) Loans
+                                            </h2>
+                                            <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${form.offersNonCollateral ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-slate-100 text-slate-500 border-slate-200"}`}>
+                                                {form.offersNonCollateral ? "Unsecured Scheme Active" : "Unsecured Scheme Inactive"}
+                                            </span>
+                                        </div>
+                                        <p className="text-[12px] text-slate-400 mt-0.5">Merit-based education loans granted without pledging property, based on university tier and co-applicant income</p>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-5">
+                                    {/* Main Non-Collateral Toggle Banner */}
+                                    <div className="p-4 bg-emerald-50/50 border border-emerald-200/80 rounded-lg">
+                                        <div className="flex items-center justify-between gap-4">
+                                            <div className="flex items-start gap-3">
+                                                <div className="w-9 h-9 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
+                                                    <span className="material-symbols-outlined text-xl">shield_person</span>
                                                 </div>
                                                 <div>
                                                     <span className="text-xs font-bold text-slate-900 block">
@@ -483,7 +827,7 @@ export default function CreateBankPage() {
                                                 </div>
                                             </div>
 
-                                            {/* Modern Toggle Switch */}
+                                            {/* Toggle Switch */}
                                             <button
                                                 type="button"
                                                 role="switch"
@@ -502,76 +846,208 @@ export default function CreateBankPage() {
                                         </div>
 
                                         {form.offersNonCollateral && (
-                                            <div className="mt-4 pt-3 border-t border-emerald-200/60 max-w-sm">
-                                                <label className="text-[11px] font-bold uppercase tracking-wider text-emerald-900 block mb-1.5">
-                                                    Non-Collateral Max Limit
-                                                </label>
-                                                <input
-                                                    type="text"
-                                                    value={form.nonCollateralLimit}
-                                                    onChange={e => setForm({ ...form, nonCollateralLimit: e.target.value })}
-                                                    placeholder="e.g. ₹50 Lakhs or ₹75 Lakhs"
-                                                    className="w-full px-3 py-2 bg-white border border-emerald-300 rounded-md text-xs font-bold text-slate-900 focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-xs"
-                                                />
-                                                <p className="text-[10px] text-emerald-700 mt-1">Maximum sanction amount granted on unsecured basis.</p>
+                                            <div className="mt-5 pt-4 border-t border-emerald-200/70 space-y-4">
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                    <div>
+                                                        <label className="text-[11px] font-bold uppercase tracking-wider text-emerald-950 block mb-1">
+                                                            Non-Collateral Max Limit
+                                                        </label>
+                                                        <input
+                                                            type="text"
+                                                            value={form.nonCollateralLimit}
+                                                            onChange={e => setForm({ ...form, nonCollateralLimit: e.target.value })}
+                                                            placeholder="e.g. ₹50 Lakhs or ₹75 Lakhs"
+                                                            className="w-full px-3 py-2 bg-white border border-emerald-300 rounded-md text-xs font-bold text-slate-900 focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-xs"
+                                                        />
+                                                        <p className="text-[10px] text-emerald-700 mt-1">Maximum sanction without asset collateral.</p>
+                                                    </div>
+
+                                                    <div>
+                                                        <label className="text-[11px] font-bold uppercase tracking-wider text-emerald-950 block mb-1">
+                                                            Unsecured Min ROI (% p.a.)
+                                                        </label>
+                                                        <div className="relative">
+                                                            <input
+                                                                type="number"
+                                                                step="0.01"
+                                                                value={form.nonCollateralInterestRateMin}
+                                                                onChange={e => setForm({ ...form, nonCollateralInterestRateMin: parseFloat(e.target.value) || 0 })}
+                                                                className="w-full pl-3 pr-7 py-2 bg-white border border-emerald-300 rounded-md text-xs font-bold text-slate-900 focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-xs"
+                                                            />
+                                                            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-emerald-400 pointer-events-none">%</span>
+                                                        </div>
+                                                        <p className="text-[10px] text-emerald-700 mt-1">Starting rate for unsecured applicants.</p>
+                                                    </div>
+
+                                                    <div>
+                                                        <label className="text-[11px] font-bold uppercase tracking-wider text-emerald-950 block mb-1">
+                                                            Unsecured Max ROI (% p.a.)
+                                                        </label>
+                                                        <div className="relative">
+                                                            <input
+                                                                type="number"
+                                                                step="0.01"
+                                                                value={form.nonCollateralInterestRateMax}
+                                                                onChange={e => setForm({ ...form, nonCollateralInterestRateMax: parseFloat(e.target.value) || 0 })}
+                                                                className="w-full pl-3 pr-7 py-2 bg-white border border-emerald-300 rounded-md text-xs font-bold text-slate-900 focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-xs"
+                                                            />
+                                                            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-emerald-400 pointer-events-none">%</span>
+                                                        </div>
+                                                        <p className="text-[10px] text-emerald-700 mt-1">Max rate for non-collateral applications.</p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                                                    <div>
+                                                        <label className="text-[11px] font-bold uppercase tracking-wider text-emerald-950 block mb-1">
+                                                            Minimum Co-applicant CIBIL
+                                                        </label>
+                                                        <input
+                                                            type="text"
+                                                            value={form.nonCollateralMinCibil}
+                                                            onChange={e => setForm({ ...form, nonCollateralMinCibil: e.target.value })}
+                                                            placeholder="e.g. 685+ or 700+"
+                                                            className="w-full px-3 py-2 bg-white border border-emerald-300 rounded-md text-xs font-semibold text-slate-900 focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-xs"
+                                                        />
+                                                    </div>
+
+                                                    <div>
+                                                        <label className="text-[11px] font-bold uppercase tracking-wider text-emerald-950 block mb-1">
+                                                            Min Monthly Co-Applicant Income
+                                                        </label>
+                                                        <input
+                                                            type="text"
+                                                            value={form.nonCollateralMinIncome}
+                                                            onChange={e => setForm({ ...form, nonCollateralMinIncome: e.target.value })}
+                                                            placeholder="e.g. ₹35,000 / month"
+                                                            className="w-full px-3 py-2 bg-white border border-emerald-300 rounded-md text-xs font-semibold text-slate-900 focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-xs"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                {/* Supported Non-Collateral Countries */}
+                                                <div>
+                                                    <label className="text-[11px] font-bold uppercase tracking-wider text-emerald-950 block mb-1.5">
+                                                        Eligible Non-Collateral Study Destinations
+                                                    </label>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {ELIGIBLE_COUNTRIES_OPTIONS.map((country) => {
+                                                            const isSelected = form.nonCollateralEligibleCountries.includes(country);
+                                                            return (
+                                                                <button
+                                                                    key={country}
+                                                                    type="button"
+                                                                    onClick={() => toggleEligibleCountry(country)}
+                                                                    className={`px-3 py-1.5 rounded-md text-xs font-semibold border flex items-center gap-1.5 transition-all cursor-pointer ${
+                                                                        isSelected
+                                                                            ? "bg-emerald-600 text-white border-emerald-700 shadow-xs"
+                                                                            : "bg-white text-slate-700 border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/30"
+                                                                    }`}
+                                                                >
+                                                                    <span className="material-symbols-outlined text-[14px]">
+                                                                        {isSelected ? "check" : "add"}
+                                                                    </span>
+                                                                    {country}
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+
+                                                {/* Pre-Visa Disbursal Toggle */}
+                                                <div className="flex items-center justify-between p-3 border border-emerald-200 rounded-md bg-white">
+                                                    <div>
+                                                        <span className="text-xs font-bold text-slate-900 block">Pre-Visa / Prior Sanction Disbursal Available</span>
+                                                        <span className="text-[11px] text-slate-500">Allows sanction letter or advance fund release for German blocked account or US I-20 proof of funds</span>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        role="switch"
+                                                        aria-checked={form.preVisaDisbursal}
+                                                        onClick={() => setForm(prev => ({ ...prev, preVisaDisbursal: !prev.preVisaDisbursal }))}
+                                                        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                                            form.preVisaDisbursal ? "bg-emerald-600" : "bg-slate-300"
+                                                        }`}
+                                                    >
+                                                        <span
+                                                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                                                                form.preVisaDisbursal ? "translate-x-4" : "translate-x-0"
+                                                            }`}
+                                                        />
+                                                    </button>
+                                                </div>
                                             </div>
                                         )}
-                                    </div>
-
-                                    {/* Other Toggles */}
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-                                        <div className="flex items-center justify-between p-3.5 border border-slate-200 rounded-md bg-white hover:bg-slate-50/50 transition-colors">
-                                            <div className="pr-3">
-                                                <span className="text-xs font-bold text-slate-900 block">Popular / Featured Partner</span>
-                                                <span className="text-[11px] text-slate-500">Highlights bank with featured badge on comparison cards</span>
-                                            </div>
-                                            <button
-                                                type="button"
-                                                role="switch"
-                                                aria-checked={form.isPopular}
-                                                onClick={() => setForm(prev => ({ ...prev, isPopular: !prev.isPopular }))}
-                                                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500/30 ${
-                                                    form.isPopular ? "bg-indigo-600" : "bg-slate-300"
-                                                }`}
-                                            >
-                                                <span
-                                                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                                                        form.isPopular ? "translate-x-5" : "translate-x-0"
-                                                    }`}
-                                                />
-                                            </button>
-                                        </div>
-
-                                        <div className="flex items-center justify-between p-3.5 border border-slate-200 rounded-md bg-white hover:bg-slate-50/50 transition-colors">
-                                            <div className="pr-3">
-                                                <span className="text-xs font-bold text-slate-900 block">Offers Overseas Education Loans</span>
-                                                <span className="text-[11px] text-slate-500">Qualifies for USA, UK, Canada, and global study destinations</span>
-                                            </div>
-                                            <button
-                                                type="button"
-                                                role="switch"
-                                                aria-checked={form.educationLoan}
-                                                onClick={() => setForm(prev => ({ ...prev, educationLoan: !prev.educationLoan }))}
-                                                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500/30 ${
-                                                    form.educationLoan ? "bg-indigo-600" : "bg-slate-300"
-                                                }`}
-                                            >
-                                                <span
-                                                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                                                        form.educationLoan ? "translate-x-5" : "translate-x-0"
-                                                    }`}
-                                                />
-                                            </button>
-                                        </div>
                                     </div>
                                 </div>
                             </section>
 
-                            {/* Section 4: Key Highlights & Schemes */}
+                            {/* Section 5: Loan Schemes & Visibility Toggles */}
+                            <section id="section-schemes" className="bg-white rounded-lg border border-slate-200 shadow-[0_1px_3px_rgba(0,0,0,0.05)] p-6">
+                                <div className="flex items-center gap-3 pb-4 mb-5 border-b border-slate-100">
+                                    <span className="w-7 h-7 rounded-md bg-indigo-50 border border-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs shrink-0">
+                                        5
+                                    </span>
+                                    <div>
+                                        <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
+                                            Loan Schemes &amp; Visibility Toggles
+                                        </h2>
+                                        <p className="text-[12px] text-slate-400">Featured promotion and international education loan qualification</p>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div className="flex items-center justify-between p-3.5 border border-slate-200 rounded-md bg-white hover:bg-slate-50/50 transition-colors">
+                                        <div className="pr-3">
+                                            <span className="text-xs font-bold text-slate-900 block">Popular / Featured Partner</span>
+                                            <span className="text-[11px] text-slate-500">Highlights bank with featured badge on comparison cards</span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            role="switch"
+                                            aria-checked={form.isPopular}
+                                            onClick={() => setForm(prev => ({ ...prev, isPopular: !prev.isPopular }))}
+                                            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500/30 ${
+                                                form.isPopular ? "bg-indigo-600" : "bg-slate-300"
+                                            }`}
+                                        >
+                                            <span
+                                                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                                                    form.isPopular ? "translate-x-5" : "translate-x-0"
+                                                }`}
+                                            />
+                                        </button>
+                                    </div>
+
+                                    <div className="flex items-center justify-between p-3.5 border border-slate-200 rounded-md bg-white hover:bg-slate-50/50 transition-colors">
+                                        <div className="pr-3">
+                                            <span className="text-xs font-bold text-slate-900 block">Offers Overseas Education Loans</span>
+                                            <span className="text-[11px] text-slate-500">Qualifies for USA, UK, Canada, and global study destinations</span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            role="switch"
+                                            aria-checked={form.educationLoan}
+                                            onClick={() => setForm(prev => ({ ...prev, educationLoan: !prev.educationLoan }))}
+                                            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500/30 ${
+                                                form.educationLoan ? "bg-indigo-600" : "bg-slate-300"
+                                            }`}
+                                        >
+                                            <span
+                                                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                                                    form.educationLoan ? "translate-x-5" : "translate-x-0"
+                                                }`}
+                                            />
+                                        </button>
+                                    </div>
+                                </div>
+                            </section>
+
+                            {/* Section 6: Key Highlights & Schemes */}
                             <section id="section-highlights" className="bg-white rounded-lg border border-slate-200 shadow-[0_1px_3px_rgba(0,0,0,0.05)] p-6">
                                 <div className="flex items-center gap-3 pb-4 mb-5 border-b border-slate-100">
                                     <span className="w-7 h-7 rounded-md bg-amber-50 border border-amber-100 text-amber-700 flex items-center justify-center font-bold text-xs shrink-0">
-                                        4
+                                        6
                                     </span>
                                     <div>
                                         <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
@@ -623,11 +1099,11 @@ export default function CreateBankPage() {
                                 </div>
                             </section>
 
-                            {/* Section 5: Web, Contact & Bank Logo */}
+                            {/* Section 7: Web, Contact & Bank Logo */}
                             <section id="section-uploads" className="bg-white rounded-lg border border-slate-200 shadow-[0_1px_3px_rgba(0,0,0,0.05)] p-6">
                                 <div className="flex items-center gap-3 pb-4 mb-5 border-b border-slate-100">
                                     <span className="w-7 h-7 rounded-md bg-sky-50 border border-sky-100 text-sky-700 flex items-center justify-center font-bold text-xs shrink-0">
-                                        5
+                                        7
                                     </span>
                                     <div>
                                         <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wide">

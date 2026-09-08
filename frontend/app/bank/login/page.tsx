@@ -4,10 +4,10 @@ import { useState, useRef, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { authApi } from "@/lib/api";
+import { authApi, referenceApi } from "@/lib/api";
 import { motion, AnimatePresence } from "framer-motion";
 
-const SUPPORTED_BANKS = [
+const DEFAULT_BANKS = [
     { id: "auxilo", name: "Auxilo Finserve", logo: "/banks/auxilo.png" },
     { id: "avanse", name: "Avanse Financial", logo: "/banks/avanse.png" },
     { id: "credila", name: "HDFC Credila", logo: "/banks/credila.png" },
@@ -21,14 +21,17 @@ const SUPPORTED_BANKS = [
 function BankDropdown({
     selected,
     onChange,
+    banks = DEFAULT_BANKS,
 }: {
     selected: string | null;
     onChange: (id: string) => void;
+    banks?: { id: string; name: string; logo: string }[];
 }) {
     const [open, setOpen] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
 
-    const selectedBank = SUPPORTED_BANKS.find((b) => b.id === selected);
+    const selectedBank = banks.find((b) => b.id.toLowerCase() === selected?.toLowerCase())
+        || banks.find((b) => b.name.toLowerCase() === selected?.toLowerCase());
 
     // Close on outside click
     useEffect(() => {
@@ -89,7 +92,7 @@ function BankDropdown({
                 >
                     {/* Scrollable list — max 3.5 items visible */}
                     <div className="overflow-y-auto" style={{ maxHeight: 252 }}>
-                        {SUPPORTED_BANKS.map((bank, i) => {
+                        {banks.map((bank, i) => {
                             const isSelected = bank.id === selected;
                             return (
                                 <button
@@ -101,7 +104,7 @@ function BankDropdown({
                                         background: isSelected
                                             ? "linear-gradient(90deg, rgba(102,5,199,0.07) 0%, rgba(139,36,229,0.04) 100%)"
                                             : undefined,
-                                        borderBottom: i < SUPPORTED_BANKS.length - 1
+                                        borderBottom: i < banks.length - 1
                                             ? "1px solid rgba(0,0,0,0.05)"
                                             : undefined,
                                     }}
@@ -156,6 +159,7 @@ function BankLoginContent() {
     const searchParams = useSearchParams();
     const { login } = useAuth();
 
+    const [banksList, setBanksList] = useState(DEFAULT_BANKS);
     const [selectedBank, setSelectedBank] = useState<string | null>(null);
     const [email, setEmail] = useState("");
     const [otp, setOtp] = useState(["", "", "", "", "", ""]);
@@ -165,9 +169,32 @@ function BankLoginContent() {
     const [resendDisabled, setResendDisabled] = useState(false);
     const [countdown, setCountdown] = useState(0);
 
+    // Fetch dynamic banks from backend database
+    useEffect(() => {
+        referenceApi.getBanks().then((res: any) => {
+            if (res?.success && Array.isArray(res.data) && res.data.length > 0) {
+                const mapped = res.data.map((b: any) => ({
+                    id: b.shortName || b.id,
+                    name: b.name,
+                    logo: b.logoUrl || "/banks/idfc.png",
+                }));
+                setBanksList(mapped);
+            }
+        }).catch(() => {});
+    }, []);
+
     // Dynamic bank resolver based on email input
     const getBankFromEmail = (emailStr: string): string | null => {
         const lowerEmail = emailStr.toLowerCase().trim();
+        if (!lowerEmail) return null;
+        for (const b of banksList) {
+            const bId = (b.id || "").toLowerCase();
+            const bName = (b.name || "").toLowerCase();
+            if ((bId && lowerEmail.includes(bId)) || (bName && lowerEmail.includes(bName))) {
+                return b.id;
+            }
+        }
+
         if (lowerEmail.includes("auxilo")) return "auxilo";
         if (lowerEmail.includes("avanse")) return "avanse";
         if (lowerEmail.includes("credila") || lowerEmail.includes("hdfc")) return "credila";
@@ -186,8 +213,8 @@ function BankLoginContent() {
 
     useEffect(() => {
         const bankId = getBankFromEmail(email);
-        setSelectedBank(bankId);
-    }, [email]);
+        if (bankId) setSelectedBank(bankId);
+    }, [email, banksList]);
 
     // Forgot password states
     const [showForgotModal, setShowForgotModal] = useState(false);
@@ -237,17 +264,28 @@ function BankLoginContent() {
             );
             return;
         }
-        const bankId = getBankFromEmail(email) || "idfc"; // Fallback to idfc
+        const bankId = selectedBank || getBankFromEmail(email) || "idfc"; // Fallback to idfc
         setLoading(true);
         setError("");
         try {
             sessionStorage.setItem("selectedBank", bankId);
             localStorage.setItem("selectedBank", bankId);
-            const res = await authApi.sendOtp(email.trim(), "bank") as { success: boolean; message?: string; otp?: string };
+            const res = await authApi.sendOtp(email.trim(), "bank") as any;
             if (res && res.success === false) {
                 setError(res.message || "Access Denied: Bank partner officer access required.");
                 setLoading(false);
                 return;
+            }
+            if (res?.bankId) {
+                setSelectedBank(res.bankId);
+                sessionStorage.setItem("selectedBank", res.bankId);
+                localStorage.setItem("selectedBank", res.bankId);
+            }
+            if (res?.bankName) {
+                sessionStorage.setItem("selectedBankName", res.bankName);
+            }
+            if (res?.bankLogo) {
+                sessionStorage.setItem("selectedBankLogo", res.bankLogo);
             }
             setStep("otp");
             setResendDisabled(true);
@@ -314,9 +352,15 @@ function BankLoginContent() {
 
             if (data.refresh_token) localStorage.setItem("refreshToken", data.refresh_token);
 
-            const bankId = getBankFromEmail(email.trim()) || "idfc";
-            sessionStorage.setItem("selectedBank", bankId);
-            localStorage.setItem("selectedBank", bankId);
+            const finalBankId = data.bankId || data.bank || selectedBank || getBankFromEmail(email.trim()) || "idfc";
+            sessionStorage.setItem("selectedBank", finalBankId);
+            localStorage.setItem("selectedBank", finalBankId);
+            if (data.bankName) {
+                sessionStorage.setItem("selectedBankName", data.bankName);
+            }
+            if (data.bankLogo) {
+                sessionStorage.setItem("selectedBankLogo", data.bankLogo);
+            }
 
             login(data.access_token, {
                 id: data.userId,
@@ -324,6 +368,9 @@ function BankLoginContent() {
                 firstName: data.firstName,
                 lastName: data.lastName,
                 role: data.role as any,
+                bankName: data.bankName,
+                bankLogo: data.bankLogo,
+                bankId: finalBankId,
                 refresh_token: data.refresh_token,
             });
             router.push("/bank/dashboard");
@@ -334,7 +381,9 @@ function BankLoginContent() {
         }
     };
 
-    const selectedBankName = SUPPORTED_BANKS.find((b) => b.id === selectedBank)?.name;
+    const selectedBankObj = banksList.find((b) => b.id.toLowerCase() === selectedBank?.toLowerCase())
+        || banksList.find((b) => b.name.toLowerCase() === selectedBank?.toLowerCase());
+    const selectedBankName = selectedBankObj?.name || (typeof window !== "undefined" ? sessionStorage.getItem("selectedBankName") : null) || selectedBank;
 
     return (
         <div
@@ -367,11 +416,17 @@ function BankLoginContent() {
                                 />
                                 <span className="text-gray-300 text-xl font-light leading-none select-none">×</span>
                                 <div className="h-10 flex items-center justify-center overflow-hidden">
-                                    <img
-                                        src={SUPPORTED_BANKS.find(b => b.id === selectedBank)?.logo}
-                                        alt="Bank Logo"
-                                        className="h-10 w-auto max-w-[140px] object-contain"
-                                    />
+                                    {selectedBankObj?.logo ? (
+                                        <img
+                                            src={selectedBankObj.logo}
+                                            alt="Bank Logo"
+                                            className="h-10 w-auto max-w-[140px] object-contain"
+                                        />
+                                    ) : (
+                                        <div className="h-9 px-3 rounded-xl bg-purple-100 text-[#6605c7] flex items-center justify-center font-bold text-xs uppercase">
+                                            {selectedBankName || selectedBank}
+                                        </div>
+                                    )}
                                 </div>
                             </motion.div>
                         ) : (

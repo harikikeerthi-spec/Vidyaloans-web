@@ -85,14 +85,27 @@ export default function MyProfilePage() {
                     </h2>
                     <p className="text-slate-500 text-[13px] mt-1 font-medium">Staff account, credentials & support tickets</p>
                 </div>
-                <button
-                    type="button"
-                    onClick={() => router.push('/staff/support-tickets')}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#4F46E5] hover:bg-[#4338CA] text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-indigo-500/20 cursor-pointer"
-                >
-                    <span className="material-symbols-outlined text-[18px]">support_agent</span>
-                    Raise Support Ticket
-                </button>
+                <div className="flex items-center gap-2.5">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            const slug = user?.email ? user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9_-]/g, '') : '';
+                            router.push(slug ? `/staff/inbox?folder=staff/${slug}/` : '/staff/inbox');
+                        }}
+                        className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#0A2540] hover:bg-[#1E293B] text-white rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer"
+                    >
+                        <span className="material-symbols-outlined text-[18px]">all_inbox</span>
+                        Mail Inbox
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => router.push('/staff/support-tickets')}
+                        className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#4F46E5] hover:bg-[#4338CA] text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-indigo-500/20 cursor-pointer"
+                    >
+                        <span className="material-symbols-outlined text-[18px]">support_agent</span>
+                        Raise Support Ticket
+                    </button>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -118,9 +131,25 @@ export default function MyProfilePage() {
                             <span className="font-bold text-slate-700">CoreOps Staff</span>
                         </div>
                         <div className="flex justify-between text-[12px]">
+                            <span className="text-slate-400 font-bold uppercase tracking-wider">AWS S3 Folder</span>
+                            <span className="font-mono text-indigo-600 font-bold">staff/{user?.email ? user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9_-]/g, '') : 'staff'}/</span>
+                        </div>
+                        <div className="flex justify-between text-[12px]">
                             <span className="text-slate-400 font-bold uppercase tracking-wider">Session</span>
                             <span className="font-bold text-slate-700">{format(new Date(), 'MMM d, yyyy')}</span>
                         </div>
+
+                        <button
+                            type="button"
+                            onClick={() => {
+                                const slug = user?.email ? user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9_-]/g, '') : '';
+                                router.push(slug ? `/staff/inbox?folder=staff/${slug}/` : '/staff/inbox');
+                            }}
+                            className="w-full mt-3 flex items-center justify-center gap-2 px-3.5 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold border border-indigo-200/80 transition-all cursor-pointer shadow-sm"
+                        >
+                            <span className="material-symbols-outlined text-[16px]">all_inbox</span>
+                            Open Staff Mail Inbox
+                        </button>
                     </div>
                 </div>
 

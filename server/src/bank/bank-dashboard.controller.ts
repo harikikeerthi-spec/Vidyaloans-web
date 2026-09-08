@@ -496,6 +496,8 @@ export class BankDashboardController {
     }
     
     if (req.user?.bankId) return req.user.bankId;
+    if (req.user?.bank) return req.user.bank;
+    if (req.user?.bankName) return req.user.bankName;
 
     // Check email domain/address mapping first
     const email = req.user?.email;

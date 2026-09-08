@@ -33,10 +33,30 @@ export class BankController {
    * Helper to resolve active bank name from selectedBank header/session or email domain
    */
   private resolveBankName(req: any): string {
-    const headerBank = req.headers['x-selected-bank'];
-    if (headerBank) return headerBank.toString();
+    // 1. Direct JWT identity from dynamic authentication
+    if (req.user?.bankName) return req.user.bankName;
+    if (req.user?.bank && req.user.bank.length > 2 && !req.user.bank.includes('@')) {
+      const lowerBank = req.user.bank.toLowerCase();
+      if (lowerBank === 'idfc') return 'IDFC FIRST Bank';
+      if (lowerBank === 'credila') return 'HDFC Credila';
+      if (lowerBank === 'auxilo') return 'Auxilo Finserve';
+      if (lowerBank === 'avanse') return 'Avanse Financial';
+      if (lowerBank === 'poonawalla') return 'Poonawalla Fincorp';
+      return req.user.bank;
+    }
 
-    // Try user email mapping first
+    const headerBank = req.headers['x-selected-bank'];
+    if (headerBank) {
+      const hStr = headerBank.toString().toLowerCase();
+      if (hStr === 'idfc') return 'IDFC FIRST Bank';
+      if (hStr === 'credila') return 'HDFC Credila';
+      if (hStr === 'auxilo') return 'Auxilo Finserve';
+      if (hStr === 'avanse') return 'Avanse Financial';
+      if (hStr === 'poonawalla') return 'Poonawalla Fincorp';
+      return headerBank.toString();
+    }
+
+    // Try user email mapping
     const email = req.user?.email;
     if (email) {
       const lowerEmail = email.toLowerCase().trim();

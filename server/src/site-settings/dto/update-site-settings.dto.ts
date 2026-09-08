@@ -81,5 +81,10 @@ export class UpdateSiteSettingsDto {
   eventScraperCron?: string;
   eventScraperEnabled?: boolean;
   eventScraperSource?: string;
+
+  // Mobile App Download Banner
+  enableAppBanner?: boolean;
+  playStoreUrl?: string;
+  appStoreUrl?: string;
 }
 

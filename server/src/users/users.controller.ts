@@ -174,6 +174,7 @@ export class UsersController {
                         phoneNumber: u?.phoneNumber || '',
                         mobile: u?.mobile || '',
                         role: u?.role || 'user',
+                        bank: u?.bank || '',
                         createdAt: u?.createdAt || u?.created_at || new Date().toISOString(),
                         registeredAtIndia: u?.registeredAtIndia || '',
                         staffId: u?.staffId || '',
@@ -354,6 +355,7 @@ export class UsersController {
                 role: body.role,
                 officeId: body.officeId,
                 officeLocation: body.officeLocation || body.office,
+                bank: body.bank,
                 password: Math.random().toString(36).slice(-12), // Generate a dummy password
             });
 
@@ -484,7 +486,8 @@ export class UsersController {
                 body.userId,
                 body.passport,
                 body.officeId,
-                body.officeLocation || body.office
+                body.officeLocation || body.office,
+                body.bank
             );
             return { success: true, message: 'User updated successfully', user: updated };
         } catch (error: any) {
@@ -575,6 +578,7 @@ export class UsersController {
                     dateOfBirth: formattedDOB,
                     mobile: user.mobile,
                     role: user.role,
+                    bank: user.bank || '',
                     registeredAtIndia: user.registeredAtIndia || '',
                     panNumber: user.panNumber || '',
                     aadhaarNumber: user.aadhaarNumber || '',

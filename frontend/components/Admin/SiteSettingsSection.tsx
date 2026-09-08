@@ -26,6 +26,7 @@ import {
   Terminal,
   Code,
   ExternalLink,
+  Smartphone,
 } from "lucide-react";
 
 const DEFAULT_BLOCKED_DOMAINS = require("@/lib/disposable-domains.json").join(", ");
@@ -113,6 +114,11 @@ interface SiteSettings {
   eventScraperCron: string;
   eventScraperEnabled: boolean;
   eventScraperSource: string;
+
+  // Mobile App Download Banner
+  enableAppBanner: boolean;
+  playStoreUrl: string;
+  appStoreUrl: string;
 }
 
 const DEFAULT_FORM: SiteSettings = {
@@ -176,7 +182,7 @@ const DEFAULT_FORM: SiteSettings = {
   mixpanelToken: "mp_token_vidyaloans_production",
   hotjarSiteId: "3456789",
   customHeadScripts:
-    "<!-- Google Tag Manager -->\n<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});})(window,document,'script','dataLayer','GTM-PSHKZ8FK');</script>",
+    "<!-- Google Tag Manager -->\n<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});})(window,document,'script','dataLayer','GTM-PSHKZ8FK');</script>\n<!-- Google tag (gtag.js) -->\n<script async src=\"https://www.googletagmanager.com/gtag/js?id=G-1Z8RYR9RBW\"></script>\n<script>\n  window.dataLayer = window.dataLayer || [];\n  function gtag(){dataLayer.push(arguments);}\n  gtag('js', new Date());\n\n  gtag('config', 'G-1Z8RYR9RBW');\n</script>",
   customBodyScripts:
     "<!-- Google Tag Manager (noscript) -->\n<noscript><iframe src=\"https://www.googletagmanager.com/ns.html?id=GTM-PSHKZ8FK\" height=\"0\" width=\"0\" style=\"display:none;visibility:hidden\"></iframe></noscript>",
   webhookUrl: "https://api.vidyaloans.com/v1/webhooks/events",
@@ -193,6 +199,10 @@ const DEFAULT_FORM: SiteSettings = {
   eventScraperCron: "0 0 * * *",
   eventScraperEnabled: true,
   eventScraperSource: "https://education.events.api/v1/scrapes",
+
+  enableAppBanner: true,
+  playStoreUrl: "https://play.google.com/store/apps/details?id=in.vidyaloans.app",
+  appStoreUrl: "",
 };
 
 type TabType =
@@ -316,7 +326,7 @@ export default function SiteSettingsSection() {
       if (typeof window !== "undefined") {
         try {
           localStorage.setItem("vidyaloans_site_settings", JSON.stringify(updatedData));
-        } catch (e) {}
+        } catch (e) { }
 
         window.dispatchEvent(new CustomEvent("site-settings-updated", { detail: updatedData }));
 
@@ -325,7 +335,7 @@ export default function SiteSettingsSection() {
             const channel = new BroadcastChannel("site_settings_sync");
             channel.postMessage({ type: "SETTINGS_UPDATED", data: updatedData });
             channel.close();
-          } catch (e) {}
+          } catch (e) { }
         }
       }
     } catch (e) {
@@ -349,7 +359,7 @@ export default function SiteSettingsSection() {
         if (typeof window !== "undefined") {
           try {
             localStorage.setItem("vidyaloans_site_settings", JSON.stringify(res.data));
-          } catch (e) {}
+          } catch (e) { }
 
           window.dispatchEvent(new CustomEvent("site-settings-updated", { detail: res.data }));
 
@@ -358,7 +368,7 @@ export default function SiteSettingsSection() {
               const channel = new BroadcastChannel("site_settings_sync");
               channel.postMessage({ type: "SETTINGS_UPDATED", data: res.data });
               channel.close();
-            } catch (e) {}
+            } catch (e) { }
           }
         }
       }
@@ -412,11 +422,10 @@ export default function SiteSettingsSection() {
       {/* Toast Notification */}
       {toast && (
         <div
-          className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-2xl border text-sm font-semibold flex items-center gap-3 transition-all ${
-            toast.type === "success"
+          className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-2xl border text-sm font-semibold flex items-center gap-3 transition-all ${toast.type === "success"
               ? "bg-emerald-900 border-emerald-500 text-emerald-100"
               : "bg-rose-900 border-rose-500 text-rose-100"
-          }`}
+            }`}
         >
           {toast.type === "success" ? <CheckCircle2 className="w-5 h-5 text-emerald-400" /> : <AlertTriangle className="w-5 h-5 text-rose-400" />}
           <span>{toast.message}</span>
@@ -473,19 +482,17 @@ export default function SiteSettingsSection() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2.5 rounded-xl font-semibold text-xs flex items-center gap-2 transition-all shrink-0 border ${
-                isActive
+              className={`px-4 py-2.5 rounded-xl font-semibold text-xs flex items-center gap-2 transition-all shrink-0 border ${isActive
                   ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
                   : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:text-slate-900"
-              }`}
+                }`}
             >
               <span>{tab.icon}</span>
               <span>{tab.label}</span>
               {tab.id === "security" && (
                 <span
-                  className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
-                    isActive ? "bg-indigo-700 text-indigo-100" : "bg-slate-100 text-slate-600"
-                  }`}
+                  className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${isActive ? "bg-indigo-700 text-indigo-100" : "bg-slate-100 text-slate-600"
+                    }`}
                 >
                   {blockedCount.toLocaleString()}
                 </span>
@@ -657,9 +664,8 @@ export default function SiteSettingsSection() {
               <div>
                 <div className="flex items-center gap-3">
                   <div
-                    className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                      form.disposableEmailBlock ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"
-                    }`}
+                    className={`w-10 h-10 rounded-xl flex items-center justify-center ${form.disposableEmailBlock ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"
+                      }`}
                   >
                     <Shield className="w-5 h-5" />
                   </div>
@@ -718,11 +724,10 @@ export default function SiteSettingsSection() {
                   <button
                     key={mode.id}
                     onClick={() => handleChange("disposableBlockLevel", mode.id)}
-                    className={`p-4 rounded-xl border text-left transition-all relative ${
-                      form.disposableBlockLevel === mode.id
+                    className={`p-4 rounded-xl border text-left transition-all relative ${form.disposableBlockLevel === mode.id
                         ? `${mode.color} shadow-md ring-2 ring-indigo-500/20`
                         : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center justify-between mb-2">
                       <span className="material-symbols-outlined text-xl">{mode.icon}</span>
@@ -798,11 +803,10 @@ export default function SiteSettingsSection() {
 
             {testResult && (
               <div
-                className={`p-4 rounded-xl border text-xs space-y-2 animate-fade-in ${
-                  testResult.blocked
+                className={`p-4 rounded-xl border text-xs space-y-2 animate-fade-in ${testResult.blocked
                     ? "bg-rose-950/60 border-rose-600/60 text-rose-200"
                     : "bg-emerald-950/60 border-emerald-600/60 text-emerald-200"
-                }`}
+                  }`}
               >
                 <div className="flex items-center justify-between font-bold text-sm">
                   <span className="flex items-center gap-2">
@@ -1164,7 +1168,13 @@ export default function SiteSettingsSection() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Google Analytics 4 (GA4)</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-700">Google Analytics 4 (GA4)</label>
+                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    Active
+                  </span>
+                </div>
                 <input
                   type="text"
                   value={form.googleAnalyticsId}
@@ -1172,6 +1182,60 @@ export default function SiteSettingsSection() {
                   placeholder="G-1Z8RYR9RBW"
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 font-mono text-xs shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]"
                 />
+
+                {/* Google Tag (gtag.js) Embedded Snippet Helper */}
+                <div className="mt-3 p-3.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-semibold text-indigo-400 flex items-center gap-1.5">
+                      <Code className="w-3.5 h-3.5" />
+                      Google Tag (gtag.js) Script Code
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const snippet = `<!-- Google tag (gtag.js) -->\n<script async src="https://www.googletagmanager.com/gtag/js?id=${form.googleAnalyticsId || "G-1Z8RYR9RBW"}"></script>\n<script>\n  window.dataLayer = window.dataLayer || [];\n  function gtag(){dataLayer.push(arguments);}\n  gtag('js', new Date());\n\n  gtag('config', '${form.googleAnalyticsId || "G-1Z8RYR9RBW"}');\n</script>`;
+                        copyToClipboard(snippet, "Google Tag Snippet");
+                      }}
+                      className="text-[11px] font-mono text-emerald-400 hover:text-emerald-300 flex items-center gap-1 transition-colors"
+                    >
+                      <Copy className="w-3 h-3" />
+                      {copiedKey === "Google Tag Snippet" ? "Copied!" : "Copy Code"}
+                    </button>
+                  </div>
+                  <pre className="text-[10.5px] font-mono text-emerald-300/90 overflow-x-auto p-2.5 bg-black/50 rounded-lg whitespace-pre select-all leading-relaxed">
+                    {`<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=${form.googleAnalyticsId || "G-1Z8RYR9RBW"}"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', '${form.googleAnalyticsId || "G-1Z8RYR9RBW"}');
+</script>`}
+                  </pre>
+                  <div className="flex items-center justify-between pt-0.5">
+                    <p className="text-[10px] text-slate-400">
+                      Auto-loaded in Next.js layout &amp; Custom &lt;head&gt; scripts
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const targetId = form.googleAnalyticsId || "G-1Z8RYR9RBW";
+                        const snippet = `<!-- Google tag (gtag.js) -->\n<script async src="https://www.googletagmanager.com/gtag/js?id=${targetId}"></script>\n<script>\n  window.dataLayer = window.dataLayer || [];\n  function gtag(){dataLayer.push(arguments);}\n  gtag('js', new Date());\n\n  gtag('config', '${targetId}');\n</script>`;
+                        if (!form.customHeadScripts.includes(targetId)) {
+                          const updated = form.customHeadScripts ? `${form.customHeadScripts}\n${snippet}` : snippet;
+                          handleChange("customHeadScripts", updated);
+                          setToast({ message: "Google tag code inserted into Custom <head> Scripts!", type: "success" });
+                        } else {
+                          setToast({ message: "Google tag code is already in Custom <head> Scripts", type: "success" });
+                        }
+                      }}
+                      className="text-[10.5px] text-indigo-400 hover:text-indigo-300 font-semibold underline"
+                    >
+                      Sync into &lt;head&gt; Scripts
+                    </button>
+                  </div>
+                </div>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Facebook / Meta Pixel ID</label>
@@ -1264,16 +1328,84 @@ export default function SiteSettingsSection() {
                 </div>
               </div>
             </div>
+
+            {/* Mobile App Download Banner Settings */}
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-[0_8px_30px_rgb(0,0,0,0.04)] space-y-4">
+              <div className="flex items-center justify-between border-b pb-3">
+                <div className="flex items-center gap-2 text-purple-600 font-bold text-sm">
+                  <Smartphone className="w-4 h-4" />
+                  <h3>Mobile App &amp; Play Store Download Prompt</h3>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.enableAppBanner !== false}
+                    onChange={(e) => handleChange("enableAppBanner", e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                  <span className="ml-2 text-xs font-semibold text-slate-700">
+                    {form.enableAppBanner !== false ? "Active" : "Disabled"}
+                  </span>
+                </label>
+              </div>
+
+              <p className="text-xs text-slate-500 leading-relaxed">
+                When enabled, visitors browsing from mobile screens (&lt;768px or Android/iOS devices) will see a floating bottom-sheet banner prompting them to install the VidyaLoans mobile app. Once dismissed, it respects a 7-day cooldown.
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Google Play Store URL
+                  </label>
+                  <input
+                    type="text"
+                    value={form.playStoreUrl}
+                    onChange={(e) => handleChange("playStoreUrl", e.target.value)}
+                    placeholder="https://play.google.com/store/apps/details?id=in.vidyaloans.app&hl=en-US&ah=Vx9t8taW0pweH2uHyGVMktR2FLs"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)] focus:ring-2 focus:ring-purple-500"
+                  />
+                  <span className="text-[10.5px] text-slate-400 mt-1 block">
+                    Android devices will attempt direct <code className="text-purple-600 font-semibold">market://</code> intent with fallback to this web URL.
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Apple App Store URL (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={form.appStoreUrl}
+                    onChange={(e) => handleChange("appStoreUrl", e.target.value)}
+                    placeholder="https://apps.apple.com/app/vidyaloans/id..."
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)] focus:ring-2 focus:ring-purple-500"
+                  />
+                  <span className="text-[10.5px] text-slate-400 mt-1 block">
+                    iOS visitors will be redirected to this link when tapped.
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 p-2.5 bg-purple-50/70 border border-purple-100 rounded-xl text-[11px] text-purple-800">
+                <span className="font-bold">Pro-tip:</span>
+                <span>The package identifier <code className="font-semibold text-purple-900">in.vidyaloans.app</code> is also embedded in the website &lt;head&gt; meta tags for native Android browser smart banners.</span>
+              </div>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-[0_8px_30px_rgb(0,0,0,0.04)] space-y-3">
-              <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2 border-b pb-3">
-                <Code className="w-4 h-4 text-indigo-600" />
-                Custom &lt;head&gt; Scripts (GTM Script)
-              </h3>
+              <div className="flex items-center justify-between border-b pb-3">
+                <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                  <Code className="w-4 h-4 text-indigo-600" />
+                  Custom &lt;head&gt; Scripts (GTM &amp; Google Tag / gtag.js)
+                </h3>
+                <span className="text-[10.5px] text-slate-500 font-medium">Auto-injected in global &lt;head&gt;</span>
+              </div>
               <textarea
-                rows={5}
+                rows={7}
                 value={form.customHeadScripts}
                 onChange={(e) => handleChange("customHeadScripts", e.target.value)}
                 className="w-full p-3 rounded-xl border border-slate-300 font-mono text-xs bg-slate-950 text-emerald-300 shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]"

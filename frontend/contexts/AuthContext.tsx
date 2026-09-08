@@ -40,6 +40,8 @@ interface AuthUser {
     referralCode?: string;
     bankId?: string;
     bankName?: string;
+    bankLogo?: string;
+    bank?: string;
     fatherName?: string;
     fatherAadhar?: string;
     fatherPan?: string;

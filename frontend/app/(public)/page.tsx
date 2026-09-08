@@ -55,12 +55,12 @@ export default async function HomePage() {
     const disbursedAmount = await getDisbursedAmount();
     const activeLenders = dbBanks ? dbBanks.map((b: any) => ({
         name: b.name,
-        slug: b.shortName || b.name.toLowerCase().replace(/[^a-z0-9]/g, ""),
-        // badge: b.isPopular ? "Most Popular" : "",
-        rate: `${b.interestRateMin}% p.a.`,
-        time: b.processingTime,
-        fee: b.processingFee,
-        logo: b.logoUrl || "",
+        slug: (b.shortName || b.name.toLowerCase().replace(/[^a-z0-9]/g, "")).toLowerCase(),
+        badge: b.isPopular ? "Most Popular" : (b.type || ""),
+        rate: b.interestRateMin ? `${b.interestRateMin}% p.a.` : "From 10.25% p.a.",
+        time: b.processingTime || "48 hours",
+        fee: b.processingFee || "1% + GST",
+        logo: b.logoUrl || b.logo || `/banks/${(b.shortName || 'idfc').toLowerCase()}.png`,
         link: b.website || ""
     })) : lenders;
 

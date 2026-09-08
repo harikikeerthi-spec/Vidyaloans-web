@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import { banks } from "@/lib/bankData";
+import { referenceApi } from "@/lib/api";
 
-const LOAN_DATA = Object.values(banks).map(bank => ({
+const STATIC_LOAN_DATA = Object.values(banks).map(bank => ({
     id: bank.slug,
     bank: bank.name,
     logo: bank.logo,
@@ -16,8 +17,41 @@ const LOAN_DATA = Object.values(banks).map(bank => ({
 }));
 
 export default function CompareLoansPage() {
+    const [loanData, setLoanData] = useState(STATIC_LOAN_DATA);
     const [selected, setSelected] = useState<string[]>([]);
     const [showModal, setShowModal] = useState(false);
+
+    useEffect(() => {
+        let isMounted = true;
+        const loadDynamicLoans = async () => {
+            try {
+                const res: any = await referenceApi.getBanks();
+                const list = res?.data || res || [];
+                if (Array.isArray(list) && list.length > 0 && isMounted) {
+                    const dynamicMapped = list.map((b: any) => {
+                        const slug = (b.shortName || b.name.toLowerCase().replace(/[^a-z0-9]/g, "")).toLowerCase();
+                        const staticMatch = STATIC_LOAN_DATA.find(s => s.id === slug);
+                        return {
+                            id: slug,
+                            bank: b.name,
+                            logo: b.logoUrl || b.logo || staticMatch?.logo || `/banks/${slug}.png`,
+                            rate: b.interestRateMin ? `${b.interestRateMin}% - ${b.interestRateMax || (b.interestRateMin + 3)}% p.a.` : (staticMatch?.rate || "From 10.25% p.a."),
+                            fee: b.processingFee || staticMatch?.fee || "1% + GST",
+                            tenure: staticMatch?.tenure || "Up to 15 Years",
+                            collateral: b.collateralRequired ? "Collateral Required" : (b.collateralFreeLimit ? `Collateral-free up to ₹${b.collateralFreeLimit}` : "Profile based"),
+                            tag: b.isPopular ? "Most Popular Partner" : (staticMatch?.tag || "Active Lending Partner")
+                        };
+                    });
+                    setLoanData(dynamicMapped);
+                }
+            } catch (err) {
+                console.error("Failed to fetch dynamic banks for loan comparison:", err);
+            }
+        };
+
+        loadDynamicLoans();
+        return () => { isMounted = false; };
+    }, []);
 
     const toggleLoan = (id: string) => {
         if (selected.includes(id)) {
@@ -31,7 +65,7 @@ export default function CompareLoansPage() {
         }
     };
 
-    const selectedData = LOAN_DATA.filter(l => selected.includes(l.id));
+    const selectedData = loanData.filter(l => selected.includes(l.id));
 
     return (
         <main className="relative z-10 pt-28 pb-20 bg-transparent min-h-screen">
@@ -50,11 +84,25 @@ export default function CompareLoansPage() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {LOAN_DATA.map((loan) => (
+                    {loanData.map((loan) => (
                         <div key={loan.id} className={`group bg-white border border-gray-100 rounded-xl p-6 transition-all duration-200 hover:border-[#6605c7]/[0.1] hover:shadow-lg hover:shadow-[#6605c7]/[0.02] ${selected.includes(loan.id) ? "border-[#6605c7] ring-1 ring-[#6605c7]/[0.1] bg-[#6605c7]/[0.01]" : ""}`}>
                             <div className="flex items-center gap-4 mb-6">
                                 <div className="w-12 h-12 bg-white rounded-xl p-2.5 flex items-center justify-center border border-gray-100 shadow-sm overflow-hidden">
-                                    <img src={loan.logo} alt={loan.bank} className="w-full h-full object-contain" />
+                                    <img
+                                        src={loan.logo}
+                                        alt={loan.bank}
+                                        className="w-full h-full object-contain"
+                                        onError={(e) => {
+                                            (e.target as HTMLElement).style.display = 'none';
+                                            const parent = (e.target as HTMLElement).parentElement;
+                                            if (parent && !parent.querySelector('.fallback-loan-badge')) {
+                                                const badge = document.createElement('div');
+                                                badge.className = 'fallback-loan-badge w-full h-full rounded-lg bg-purple-50 text-[#6605c7] flex items-center justify-center font-black text-xs';
+                                                badge.innerText = loan.bank.slice(0, 2).toUpperCase();
+                                                parent.appendChild(badge);
+                                            }
+                                        }}
+                                    />
                                 </div>
                                 <div>
                                     <h3 className="font-bold text-gray-900 text-[15px] leading-tight">{loan.bank}</h3>
@@ -127,8 +175,22 @@ export default function CompareLoansPage() {
                                         {selectedData.map(loan => (
                                             <th key={loan.id} className="py-4 px-4 bg-gray-50/50 first:rounded-l-xl last:rounded-r-xl">
                                                 <div className="flex flex-col items-center gap-2">
-                                                    <div className="w-10 h-10">
-                                                        <img src={loan.logo} alt={loan.bank} className="w-full h-auto" />
+                                                    <div className="w-10 h-10 flex items-center justify-center">
+                                                        <img
+                                                            src={loan.logo}
+                                                            alt={loan.bank}
+                                                            className="w-full h-auto object-contain max-h-10"
+                                                            onError={(e) => {
+                                                                (e.target as HTMLElement).style.display = 'none';
+                                                                const parent = (e.target as HTMLElement).parentElement;
+                                                                if (parent && !parent.querySelector('.fallback-modal-badge')) {
+                                                                    const badge = document.createElement('div');
+                                                                    badge.className = 'fallback-modal-badge w-8 h-8 rounded-lg bg-purple-50 text-[#6605c7] flex items-center justify-center font-black text-xs';
+                                                                    badge.innerText = loan.bank.slice(0, 2).toUpperCase();
+                                                                    parent.appendChild(badge);
+                                                                }
+                                                            }}
+                                                        />
                                                     </div>
                                                     <span className="font-bold text-gray-900 text-[11px] uppercase tracking-wider whitespace-nowrap">{loan.bank}</span>
                                                 </div>

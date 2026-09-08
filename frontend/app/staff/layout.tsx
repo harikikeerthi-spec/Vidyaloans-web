@@ -126,6 +126,7 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
 
     // Determine active section based on Next.js routing path
     const activeSection = useMemo(() => {
+        if (pathname.includes("/staff/inbox")) return "inbox";
         if (pathname.includes("/staff/inactive-pipeline")) return "inactive_applications";
         if (pathname.includes("/staff/incoming-queue")) return "incoming_queue";
         if (pathname.includes("/staff/applications")) return "applications";
@@ -307,6 +308,7 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
         performance: 'Performance Analytics',
         users: 'Bank & Staff Members',
         communications: 'Outreach Center',
+        inbox: 'Support & Staff Email Inbox',
         support_tickets: 'Support Desk Center',
         my_profile: 'My Staff Profile',
         chat_customer: 'Live Customer Support Chat',
@@ -321,6 +323,7 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
         { section: "users", path: "/staff/users", icon: "group", label: "Bank & Staff Members", badge: 0 },
         { section: "performance", path: "/staff/performance", icon: "insights", label: "Performance", badge: 0 },
         { section: "tasks", path: "/staff/tasks", icon: "notifications_active", label: "Reminders", badge: remindersCount },
+        { section: "inbox", path: "/staff/inbox", icon: "all_inbox", label: "Email Inbox", badge: 0 },
         { section: "communications", path: "/staff/communications", icon: "mail", label: "Outreach Center", badge: 0 },
         { section: "chat_customer", path: "/staff/chat-customer", icon: "support_agent", label: "Support Chat", badge: unreadChatCount },
         { section: "support_tickets", path: "/staff/support-tickets", icon: "confirmation_number", label: "Support Tickets", badge: 0 },
