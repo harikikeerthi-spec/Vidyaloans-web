@@ -128,13 +128,21 @@ function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id
                 const mailData = res?.success && res.data ? res.data : (res?.from || res?.subject ? res : null);
                 if (mailData) {
                     setMail(mailData);
-                    try {
-                        const userNotSpam = localStorage.getItem("vidya_mail_user_not_spam_ids");
-                        const notSpamSet = new Set(userNotSpam ? JSON.parse(userNotSpam) : []);
-                        if (mailData.isSpam && !notSpamSet.has(emailId)) {
-                            setIsMarkedSpam(true);
-                        }
-                    } catch { }
+
+                    // Sync DB state if present
+                    if ((mailData as any).starred !== undefined) {
+                        setIsStarred(Boolean((mailData as any).starred));
+                    }
+                    if ((mailData as any).userSpamOverride === true) {
+                        setIsMarkedSpam(true);
+                    } else if ((mailData as any).userSpamOverride === false) {
+                        setIsMarkedSpam(false);
+                    } else if (mailData.isSpam) {
+                        setIsMarkedSpam(true);
+                    }
+
+                    // Mark as read in DB
+                    mailApi.updateState(emailId, { isRead: true }).catch(() => { });
                 } else {
                     setError("Unable to parse email payload.");
                 }
@@ -149,6 +157,7 @@ function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id
     // Spam toggle action
     const toggleMarkSpam = () => {
         try {
+            const nextSpam = !isMarkedSpam;
             const userSpam = localStorage.getItem("vidya_mail_user_spam_ids");
             const userNotSpam = localStorage.getItem("vidya_mail_user_not_spam_ids");
             const spamSet = new Set(userSpam ? JSON.parse(userSpam) : []);
@@ -167,6 +176,7 @@ function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id
             }
             localStorage.setItem("vidya_mail_user_spam_ids", JSON.stringify(Array.from(spamSet)));
             localStorage.setItem("vidya_mail_user_not_spam_ids", JSON.stringify(Array.from(notSpamSet)));
+            mailApi.updateState(emailId, { isSpam: nextSpam }).catch(() => { });
             setTimeout(() => setToast(null), 3500);
         } catch { }
     };
@@ -174,9 +184,10 @@ function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id
     // Star toggle action
     const toggleStar = () => {
         try {
+            const willBeStarred = !isStarred;
             const savedStarred = localStorage.getItem("vidya_mail_starred_ids");
             const starSet = new Set(savedStarred ? JSON.parse(savedStarred) : []);
-            if (starSet.has(emailId)) {
+            if (isStarred) {
                 starSet.delete(emailId);
                 setIsStarred(false);
             } else {
@@ -184,6 +195,7 @@ function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id
                 setIsStarred(true);
             }
             localStorage.setItem("vidya_mail_starred_ids", JSON.stringify(Array.from(starSet)));
+            mailApi.updateState(emailId, { isStarred: willBeStarred }).catch(() => { });
         } catch { }
     };
 
@@ -194,6 +206,7 @@ function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id
             const trashSet = new Set(savedTrashed ? JSON.parse(savedTrashed) : []);
             trashSet.add(emailId);
             localStorage.setItem("vidya_mail_trashed_ids", JSON.stringify(Array.from(trashSet)));
+            mailApi.updateState(emailId, { isTrashed: true }).catch(() => { });
         } catch { }
         router.push(`/staff/inbox?folder=${encodeURIComponent(currentFolder)}`);
     };

@@ -1986,6 +1986,17 @@ export const mailApi = {
         method: "POST",
         body: JSON.stringify(data),
     }),
+    updateState: (id: string, data: { isRead?: boolean; isStarred?: boolean; isSpam?: boolean | null; isTrashed?: boolean }) =>
+        apiFetch(`${API_URL}/mail/state/${id}`, {
+            method: "PATCH",
+            body: JSON.stringify(data),
+        }),
+    batchUpdateState: (emailIds: string[], data: { isRead?: boolean; isStarred?: boolean; isSpam?: boolean | null; isTrashed?: boolean }) =>
+        apiFetch(`${API_URL}/mail/state/batch`, {
+            method: "POST",
+            body: JSON.stringify({ emailIds, ...data }),
+        }),
+    getUserStates: () => apiFetch(`${API_URL}/mail/states`),
 };
 
 export const siteSettingsApi = {

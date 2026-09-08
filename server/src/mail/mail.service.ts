@@ -4,13 +4,19 @@ import {
   S3Client,
   ListObjectsV2Command,
   GetObjectCommand,
-  CommonPrefix,
 } from '@aws-sdk/client-s3';
 import { simpleParser, ParsedMail } from 'mailparser';
 import * as nodemailer from 'nodemailer';
 import { Readable } from 'stream';
 import { MailSummary, MailDetail, MailFolder, MailAttachment } from './interfaces/mail.interface';
 import { SendEmailDto } from './dto/send-email.dto';
+import { UpdateEmailStateDto } from './dto/update-email-state.dto';
+import { DISPOSABLE_DOMAINS } from '../site-settings/disposable-domains';
+import { PrismaService } from '../prisma/prisma.service';
+
+const DISPOSABLE_SET = new Set(
+  DISPOSABLE_DOMAINS.map((d: string) => d.toLowerCase().trim()),
+);
 
 @Injectable()
 export class MailService {
@@ -22,7 +28,10 @@ export class MailService {
   private readonly mailFrom: string;
   private readonly replyTo: string;
 
-  constructor(private readonly config: ConfigService) {
+  constructor(
+    private readonly config: ConfigService,
+    private readonly prisma: PrismaService,
+  ) {
     const rawRegion = (
       this.config.get<string>('AWS_REGION') ||
       process.env.AWS_REGION ||
@@ -287,7 +296,9 @@ export class MailService {
       { pattern: /\b(viagra|cialis|enhancement pills|weight loss secret)\b/i, score: 50, reason: 'High-risk adult/pharmaceutical spam content' },
       { pattern: /\b(crypto giveaway|bitcoin doubler|usdt bonus|airdrop reward|connect your wallet)\b/i, score: 45, reason: 'Cryptocurrency scam pattern' },
       { pattern: /\b(you have won|lottery winner|inheritance fund|western union transfer|claim your (prize|reward|grant))\b/i, score: 45, reason: 'Prize / inheritance advance fee scam phrase' },
-      { pattern: /\b(urgent: account (suspended|blocked|locked)|verify your password|unauthorized login attempt)\b/i, score: 40, reason: 'Urgent credential phishing lure' },
+      { pattern: /\b(urgent: account (suspended|blocked|locked)|verify your password|unauthorized login attempt|security alert: login required)\b/i, score: 40, reason: 'Urgent credential phishing lure' },
+      { pattern: /\b(overdue invoice|payment remittance advice|wire remittance|unpaid balance due|invoice attached for payment)\b/i, score: 35, reason: 'Suspicious fake invoice / billing scam pattern' },
+      { pattern: /\b(undelivered package|fedex delivery notification|dhl parcel tracking|postal parcel pending)\b/i, score: 35, reason: 'Package delivery phishing lure' },
       { pattern: /\b(100% free|risk free guaranteed|wire transfer immediately|send payment to)\b/i, score: 25, reason: 'Suspicious unsolicited solicitation' },
     ];
 
@@ -298,14 +309,29 @@ export class MailService {
       }
     }
 
-    // 4. Check for known disposable email provider domains
-    const disposableDomains = [
-      'mailinator.com', '10minutemail.com', 'guerrillamail.com', 'tempmail.com',
-      'throwawaymail.com', 'sharklasers.com', 'yopmail.com', 'trashmail.com'
-    ];
-    if (disposableDomains.some((d) => senderEmail.endsWith('@' + d))) {
-      spamScore += 50;
-      spamReasons.push('Sent from a known disposable/anonymous email domain');
+    // 4. Check for known disposable email provider domains using 4000+ domain dataset
+    const senderDomain = senderEmail.split('@')[1] || '';
+    if (senderDomain && DISPOSABLE_SET.has(senderDomain.toLowerCase())) {
+      spamScore += 60;
+      spamReasons.push(`Sent from disposable/anonymous email provider (@${senderDomain})`);
+    }
+
+    // 5. Check for dangerous attachment file extensions
+    const dangerousExtensions = ['.exe', '.scr', '.bat', '.cmd', '.vbs', '.js', '.hta', '.iso', '.jar', '.com', '.pif', '.wsf'];
+    const hasMaliciousAttachment = (parsed.attachments || []).some((att) => {
+      const fname = (att.filename || '').toLowerCase();
+      return dangerousExtensions.some((ext) => fname.endsWith(ext));
+    });
+    if (hasMaliciousAttachment) {
+      spamScore += 80;
+      spamReasons.push('Contains high-risk executable or script attachment');
+    }
+
+    // 6. Check for Vidyaloans internal brand impersonation / spoofing
+    const fromDisplayName = (parsed.from?.text || '').toLowerCase();
+    if ((senderEmail.includes('vidyaloans') || fromDisplayName.includes('vidyaloans')) && (authResults.spf === 'fail' || authResults.dkim === 'fail')) {
+      spamScore += 80;
+      spamReasons.push('Domain spoofing attempt: Impersonating official Vidyaloans address');
     }
 
     const isSpam = spamScore >= 50 || spamVerdict === 'FAIL' || virusVerdict === 'FAIL';
@@ -321,9 +347,10 @@ export class MailService {
   }
 
   /**
-   * List incoming emails from S3 under specified folder or default support prefix
+   * List incoming emails from S3 under specified folder or default support prefix,
+   * merged with persistent database read/star/spam/trash states for the current user.
    */
-  async listSupport(folder?: string, staffEmail?: string): Promise<MailSummary[]> {
+  async listSupport(folder?: string, staffEmail?: string, userId?: string): Promise<MailSummary[]> {
     const prefix = this.resolvePrefix(folder, staffEmail);
     this.logger.log(`[MailService.listSupport] Fetching emails for prefix: ${prefix} in ${this.bucketName}`);
 
@@ -382,6 +409,8 @@ export class MailService {
             date: dateStr,
             size: obj.Size || buffer.length,
             read: false,
+            starred: false,
+            trashed: false,
             folder: prefix,
             snippet: textSnippet,
             isSpam: spamAnalysis.isSpam,
@@ -400,6 +429,35 @@ export class MailService {
       const parsedResults = await Promise.all(emailPromises);
       const validEmails = parsedResults.filter((e): e is MailSummary => e !== null);
 
+      // Merge persistent database states (read, starred, spam overrides, trashed)
+      if (userId && validEmails.length > 0) {
+        try {
+          const states = await this.prisma.staffEmailState.findMany({
+            where: {
+              userId,
+              emailId: { in: validEmails.map((e) => e.id) },
+            },
+          });
+          const stateMap = new Map(states.map((s) => [s.emailId, s]));
+          for (const email of validEmails) {
+            const st = stateMap.get(email.id);
+            if (st) {
+              email.read = st.isRead;
+              email.starred = st.isStarred;
+              email.trashed = st.isTrashed;
+              email.userSpamOverride = st.isSpam;
+              if (st.isSpam === true) {
+                email.isSpam = true;
+              } else if (st.isSpam === false) {
+                email.isSpam = false;
+              }
+            }
+          }
+        } catch (dbErr: any) {
+          this.logger.warn(`[MailService.listSupport] Could not load email states from DB: ${dbErr.message}`);
+        }
+      }
+
       // Sort newest first
       validEmails.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
@@ -413,7 +471,7 @@ export class MailService {
   /**
    * Get single email detail by base64url encoded S3 key
    */
-  async getMailById(id: string): Promise<MailDetail> {
+  async getMailById(id: string, userId?: string): Promise<MailDetail> {
     let key: string;
     try {
       key = Buffer.from(id, 'base64url').toString('utf8');
@@ -457,7 +515,7 @@ export class MailService {
 
       const spamAnalysis = this.analyzeSpam(parsed);
 
-      return {
+      const mailDetail: MailDetail = {
         id,
         key,
         from: fromText,
@@ -469,6 +527,8 @@ export class MailService {
         date: dateStr,
         size: buffer.length,
         read: true,
+        starred: false,
+        trashed: false,
         html: parsed.html || (parsed.textAsHtml ? parsed.textAsHtml : undefined),
         text: parsed.text || '',
         snippet: (parsed.text || '').slice(0, 140).replace(/\s+/g, ' ').trim(),
@@ -480,11 +540,78 @@ export class MailService {
         spamReasons: spamAnalysis.spamReasons,
         authResults: spamAnalysis.authResults,
       };
+
+      // Merge persistent DB state if user ID provided
+      if (userId) {
+        try {
+          const st = await this.prisma.staffEmailState.findUnique({
+            where: {
+              userId_emailId: { userId, emailId: id },
+            },
+          });
+          if (st) {
+            mailDetail.read = st.isRead;
+            mailDetail.starred = st.isStarred;
+            mailDetail.trashed = st.isTrashed;
+            mailDetail.userSpamOverride = st.isSpam;
+            if (st.isSpam === true) mailDetail.isSpam = true;
+            else if (st.isSpam === false) mailDetail.isSpam = false;
+          }
+        } catch (dbErr: any) {
+          this.logger.warn(`[MailService.getMailById] Could not fetch DB state: ${dbErr.message}`);
+        }
+      }
+
+      return mailDetail;
     } catch (err: any) {
       if (err instanceof NotFoundException || err instanceof BadRequestException) throw err;
       this.logger.error(`[MailService.getMailById] Error loading key ${key}: ${err.message}`);
       throw new NotFoundException(`Email not found: ${err.message}`);
     }
+  }
+
+  /**
+   * Update state (read, star, spam, trash) for a specific email by user
+   */
+  async updateEmailState(userId: string, emailId: string, dto: UpdateEmailStateDto) {
+    const dataToUpdate: any = {};
+    if (dto.isRead !== undefined) dataToUpdate.isRead = dto.isRead;
+    if (dto.isStarred !== undefined) dataToUpdate.isStarred = dto.isStarred;
+    if (dto.isSpam !== undefined) dataToUpdate.isSpam = dto.isSpam;
+    if (dto.isTrashed !== undefined) dataToUpdate.isTrashed = dto.isTrashed;
+
+    return this.prisma.staffEmailState.upsert({
+      where: {
+        userId_emailId: { userId, emailId },
+      },
+      update: dataToUpdate,
+      create: {
+        userId,
+        emailId,
+        isRead: dto.isRead ?? false,
+        isStarred: dto.isStarred ?? false,
+        isSpam: dto.isSpam ?? null,
+        isTrashed: dto.isTrashed ?? false,
+      },
+    });
+  }
+
+  /**
+   * Batch update state for multiple emails by user
+   */
+  async batchUpdateEmailState(userId: string, emailIds: string[], dto: UpdateEmailStateDto) {
+    if (!emailIds || emailIds.length === 0) return { updated: 0 };
+    await Promise.all(emailIds.map((id) => this.updateEmailState(userId, id, dto)));
+    return { updated: emailIds.length };
+  }
+
+  /**
+   * Get all email states for a user
+   */
+  async getUserEmailStates(userId: string) {
+    return this.prisma.staffEmailState.findMany({
+      where: { userId },
+    });
   }
 
   /**

@@ -196,13 +196,49 @@ function StaffInboxContent() {
 
         try {
             const res: any = await mailApi.getInbox({ folder: selectedFolder });
-            if (res?.success && Array.isArray(res.data)) {
-                setEmails(res.data);
-            } else if (Array.isArray(res)) {
-                setEmails(res);
-            } else {
-                setEmails([]);
-            }
+            const items: MailSummaryItem[] = res?.success && Array.isArray(res.data) ? res.data : Array.isArray(res) ? res : [];
+            setEmails(items);
+
+            // Sync database states into local sets
+            setReadIds((prev) => {
+                const next = new Set(prev);
+                items.forEach((item) => {
+                    if (item.read) next.add(item.id);
+                });
+                return next;
+            });
+
+            setStarredIds((prev) => {
+                const next = new Set(prev);
+                items.forEach((item) => {
+                    if ((item as any).starred) next.add(item.id);
+                });
+                return next;
+            });
+
+            setTrashedIds((prev) => {
+                const next = new Set(prev);
+                items.forEach((item) => {
+                    if ((item as any).trashed) next.add(item.id);
+                });
+                return next;
+            });
+
+            setUserSpamIds((prev) => {
+                const next = new Set(prev);
+                items.forEach((item) => {
+                    if ((item as any).userSpamOverride === true) next.add(item.id);
+                });
+                return next;
+            });
+
+            setUserNotSpamIds((prev) => {
+                const next = new Set(prev);
+                items.forEach((item) => {
+                    if ((item as any).userSpamOverride === false) next.add(item.id);
+                });
+                return next;
+            });
         } catch (err) {
             console.error("Failed to load inbox emails:", err);
             setEmails([]);
@@ -221,7 +257,7 @@ function StaffInboxContent() {
         setSelectedEmailId(email.id);
         setLoadingDetail(true);
 
-        // Mark as read
+        // Mark as read in DB and local state
         setReadIds((prev) => {
             const next = new Set(prev);
             next.add(email.id);
@@ -230,6 +266,7 @@ function StaffInboxContent() {
             } catch { }
             return next;
         });
+        mailApi.updateState(email.id, { isRead: true }).catch(() => { });
 
         try {
             const res: any = await mailApi.getMail(email.id);
@@ -309,9 +346,10 @@ function StaffInboxContent() {
         return list;
     }, [emails, activeTab, starredIds, trashedIds, sentEmails, showOnlyUnread, readIds, searchQuery, isEmailSpam]);
 
-    // Star toggle action
+    // Star toggle action (persists to DB)
     const toggleStar = (e: React.MouseEvent, id: string) => {
         e.stopPropagation();
+        const willBeStarred = !starredIds.has(id);
         setStarredIds((prev) => {
             const next = new Set(prev);
             if (next.has(id)) next.delete(id);
@@ -321,9 +359,10 @@ function StaffInboxContent() {
             } catch { }
             return next;
         });
+        mailApi.updateState(id, { isStarred: willBeStarred }).catch(() => { });
     };
 
-    // Mark as Spam
+    // Mark as Spam (persists to DB)
     const handleMarkAsSpam = (e: React.MouseEvent, id: string) => {
         e.stopPropagation();
         setUserSpamIds((prev) => {
@@ -342,11 +381,12 @@ function StaffInboxContent() {
             } catch { }
             return next;
         });
+        mailApi.updateState(id, { isSpam: true }).catch(() => { });
         setFeedbackToast({ type: "error", message: "Reported as Spam / Moved to Junk folder." });
         setTimeout(() => setFeedbackToast(null), 3500);
     };
 
-    // Mark as Not Spam
+    // Mark as Not Spam (persists to DB)
     const handleMarkAsNotSpam = (e: React.MouseEvent, id: string) => {
         e.stopPropagation();
         setUserNotSpamIds((prev) => {
@@ -365,11 +405,12 @@ function StaffInboxContent() {
             } catch { }
             return next;
         });
+        mailApi.updateState(id, { isSpam: false }).catch(() => { });
         setFeedbackToast({ type: "success", message: "Restored to Inbox (Marked as Not Spam)." });
         setTimeout(() => setFeedbackToast(null), 3500);
     };
 
-    // Move to Trash action
+    // Move to Trash action (persists to DB)
     const moveToTrash = (id: string) => {
         setTrashedIds((prev) => {
             const next = new Set(prev);
@@ -379,23 +420,26 @@ function StaffInboxContent() {
             } catch { }
             return next;
         });
+        mailApi.updateState(id, { isTrashed: true }).catch(() => { });
         if (selectedEmailId === id) {
             setSelectedEmailId(null);
             setActiveEmailDetail(null);
         }
     };
 
-    // Bulk action: move selected to trash
+    // Bulk action: move selected to trash (persists to DB)
     const handleBulkTrash = () => {
         if (selectedIds.size === 0) return;
+        const ids = Array.from(selectedIds);
         setTrashedIds((prev) => {
             const next = new Set(prev);
-            selectedIds.forEach((id) => next.add(id));
+            ids.forEach((id) => next.add(id));
             try {
                 localStorage.setItem("vidya_mail_trashed_ids", JSON.stringify(Array.from(next)));
             } catch { }
             return next;
         });
+        mailApi.batchUpdateState(ids, { isTrashed: true }).catch(() => { });
         setSelectedIds(new Set());
     };
 
@@ -923,15 +967,19 @@ function StaffInboxContent() {
                                 <div
                                     key={email.id}
                                     onClick={() => {
-                                        setReadIds((prev) => {
-                                            const next = new Set(prev);
-                                            next.add(email.id);
-                                            try {
-                                                localStorage.setItem("vidya_mail_read_ids", JSON.stringify(Array.from(next)));
-                                            } catch { }
-                                            return next;
-                                        });
-                                        router.push(`/staff/inbox/${email.id}?folder=${encodeURIComponent(selectedFolder)}`);
+                                        if (typeof window !== "undefined" && window.innerWidth < 1024) {
+                                            setReadIds((prev) => {
+                                                const next = new Set(prev);
+                                                next.add(email.id);
+                                                try {
+                                                    localStorage.setItem("vidya_mail_read_ids", JSON.stringify(Array.from(next)));
+                                                } catch { }
+                                                return next;
+                                            });
+                                            router.push(`/staff/inbox/${email.id}?folder=${encodeURIComponent(selectedFolder)}`);
+                                        } else {
+                                            handleSelectEmail(email);
+                                        }
                                     }}
                                     className={`p-3.5 cursor-pointer transition-all flex items-start gap-3 hover:bg-indigo-50/40 relative ${
                                         isSelected ? "bg-indigo-50/90 border-l-4 border-indigo-600" : isRead ? "bg-white" : "bg-indigo-50/20 font-bold"
@@ -1062,6 +1110,25 @@ function StaffInboxContent() {
                                 </button>
 
                                 <button
+                                    onClick={(e) => {
+                                        if (isEmailSpam(activeEmailDetail)) {
+                                            handleMarkAsNotSpam(e, activeEmailDetail.id);
+                                        } else {
+                                            handleMarkAsSpam(e, activeEmailDetail.id);
+                                        }
+                                    }}
+                                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                                        isEmailSpam(activeEmailDetail)
+                                            ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                                            : "bg-slate-100 text-slate-600 border-slate-200 hover:text-rose-600 hover:bg-rose-50"
+                                    }`}
+                                    title={isEmailSpam(activeEmailDetail) ? "Restore to Inbox (Mark as Not Spam)" : "Report as Spam / Junk"}
+                                >
+                                    {isEmailSpam(activeEmailDetail) ? <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /> : <ShieldAlert className="w-3.5 h-3.5" />}
+                                    <span>{isEmailSpam(activeEmailDetail) ? "Not Spam" : "Spam"}</span>
+                                </button>
+
+                                <button
                                     onClick={() => moveToTrash(activeEmailDetail.id)}
                                     className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
                                     title="Move to trash"
@@ -1081,6 +1148,49 @@ function StaffInboxContent() {
 
                         {/* Email Meta and Content Container */}
                         <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                            {/* Security / Spam Warning Banner */}
+                            {isEmailSpam(activeEmailDetail) && (
+                                <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 flex items-start justify-between gap-3 text-rose-900 shadow-sm">
+                                    <div className="flex items-start gap-3">
+                                        <ShieldAlert className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                                        <div>
+                                            <p className="text-xs font-bold text-rose-900 flex items-center gap-2">
+                                                <span>Warning: Flagged as Spam / Suspicious Email</span>
+                                                {activeEmailDetail.spamScore !== undefined && (
+                                                    <span className="px-1.5 py-0.5 rounded bg-rose-200 text-rose-800 text-[10px] font-black">
+                                                        Score: {activeEmailDetail.spamScore}%
+                                                    </span>
+                                                )}
+                                            </p>
+                                            <p className="text-[11px] text-rose-700 mt-1 leading-relaxed">
+                                                {activeEmailDetail.spamReasons && activeEmailDetail.spamReasons.length > 0
+                                                    ? activeEmailDetail.spamReasons.join(" • ")
+                                                    : "This message failed authenticity checks or contained high-risk patterns. Exercise caution with any external links or attachments."}
+                                            </p>
+                                            {activeEmailDetail.authResults && (
+                                                <div className="flex items-center gap-2 mt-2 text-[10px] font-mono">
+                                                    <span className={`px-2 py-0.5 rounded font-bold ${activeEmailDetail.authResults.spf === 'pass' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                                                        SPF: {activeEmailDetail.authResults.spf?.toUpperCase() || 'UNKNOWN'}
+                                                    </span>
+                                                    <span className={`px-2 py-0.5 rounded font-bold ${activeEmailDetail.authResults.dkim === 'pass' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                                                        DKIM: {activeEmailDetail.authResults.dkim?.toUpperCase() || 'UNKNOWN'}
+                                                    </span>
+                                                    <span className={`px-2 py-0.5 rounded font-bold ${activeEmailDetail.authResults.dmarc === 'pass' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                                                        DMARC: {activeEmailDetail.authResults.dmarc?.toUpperCase() || 'UNKNOWN'}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={(e) => handleMarkAsNotSpam(e, activeEmailDetail.id)}
+                                        className="px-3 py-1.5 rounded-xl bg-white border border-rose-300 text-rose-800 text-xs font-bold hover:bg-rose-100 transition-colors shrink-0 cursor-pointer shadow-sm"
+                                    >
+                                        Not Spam
+                                    </button>
+                                </div>
+                            )}
+
                             {/* Subject and Date */}
                             <div className="space-y-3 border-b border-slate-100 pb-5">
                                 <h1 className="text-xl font-black text-slate-900 leading-snug">

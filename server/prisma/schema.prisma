@@ -40,6 +40,7 @@ model User {
   referralReceived     Referral?         @relation("Referee")
   referralCodeRelation ReferralCode?     @relation("UserReferralCode")
   referralAuditLogs    ReferralAuditLog[] @relation("AuditAdmin")
+  emailStates          StaffEmailState[]
 
   // Onboarding & Profile Preferences
   goal                  String?
@@ -1667,4 +1668,22 @@ model SiteSetting {
 
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
+}
+
+model StaffEmailState {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emailId   String   // base64url encoded S3 key identifier
+  isRead    Boolean  @default(false)
+  isStarred Boolean  @default(false)
+  isSpam    Boolean? // true = user marked spam, false = user marked not spam, null = default
+  isTrashed Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, emailId])
+  @@index([userId])
+  @@index([emailId])
+  @@map("StaffEmailState")
 }

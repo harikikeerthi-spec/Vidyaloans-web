@@ -14,6 +14,9 @@ export interface MailSummary {
   date: string;
   size: number;
   read: boolean;
+  starred?: boolean;
+  trashed?: boolean;
+  userSpamOverride?: boolean | null;
   folder?: string;
   snippet?: string;
   // Spam / Junk metadata

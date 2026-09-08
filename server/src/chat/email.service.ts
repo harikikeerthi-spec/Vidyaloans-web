@@ -42,13 +42,17 @@ export class EmailService {
     const pass = this.configService.get<string>('EMAIL_PASS') || process.env.EMAIL_PASS || process.env.SMTP_PASS;
     const from = this.getFromAddress();
 
-    this.transporter = nodemailer.createTransport({
-      host,
-      port,
-      secure: port === 465,
-      auth: { user, pass },
-      from,
-    });
+    this.transporter = nodemailer.createTransport(
+      {
+        host,
+        port,
+        secure: port === 465,
+        auth: { user, pass },
+      },
+      {
+        from,
+      },
+    );
   }
 
   async sendChatNotificationEmail(
