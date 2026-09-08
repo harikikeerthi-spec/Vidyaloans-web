@@ -394,27 +394,17 @@ export class AuthController {
       loanType?: string;
       amount: number;
       courseType?: string;
-      courseName?: string;
-      fieldOfStudy?: string;
-      program?: string;
-      programFocus?: string;
       country?: string;
       otherCountry?: string;
       university?: string;
-      universityName?: string;
-      targetUniversity?: string;
-      annualFee?: string | number;
-      livingCost?: string | number;
       hasCoApplicant?: boolean;
       coApplicant?: string;
       coApplicantName?: string;
       coApplicantPhone?: string;
       coApplicantEmail?: string;
       coApplicantRelation?: string;
-      otherRelation?: string;
       coApplicantIncome?: string | number;
       income?: string | number;
-      hasCollateral?: boolean;
       collateral?: string;
       firstName?: string;
       lastName?: string;
@@ -425,8 +415,6 @@ export class AuthController {
       notes?: string;
       pincode?: string;
       admissionStatus?: string;
-      isStaff?: boolean;
-      creatorRole?: string;
     }
   ) {
     if (!body || !body.userId) {
@@ -436,12 +424,10 @@ export class AuthController {
       };
     }
 
-    const userRole = (req?.user?.role || body?.creatorRole || '').toLowerCase();
+    const userRole = (req?.user?.role || '').toLowerCase();
     const isStaffOrAdmin =
       ['staff', 'admin', 'super_admin', 'support', 'it', 'agent', 'partner_agent'].includes(userRole) ||
-      userRole.startsWith('bank_') ||
-      body.isStaff === true ||
-      body.creatorRole === 'staff';
+      userRole.startsWith('bank_');
 
     // Safely parse amount to a number
     const amountVal = typeof body.amount === 'string' ? parseFloat(body.amount) : body.amount;
@@ -476,30 +462,23 @@ export class AuthController {
     try {
       const selectedBank = body.bank || 'Any Bank';
       const selectedCountry = body.country === 'Other' ? (body.otherCountry || 'Other') : (body.country || 'Global');
-      const selectedLoanType = body.loanType || body.courseType || body.fieldOfStudy || 'Postgraduate Abroad';
-      const selectedCourse = body.courseName || body.fieldOfStudy || body.courseType || body.programFocus || body.program;
+      const selectedLoanType = body.loanType || body.courseType || 'Postgraduate Abroad';
 
       const application = await this.usersService.createLoanApplication(body.userId, {
         bank: selectedBank,
         loanType: selectedLoanType,
         amount: amountVal,
-        courseType: body.courseType || body.fieldOfStudy,
-        courseName: selectedCourse,
-        program: body.program,
-        programFocus: body.programFocus,
+        courseType: body.courseType,
         country: selectedCountry,
         university: body.university,
-        universityName: body.universityName || body.university || body.targetUniversity,
-        targetUniversity: body.targetUniversity || body.university,
-        annualFee: String(body.annualFee || ''),
-        livingCost: String(body.livingCost || ''),
+        universityName: body.university,
+        targetUniversity: body.university,
         hasCoApplicant: body.hasCoApplicant,
         coApplicant: body.coApplicant || body.coApplicantRelation,
         coApplicantName: body.coApplicantName,
         coApplicantPhone: body.coApplicantPhone,
         coApplicantEmail: body.coApplicantEmail,
         income: String(body.coApplicantIncome || body.income || ''),
-        hasCollateral: body.hasCollateral,
         collateral: body.collateral,
         firstName: body.firstName,
         lastName: body.lastName,

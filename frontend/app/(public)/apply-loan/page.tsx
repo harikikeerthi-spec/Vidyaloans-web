@@ -93,8 +93,6 @@ export default function ApplyLoanPage() {
         country: "",
         otherCountry: "",
         university: "",
-        annualFee: "",
-        livingCost: "",
         coApplicant: "",
         otherRelation: "",
         coApplicantName: "",
@@ -579,12 +577,8 @@ export default function ApplyLoanPage() {
             const userId = user.id;
             const bankName = banks.find(b => b.id === formData.bank)?.name || formData.bank || "Any Bank";
             const cleanAmount = formData.amount.replace(/,/g, "");
-            const cleanAnnualFee = formData.annualFee ? formData.annualFee.replace(/,/g, "") : "";
-            const cleanLivingCost = formData.livingCost ? formData.livingCost.replace(/,/g, "") : "";
             const cleanIncome = formData.income ? formData.income.replace(/,/g, "") : "";
 
-            const parsedAnnualFee = cleanAnnualFee ? parseFloat(cleanAnnualFee) : undefined;
-            const parsedLivingCost = cleanLivingCost ? parseFloat(cleanLivingCost) : undefined;
             const parsedIncome = cleanIncome ? parseFloat(cleanIncome) : undefined;
 
             const rel = formData.coApplicant === "other" ? formData.otherRelation : formData.coApplicant;
@@ -604,8 +598,6 @@ export default function ApplyLoanPage() {
                 userId,
                 bank: bankName,
                 amount: parseFloat(cleanAmount),
-                annualFee: isNaN(parsedAnnualFee as number) ? undefined : parsedAnnualFee,
-                livingCost: isNaN(parsedLivingCost as number) ? undefined : parsedLivingCost,
                 income: isNaN(parsedIncome as number) ? undefined : parsedIncome,
             });
 
