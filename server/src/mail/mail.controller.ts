@@ -25,8 +25,8 @@ export class MailController {
   // ─── List Folders ───────────────────────────────────────────────────────────
   @Get(['mail/folders', 'support/mail/folders', 'support-inbox/folders'])
   @ApiOperation({ summary: 'List all available mail folders (support and staff folders in S3)' })
-  async getFolders() {
-    const folders = await this.mailService.listFolders();
+  async getFolders(@Req() req?: any) {
+    const folders = await this.mailService.listFolders(req?.user);
     return { success: true, data: folders };
   }
 
@@ -39,7 +39,7 @@ export class MailController {
     @Req() req?: any,
   ) {
     const userId = req?.user?.id;
-    const emails = await this.mailService.listSupport(folder, staffEmail, userId);
+    const emails = await this.mailService.listSupport(folder, staffEmail, userId, req?.user);
     return { success: true, data: emails, total: emails.length };
   }
 
@@ -48,7 +48,7 @@ export class MailController {
   @ApiOperation({ summary: 'Get full parsed email detail by base64url encoded S3 key' })
   async getMailDetail(@Param('id') id: string, @Req() req?: any) {
     const userId = req?.user?.id;
-    const mail = await this.mailService.getMailById(id, userId);
+    const mail = await this.mailService.getMailById(id, userId, req?.user);
     return { success: true, data: mail };
   }
 

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, use, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
 import { mailApi } from "@/lib/api";
 import { format } from "date-fns";
 import {
@@ -67,6 +68,8 @@ interface MailDetailItem {
 function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id: string }> }) {
     const router = useRouter();
     const searchParams = useSearchParams();
+    const { user } = useAuth();
+    const staffMailbox = (user as any)?.mailboxEmail || user?.email || "";
     const resolvedParams = use(paramsPromise);
     const emailId = resolvedParams.id;
     const currentFolder = searchParams.get("folder") || "support/";
@@ -632,6 +635,18 @@ function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id
                     {!isComposeMinimized && (
                         <form onSubmit={handleSendEmail} className="flex-1 flex flex-col overflow-hidden bg-white">
                             <div className="p-3 border-b border-slate-100 space-y-2 text-xs">
+                                <div className="flex items-center gap-2 pb-0.5">
+                                    <span className="w-12 text-slate-400 font-bold uppercase text-[10px]">From</span>
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="px-2 py-0.5 rounded bg-indigo-50 font-semibold text-indigo-700 text-xs border border-indigo-200/70">
+                                            {staffMailbox || "support@vidyaloans.in"}
+                                        </span>
+                                        <span className="text-[10px] text-slate-400 font-medium">
+                                            (Official Outgoing SES Sender)
+                                        </span>
+                                    </div>
+                                </div>
+
                                 <div className="flex items-center justify-between gap-2">
                                     <div className="flex-1 flex items-center gap-2">
                                         <span className="w-12 text-slate-400 font-bold uppercase text-[10px]">To</span>

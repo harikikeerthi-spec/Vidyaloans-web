@@ -354,6 +354,7 @@ export default function AdminDashboardPage() {
     const [newUserQuery, setNewUserQuery] = useState({
         email: "", firstName: "", lastName: "", middleName: "", mobile: "", role: "user", bank: "",
         officeId: "", officeLocation: "",
+        mailboxEmail: "", mailboxPrefix: "", canAccessSupport: false,
         dob: "", gender: "", maritalStatus: "",
         mailingAddress: { address1: "", address2: "", city: "", state: "", country: "", pincode: "" },
         permanentAddress: { address1: "", address2: "", city: "", state: "", country: "", pincode: "" },
@@ -377,7 +378,10 @@ export default function AdminDashboardPage() {
         setNewUserQuery(prev => ({
             ...prev,
             role: defaultRole,
-            bank: ""
+            bank: "",
+            mailboxEmail: "",
+            mailboxPrefix: "",
+            canAccessSupport: false,
         }));
         setShowCreateUserModal(true);
     };
@@ -1207,6 +1211,7 @@ export default function AdminDashboardPage() {
                 setNewUserQuery({
                     email: "", firstName: "", lastName: "", middleName: "", mobile: "", role: "user", bank: "",
                     officeId: "", officeLocation: "",
+                    mailboxEmail: "", mailboxPrefix: "", canAccessSupport: false,
                     dob: "", gender: "", maritalStatus: "",
                     mailingAddress: { address1: "", address2: "", city: "", state: "", country: "", pincode: "" },
                     permanentAddress: { address1: "", address2: "", city: "", state: "", country: "", pincode: "" },
@@ -2503,9 +2508,10 @@ export default function AdminDashboardPage() {
                                         onClick={() => {
                                             if (activeSection === "users_agents") {
                                                 router.push("/admin/users/agents/create");
+                                            } else if (activeSection === "users_staff") {
+                                                router.push("/admin/users/staff/create");
                                             } else {
                                                 openCreateUserModal(
-                                                    activeSection === "users_staff" ? "staff" :
                                                     activeSection === "users_banks" ? "bank" : "user"
                                                 );
                                             }
@@ -4173,8 +4179,8 @@ export default function AdminDashboardPage() {
 
                                         <div className="grid grid-cols-2 gap-4 mt-4">
                                             <div>
-                                                <label htmlFor="create-staff-email" className="text-[13px] font-medium text-slate-700 mb-1.5 block">
-                                                    Email Address<span className="text-rose-500">*</span>
+                                                <label htmlFor="create-staff-email" className="text-[13px] font-medium text-slate-700 mb-1 block">
+                                                    Login Email Address<span className="text-rose-500">*</span>
                                                 </label>
                                                 <input 
                                                     id="create-staff-email"
@@ -4183,11 +4189,12 @@ export default function AdminDashboardPage() {
                                                     value={newUserQuery.email} 
                                                     onChange={e => setNewUserQuery({ ...newUserQuery, email: e.target.value })} 
                                                     className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-[6px] text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400" 
-                                                    placeholder="staff.name@vidyaloans.com" 
+                                                    placeholder="staff.personal@gmail.com" 
                                                 />
+                                                <p className="text-[11px] text-slate-400 mt-1">Normal email used to log into the staff portal.</p>
                                             </div>
                                             <div>
-                                                <label htmlFor="create-staff-mobile" className="text-[13px] font-medium text-slate-700 mb-1.5 block">
+                                                <label htmlFor="create-staff-mobile" className="text-[13px] font-medium text-slate-700 mb-1 block">
                                                     Mobile Number<span className="text-rose-500">*</span>
                                                 </label>
                                                 <input 
@@ -4200,6 +4207,98 @@ export default function AdminDashboardPage() {
                                                     placeholder="+91 98765 43210" 
                                                 />
                                             </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Standard 1px Section Divider */}
+                                    <div className="border-t border-[#E2E8F0]" />
+
+                                    {/* Section 2: AWS SES Mailbox & Folder Isolation */}
+                                    <div>
+                                        <div className="flex items-center justify-between mb-1">
+                                            <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                                AWS SES Mailbox & S3 Folder Isolation
+                                            </div>
+                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                                Inbox Routing
+                                            </span>
+                                        </div>
+                                        <p className="text-[12px] text-slate-500 mb-3.5">
+                                            Assign an isolated business address and S3 inbox folder. When this staff sends mail, it goes from this address, and their inbox will strictly load from this folder.
+                                        </p>
+
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label htmlFor="create-staff-mailbox-email" className="text-[13px] font-medium text-slate-700 mb-1.5 block">
+                                                    Official Business Email (SES)
+                                                </label>
+                                                <input 
+                                                    id="create-staff-mailbox-email"
+                                                    type="email" 
+                                                    value={newUserQuery.mailboxEmail} 
+                                                    onChange={e => {
+                                                        const val = e.target.value;
+                                                        const slug = val.split('@')[0].toLowerCase().replace(/[^a-z0-9_-]/g, '');
+                                                        setNewUserQuery({ 
+                                                            ...newUserQuery, 
+                                                            mailboxEmail: val,
+                                                            mailboxPrefix: slug ? `staff/${slug}/` : newUserQuery.mailboxPrefix
+                                                        });
+                                                    }} 
+                                                    className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-[6px] text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400" 
+                                                    placeholder="priya@vidyaloans.in" 
+                                                />
+                                                {newUserQuery.firstName && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const cleanFirst = newUserQuery.firstName.toLowerCase().replace(/[^a-z0-9]/g, '');
+                                                            const cleanLast = (newUserQuery.lastName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                                                            const alias = cleanLast ? `${cleanFirst}.${cleanLast}@vidyaloans.in` : `${cleanFirst}@vidyaloans.in`;
+                                                            const prefix = `staff/${cleanFirst}/`;
+                                                            setNewUserQuery({
+                                                                ...newUserQuery,
+                                                                mailboxEmail: alias,
+                                                                mailboxPrefix: prefix
+                                                            });
+                                                        }}
+                                                        className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 mt-1 cursor-pointer block"
+                                                    >
+                                                        + Auto-suggest: {newUserQuery.firstName.toLowerCase()}@vidyaloans.in
+                                                    </button>
+                                                )}
+                                            </div>
+
+                                            <div>
+                                                <label htmlFor="create-staff-mailbox-prefix" className="text-[13px] font-medium text-slate-700 mb-1.5 block">
+                                                    Assigned S3 Folder Prefix
+                                                </label>
+                                                <input 
+                                                    id="create-staff-mailbox-prefix"
+                                                    type="text" 
+                                                    value={newUserQuery.mailboxPrefix} 
+                                                    onChange={e => setNewUserQuery({ ...newUserQuery, mailboxPrefix: e.target.value })} 
+                                                    className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-[6px] text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400" 
+                                                    placeholder="staff/priya/" 
+                                                />
+                                                <p className="text-[11px] text-slate-400 mt-1">S3 path matching AWS SES Receipt Rule prefix.</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-3.5 bg-slate-50 border border-[#E2E8F0] rounded-[6px] p-3 flex items-start gap-3">
+                                            <input
+                                                id="create-staff-access-support"
+                                                type="checkbox"
+                                                checked={newUserQuery.canAccessSupport}
+                                                onChange={e => setNewUserQuery({ ...newUserQuery, canAccessSupport: e.target.checked })}
+                                                className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 mt-0.5 cursor-pointer"
+                                            />
+                                            <label htmlFor="create-staff-access-support" className="text-xs text-slate-700 cursor-pointer">
+                                                <span className="font-semibold block text-slate-800">Allow access to General Support Inbox (support/)</span>
+                                                <span className="text-slate-500 block text-[11px] mt-0.5">
+                                                    When unchecked (recommended), this staff member can only view and manage emails in their assigned folder.
+                                                </span>
+                                            </label>
                                         </div>
                                     </div>
 
@@ -4337,9 +4436,9 @@ export default function AdminDashboardPage() {
                         <div className="overflow-y-auto no-scrollbar p-6 sm:p-8 space-y-6">
                             <form id="student-creation-form" onSubmit={handleCreateUser} className="space-y-6">
                                 <section>
-                                    <div className="flex items-center gap-2 mb-5 text-indigo-600 font-bold text-xs uppercase tracking-widest">
+                                    <div className="inline-flex items-center gap-2 mb-5 text-indigo-600 font-bold text-xs uppercase tracking-widest leading-none">
                                         <span className="material-symbols-outlined text-base">face</span>
-                                        Basic Information
+                                        <span>Basic Information</span>
                                     </div>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                                         <div>
@@ -4352,7 +4451,7 @@ export default function AdminDashboardPage() {
                                                 type="text" 
                                                 value={newUserQuery.firstName} 
                                                 onChange={e => setNewUserQuery({ ...newUserQuery, firstName: e.target.value })} 
-                                                className="w-full min-h-[48px] px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400" 
+                                                className="w-full min-h-[48px] px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400" 
                                                 placeholder="E.g. Hari" 
                                             />
                                         </div>
@@ -4366,7 +4465,7 @@ export default function AdminDashboardPage() {
                                                 type="text" 
                                                 value={newUserQuery.lastName} 
                                                 onChange={e => setNewUserQuery({ ...newUserQuery, lastName: e.target.value })} 
-                                                className="w-full min-h-[48px] px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400" 
+                                                className="w-full min-h-[48px] px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400" 
                                                 placeholder="E.g. Kalyan" 
                                             />
                                         </div>
@@ -4376,34 +4475,40 @@ export default function AdminDashboardPage() {
                                             <label htmlFor="create-user-email" className="text-xs font-bold text-slate-700 mb-1.5 block">
                                                 Email Address <span className="text-rose-500">*</span>
                                             </label>
-                                            <div className="relative">
+                                            <div className="relative flex items-center">
+                                                <div className="absolute left-3.5 top-1/2 -translate-y-1/2 flex items-center gap-2 pointer-events-none text-slate-400">
+                                                    <span className="material-symbols-outlined text-[18px]">mail</span>
+                                                    <span className="w-px h-4 bg-slate-300"></span>
+                                                </div>
                                                 <input 
                                                     id="create-user-email"
                                                     required 
                                                     type="email" 
                                                     value={newUserQuery.email} 
                                                     onChange={e => setNewUserQuery({ ...newUserQuery, email: e.target.value })} 
-                                                    className="w-full min-h-[48px] pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400" 
-                                                    placeholder={newUserQuery.role === 'staff' ? 'staff.name@vidyaloans.com' : 'example@gmail.com'} 
+                                                    className="w-full min-h-[48px] pl-12 pr-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400" 
+                                                    placeholder={newUserQuery.role === 'staff' ? 'staff.name@vidyaloans.com' : newUserQuery.role === 'bank' ? 'officer@bank.com' : 'example@gmail.com'} 
                                                 />
-                                                <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-lg pointer-events-none">mail</span>
                                             </div>
                                         </div>
                                         <div>
                                             <label htmlFor="create-user-mobile" className="text-xs font-bold text-slate-700 mb-1.5 block">
                                                 Mobile Number <span className="text-rose-500">*</span>
                                             </label>
-                                            <div className="relative">
+                                            <div className="relative flex items-center">
+                                                <div className="absolute left-3.5 top-1/2 -translate-y-1/2 flex items-center gap-2 pointer-events-none text-slate-400">
+                                                    <span className="material-symbols-outlined text-[18px]">call</span>
+                                                    <span className="w-px h-4 bg-slate-300"></span>
+                                                </div>
                                                 <input 
                                                     id="create-user-mobile"
                                                     required 
                                                     type="tel" 
                                                     value={newUserQuery.mobile} 
                                                     onChange={e => setNewUserQuery({ ...newUserQuery, mobile: e.target.value })} 
-                                                    className="w-full min-h-[48px] pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400" 
+                                                    className="w-full min-h-[48px] pl-12 pr-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400" 
                                                     placeholder="+91 98765 43210" 
                                                 />
-                                                <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-lg pointer-events-none">call</span>
                                             </div>
                                         </div>
                                     </div>
@@ -4678,43 +4783,54 @@ export default function AdminDashboardPage() {
                                     )}
 
                                     {newUserQuery.role === 'bank' && (
-                                        <div className="mt-6 p-5 sm:p-6 rounded-2xl bg-emerald-50/70 border border-emerald-100 space-y-3">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <span className="material-symbols-outlined text-emerald-700 text-lg">account_balance</span>
-                                                <label htmlFor="create-bank-select" className="text-xs font-bold text-emerald-950 block">
-                                                    Assigned Lending Bank Partner <span className="text-rose-500">*</span>
-                                                </label>
+                                        <div className="mt-6 p-5 sm:p-6 rounded-2xl bg-slate-50 border border-slate-200/90 space-y-4">
+                                            <div className="space-y-1.5">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="material-symbols-outlined text-slate-700 text-lg">account_balance</span>
+                                                    <label htmlFor="create-bank-select" className="text-xs font-bold text-slate-900 block">
+                                                        Assigned Lending Bank Partner <span className="text-rose-500">*</span>
+                                                    </label>
+                                                </div>
+                                                <select
+                                                    id="create-bank-select"
+                                                    required
+                                                    value={newUserQuery.bank || ""}
+                                                    onChange={e => {
+                                                        const selected = bankPartners.find(b => b.shortName === e.target.value);
+                                                        setNewUserQuery({
+                                                            ...newUserQuery,
+                                                            bank: e.target.value,
+                                                            firstName: newUserQuery.firstName || (selected?.shortName || e.target.value)
+                                                        });
+                                                    }}
+                                                    className={`w-full min-h-[48px] px-4 py-3 bg-white rounded-xl text-sm font-semibold text-slate-900 focus:outline-none transition-all cursor-pointer shadow-2xs ${
+                                                        !newUserQuery.bank
+                                                            ? 'border-2 border-rose-400 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20'
+                                                            : 'border border-slate-300 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/20'
+                                                    }`}
+                                                >
+                                                    <option value="">-- Select Bank Partner ({bankPartners.length} Active Partners) --</option>
+                                                    {bankPartners.map((bp: any) => (
+                                                        <option key={bp.id || bp.shortName} value={bp.shortName}>
+                                                            {bp.name} ({bp.shortName.toUpperCase()}) · {bp.type} · ROI {bp.interestRateMin}% - {bp.interestRateMax}%
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                                {!newUserQuery.bank && (
+                                                    <p className="text-[11px] text-rose-600 font-bold flex items-center gap-1.5 pt-0.5">
+                                                        <span className="material-symbols-outlined text-[14px]">warning</span>
+                                                        Selecting a bank partner is required before submitting.
+                                                    </p>
+                                                )}
                                             </div>
-                                            <select
-                                                id="create-bank-select"
-                                                required
-                                                value={newUserQuery.bank || ""}
-                                                onChange={e => {
-                                                    const selected = bankPartners.find(b => b.shortName === e.target.value);
-                                                    setNewUserQuery({
-                                                        ...newUserQuery,
-                                                        bank: e.target.value,
-                                                        firstName: newUserQuery.firstName || (selected?.shortName || e.target.value)
-                                                    });
-                                                }}
-                                                className="w-full min-h-[48px] px-4 py-3 bg-white border border-emerald-300 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 cursor-pointer shadow-xs"
-                                            >
-                                                <option value="">-- Select Bank Partner ({bankPartners.length} Active Partners) --</option>
-                                                {bankPartners.map((bp: any) => (
-                                                    <option key={bp.id || bp.shortName} value={bp.shortName}>
-                                                        {bp.name} ({bp.shortName.toUpperCase()}) · {bp.type} · ROI {bp.interestRateMin}% - {bp.interestRateMax}%
-                                                    </option>
-                                                ))}
-                                            </select>
-                                            {!newUserQuery.bank && (
-                                                <p className="text-[11px] text-rose-600 font-bold flex items-center gap-1">
-                                                    <span className="material-symbols-outlined text-[13px]">warning</span>
-                                                    Selecting a bank partner is required before submitting.
+
+                                            {/* Informational Helper Callout */}
+                                            <div className="p-3 bg-blue-50/70 rounded-xl border border-blue-200/70 text-blue-900 text-xs flex items-start gap-2.5">
+                                                <span className="material-symbols-outlined text-blue-600 text-base mt-0.5 shrink-0">info</span>
+                                                <p className="leading-relaxed font-medium">
+                                                    Links the officer profile to the selected lender's underwriting portal, auto-allocation queue, and decision system.
                                                 </p>
-                                            )}
-                                            <p className="text-xs text-emerald-800 font-medium">
-                                                Links the officer profile to the selected lender's underwriting portal, auto-allocation queue, and decision system.
-                                            </p>
+                                            </div>
                                         </div>
                                     )}
                                 </section>
@@ -4748,8 +4864,17 @@ export default function AdminDashboardPage() {
                             <button 
                                 form="student-creation-form" 
                                 type="submit" 
-                                disabled={createUserLoading} 
-                                className="w-full sm:flex-1 min-h-[48px] bg-slate-900 hover:bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-slate-900/10 active:scale-98 transition-all cursor-pointer disabled:opacity-60"
+                                disabled={
+                                    createUserLoading || 
+                                    (newUserQuery.role === 'bank' && (
+                                        !newUserQuery.bank || 
+                                        !newUserQuery.firstName?.trim() || 
+                                        !newUserQuery.lastName?.trim() || 
+                                        !newUserQuery.email?.trim() || 
+                                        !newUserQuery.mobile?.trim()
+                                    ))
+                                } 
+                                className="w-full sm:flex-1 min-h-[48px] bg-slate-900 hover:bg-slate-800 text-white px-6 py-3 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-slate-900/10 active:scale-[0.99] transition-all cursor-pointer disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed disabled:shadow-none disabled:active:scale-100"
                             >
                                 {createUserLoading ? (
                                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />

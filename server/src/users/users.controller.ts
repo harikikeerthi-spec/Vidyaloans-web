@@ -305,6 +305,10 @@ export class UsersController {
             officeId?: string;
             officeLocation?: string;
             office?: string;
+            // Staff mailbox isolation fields
+            mailboxEmail?: string;
+            mailboxPrefix?: string;
+            canAccessSupport?: boolean;
             // Agent-specific fields
             partnership?: string;
             percentage?: string | number;
@@ -356,6 +360,9 @@ export class UsersController {
                 officeId: body.officeId,
                 officeLocation: body.officeLocation || body.office,
                 bank: body.bank,
+                mailboxEmail: body.mailboxEmail,
+                mailboxPrefix: body.mailboxPrefix,
+                canAccessSupport: body.canAccessSupport,
                 password: Math.random().toString(36).slice(-12), // Generate a dummy password
             });
 

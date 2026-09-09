@@ -90,7 +90,9 @@ function StaffInboxContent() {
     const urlStaffEmail = searchParams.get("staffEmail");
     const urlStaffName = searchParams.get("name");
 
-    // Staff identity slug for AWS folder matching
+    // Staff identity & assigned mailbox routing
+    const staffMailbox = (user as any)?.mailboxEmail || user?.email || "";
+    const staffMailboxPrefix = (user as any)?.mailboxPrefix;
     const currentUserEmail = user?.email || "";
     const currentUserSlug = useMemo(() => {
         return currentUserEmail.split("@")[0].toLowerCase().replace(/[^a-z0-9_-]/g, "");
@@ -98,16 +100,20 @@ function StaffInboxContent() {
 
     const initialFolder = useMemo(() => {
         if (urlFolder) return urlFolder;
+        if (staffMailboxPrefix) return staffMailboxPrefix;
         if (urlStaffEmail) {
             const slug = urlStaffEmail.split("@")[0].toLowerCase().replace(/[^a-z0-9_-]/g, "");
             return `staff/${slug}/`;
         }
-        // Default to personal staff folder if staff member, else support/
+        if ((user as any)?.mailboxEmail) {
+            const slug = (user as any).mailboxEmail.split("@")[0].toLowerCase().replace(/[^a-z0-9_-]/g, "");
+            return `staff/${slug}/`;
+        }
         if (currentUserSlug) {
             return `staff/${currentUserSlug}/`;
         }
         return "support/";
-    }, [urlFolder, urlStaffEmail, currentUserSlug]);
+    }, [urlFolder, staffMailboxPrefix, urlStaffEmail, user, currentUserSlug]);
 
     // Active folder / mailbox state
     const [selectedFolder, setSelectedFolder] = useState<string>(initialFolder);
@@ -184,6 +190,12 @@ function StaffInboxContent() {
             .then((res: any) => {
                 if (res?.success && Array.isArray(res.data)) {
                     setFoldersList(res.data);
+                    if (res.data.length > 0) {
+                        const hasCurrent = res.data.some((f: any) => f.prefix === selectedFolder);
+                        if (!hasCurrent) {
+                            setSelectedFolder(res.data[0].prefix);
+                        }
+                    }
                 }
             })
             .catch((err) => console.warn("Could not fetch S3 folders", err));
@@ -1329,6 +1341,18 @@ function StaffInboxContent() {
                         <form onSubmit={handleSendEmail} className="flex-1 flex flex-col overflow-hidden bg-white">
                             {/* Inputs */}
                             <div className="p-3 border-b border-slate-100 space-y-2 text-xs">
+                                <div className="flex items-center gap-2 pb-0.5">
+                                    <span className="w-12 text-slate-400 font-bold uppercase text-[10px]">From</span>
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="px-2 py-0.5 rounded bg-indigo-50 font-semibold text-indigo-700 text-xs border border-indigo-200/70">
+                                            {staffMailbox || "support@vidyaloans.in"}
+                                        </span>
+                                        <span className="text-[10px] text-slate-400 font-medium">
+                                            (Official Outgoing SES Sender)
+                                        </span>
+                                    </div>
+                                </div>
+
                                 <div className="flex items-center justify-between gap-2">
                                     <div className="flex-1 flex items-center gap-2">
                                         <span className="w-12 text-slate-400 font-bold uppercase text-[10px]">To</span>

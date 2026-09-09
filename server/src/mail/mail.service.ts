@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   S3Client,
@@ -132,8 +132,30 @@ export class MailService {
 
   /**
    * Dynamically discover available folders in S3 bucket (root prefixes and staff/ prefixes)
+   * If a staff member is requesting, only returns their assigned folder (and support/ if permitted).
    */
-  async listFolders(): Promise<MailFolder[]> {
+  async listFolders(currentUser?: any): Promise<MailFolder[]> {
+    const userRole = (currentUser?.role || '').toLowerCase();
+    const isStaff = userRole === 'staff';
+    const isAdmin = userRole === 'admin' || userRole === 'super_admin';
+
+    // If staff user, only return their isolated folder (+ support if allowed)
+    if (isStaff && !isAdmin) {
+      const staffPrefix = currentUser.mailboxPrefix || 
+        (currentUser.mailboxEmail ? `staff/${currentUser.mailboxEmail.split('@')[0].toLowerCase()}/` : `staff/${currentUser.email.split('@')[0].toLowerCase()}/`);
+      const label = currentUser.mailboxEmail || currentUser.email;
+
+      const staffFolders: MailFolder[] = [
+        { name: `My Mailbox (${label})`, prefix: staffPrefix, isStaff: true },
+      ];
+
+      if (currentUser.canAccessSupport) {
+        staffFolders.push({ name: 'Support Team Inbox', prefix: this.defaultPrefix, isStaff: false });
+      }
+
+      return staffFolders;
+    }
+
     const folders: MailFolder[] = [];
     const seen = new Set<string>();
 
@@ -145,7 +167,7 @@ export class MailService {
       }
     };
 
-    // Always include default support inbox
+    // Always include default support inbox for admins
     addFolder('Support Team Inbox', this.defaultPrefix, false);
 
     try {
@@ -192,9 +214,28 @@ export class MailService {
   }
 
   /**
-   * Determine effective S3 folder prefix
+   * Determine effective S3 folder prefix, with enforcement of staff folder boundaries
    */
-  resolvePrefix(folder?: string, staffEmail?: string): string {
+  resolvePrefix(folder?: string, staffEmail?: string, currentUser?: any): string {
+    const userRole = (currentUser?.role || '').toLowerCase();
+    const isStaff = userRole === 'staff';
+    const isAdmin = userRole === 'admin' || userRole === 'super_admin';
+
+    if (isStaff && !isAdmin) {
+      const staffPrefix = currentUser.mailboxPrefix || 
+        (currentUser.mailboxEmail ? `staff/${currentUser.mailboxEmail.split('@')[0].toLowerCase()}/` : `staff/${currentUser.email.split('@')[0].toLowerCase()}/`);
+
+      if (folder && folder.trim()) {
+        let f = folder.trim();
+        if (!f.endsWith('/')) f += '/';
+        if (f === staffPrefix) return f;
+        if (currentUser.canAccessSupport && f === this.defaultPrefix) return f;
+        this.logger.warn(`[MailService] Staff ${currentUser.email} attempted to query folder "${f}". Restricted to assigned "${staffPrefix}".`);
+        return staffPrefix;
+      }
+      return staffPrefix;
+    }
+
     if (folder && folder.trim()) {
       let f = folder.trim();
       if (!f.endsWith('/')) f += '/';
@@ -350,8 +391,8 @@ export class MailService {
    * List incoming emails from S3 under specified folder or default support prefix,
    * merged with persistent database read/star/spam/trash states for the current user.
    */
-  async listSupport(folder?: string, staffEmail?: string, userId?: string): Promise<MailSummary[]> {
-    const prefix = this.resolvePrefix(folder, staffEmail);
+  async listSupport(folder?: string, staffEmail?: string, userId?: string, currentUser?: any): Promise<MailSummary[]> {
+    const prefix = this.resolvePrefix(folder, staffEmail, currentUser);
     this.logger.log(`[MailService.listSupport] Fetching emails for prefix: ${prefix} in ${this.bucketName}`);
 
     try {
@@ -420,41 +461,39 @@ export class MailService {
             spamReasons: spamAnalysis.spamReasons,
             authResults: spamAnalysis.authResults,
           };
-        } catch (e: any) {
-          this.logger.error(`[MailService.listSupport] Failed parsing email ${obj.Key}: ${e.message}`);
+        } catch (err: any) {
+          this.logger.warn(`[MailService.listSupport] Failed to parse ${obj.Key}: ${err.message}`);
           return null;
         }
       });
 
-      const parsedResults = await Promise.all(emailPromises);
-      const validEmails = parsedResults.filter((e): e is MailSummary => e !== null);
+      const parsedEmails = await Promise.all(emailPromises);
+      let validEmails = parsedEmails.filter((e): e is MailSummary => e !== null);
 
-      // Merge persistent database states (read, starred, spam overrides, trashed)
-      if (userId && validEmails.length > 0) {
+      // Merge persistent per-user email state from DB if userId is available
+      if (userId) {
         try {
-          const states = await this.prisma.staffEmailState.findMany({
-            where: {
-              userId,
-              emailId: { in: validEmails.map((e) => e.id) },
-            },
+          const userStates = await this.prisma.staffEmailState.findMany({
+            where: { userId },
           });
-          const stateMap = new Map(states.map((s) => [s.emailId, s]));
-          for (const email of validEmails) {
+          const stateMap = new Map<string, any>();
+          userStates.forEach((s) => stateMap.set(s.emailId, s));
+
+          validEmails = validEmails.map((email) => {
             const st = stateMap.get(email.id);
             if (st) {
-              email.read = st.isRead;
-              email.starred = st.isStarred;
-              email.trashed = st.isTrashed;
-              email.userSpamOverride = st.isSpam;
-              if (st.isSpam === true) {
-                email.isSpam = true;
-              } else if (st.isSpam === false) {
-                email.isSpam = false;
-              }
+              return {
+                ...email,
+                read: st.read,
+                starred: st.starred,
+                trashed: st.trashed,
+                userSpamOverride: st.isSpam,
+              };
             }
-          }
+            return email;
+          });
         } catch (dbErr: any) {
-          this.logger.warn(`[MailService.listSupport] Could not load email states from DB: ${dbErr.message}`);
+          this.logger.warn(`[MailService.listSupport] Could not load staffEmailState: ${dbErr.message}`);
         }
       }
 
@@ -471,12 +510,25 @@ export class MailService {
   /**
    * Get single email detail by base64url encoded S3 key
    */
-  async getMailById(id: string, userId?: string): Promise<MailDetail> {
+  async getMailById(id: string, userId?: string, currentUser?: any): Promise<MailDetail> {
     let key: string;
     try {
       key = Buffer.from(id, 'base64url').toString('utf8');
     } catch (e) {
       throw new BadRequestException('Invalid email ID format');
+    }
+
+    const userRole = (currentUser?.role || '').toLowerCase();
+    const isStaff = userRole === 'staff';
+    const isAdmin = userRole === 'admin' || userRole === 'super_admin';
+
+    if (isStaff && !isAdmin) {
+      const staffPrefix = currentUser.mailboxPrefix || 
+        (currentUser.mailboxEmail ? `staff/${currentUser.mailboxEmail.split('@')[0].toLowerCase()}/` : `staff/${currentUser.email.split('@')[0].toLowerCase()}/`);
+      const isAllowed = key.startsWith(staffPrefix) || (currentUser.canAccessSupport && key.startsWith(this.defaultPrefix));
+      if (!isAllowed) {
+        throw new ForbiddenException('You do not have permission to view this email.');
+      }
     }
 
     try {
@@ -504,6 +556,9 @@ export class MailService {
         ? parsed.bcc.map((b) => b.text).join(', ')
         : (parsed.bcc?.text || '');
 
+      const subject = parsed.subject || '(No Subject)';
+      const dateStr = parsed.date ? parsed.date.toISOString() : new Date().toISOString();
+
       const attachments: MailAttachment[] = (parsed.attachments || []).map((att) => ({
         filename: att.filename || 'attachment',
         contentType: att.contentType || 'application/octet-stream',
@@ -511,28 +566,28 @@ export class MailService {
         content: att.content ? att.content.toString('base64') : undefined,
       }));
 
-      const dateStr = parsed.date ? parsed.date.toISOString() : new Date().toISOString();
-
+      // Run Spam & Junk Analysis
       const spamAnalysis = this.analyzeSpam(parsed);
 
-      const mailDetail: MailDetail = {
+      let detail: MailDetail = {
         id,
         key,
         from: fromText,
         to: toText,
-        cc: ccText,
-        bcc: bccText,
+        cc: ccText || undefined,
+        bcc: bccText || undefined,
         replyTo: parsed.replyTo?.text || undefined,
-        subject: parsed.subject || '(No Subject)',
+        subject,
         date: dateStr,
         size: buffer.length,
-        read: true,
-        starred: false,
-        trashed: false,
-        html: parsed.html || (parsed.textAsHtml ? parsed.textAsHtml : undefined),
         text: parsed.text || '',
+        html: parsed.html || (parsed.text ? `<div style="font-family: sans-serif; white-space: pre-wrap;">${parsed.text}</div>` : undefined),
         snippet: (parsed.text || '').slice(0, 140).replace(/\s+/g, ' ').trim(),
         attachments,
+        folder: key.substring(0, key.lastIndexOf('/') + 1) || this.defaultPrefix,
+        read: false,
+        starred: false,
+        trashed: false,
         isSpam: spamAnalysis.isSpam,
         spamScore: spamAnalysis.spamScore,
         spamVerdict: spamAnalysis.spamVerdict,
@@ -541,7 +596,7 @@ export class MailService {
         authResults: spamAnalysis.authResults,
       };
 
-      // Merge persistent DB state if user ID provided
+      // Merge persistent DB state
       if (userId) {
         try {
           const st = await this.prisma.staffEmailState.findUnique({
@@ -550,49 +605,50 @@ export class MailService {
             },
           });
           if (st) {
-            mailDetail.read = st.isRead;
-            mailDetail.starred = st.isStarred;
-            mailDetail.trashed = st.isTrashed;
-            mailDetail.userSpamOverride = st.isSpam;
-            if (st.isSpam === true) mailDetail.isSpam = true;
-            else if (st.isSpam === false) mailDetail.isSpam = false;
+            detail = {
+              ...detail,
+              read: st.isRead,
+              starred: st.isStarred,
+              trashed: st.isTrashed,
+              userSpamOverride: st.isSpam,
+            };
           }
         } catch (dbErr: any) {
-          this.logger.warn(`[MailService.getMailById] Could not fetch DB state: ${dbErr.message}`);
+          this.logger.warn(`[MailService.getMailById] Could not fetch staffEmailState: ${dbErr.message}`);
         }
       }
 
-      return mailDetail;
+      return detail;
     } catch (err: any) {
-      if (err instanceof NotFoundException || err instanceof BadRequestException) throw err;
+      if (err instanceof NotFoundException || err instanceof BadRequestException || err instanceof ForbiddenException) throw err;
       this.logger.error(`[MailService.getMailById] Error loading key ${key}: ${err.message}`);
-      throw new NotFoundException(`Email not found: ${err.message}`);
+      throw new NotFoundException(`Could not read email: ${err.message}`);
     }
   }
 
   /**
-   * Update state (read, star, spam, trash) for a specific email by user
+   * Update read/star/trash/spam state for an email for a user
    */
   async updateEmailState(userId: string, emailId: string, dto: UpdateEmailStateDto) {
-    const dataToUpdate: any = {};
-    if (dto.isRead !== undefined) dataToUpdate.isRead = dto.isRead;
-    if (dto.isStarred !== undefined) dataToUpdate.isStarred = dto.isStarred;
-    if (dto.isSpam !== undefined) dataToUpdate.isSpam = dto.isSpam;
-    if (dto.isTrashed !== undefined) dataToUpdate.isTrashed = dto.isTrashed;
+    const data: any = {};
+    if (dto.isRead !== undefined) data.isRead = dto.isRead;
+    if (dto.isStarred !== undefined) data.isStarred = dto.isStarred;
+    if (dto.isTrashed !== undefined) data.isTrashed = dto.isTrashed;
+    if (dto.isSpam !== undefined) data.isSpam = dto.isSpam;
 
     return this.prisma.staffEmailState.upsert({
       where: {
         userId_emailId: { userId, emailId },
       },
-      update: dataToUpdate,
       create: {
         userId,
         emailId,
         isRead: dto.isRead ?? false,
         isStarred: dto.isStarred ?? false,
-        isSpam: dto.isSpam ?? null,
         isTrashed: dto.isTrashed ?? false,
+        isSpam: dto.isSpam ?? null,
       },
+      update: data,
     });
   }
 
@@ -625,6 +681,21 @@ export class MailService {
       throw new BadRequestException('Email subject is required');
     }
 
+    let senderEmail = this.mailFrom;
+    let replyToEmail = this.replyTo;
+
+    if (currentUser) {
+      const userRole = (currentUser.role || '').toLowerCase();
+      const isStaffOrAdmin = ['staff', 'admin', 'super_admin'].includes(userRole);
+      const activeMailbox = currentUser.mailboxEmail || (currentUser.email?.endsWith('@vidyaloans.in') ? currentUser.email : null);
+
+      if (isStaffOrAdmin && activeMailbox) {
+        const displayName = `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() || 'VidyaLoans Staff';
+        senderEmail = `"${displayName} (VidyaLoans)" <${activeMailbox}>`;
+        replyToEmail = activeMailbox;
+      }
+    }
+
     const mailAttachments = (dto.attachments || []).map((att) => ({
       filename: att.filename,
       content: Buffer.from(att.content, 'base64'),
@@ -632,11 +703,11 @@ export class MailService {
     }));
 
     const mailOptions: nodemailer.SendMailOptions = {
-      from: this.mailFrom,
+      from: senderEmail,
       to: dto.to,
       cc: dto.cc,
       bcc: dto.bcc,
-      replyTo: dto.replyTo || this.replyTo,
+      replyTo: dto.replyTo || replyToEmail,
       subject: dto.subject,
       text: dto.text,
       html: dto.html || (dto.text ? `<div style="font-family: sans-serif; white-space: pre-wrap;">${dto.text}</div>` : ''),

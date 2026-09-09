@@ -513,6 +513,9 @@ export class UsersService implements OnModuleInit {
     officeId?: string;
     officeLocation?: string;
     bank?: string;
+    mailboxEmail?: string;
+    mailboxPrefix?: string;
+    canAccessSupport?: boolean;
   }) {
     const dobDate = this.parseDate(data.dateOfBirth);
     const now = new Date();
@@ -571,6 +574,18 @@ export class UsersService implements OnModuleInit {
       insertPayload.staffId = staffId;
     }
 
+    if (data.mailboxEmail) {
+      insertPayload.mailboxEmail = data.mailboxEmail.trim().toLowerCase();
+    }
+    if (data.mailboxPrefix) {
+      let pref = data.mailboxPrefix.trim();
+      if (!pref.endsWith('/')) pref += '/';
+      insertPayload.mailboxPrefix = pref;
+    }
+    if (data.canAccessSupport !== undefined) {
+      insertPayload.canAccessSupport = Boolean(data.canAccessSupport);
+    }
+
     let user: any = null;
     let { data: insertedUser, error } = await this.db
       .from('User')
@@ -578,12 +593,12 @@ export class UsersService implements OnModuleInit {
       .select()
       .single();
 
-    if (error && (error.code === 'PGRST204' || error.message?.includes('staffId')) && insertPayload.staffId) {
-      console.warn('[UsersService.create] staffId column not recognized by PostgREST schema cache — retrying insert without staffId:', error.message);
-      const { staffId: _removed, ...payloadWithoutStaffId } = insertPayload;
+    if (error && (error.code === 'PGRST204' || error.message?.includes('staffId') || error.message?.includes('mailboxEmail')) && insertPayload.staffId) {
+      console.warn('[UsersService.create] schema cache issue — retrying insert with sanitized payload:', error.message);
+      const { staffId: _removed, mailboxEmail: _mbE, mailboxPrefix: _mbP, canAccessSupport: _cas, ...payloadWithoutNewCols } = insertPayload;
       const retryResult = await this.db
         .from('User')
-        .insert(payloadWithoutStaffId)
+        .insert(payloadWithoutNewCols)
         .select()
         .single();
       insertedUser = retryResult.data;

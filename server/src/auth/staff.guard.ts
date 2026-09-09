@@ -43,12 +43,32 @@ export class StaffGuard implements CanActivate {
             // Fast path: role is embedded in the JWT payload — no DB lookup needed
             const payloadRoleLower = (payload.role || '').toLowerCase();
             if (payload.role && (allowedRoles.includes(payloadRoleLower) || payloadRoleLower.startsWith('bank_'))) {
+                let mailboxEmail = payload.mailboxEmail;
+                let mailboxPrefix = payload.mailboxPrefix;
+                let canAccessSupport = payload.canAccessSupport;
+
+                if (payloadRoleLower === 'staff' && (mailboxEmail === undefined || mailboxPrefix === undefined)) {
+                    try {
+                        const dbUser = await this.usersService.findOne(payload.email);
+                        if (dbUser) {
+                            mailboxEmail = dbUser.mailboxEmail;
+                            mailboxPrefix = dbUser.mailboxPrefix;
+                            canAccessSupport = dbUser.canAccessSupport;
+                        }
+                    } catch (e) {
+                        // Non-blocking fallback
+                    }
+                }
+
                 request.user = {
                     id: payload.sub || payload.id,
                     email: payload.email,
                     role: payload.role,
                     firstName: payload.firstName,
                     lastName: payload.lastName,
+                    mailboxEmail,
+                    mailboxPrefix,
+                    canAccessSupport,
                 };
                 return true;
             }
