@@ -1973,6 +1973,7 @@ export const mailApi = {
     },
     getFolders: () => apiFetch(`${API_URL}/mail/folders`),
     getMail: (id: string) => apiFetch(`${API_URL}/mail/inbox/${id}`),
+    getStats: () => apiFetch(`${API_URL}/mail/stats`),
     sendMail: (data: {
         to: string | string[];
         cc?: string | string[];

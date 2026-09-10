@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { format } from "date-fns";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { adminApi, staffProfileApi } from "@/lib/api";
+import { adminApi, staffProfileApi, mailApi } from "@/lib/api";
 import ActivityLogWidget from "@/components/staff/ActivityLogWidget";
 
 const convertToIST = (dateStr: string): Date => {
@@ -158,6 +158,25 @@ export default function StaffDashboardPage() {
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState<any>({});
     const [todayStats, setTodayStats] = useState<any>(null);
+    const [mailStats, setMailStats] = useState<{
+        total: number;
+        unread: number;
+        read: number;
+        sent: number;
+        drafts: number;
+        starred: number;
+        spam: number;
+        trash: number;
+    }>({
+        total: 0,
+        unread: 0,
+        read: 0,
+        sent: 0,
+        drafts: 0,
+        starred: 0,
+        spam: 0,
+        trash: 0,
+    });
 
     // Audit Trail State
     const [fullActivities, setFullActivities] = useState<any[]>([]);
@@ -196,11 +215,12 @@ export default function StaffDashboardPage() {
     const loadOverview = useCallback(async (silent?: boolean) => {
         if (!silent) setLoading(true);
         try {
-            const [blogStats, appStats, userStats, todayRes]: [any, any, any, any] = await Promise.all([
+            const [blogStats, appStats, userStats, todayRes, mailStatsRes]: [any, any, any, any, any] = await Promise.all([
                 adminApi.getBlogStats().catch(() => ({ data: {} })),
                 adminApi.getApplicationStats().catch(() => ({ data: {} })),
                 adminApi.getUserStats().catch(() => ({ data: {} })),
                 staffProfileApi.getTodayDashboard().catch(() => ({ data: {} })),
+                mailApi.getStats().catch(() => ({ data: {} })),
             ]);
 
             setStats({
@@ -209,6 +229,33 @@ export default function StaffDashboardPage() {
                 users: userStats.data || {},
             });
             setTodayStats(todayRes?.data || todayRes || {});
+
+            let localSentCount = 0;
+            let localDraftsCount = 0;
+            let localReadCount = 0;
+            let localStarredCount = 0;
+            try {
+                const savedSent = localStorage.getItem("vidya_mail_sent_history");
+                if (savedSent) localSentCount = JSON.parse(savedSent).length;
+                const savedDrafts = localStorage.getItem("vidya_mail_drafts");
+                if (savedDrafts) localDraftsCount = JSON.parse(savedDrafts).length;
+                const savedRead = localStorage.getItem("vidya_mail_read_ids");
+                if (savedRead) localReadCount = JSON.parse(savedRead).length;
+                const savedStarred = localStorage.getItem("vidya_mail_starred_ids");
+                if (savedStarred) localStarredCount = JSON.parse(savedStarred).length;
+            } catch {}
+
+            const s = mailStatsRes?.data || {};
+            setMailStats({
+                total: Number(s.total || 0),
+                unread: Number(s.unread || 0),
+                read: Math.max(Number(s.read || 0), localReadCount),
+                sent: Math.max(Number(s.sent || 0), localSentCount),
+                drafts: Math.max(Number(s.drafts || 0), localDraftsCount),
+                starred: Math.max(Number(s.starred || 0), localStarredCount),
+                spam: Number(s.spam || 0),
+                trash: Number(s.trash || 0),
+            });
         } catch (e) {
             console.error(e);
         } finally {
@@ -333,32 +380,120 @@ export default function StaffDashboardPage() {
                         />
                     </div>
 
-                    {/* Today's Focus Areas */}
+                    {/* Today's Operational Summary */}
                     <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
-                        <h3 className="text-[11px] font-bold text-[#0A2540] uppercase tracking-wider flex items-center gap-2">
-                            <span className="material-symbols-outlined text-rose-500 text-[18px] animate-pulse">campaign</span>
-                            Today's Operational Summary
-                        </h3>
-                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                            <div className="p-4 rounded-2xl border border-rose-100 bg-rose-50/40 flex flex-col justify-between min-h-[95px] hover:shadow-xs transition-all">
-                                <span className="text-[10px] font-extrabold text-rose-700 uppercase tracking-wider">Urgent Cases</span>
-                                <span className="text-2xl font-black text-rose-700 mt-2">{todayStats?.urgent?.count ?? 0}</span>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-100">
+                            <div>
+                                <h3 className="text-[12px] font-extrabold text-[#0A2540] uppercase tracking-wider flex items-center gap-2">
+                                    <span className="material-symbols-outlined text-indigo-600 text-[20px]">mark_email_unread</span>
+                                    Today's Operational Summary
+                                </h3>
+                                <p className="text-[11px] text-slate-500 mt-0.5">
+                                    Real-time overview of incoming inquiries, read status, sent emails, drafts, and priority follow-ups
+                                </p>
                             </div>
-                            <div className="p-4 rounded-2xl border border-blue-100 bg-blue-50/40 flex flex-col justify-between min-h-[95px] hover:shadow-xs transition-all">
-                                <span className="text-[10px] font-extrabold text-blue-700 uppercase tracking-wider">New Admissions (24h)</span>
-                                <span className="text-2xl font-black text-blue-700 mt-2">{todayStats?.newFiles?.count ?? 0}</span>
+                            <button
+                                onClick={() => router.push('/staff/inbox')}
+                                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 text-slate-700 hover:text-indigo-600 text-[11px] font-bold transition-all shadow-2xs group cursor-pointer"
+                            >
+                                <span className="material-symbols-outlined text-[16px] text-indigo-500 group-hover:scale-110 transition-transform">mail</span>
+                                Open Staff Mailbox
+                                <span className="material-symbols-outlined text-[14px] text-slate-400 group-hover:translate-x-0.5 transition-transform">arrow_forward</span>
+                            </button>
+                        </div>
+
+                        {/* Mail & Communications Operational Boxes */}
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-3.5">
+                            {/* Unread Mail */}
+                            <div
+                                className="p-4 rounded-2xl border border-amber-200/80 bg-amber-50/50 flex flex-col justify-between min-h-[95px] transition-all"
+                            >
+                                <div className="flex items-center justify-between">
+                                    <span className="text-[10px] font-extrabold text-amber-800 uppercase tracking-wider flex items-center gap-1">
+                                        Unread
+                                    </span>
+                                    <span className="material-symbols-outlined text-amber-500 text-[18px]">
+                                        mark_email_unread
+                                    </span>
+                                </div>
+                                <div className="mt-2 flex items-baseline justify-between">
+                                    <span className="text-2xl font-black text-amber-900">{mailStats.unread}</span>
+                                    <span className="text-[10px] font-bold text-amber-700 bg-amber-100/90 px-1.5 py-0.5 rounded">
+                                        {mailStats.unread > 0 ? "Requires Action" : "Caught up"}
+                                    </span>
+                                </div>
                             </div>
-                            <div className="p-4 rounded-2xl border border-amber-100 bg-amber-50/40 flex flex-col justify-between min-h-[95px] hover:shadow-xs transition-all">
-                                <span className="text-[10px] font-extrabold text-amber-700 uppercase tracking-wider">Responded Queries</span>
-                                <span className="text-2xl font-black text-amber-700 mt-2">{todayStats?.respondedQueries?.count ?? 0}</span>
+
+                            {/* Read Mail */}
+                            <div
+                                className="p-4 rounded-2xl border border-sky-200/80 bg-sky-50/50 flex flex-col justify-between min-h-[95px] transition-all"
+                            >
+                                <div className="flex items-center justify-between">
+                                    <span className="text-[10px] font-extrabold text-sky-800 uppercase tracking-wider flex items-center gap-1">
+                                        Read
+                                    </span>
+                                    <span className="material-symbols-outlined text-sky-500 text-[18px]">
+                                        mark_email_read
+                                    </span>
+                                </div>
+                                <div className="mt-2 flex items-baseline justify-between">
+                                    <span className="text-2xl font-black text-sky-900">{mailStats.read}</span>
+                                    <span className="text-[10px] font-medium text-sky-600">Processed</span>
+                                </div>
                             </div>
-                            <div className="p-4 rounded-2xl border border-purple-100 bg-purple-50/40 flex flex-col justify-between min-h-[95px] hover:shadow-xs transition-all">
-                                <span className="text-[10px] font-extrabold text-purple-700 uppercase tracking-wider">Pending Decisions</span>
-                                <span className="text-2xl font-black text-purple-700 mt-2">{todayStats?.pendingDecisions?.count ?? 0}</span>
+
+                            {/* Sent Mail */}
+                            <div
+                                className="p-4 rounded-2xl border border-indigo-200/80 bg-indigo-50/50 flex flex-col justify-between min-h-[95px] transition-all"
+                            >
+                                <div className="flex items-center justify-between">
+                                    <span className="text-[10px] font-extrabold text-indigo-800 uppercase tracking-wider flex items-center gap-1">
+                                        Sent
+                                    </span>
+                                    <span className="material-symbols-outlined text-indigo-500 text-[18px]">
+                                        send
+                                    </span>
+                                </div>
+                                <div className="mt-2 flex items-baseline justify-between">
+                                    <span className="text-2xl font-black text-indigo-900">{mailStats.sent}</span>
+                                    <span className="text-[10px] font-medium text-indigo-600">Dispatched</span>
+                                </div>
                             </div>
-                            <div className="p-4 rounded-2xl border border-emerald-100 bg-emerald-50/40 flex flex-col justify-between min-h-[95px] hover:shadow-xs transition-all">
-                                <span className="text-[10px] font-extrabold text-emerald-700 uppercase tracking-wider">Pending Disb.</span>
-                                <span className="text-2xl font-black text-emerald-700 mt-2">{todayStats?.pendingDisbursements?.count ?? 0}</span>
+
+                            {/* Drafts */}
+                            <div
+                                className="p-4 rounded-2xl border border-purple-200/80 bg-purple-50/50 flex flex-col justify-between min-h-[95px] transition-all"
+                            >
+                                <div className="flex items-center justify-between">
+                                    <span className="text-[10px] font-extrabold text-purple-800 uppercase tracking-wider flex items-center gap-1">
+                                        Drafts
+                                    </span>
+                                    <span className="material-symbols-outlined text-purple-500 text-[18px]">
+                                        drafts
+                                    </span>
+                                </div>
+                                <div className="mt-2 flex items-baseline justify-between">
+                                    <span className="text-2xl font-black text-purple-900">{mailStats.drafts}</span>
+                                    <span className="text-[10px] font-medium text-purple-600">Saved</span>
+                                </div>
+                            </div>
+
+                            {/* Starred / Priority */}
+                            <div
+                                className="p-4 rounded-2xl border border-yellow-200/80 bg-amber-50/30 flex flex-col justify-between min-h-[95px] transition-all"
+                            >
+                                <div className="flex items-center justify-between">
+                                    <span className="text-[10px] font-extrabold text-amber-800 uppercase tracking-wider flex items-center gap-1">
+                                        Starred
+                                    </span>
+                                    <span className="material-symbols-outlined text-amber-500 text-[18px]">
+                                        star
+                                    </span>
+                                </div>
+                                <div className="mt-2 flex items-baseline justify-between">
+                                    <span className="text-2xl font-black text-amber-900">{mailStats.starred}</span>
+                                    <span className="text-[10px] font-medium text-amber-600">Priority</span>
+                                </div>
                             </div>
                         </div>
                     </div>

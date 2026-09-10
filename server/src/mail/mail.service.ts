@@ -149,7 +149,7 @@ export class MailService {
         { name: `My Mailbox (${label})`, prefix: staffPrefix, isStaff: true },
       ];
 
-      if (currentUser.canAccessSupport) {
+      if (currentUser.canAccessSupport !== false) {
         staffFolders.push({ name: 'Support Team Inbox', prefix: this.defaultPrefix, isStaff: false });
       }
 
@@ -229,7 +229,7 @@ export class MailService {
         let f = folder.trim();
         if (!f.endsWith('/')) f += '/';
         if (f === staffPrefix) return f;
-        if (currentUser.canAccessSupport && f === this.defaultPrefix) return f;
+        if (currentUser.canAccessSupport !== false && f === this.defaultPrefix) return f;
         this.logger.warn(`[MailService] Staff ${currentUser.email} attempted to query folder "${f}". Restricted to assigned "${staffPrefix}".`);
         return staffPrefix;
       }
@@ -484,9 +484,9 @@ export class MailService {
             if (st) {
               return {
                 ...email,
-                read: st.read,
-                starred: st.starred,
-                trashed: st.trashed,
+                read: Boolean(st.isRead),
+                starred: Boolean(st.isStarred),
+                trashed: Boolean(st.isTrashed),
                 userSpamOverride: st.isSpam,
               };
             }
@@ -504,6 +504,40 @@ export class MailService {
     } catch (err: any) {
       this.logger.error(`[MailService.listSupport] S3 Error for bucket ${this.bucketName}: ${err.message}`);
       return [];
+    }
+  }
+
+  /**
+   * Compute aggregate mail statistics for current user / mailbox
+   */
+  async getMailStats(userId?: string, currentUser?: any) {
+    try {
+      const emails = await this.listSupport(undefined, undefined, userId, currentUser);
+
+      const unread = emails.filter((e) => !e.read && !e.trashed && !e.isSpam).length;
+      const read = emails.filter((e) => e.read && !e.trashed && !e.isSpam).length;
+      const starred = emails.filter((e) => e.starred && !e.trashed).length;
+      const spam = emails.filter((e) => e.isSpam && !e.trashed).length;
+      const trash = emails.filter((e) => e.trashed).length;
+
+      return {
+        total: emails.length,
+        unread,
+        read,
+        starred,
+        spam,
+        trash,
+      };
+    } catch (err: any) {
+      this.logger.warn(`[MailService.getMailStats] Could not compute mail stats: ${err.message}`);
+      return {
+        total: 0,
+        unread: 0,
+        read: 0,
+        starred: 0,
+        spam: 0,
+        trash: 0,
+      };
     }
   }
 

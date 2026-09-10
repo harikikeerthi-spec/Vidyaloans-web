@@ -43,6 +43,15 @@ export class MailController {
     return { success: true, data: emails, total: emails.length };
   }
 
+  // ─── Get Aggregate Mail Stats ───────────────────────────────────────────────
+  @Get(['mail/stats', 'support/mail/stats'])
+  @ApiOperation({ summary: 'Get aggregate email counts for the current user' })
+  async getMailStats(@Req() req?: any) {
+    const userId = req?.user?.id;
+    const stats = await this.mailService.getMailStats(userId, req?.user);
+    return { success: true, data: stats };
+  }
+
   // ─── Get Email Detail ────────────────────────────────────────────────────────
   @Get(['mail/inbox/:id', 'mail/:id', 'support/mail/:id'])
   @ApiOperation({ summary: 'Get full parsed email detail by base64url encoded S3 key' })

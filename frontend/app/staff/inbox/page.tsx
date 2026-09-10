@@ -89,6 +89,8 @@ function StaffInboxContent() {
     const urlFolder = searchParams.get("folder");
     const urlStaffEmail = searchParams.get("staffEmail");
     const urlStaffName = searchParams.get("name");
+    const urlTab = searchParams.get("tab");
+    const urlFilter = searchParams.get("filter");
 
     // Staff identity & assigned mailbox routing
     const staffMailbox = (user as any)?.mailboxEmail || user?.email || "";
@@ -117,7 +119,8 @@ function StaffInboxContent() {
 
     // Active folder / mailbox state
     const [selectedFolder, setSelectedFolder] = useState<string>(initialFolder);
-    const [activeTab, setActiveTab] = useState<"inbox" | "starred" | "sent" | "spam" | "trash">("inbox");
+    const [activeTab, setActiveTab] = useState<"inbox" | "starred" | "sent" | "drafts" | "spam" | "trash">("inbox");
+    const [filterType, setFilterType] = useState<"all" | "unread" | "read">("all");
     const [foldersList, setFoldersList] = useState<S3Folder[]>([]);
     const [isFolderDropdownOpen, setIsFolderDropdownOpen] = useState(false);
 
@@ -141,6 +144,22 @@ function StaffInboxContent() {
     const [userSpamIds, setUserSpamIds] = useState<Set<string>>(new Set());
     const [userNotSpamIds, setUserNotSpamIds] = useState<Set<string>>(new Set());
     const [sentEmails, setSentEmails] = useState<any[]>([]);
+    const [draftEmails, setDraftEmails] = useState<any[]>([]);
+    const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
+
+    // Synchronize query parameters on load/change
+    useEffect(() => {
+        if (urlTab && ["inbox", "starred", "sent", "drafts", "spam", "trash"].includes(urlTab)) {
+            setActiveTab(urlTab as any);
+        }
+        if (urlFilter === "unread") {
+            setShowOnlyUnread(true);
+            setFilterType("unread");
+        } else if (urlFilter === "read") {
+            setShowOnlyUnread(false);
+            setFilterType("read");
+        }
+    }, [urlTab, urlFilter]);
 
     // Compose / Reply modal
     const [isComposeOpen, setIsComposeOpen] = useState(false);
@@ -179,6 +198,9 @@ function StaffInboxContent() {
 
             const savedSent = localStorage.getItem("vidya_mail_sent_history");
             if (savedSent) setSentEmails(JSON.parse(savedSent));
+
+            const savedDrafts = localStorage.getItem("vidya_mail_drafts");
+            if (savedDrafts) setDraftEmails(JSON.parse(savedDrafts));
         } catch (e) {
             console.warn("Error reading mail local state", e);
         }
@@ -266,6 +288,21 @@ function StaffInboxContent() {
 
     // Load email details when an email is selected
     const handleSelectEmail = useCallback(async (email: MailSummaryItem) => {
+        if ((email as any).isDraft && (email as any).rawDraft) {
+            const draft = (email as any).rawDraft;
+            setComposeData({
+                to: draft.to || "",
+                cc: draft.cc || "",
+                bcc: draft.bcc || "",
+                subject: draft.subject || "",
+                body: draft.body || "",
+                replyTo: draft.replyTo || "",
+            });
+            setEditingDraftId(draft.id);
+            setIsComposeOpen(true);
+            return;
+        }
+
         setSelectedEmailId(email.id);
         setLoadingDetail(true);
 
@@ -334,14 +371,34 @@ function StaffInboxContent() {
                 spamScore: 0,
                 spamReasons: [] as string[],
             }));
+        } else if (activeTab === "drafts") {
+            // Display saved drafts
+            return draftEmails.map((item) => ({
+                id: item.id,
+                key: `draft/${item.id}`,
+                from: "Draft",
+                to: item.to || "(No recipient)",
+                subject: item.subject || "(Draft - No subject)",
+                date: item.updatedAt || new Date().toISOString(),
+                size: 0,
+                read: true,
+                snippet: item.body || "(Empty draft body)",
+                isSpam: false,
+                spamScore: 0,
+                spamReasons: [] as string[],
+                isDraft: true,
+                rawDraft: item,
+            }));
         } else {
             // Inbox tab excludes trashed items AND spam items
             list = list.filter((e) => !trashedIds.has(e.id) && !isEmailSpam(e));
         }
 
-        // Unread toggle filter
+        // Unread / Read toggle filter
         if (showOnlyUnread && (activeTab === "inbox" || activeTab === "spam")) {
             list = list.filter((e) => !readIds.has(e.id));
+        } else if (filterType === "read" && (activeTab === "inbox" || activeTab === "spam")) {
+            list = list.filter((e) => readIds.has(e.id));
         }
 
         // Search filter
@@ -356,7 +413,7 @@ function StaffInboxContent() {
         }
 
         return list;
-    }, [emails, activeTab, starredIds, trashedIds, sentEmails, showOnlyUnread, readIds, searchQuery, isEmailSpam]);
+    }, [emails, activeTab, starredIds, trashedIds, sentEmails, draftEmails, showOnlyUnread, filterType, readIds, searchQuery, isEmailSpam]);
 
     // Star toggle action (persists to DB)
     const toggleStar = (e: React.MouseEvent, id: string) => {
@@ -452,6 +509,53 @@ function StaffInboxContent() {
             return next;
         });
         mailApi.batchUpdateState(ids, { isTrashed: true }).catch(() => { });
+        setSelectedIds(new Set());
+    };
+
+    // Bulk action: report selected as spam / restore from spam
+    const handleBulkSpam = () => {
+        if (selectedIds.size === 0) return;
+        const ids = Array.from(selectedIds);
+        if (activeTab === "spam") {
+            setUserNotSpamIds((prev) => {
+                const next = new Set(prev);
+                ids.forEach((id) => next.add(id));
+                try {
+                    localStorage.setItem("vidya_mail_user_not_spam_ids", JSON.stringify(Array.from(next)));
+                } catch { }
+                return next;
+            });
+            setUserSpamIds((prev) => {
+                const next = new Set(prev);
+                ids.forEach((id) => next.delete(id));
+                try {
+                    localStorage.setItem("vidya_mail_user_spam_ids", JSON.stringify(Array.from(next)));
+                } catch { }
+                return next;
+            });
+            mailApi.batchUpdateState(ids, { isSpam: false }).catch(() => { });
+            setFeedbackToast({ type: "success", message: `Restored ${ids.length} email(s) to Inbox.` });
+        } else {
+            setUserSpamIds((prev) => {
+                const next = new Set(prev);
+                ids.forEach((id) => next.add(id));
+                try {
+                    localStorage.setItem("vidya_mail_user_spam_ids", JSON.stringify(Array.from(next)));
+                } catch { }
+                return next;
+            });
+            setUserNotSpamIds((prev) => {
+                const next = new Set(prev);
+                ids.forEach((id) => next.delete(id));
+                try {
+                    localStorage.setItem("vidya_mail_user_not_spam_ids", JSON.stringify(Array.from(next)));
+                } catch { }
+                return next;
+            });
+            mailApi.batchUpdateState(ids, { isSpam: true }).catch(() => { });
+            setFeedbackToast({ type: "error", message: `Reported ${ids.length} email(s) as Spam.` });
+        }
+        setTimeout(() => setFeedbackToast(null), 3500);
         setSelectedIds(new Set());
     };
 
@@ -603,6 +707,16 @@ function StaffInboxContent() {
                 localStorage.setItem("vidya_mail_sent_history", JSON.stringify(updatedSent));
             } catch { }
 
+            // If we were editing a draft, remove it from drafts list
+            if (editingDraftId) {
+                const updatedDrafts = draftEmails.filter((d) => d.id !== editingDraftId);
+                setDraftEmails(updatedDrafts);
+                try {
+                    localStorage.setItem("vidya_mail_drafts", JSON.stringify(updatedDrafts));
+                } catch { }
+                setEditingDraftId(null);
+            }
+
             setFeedbackToast({ type: "success", message: "Email dispatched successfully via Amazon SES!" });
             setTimeout(() => setFeedbackToast(null), 4000);
 
@@ -619,6 +733,53 @@ function StaffInboxContent() {
         } finally {
             setIsSending(false);
         }
+    };
+
+    // Save draft helper
+    const handleSaveDraft = () => {
+        if (!composeData.to && !composeData.subject && !composeData.body) {
+            setFeedbackToast({ type: "error", message: "Draft cannot be completely empty." });
+            setTimeout(() => setFeedbackToast(null), 3000);
+            return;
+        }
+
+        const draftId = editingDraftId || `draft-${Date.now()}`;
+        const newDraft = {
+            id: draftId,
+            to: composeData.to,
+            cc: composeData.cc,
+            bcc: composeData.bcc,
+            subject: composeData.subject || "(Untitled Draft)",
+            body: composeData.body,
+            replyTo: composeData.replyTo,
+            updatedAt: new Date().toISOString(),
+        };
+
+        const updatedDrafts = [newDraft, ...draftEmails.filter((d) => d.id !== draftId)];
+        setDraftEmails(updatedDrafts);
+        try {
+            localStorage.setItem("vidya_mail_drafts", JSON.stringify(updatedDrafts));
+        } catch { }
+
+        setFeedbackToast({ type: "success", message: "Draft saved successfully!" });
+        setTimeout(() => setFeedbackToast(null), 3000);
+
+        setIsComposeOpen(false);
+        setComposeData({ to: "", cc: "", bcc: "", subject: "", body: "", replyTo: "" });
+        setAttachments([]);
+        setEditingDraftId(null);
+    };
+
+    // Delete draft helper
+    const handleDeleteDraft = (e: React.MouseEvent, draftId: string) => {
+        e.stopPropagation();
+        const updatedDrafts = draftEmails.filter((d) => d.id !== draftId);
+        setDraftEmails(updatedDrafts);
+        try {
+            localStorage.setItem("vidya_mail_drafts", JSON.stringify(updatedDrafts));
+        } catch { }
+        setFeedbackToast({ type: "success", message: "Draft deleted." });
+        setTimeout(() => setFeedbackToast(null), 3000);
     };
 
     // Download attachment helper
@@ -805,6 +966,12 @@ function StaffInboxContent() {
                             badge: sentEmails.length,
                         },
                         {
+                            id: "drafts",
+                            label: "Drafts",
+                            icon: FileText,
+                            badge: draftEmails.length,
+                        },
+                        {
                             id: "spam",
                             label: "Spam / Junk",
                             icon: ShieldAlert,
@@ -908,7 +1075,15 @@ function StaffInboxContent() {
                                 className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer w-3.5 h-3.5"
                             />
                             <button
-                                onClick={() => setShowOnlyUnread(!showOnlyUnread)}
+                                onClick={() => {
+                                    if (showOnlyUnread) {
+                                        setShowOnlyUnread(false);
+                                        setFilterType("all");
+                                    } else {
+                                        setShowOnlyUnread(true);
+                                        setFilterType("unread");
+                                    }
+                                }}
                                 className={`px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors flex items-center gap-1 ${
                                     showOnlyUnread
                                         ? "bg-indigo-600 text-white"
@@ -918,17 +1093,43 @@ function StaffInboxContent() {
                                 <Filter className="w-2.5 h-2.5" />
                                 Unread
                             </button>
+                            <button
+                                onClick={() => {
+                                    if (filterType === "read") {
+                                        setFilterType("all");
+                                    } else {
+                                        setShowOnlyUnread(false);
+                                        setFilterType("read");
+                                    }
+                                }}
+                                className={`px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors flex items-center gap-1 ${
+                                    filterType === "read"
+                                        ? "bg-sky-600 text-white"
+                                        : "bg-slate-200/70 text-slate-600 hover:bg-slate-300/70"
+                                }`}
+                            >
+                                Read
+                            </button>
                         </div>
 
                         <div className="flex items-center gap-1.5">
                             {selectedIds.size > 0 && (
-                                <button
-                                    onClick={handleBulkTrash}
-                                    title="Move selected to Trash"
-                                    className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                                >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                </button>
+                                <>
+                                    <button
+                                        onClick={handleBulkSpam}
+                                        title={activeTab === "spam" ? "Mark selected as Not Spam" : "Report selected as Spam / Junk"}
+                                        className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                    >
+                                        <ShieldAlert className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                        onClick={handleBulkTrash}
+                                        title="Move selected to Trash"
+                                        className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                </>
                             )}
 
                             <button
@@ -993,7 +1194,7 @@ function StaffInboxContent() {
                                             handleSelectEmail(email);
                                         }
                                     }}
-                                    className={`p-3.5 cursor-pointer transition-all flex items-start gap-3 hover:bg-indigo-50/40 relative ${
+                                    className={`p-3.5 cursor-pointer transition-all flex items-start gap-3 hover:bg-indigo-50/40 relative group ${
                                         isSelected ? "bg-indigo-50/90 border-l-4 border-indigo-600" : isRead ? "bg-white" : "bg-indigo-50/20 font-bold"
                                     }`}
                                 >
@@ -1017,9 +1218,16 @@ function StaffInboxContent() {
                                     {/* Email Info */}
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center justify-between gap-1 mb-1">
-                                            <span className={`text-xs truncate ${!isRead ? "font-extrabold text-slate-900" : "font-semibold text-slate-700"}`}>
-                                                {email.from}
-                                            </span>
+                                            <div className="flex items-center gap-1.5 min-w-0">
+                                                {activeTab === "drafts" && (
+                                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-purple-100 text-purple-700 shrink-0">
+                                                        Draft
+                                                    </span>
+                                                )}
+                                                <span className={`text-xs truncate ${!isRead ? "font-extrabold text-slate-900" : "font-semibold text-slate-700"}`}>
+                                                    {activeTab === "drafts" ? `To: ${email.to}` : email.from}
+                                                </span>
+                                            </div>
                                             <span className="text-[10px] text-slate-400 shrink-0 font-medium">
                                                 {relativeTime}
                                             </span>
@@ -1049,12 +1257,20 @@ function StaffInboxContent() {
                                         )}
                                     </div>
 
-                                    {/* Action buttons on card: quick Spam / Not Spam */}
+                                    {/* Action buttons on card: quick Spam / Not Spam / Delete Draft */}
                                     <div className="flex flex-col items-center gap-1 pt-0.5">
                                         {!isRead && (
                                             <span className="w-2 h-2 rounded-full bg-indigo-600 mb-1 shrink-0" />
                                         )}
-                                        {activeTab === "spam" || isEmailSpam(email) ? (
+                                        {activeTab === "drafts" ? (
+                                            <button
+                                                onClick={(e) => handleDeleteDraft(e, email.id)}
+                                                title="Delete Draft"
+                                                className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                        ) : activeTab === "spam" || isEmailSpam(email) ? (
                                             <button
                                                 onClick={(e) => handleMarkAsNotSpam(e, email.id)}
                                                 title="Mark as Not Spam (Restore to Inbox)"
@@ -1066,7 +1282,7 @@ function StaffInboxContent() {
                                             <button
                                                 onClick={(e) => handleMarkAsSpam(e, email.id)}
                                                 title="Report as Spam / Move to Junk"
-                                                className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                                                className="p-1 rounded text-slate-300 hover:text-rose-600 hover:bg-rose-50 transition-colors opacity-0 group-hover:opacity-100"
                                             >
                                                 <ShieldAlert className="w-3.5 h-3.5" />
                                             </button>
@@ -1111,7 +1327,7 @@ function StaffInboxContent() {
 
                                 <button
                                     onClick={(e) => toggleStar(e, activeEmailDetail.id)}
-                                    className="p-2 rounded-xl text-slate-400 hover:text-amber-500 hover:bg-slate-100 transition-colors"
+                                    className="p-2 rounded-xl text-slate-400 hover:text-amber-500 hover:bg-slate-100 transition-colors cursor-pointer"
                                     title="Star email"
                                 >
                                     <Star
@@ -1120,7 +1336,10 @@ function StaffInboxContent() {
                                         }`}
                                     />
                                 </button>
+                            </div>
 
+                            {/* Right Side Actions: Spam & Delete */}
+                            <div className="flex items-center gap-2">
                                 <button
                                     onClick={(e) => {
                                         if (isEmailSpam(activeEmailDetail)) {
@@ -1142,19 +1361,11 @@ function StaffInboxContent() {
 
                                 <button
                                     onClick={() => moveToTrash(activeEmailDetail.id)}
-                                    className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                                    className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors border border-transparent hover:border-rose-200 cursor-pointer"
                                     title="Move to trash"
                                 >
                                     <Trash2 className="w-4 h-4" />
                                 </button>
-                            </div>
-
-                            {/* S3 Key Tag */}
-                            <div className="flex items-center gap-2">
-                                <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-[10px] font-mono font-bold text-slate-600 border border-slate-200">
-                                    <Tag className="w-3 h-3 text-slate-400" />
-                                    {selectedFolder}
-                                </span>
                             </div>
                         </div>
 
@@ -1462,8 +1673,17 @@ function StaffInboxContent() {
                                 <div className="flex items-center gap-2">
                                     <button
                                         type="button"
+                                        onClick={handleSaveDraft}
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 hover:text-indigo-600 hover:bg-slate-200/60 transition-colors border border-slate-200 bg-white cursor-pointer"
+                                    >
+                                        <FileText className="w-3.5 h-3.5 text-slate-500" />
+                                        Save Draft
+                                    </button>
+
+                                    <button
+                                        type="button"
                                         onClick={() => setIsComposeOpen(false)}
-                                        className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-200/60 transition-colors"
+                                        className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-200/60 transition-colors cursor-pointer"
                                     >
                                         Cancel
                                     </button>
