@@ -460,8 +460,8 @@ export class UsersController {
             return finalResponse;
         } catch (error) {
             console.error('=== ERROR IN ADMIN CREATE USER ===');
-            console.error('Error creating user by admin:', error);
-            const errorResponse = { success: false, message: 'Failed to create user', error: error?.message };
+            const errorMsg = error?.message || 'Failed to create user';
+            const errorResponse = { success: false, message: errorMsg, error: errorMsg };
             console.error('Error Response:', JSON.stringify(errorResponse, null, 2));
             return errorResponse;
         }

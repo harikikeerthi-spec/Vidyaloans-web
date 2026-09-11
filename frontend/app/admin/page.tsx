@@ -1186,8 +1186,13 @@ export default function AdminDashboardPage() {
         }
         setCreateUserLoading(true);
         try {
+            const cleanPrefix = newUserQuery.mailboxPrefix
+                ? (newUserQuery.mailboxPrefix.trim().endsWith('/') ? newUserQuery.mailboxPrefix.trim() : `${newUserQuery.mailboxPrefix.trim()}/`)
+                : "";
             const payload = {
                 ...newUserQuery,
+                mailboxPrefix: cleanPrefix,
+                mailboxEmail: newUserQuery.mailboxEmail ? newUserQuery.mailboxEmail.trim().toLowerCase() : "",
                 isDraft
             };
             const res: any = await adminApi.createUser(payload);
@@ -4239,11 +4244,12 @@ export default function AdminDashboardPage() {
                                                     onChange={e => {
                                                         const val = e.target.value;
                                                         const slug = val.split('@')[0].toLowerCase().replace(/[^a-z0-9_-]/g, '');
-                                                        setNewUserQuery({ 
-                                                            ...newUserQuery, 
+                                                        setNewUserQuery(prev => ({ 
+                                                            ...prev, 
                                                             mailboxEmail: val,
-                                                            mailboxPrefix: slug ? `staff/${slug}/` : newUserQuery.mailboxPrefix
-                                                        });
+                                                            // Only auto-suggest prefix if prefix was previously empty or matches auto-generated slug
+                                                            mailboxPrefix: (!prev.mailboxPrefix || prev.mailboxPrefix.startsWith('staff/')) && slug ? `${slug}/` : prev.mailboxPrefix
+                                                        }));
                                                     }} 
                                                     className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-[6px] text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400" 
                                                     placeholder="priya@vidyaloans.in" 
@@ -4255,12 +4261,12 @@ export default function AdminDashboardPage() {
                                                             const cleanFirst = newUserQuery.firstName.toLowerCase().replace(/[^a-z0-9]/g, '');
                                                             const cleanLast = (newUserQuery.lastName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
                                                             const alias = cleanLast ? `${cleanFirst}.${cleanLast}@vidyaloans.in` : `${cleanFirst}@vidyaloans.in`;
-                                                            const prefix = `staff/${cleanFirst}/`;
-                                                            setNewUserQuery({
-                                                                ...newUserQuery,
+                                                            const prefix = `${cleanFirst}/`;
+                                                            setNewUserQuery(prev => ({
+                                                                ...prev,
                                                                 mailboxEmail: alias,
-                                                                mailboxPrefix: prefix
-                                                            });
+                                                                mailboxPrefix: prev.mailboxPrefix || prefix
+                                                            }));
                                                         }}
                                                         className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 mt-1 cursor-pointer block"
                                                     >
@@ -4279,9 +4285,9 @@ export default function AdminDashboardPage() {
                                                     value={newUserQuery.mailboxPrefix} 
                                                     onChange={e => setNewUserQuery({ ...newUserQuery, mailboxPrefix: e.target.value })} 
                                                     className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-[6px] text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400" 
-                                                    placeholder="staff/priya/" 
+                                                    placeholder="abhi/ or support/" 
                                                 />
-                                                <p className="text-[11px] text-slate-400 mt-1">S3 path matching AWS SES Receipt Rule prefix.</p>
+                                                <p className="text-[11px] text-slate-400 mt-1">S3 path matching AWS SES Receipt Rule prefix (e.g. <code>abhi/</code>).</p>
                                             </div>
                                         </div>
 

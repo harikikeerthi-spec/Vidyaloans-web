@@ -47,12 +47,12 @@ export class StaffGuard implements CanActivate {
                 let mailboxPrefix = payload.mailboxPrefix;
                 let canAccessSupport = payload.canAccessSupport;
 
-                if (payloadRoleLower === 'staff' && (mailboxEmail === undefined || mailboxPrefix === undefined)) {
+                if (payloadRoleLower === 'staff') {
                     try {
                         const dbUser = await this.usersService.findOne(payload.email);
                         if (dbUser) {
-                            mailboxEmail = dbUser.mailboxEmail;
-                            mailboxPrefix = dbUser.mailboxPrefix;
+                            mailboxEmail = dbUser.mailboxEmail || mailboxEmail;
+                            mailboxPrefix = dbUser.mailboxPrefix || mailboxPrefix;
                             canAccessSupport = dbUser.canAccessSupport;
                         }
                     } catch (e) {

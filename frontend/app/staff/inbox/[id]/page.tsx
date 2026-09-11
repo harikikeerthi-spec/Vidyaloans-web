@@ -69,7 +69,7 @@ function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id
     const router = useRouter();
     const searchParams = useSearchParams();
     const { user } = useAuth();
-    const staffMailbox = (user as any)?.mailboxEmail || user?.email || "";
+    const staffMailbox = (user as any)?.mailboxEmail || (user?.email?.endsWith('@vidyaloans.in') ? user?.email : '') || user?.email || "support@vidyaloans.in";
     const resolvedParams = use(paramsPromise);
     const emailId = resolvedParams.id;
     const currentFolder = searchParams.get("folder") || "support/";
@@ -93,7 +93,7 @@ function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id
         bcc: "",
         subject: "",
         body: "",
-        replyTo: "support@vidyaloans.in",
+        replyTo: staffMailbox || "support@vidyaloans.in",
     });
     const [attachments, setAttachments] = useState<{ filename: string; contentType: string; size: number; content: string }[]>([]);
     const [isSending, setIsSending] = useState(false);
@@ -227,7 +227,7 @@ function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id
             bcc: "",
             subject: cleanSubj,
             body: quote,
-            replyTo: "support@vidyaloans.in",
+            replyTo: staffMailbox || "support@vidyaloans.in",
         });
         setAttachments([]);
         setIsComposeOpen(true);
@@ -246,7 +246,7 @@ function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id
             bcc: "",
             subject: cleanSubj,
             body: quote,
-            replyTo: "support@vidyaloans.in",
+            replyTo: staffMailbox || "support@vidyaloans.in",
         });
         const validAttachments = (mail.attachments || [])
             .filter((a) => typeof a.content === "string")

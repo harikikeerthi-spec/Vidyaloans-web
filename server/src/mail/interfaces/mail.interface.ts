@@ -46,4 +46,7 @@ export interface MailFolder {
   prefix: string;
   count?: number;
   isStaff?: boolean;
+  assignedStaffName?: string;
+  assignedStaffEmail?: string;
+  assignedMailboxEmail?: string;
 }

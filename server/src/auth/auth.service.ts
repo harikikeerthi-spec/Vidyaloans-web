@@ -144,6 +144,13 @@ export class AuthService {
       payload.bank = bankInfo.bankId;
     }
 
+    if (user.role === 'staff' || user.role === 'staff_admin') {
+      payload.mailboxEmail = user.mailboxEmail || null;
+      payload.mailboxPrefix = user.mailboxPrefix || null;
+      payload.canAccessSupport = user.canAccessSupport !== false;
+      payload.staffId = user.staffId || null;
+    }
+
     const isStaff = user.role === 'staff' || user.role === 'staff_admin';
     const standardAccessExpStr = isStaff
       ? '2h'
@@ -684,6 +691,10 @@ export class AuthService {
         phoneNumber: user.phoneNumber || '',
         dateOfBirth: formattedDob || '',
         role: user.role,
+        mailboxEmail: user.mailboxEmail || null,
+        mailboxPrefix: user.mailboxPrefix || null,
+        canAccessSupport: user.canAccessSupport !== false,
+        staffId: user.staffId || null,
         bank: bankInfo.bankId,
         bankId: bankInfo.bankId,
         bankName: bankInfo.bankName,
@@ -808,6 +819,10 @@ export class AuthService {
         phoneNumber: user.phoneNumber || '',
         dateOfBirth: formattedDob || '',
         role: user.role,
+        mailboxEmail: user.mailboxEmail || null,
+        mailboxPrefix: user.mailboxPrefix || null,
+        canAccessSupport: user.canAccessSupport !== false,
+        staffId: user.staffId || null,
         picture: picture // Return Firebase profile picture if available
       };
     } catch (error) {
@@ -926,6 +941,10 @@ export class AuthService {
           phoneNumber: user.phoneNumber || '',
           dateOfBirth: formattedDob || '',
           role: user.role || 'user',
+          mailboxEmail: user.mailboxEmail || null,
+          mailboxPrefix: user.mailboxPrefix || null,
+          canAccessSupport: user.canAccessSupport !== false,
+          staffId: user.staffId || null,
           createdAt: user.createdAt,
           studyDestination,
           targetUniversity,

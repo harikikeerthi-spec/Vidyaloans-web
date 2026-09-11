@@ -116,6 +116,10 @@ function StaffLoginContent() {
                 lastName: data.lastName,
                 role: data.role as any,
                 refresh_token: data.refresh_token,
+                mailboxEmail: (data as any).mailboxEmail,
+                mailboxPrefix: (data as any).mailboxPrefix,
+                canAccessSupport: (data as any).canAccessSupport,
+                staffId: (data as any).staffId,
             });
 
             const redirectTo = searchParams.get("redirect");

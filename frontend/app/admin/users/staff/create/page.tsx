@@ -3,13 +3,17 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { adminApi, referenceApi } from "@/lib/api";
+import { adminApi, referenceApi, mailApi } from "@/lib/api";
 
 export default function CreateStaffPage() {
     const router = useRouter();
     const [loading, setLoading] = useState(false);
     const [officesLoading, setOfficesLoading] = useState(false);
     const [offices, setOffices] = useState<any[]>([]);
+
+    // S3 Folders state from AWS SES bucket
+    const [s3Folders, setS3Folders] = useState<any[]>([]);
+    const [loadingFolders, setLoadingFolders] = useState(false);
 
     // Form state
     const [formData, setFormData] = useState({
@@ -51,18 +55,67 @@ export default function CreateStaffPage() {
         }
     };
 
+    // Load S3 folders from AWS SES incoming emails bucket
+    const loadS3Folders = async () => {
+        setLoadingFolders(true);
+        try {
+            const res: any = await mailApi.getFolders();
+            if (res?.success && Array.isArray(res.data)) {
+                setS3Folders(res.data);
+            }
+        } catch (e) {
+            console.warn("Could not load S3 folders:", e);
+        } finally {
+            setLoadingFolders(false);
+        }
+    };
+
     useEffect(() => {
         loadOffices();
+        loadS3Folders();
     }, []);
 
-    // Helper to auto-suggest SES business email and S3 prefix
+    // Selection handler for S3 folders
+    const handleSelectFolder = (folder: any) => {
+        const prefix = folder.prefix;
+        const slug = prefix.replace(/^staff\//, "").replace(/\/$/, "");
+        
+        setFormData(prev => {
+            let matchingEmail = prev.mailboxEmail;
+            // If email is empty or ends with @vidyaloans.in, auto-match with the selected folder
+            if (!prev.mailboxEmail || prev.mailboxEmail.endsWith("@vidyaloans.in")) {
+                if (folder.assignedMailboxEmail) {
+                    matchingEmail = folder.assignedMailboxEmail;
+                } else if (slug && slug !== "support" && slug !== "incoming" && slug !== "info") {
+                    matchingEmail = `${slug}@vidyaloans.in`;
+                }
+            }
+
+            return {
+                ...prev,
+                mailboxPrefix: prefix,
+                mailboxEmail: matchingEmail
+            };
+        });
+    };
+
+
+
+    // Helper to auto-suggest SES business email and match/select S3 prefix
     const handleAutoSuggestMailbox = () => {
         const cleanFirst = formData.firstName.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
         const cleanLast = formData.lastName.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
         if (!cleanFirst) return;
 
         const alias = cleanLast ? `${cleanFirst}.${cleanLast}@vidyaloans.in` : `${cleanFirst}@vidyaloans.in`;
-        const prefix = `staff/${cleanFirst}/`;
+
+        // Check if an S3 folder already exists for this name (e.g. 'abhi/' or 'staff/abhi/')
+        const matched = s3Folders.find(f => {
+            const slug = f.prefix.replace(/^staff\//, "").replace(/\/$/, "").toLowerCase();
+            return slug === cleanFirst;
+        });
+
+        const prefix = matched ? matched.prefix : `${cleanFirst}/`;
 
         setFormData(prev => ({
             ...prev,
@@ -131,7 +184,7 @@ export default function CreateStaffPage() {
         try {
             const cleanPrefix = formData.mailboxPrefix.trim()
                 ? (formData.mailboxPrefix.trim().endsWith("/") ? formData.mailboxPrefix.trim() : `${formData.mailboxPrefix.trim()}/`)
-                : (formData.mailboxEmail.trim() ? `staff/${formData.mailboxEmail.trim().split("@")[0].toLowerCase()}/` : undefined);
+                : (formData.mailboxEmail.trim() ? `${formData.mailboxEmail.trim().split("@")[0].toLowerCase()}/` : undefined);
 
             const payload = {
                 role: "staff",
@@ -141,18 +194,20 @@ export default function CreateStaffPage() {
                 mobile: formData.mobile.trim(),
                 officeId: formData.officeId,
                 officeLocation: formData.officeLocation,
-                mailboxEmail: formData.mailboxEmail.trim() || undefined,
+                mailboxEmail: formData.mailboxEmail.trim().toLowerCase() || undefined,
                 mailboxPrefix: cleanPrefix,
                 canAccessSupport: Boolean(formData.canAccessSupport),
             };
 
             const res: any = await adminApi.createUser(payload);
 
-            if (res.success && res.user?.id) {
-                alert(`Staff Profile created successfully for ${formData.firstName} ${formData.lastName}! Generated Staff ID: ${res.user.staffId || "Assigned"}`);
+            if (res.success && (res.user?.id || res.user)) {
+                const finalStaffId = res.user?.staffId || res.user?.id || "Assigned";
+                alert(`Staff Profile created successfully for ${formData.firstName} ${formData.lastName}! Generated Staff ID: ${finalStaffId}`);
                 router.push("/admin/users/staff");
             } else {
-                alert("Failed to create staff profile: " + (res.message || "Unknown error"));
+                const errMsg = res.error || res.message || "Unknown error";
+                alert("Failed to create staff profile: " + errMsg);
             }
         } catch (err: any) {
             console.error("Staff creation failed:", err);
@@ -320,19 +375,108 @@ export default function CreateStaffPage() {
                                     </div>
                                     <div>
                                         <h2 className="text-sm font-bold text-slate-900">AWS SES Mailbox & S3 Folder Isolation</h2>
-                                        <p className="text-[12px] text-slate-500">Isolate incoming and outgoing mail so this officer never sends from support@.</p>
+                                        <p className="text-[12px] text-slate-500">
+                                            Assign an isolated S3 folder in <code className="bg-slate-100 text-indigo-700 px-1.5 py-0.5 rounded font-mono font-bold text-[11px]">vidyaloans-incoming-emails</code> so this staff only accesses their incoming emails and sends from their registered business email.
+                                        </p>
                                     </div>
                                 </div>
                                 <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase tracking-wider">
-                                    Mailbox Isolation
+                                    SES / S3 Routing
                                 </span>
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            {/* S3 Folder Dropdown Selector */}
+                            <div className="mb-5">
+                                <div className="flex items-center justify-between mb-2">
+                                    <label className="text-[13px] font-semibold text-slate-800 flex items-center gap-1.5">
+                                        <span className="material-symbols-outlined text-amber-500 text-[16px]">folder_open</span>
+                                        Available Folders in AWS S3
+                                        <code className="font-mono text-indigo-700 text-[11px] bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">vidyaloans-incoming-emails</code>
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={loadS3Folders}
+                                        disabled={loadingFolders}
+                                        className="text-[11px] font-semibold text-slate-400 hover:text-indigo-600 flex items-center gap-1 transition-colors cursor-pointer"
+                                        title="Refresh folders from S3"
+                                    >
+                                        <span className={`material-symbols-outlined text-[14px] ${loadingFolders ? "animate-spin text-indigo-500" : ""}`}>refresh</span>
+                                        {loadingFolders ? "Loading..." : "Refresh"}
+                                    </button>
+                                </div>
+
+                                {/* Dropdown */}
+                                <div className="relative">
+                                    <select
+                                        value={formData.mailboxPrefix}
+                                        onChange={e => {
+                                            const selectedPrefix = e.target.value;
+                                            if (!selectedPrefix) {
+                                                setFormData(prev => ({ ...prev, mailboxPrefix: "", mailboxEmail: "" }));
+                                                return;
+                                            }
+                                            const folder = s3Folders.find(f => f.prefix === selectedPrefix);
+                                            if (folder) handleSelectFolder(folder);
+                                            else setFormData(prev => ({ ...prev, mailboxPrefix: selectedPrefix }));
+                                        }}
+                                        disabled={loadingFolders}
+                                        className="w-full appearance-none pl-10 pr-10 py-2.5 bg-white border border-[#E2E8F0] rounded-lg text-sm font-mono font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                                    >
+                                        <option value="">
+                                            {loadingFolders ? "Scanning S3 bucket…" : s3Folders.length === 0 ? "No folders found in bucket" : "— Select an S3 inbox folder —"}
+                                        </option>
+                                        {s3Folders.map(folder => {
+                                            const slug = folder.prefix.replace(/^staff\//, "").replace(/\/$/, "");
+                                            const emailHint = folder.assignedMailboxEmail || `${slug}@vidyaloans.in`;
+                                            const countLabel = typeof folder.count === "number" ? `  ·  ${folder.count} email${folder.count === 1 ? "" : "s"}` : "";
+                                            const assignedLabel = folder.assignedStaffName ? `  [${folder.assignedStaffName}]` : "";
+                                            return (
+                                                <option key={folder.prefix} value={folder.prefix}>
+                                                    {folder.prefix}  →  {emailHint}{countLabel}{assignedLabel}
+                                                </option>
+                                            );
+                                        })}
+                                    </select>
+                                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-slate-400 pointer-events-none">
+                                        {formData.mailboxPrefix ? "folder_special" : "folder_open"}
+                                    </span>
+                                    <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[18px] text-slate-400 pointer-events-none">
+                                        expand_more
+                                    </span>
+                                </div>
+
+                                {/* Selected folder confirmation strip */}
+                                {formData.mailboxPrefix && (() => {
+                                    const sel = s3Folders.find(f => f.prefix === formData.mailboxPrefix);
+                                    const slug = formData.mailboxPrefix.replace(/^staff\//, "").replace(/\/$/, "");
+                                    const email = sel?.assignedMailboxEmail || formData.mailboxEmail || `${slug}@vidyaloans.in`;
+                                    return (
+                                        <div className="mt-2 flex items-center flex-wrap gap-2 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg text-[11px]">
+                                            <span className="material-symbols-outlined text-emerald-600 text-[15px]">check_circle</span>
+                                            <span className="text-emerald-800 font-medium">
+                                                <code className="font-mono font-bold">{formData.mailboxPrefix}</code>
+                                            </span>
+                                            <span className="text-emerald-500">→</span>
+                                            <span className="text-emerald-800 font-semibold">{email}</span>
+                                            {sel?.count !== undefined && (
+                                                <span className="ml-auto text-emerald-600 font-medium">{sel.count} email{sel.count === 1 ? "" : "s"}</span>
+                                            )}
+                                            {sel?.assignedStaffName && (
+                                                <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded font-semibold text-[10px]">
+                                                    {sel.assignedStaffName}
+                                                </span>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+
+                            {/* Form Inputs for Email & Prefix */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-slate-100">
                                 <div>
                                     <div className="flex items-center justify-between mb-1.5">
                                         <label htmlFor="staff-mailbox-email" className="text-[13px] font-medium text-slate-700 block">
-                                            Official Business Email (SES)
+                                            Official Business Email (SES)<span className="text-rose-500">*</span>
                                         </label>
                                         {formData.firstName && (
                                             <button
@@ -347,39 +491,49 @@ export default function CreateStaffPage() {
                                     <input
                                         id="staff-mailbox-email"
                                         type="email"
+                                        required
                                         value={formData.mailboxEmail}
                                         onChange={e => {
                                             const val = e.target.value;
                                             const slug = val.split("@")[0].toLowerCase().replace(/[^a-z0-9_-]/g, "");
-                                            setFormData({
-                                                ...formData,
-                                                mailboxEmail: val,
-                                                mailboxPrefix: slug ? `staff/${slug}/` : formData.mailboxPrefix
+                                            const matched = s3Folders.find(f => {
+                                                const fSlug = f.prefix.replace(/^staff\//, "").replace(/\/$/, "").toLowerCase();
+                                                return fSlug === slug;
                                             });
+                                            setFormData(prev => ({
+                                                ...prev,
+                                                mailboxEmail: val,
+                                                mailboxPrefix: matched ? matched.prefix : (prev.mailboxPrefix && prev.mailboxPrefix !== `${slug}/` ? prev.mailboxPrefix : (slug ? `${slug}/` : ''))
+                                            }));
                                         }}
-                                        placeholder="priya@vidyaloans.in"
+                                        placeholder="abhi@vidyaloans.in"
                                         className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-md text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400"
                                     />
-                                    <p className="text-[11px] text-slate-400 mt-1">
-                                        Outgoing emails composed by this staff will show <code className="bg-slate-100 px-1 py-0.5 rounded text-slate-700 font-mono">From: {formData.mailboxEmail || "name@vidyaloans.in"}</code>.
-                                    </p>
+                                    {formData.mailboxEmail && (
+                                        <p className="text-[11px] text-slate-400 mt-1">
+                                            Outgoing emails will be sent from <span className="text-indigo-600 font-semibold font-mono">{formData.mailboxEmail}</span>
+                                        </p>
+                                    )}
                                 </div>
 
                                 <div>
                                     <label htmlFor="staff-mailbox-prefix" className="text-[13px] font-medium text-slate-700 mb-1.5 block">
-                                        Assigned S3 Folder Prefix
+                                        Assigned S3 Folder Prefix<span className="text-rose-500">*</span>
                                     </label>
                                     <input
                                         id="staff-mailbox-prefix"
                                         type="text"
+                                        required
                                         value={formData.mailboxPrefix}
                                         onChange={e => setFormData({ ...formData, mailboxPrefix: e.target.value })}
-                                        placeholder="staff/priya/"
-                                        className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-md text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400"
+                                        placeholder="Select a folder above or type manually"
+                                        className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-md text-sm font-mono font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400"
                                     />
-                                    <p className="text-[11px] text-slate-400 mt-1">
-                                        Folder inside bucket <code className="bg-slate-100 px-1 py-0.5 rounded text-slate-700 font-mono">vidyaloans-incoming-emails</code> for SES receipt rules.
-                                    </p>
+                                    {formData.mailboxPrefix && (
+                                        <p className="text-[11px] text-slate-400 mt-1">
+                                            Folder <span className="font-mono text-indigo-600 font-bold">{formData.mailboxPrefix}</span> in <span className="font-mono text-slate-500">vidyaloans-incoming-emails</span>
+                                        </p>
+                                    )}
                                 </div>
                             </div>
 
@@ -395,7 +549,7 @@ export default function CreateStaffPage() {
                                 <label htmlFor="staff-access-support" className="text-xs text-slate-700 cursor-pointer">
                                     <span className="font-semibold block text-slate-800">Allow access to General Support Team Inbox (support/)</span>
                                     <span className="text-slate-500 block text-[11px] mt-0.5 leading-relaxed">
-                                        When left unchecked (recommended), this staff member is strictly restricted to their designated folder and cannot view, read, or intercept inquiries sent to support@vidyaloans.in.
+                                        When left unchecked (recommended), this staff member is strictly restricted to their designated folder (<code className="font-bold text-indigo-700 font-mono">{formData.mailboxPrefix || "assigned folder"}</code>) and cannot view, read, or intercept inquiries sent to support@vidyaloans.in or other staff mailboxes.
                                     </span>
                                 </label>
                             </div>
@@ -406,8 +560,8 @@ export default function CreateStaffPage() {
                                 <div className="text-[11px] text-blue-900 space-y-1 leading-relaxed">
                                     <p><strong>How AWS SES Routing works for this staff:</strong></p>
                                     <ul className="list-disc list-inside space-y-0.5 text-blue-800">
-                                        <li><strong>Inbound:</strong> Add an AWS SES Receipt Rule for <code className="bg-blue-100/70 px-1 py-0.2 rounded font-mono text-[10px]">{formData.mailboxEmail || "email@vidyaloans.in"}</code> pointing to S3 Prefix <code className="bg-blue-100/70 px-1 py-0.2 rounded font-mono text-[10px]">{formData.mailboxPrefix || "staff/<name>/"}</code>.</li>
-                                        <li><strong>Outbound:</strong> Outgoing replies automatically use <code className="bg-blue-100/70 px-1 py-0.2 rounded font-mono text-[10px]">{formData.mailboxEmail || "email@vidyaloans.in"}</code> via SES SMTP with verified domain credentials.</li>
+                                        <li><strong>Inbound:</strong> AWS SES Receipt Rule for <code className="bg-blue-100/70 px-1 py-0.2 rounded font-mono text-[10px]">{formData.mailboxEmail || "email@vidyaloans.in"}</code> delivers to S3 prefix <code className="bg-blue-100/70 px-1 py-0.2 rounded font-mono text-[10px]">{formData.mailboxPrefix || "<folder>/"}</code>.</li>
+                                        <li><strong>Outbound:</strong> Outgoing replies and composed emails are dispatched strictly using <code className="bg-blue-100/70 px-1 py-0.2 rounded font-mono text-[10px]">{formData.mailboxEmail || "email@vidyaloans.in"}</code> as the verified SES SMTP sender.</li>
                                     </ul>
                                 </div>
                             </div>

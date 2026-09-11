@@ -30,6 +30,14 @@ export class MailController {
     return { success: true, data: folders };
   }
 
+  // ─── Create S3 Folder Prefix ────────────────────────────────────────────────
+  @Post(['mail/folders', 'support/mail/folders'])
+  @ApiOperation({ summary: 'Create new S3 folder prefix in incoming email bucket' })
+  async createFolder(@Body('prefix') prefix: string) {
+    const folder = await this.mailService.createFolder(prefix);
+    return { success: true, data: folder };
+  }
+
   // ─── List Emails in Folder ───────────────────────────────────────────────────
   @Get(['mail/inbox', 'support/mail', 'support-inbox'])
   @ApiOperation({ summary: 'List incoming emails from S3 folder with user state merged' })

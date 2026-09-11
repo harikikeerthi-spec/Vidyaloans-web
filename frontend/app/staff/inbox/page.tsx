@@ -93,7 +93,7 @@ function StaffInboxContent() {
     const urlFilter = searchParams.get("filter");
 
     // Staff identity & assigned mailbox routing
-    const staffMailbox = (user as any)?.mailboxEmail || user?.email || "";
+    const staffMailbox = (user as any)?.mailboxEmail || (user?.email?.endsWith('@vidyaloans.in') ? user?.email : '') || user?.email || "support@vidyaloans.in";
     const staffMailboxPrefix = (user as any)?.mailboxPrefix;
     const currentUserEmail = user?.email || "";
     const currentUserSlug = useMemo(() => {
@@ -103,22 +103,27 @@ function StaffInboxContent() {
     const initialFolder = useMemo(() => {
         if (urlFolder) return urlFolder;
         if (staffMailboxPrefix) return staffMailboxPrefix;
-        if (urlStaffEmail) {
-            const slug = urlStaffEmail.split("@")[0].toLowerCase().replace(/[^a-z0-9_-]/g, "");
-            return `staff/${slug}/`;
-        }
         if ((user as any)?.mailboxEmail) {
             const slug = (user as any).mailboxEmail.split("@")[0].toLowerCase().replace(/[^a-z0-9_-]/g, "");
-            return `staff/${slug}/`;
+            return `${slug}/`;
         }
-        if (currentUserSlug) {
-            return `staff/${currentUserSlug}/`;
+        if (urlStaffEmail) {
+            const slug = urlStaffEmail.split("@")[0].toLowerCase().replace(/[^a-z0-9_-]/g, "");
+            return `${slug}/`;
         }
         return "support/";
-    }, [urlFolder, staffMailboxPrefix, urlStaffEmail, user, currentUserSlug]);
+    }, [urlFolder, staffMailboxPrefix, urlStaffEmail, user]);
 
     // Active folder / mailbox state
     const [selectedFolder, setSelectedFolder] = useState<string>(initialFolder);
+
+    // Sync assigned mailbox folder when user data loads or changes
+    useEffect(() => {
+        if (!urlFolder && staffMailboxPrefix) {
+            setSelectedFolder(staffMailboxPrefix);
+        }
+    }, [staffMailboxPrefix, urlFolder]);
+
     const [activeTab, setActiveTab] = useState<"inbox" | "starred" | "sent" | "drafts" | "spam" | "trash">("inbox");
     const [filterType, setFilterType] = useState<"all" | "unread" | "read">("all");
     const [foldersList, setFoldersList] = useState<S3Folder[]>([]);
@@ -213,6 +218,13 @@ function StaffInboxContent() {
                 if (res?.success && Array.isArray(res.data)) {
                     setFoldersList(res.data);
                     if (res.data.length > 0) {
+                        if (!urlFolder) {
+                            const myFolder = res.data.find((f: any) => f.isStaff || (staffMailboxPrefix && f.prefix === staffMailboxPrefix));
+                            if (myFolder) {
+                                setSelectedFolder(myFolder.prefix);
+                                return;
+                            }
+                        }
                         const hasCurrent = res.data.some((f: any) => f.prefix === selectedFolder);
                         if (!hasCurrent) {
                             setSelectedFolder(res.data[0].prefix);
@@ -221,7 +233,7 @@ function StaffInboxContent() {
                 }
             })
             .catch((err) => console.warn("Could not fetch S3 folders", err));
-    }, []);
+    }, [staffMailboxPrefix, urlFolder]);
 
     // Load emails for the selected S3 folder
     const fetchEmails = useCallback(async (isSilent = false) => {
@@ -306,7 +318,18 @@ function StaffInboxContent() {
         setSelectedEmailId(email.id);
         setLoadingDetail(true);
 
-        // Mark as read in DB and local state
+        // Sent emails are stored locally only — no S3/API key exists for them
+        if (email.id.startsWith('sent-')) {
+            setActiveEmailDetail({
+                ...email,
+                attachments: [],
+                text: email.snippet || '',
+                html: email.snippet ? `<div style="font-family:sans-serif;white-space:pre-wrap">${email.snippet}</div>` : undefined,
+            });
+            setLoadingDetail(false);
+            return;
+        }
+
         setReadIds((prev) => {
             const next = new Set(prev);
             next.add(email.id);
@@ -593,7 +616,7 @@ function StaffInboxContent() {
             bcc: "",
             subject: cleanSubj,
             body: quote,
-            replyTo: "support@vidyaloans.in",
+            replyTo: staffMailbox || "support@vidyaloans.in",
         });
         setAttachments([]);
         setIsComposeOpen(true);
@@ -614,7 +637,7 @@ function StaffInboxContent() {
             bcc: "",
             subject: cleanSubj,
             body: quote,
-            replyTo: "support@vidyaloans.in",
+            replyTo: staffMailbox || "support@vidyaloans.in",
         });
         const forwardAttachments = (activeEmailDetail.attachments || [])
             .filter((a) => typeof a.content === "string")
@@ -699,7 +722,7 @@ function StaffInboxContent() {
                 subject: composeData.subject,
                 body: composeData.body,
                 date: new Date().toISOString(),
-                from: "support@vidyaloans.in",
+                from: staffMailbox || "support@vidyaloans.in",
             };
             const updatedSent = [sentRecord, ...sentEmails].slice(0, 100);
             setSentEmails(updatedSent);
@@ -883,61 +906,45 @@ function StaffInboxContent() {
                         {isFolderDropdownOpen && (
                             <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-xl z-30 py-1.5 max-h-64 overflow-y-auto">
                                 <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">
-                                    Select Folder
+                                    Select S3 Mailbox Folder
                                 </div>
 
-                                {/* Default Support */}
-                                <button
-                                    onClick={() => {
-                                        setSelectedFolder("support/");
-                                        setIsFolderDropdownOpen(false);
-                                    }}
-                                    className={`w-full px-3 py-2 text-left text-xs font-semibold flex items-center gap-2 hover:bg-indigo-50 transition-colors ${
-                                        selectedFolder === "support/" ? "text-indigo-600 bg-indigo-50/60 font-bold" : "text-slate-700"
-                                    }`}
-                                >
-                                    <Inbox className="w-3.5 h-3.5 text-indigo-500" />
-                                    <span>Support Team (support/)</span>
-                                </button>
-
-                                {/* Current User Personal Folder */}
-                                {currentUserSlug && (
-                                    <button
-                                        onClick={() => {
-                                            setSelectedFolder(`staff/${currentUserSlug}/`);
-                                            setIsFolderDropdownOpen(false);
-                                        }}
-                                        className={`w-full px-3 py-2 text-left text-xs font-semibold flex items-center gap-2 hover:bg-indigo-50 transition-colors ${
-                                            selectedFolder === `staff/${currentUserSlug}/` ? "text-indigo-600 bg-indigo-50/60 font-bold" : "text-slate-700"
-                                        }`}
-                                    >
-                                        <User className="w-3.5 h-3.5 text-emerald-500" />
-                                        <span>My Folder (staff/{currentUserSlug}/)</span>
-                                    </button>
-                                )}
-
-                                {/* Other Folders Dynamically from S3 */}
-                                {foldersList.length > 0 && (
-                                    <>
-                                        <div className="px-3 py-1 text-[9px] font-bold text-slate-400 uppercase tracking-widest border-t border-slate-100 mt-1">
-                                            All AWS S3 Staff Folders
-                                        </div>
-                                        {foldersList.map((f) => (
+                                {foldersList.length > 0 ? (
+                                    foldersList.map((f) => {
+                                        const isSelected = selectedFolder === f.prefix;
+                                        return (
                                             <button
                                                 key={f.prefix}
                                                 onClick={() => {
                                                     setSelectedFolder(f.prefix);
                                                     setIsFolderDropdownOpen(false);
                                                 }}
-                                                className={`w-full px-3 py-1.5 text-left text-xs flex items-center gap-2 hover:bg-indigo-50 transition-colors truncate ${
-                                                    selectedFolder === f.prefix ? "text-indigo-600 bg-indigo-50/60 font-bold" : "text-slate-700 font-medium"
+                                                className={`w-full px-3 py-2 text-left text-xs flex items-center justify-between hover:bg-indigo-50 transition-colors ${
+                                                    isSelected ? "text-indigo-600 bg-indigo-50/70 font-bold" : "text-slate-700 font-medium"
                                                 }`}
                                             >
-                                                <Folder className={`w-3.5 h-3.5 ${f.isStaff ? "text-amber-500" : "text-indigo-500"}`} />
-                                                <span className="truncate">{f.name}</span>
+                                                <span className="flex items-center gap-2 truncate">
+                                                    {f.isStaff ? (
+                                                        <User className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                                                    ) : f.prefix === "support/" ? (
+                                                        <Inbox className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                                                    ) : (
+                                                        <Folder className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                                                    )}
+                                                    <span className="truncate">{f.name}</span>
+                                                </span>
+                                                {typeof f.count === "number" && (
+                                                    <span className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded-full text-slate-500 font-bold ml-2 shrink-0">
+                                                        {f.count}
+                                                    </span>
+                                                )}
                                             </button>
-                                        ))}
-                                    </>
+                                        );
+                                    })
+                                ) : (
+                                    <div className="px-3 py-2 text-xs text-slate-400 italic">
+                                        Loading folders...
+                                    </div>
                                 )}
                             </div>
                         )}
@@ -1023,7 +1030,7 @@ function StaffInboxContent() {
                 {/* Staff User Context Footer */}
                 <div className="p-3.5 border-t border-slate-100 bg-slate-50/60 flex items-center gap-3">
                     <img
-                        src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.email || "staff"}`}
+                        src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${staffMailbox || user?.email || "staff"}`}
                         alt="Avatar"
                         className="w-8 h-8 rounded-full border border-slate-200 bg-white"
                     />
@@ -1032,8 +1039,13 @@ function StaffInboxContent() {
                             {user?.firstName ? `${user.firstName} ${user.lastName || ""}` : "Staff Member"}
                         </p>
                         <p className="text-[10px] text-indigo-700 font-mono font-bold truncate">
-                            {user?.email || "support@vidyaloans.in"}
+                            {staffMailbox}
                         </p>
+                        {user?.email && user?.email !== staffMailbox && (
+                            <p className="text-[9px] text-slate-400 font-mono truncate">
+                                Login: {user.email}
+                            </p>
+                        )}
                     </div>
                 </div>
             </aside>

@@ -65,6 +65,10 @@ interface AuthUser {
     passportOriginalName?: string;
     nameAsInPassport?: string;
     passport?: any;
+    mailboxEmail?: string;
+    mailboxPrefix?: string;
+    canAccessSupport?: boolean;
+    staffId?: string;
 }
 
 interface AuthContextType {
@@ -313,6 +317,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         passportOriginalName: pickVal((freshUser as any).passportOriginalName, prev?.passportOriginalName),
                         nameAsInPassport: pickVal((freshUser as any).nameAsInPassport, prev?.nameAsInPassport),
                         passport: (freshUser as any).passport !== undefined && (freshUser as any).passport !== null ? (freshUser as any).passport : prev?.passport,
+                        mailboxEmail: pickVal((freshUser as any).mailboxEmail, prev?.mailboxEmail),
+                        mailboxPrefix: pickVal((freshUser as any).mailboxPrefix, prev?.mailboxPrefix),
+                        canAccessSupport: (freshUser as any).canAccessSupport !== undefined ? (freshUser as any).canAccessSupport : prev?.canAccessSupport,
+                        staffId: pickVal((freshUser as any).staffId, prev?.staffId),
                     };
                     localStorage.setItem(keys.user, JSON.stringify(updated));
                     if (updated.id) localStorage.setItem(keys.userId, updated.id);

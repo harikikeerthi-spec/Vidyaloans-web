@@ -1972,6 +1972,10 @@ export const mailApi = {
         return apiFetch(`${API_URL}/mail/inbox${queryStr}`);
     },
     getFolders: () => apiFetch(`${API_URL}/mail/folders`),
+    createFolder: (prefix: string) => apiFetch(`${API_URL}/mail/folders`, {
+        method: "POST",
+        body: JSON.stringify({ prefix }),
+    }),
     getMail: (id: string) => apiFetch(`${API_URL}/mail/inbox/${id}`),
     getStats: () => apiFetch(`${API_URL}/mail/stats`),
     sendMail: (data: {

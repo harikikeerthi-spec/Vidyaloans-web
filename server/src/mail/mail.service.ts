@@ -4,6 +4,7 @@ import {
   S3Client,
   ListObjectsV2Command,
   GetObjectCommand,
+  PutObjectCommand,
 } from '@aws-sdk/client-s3';
 import { simpleParser, ParsedMail } from 'mailparser';
 import * as nodemailer from 'nodemailer';
@@ -131,6 +132,54 @@ export class MailService {
   }
 
   /**
+   * Count email objects in a given S3 prefix
+   */
+  async countPrefixObjects(prefix: string): Promise<number> {
+    try {
+      const clean = prefix.endsWith('/') ? prefix : `${prefix}/`;
+      const cmd = new ListObjectsV2Command({
+        Bucket: this.bucketName,
+        Prefix: clean,
+        MaxKeys: 1000,
+      });
+      const res = await this.s3Client.send(cmd);
+      return (res.Contents || []).filter(c => c.Key && c.Key !== clean && !c.Key.endsWith('/')).length;
+    } catch {
+      return 0;
+    }
+  }
+
+  /**
+   * Create an S3 folder prefix in the incoming email bucket
+   */
+  async createFolder(folderPrefix: string): Promise<MailFolder> {
+    let clean = folderPrefix.trim().toLowerCase().replace(/[^a-z0-9_\-\/]/g, '');
+    if (!clean.endsWith('/')) clean += '/';
+    if (!clean || clean === '/') {
+      throw new BadRequestException('Invalid folder prefix name');
+    }
+
+    try {
+      const putCmd = new PutObjectCommand({
+        Bucket: this.bucketName,
+        Key: clean,
+        Body: '',
+      });
+      await this.s3Client.send(putCmd);
+      this.logger.log(`[MailService.createFolder] Created S3 prefix "${clean}" in bucket "${this.bucketName}"`);
+      return {
+        name: clean.replace(/\/$/, ''),
+        prefix: clean,
+        count: 0,
+        isStaff: true,
+      };
+    } catch (err: any) {
+      this.logger.error(`[MailService.createFolder] Failed to create S3 prefix "${clean}": ${err.message}`);
+      throw new BadRequestException(`Could not create folder in S3: ${err.message}`);
+    }
+  }
+
+  /**
    * Dynamically discover available folders in S3 bucket (root prefixes and staff/ prefixes)
    * If a staff member is requesting, only returns their assigned folder (and support/ if permitted).
    */
@@ -139,18 +188,49 @@ export class MailService {
     const isStaff = userRole === 'staff';
     const isAdmin = userRole === 'admin' || userRole === 'super_admin';
 
-    // If staff user, only return their isolated folder (+ support if allowed)
+    // If staff user, strictly return only their isolated folder (+ support if explicitly allowed)
     if (isStaff && !isAdmin) {
-      const staffPrefix = currentUser.mailboxPrefix || 
-        (currentUser.mailboxEmail ? `staff/${currentUser.mailboxEmail.split('@')[0].toLowerCase()}/` : `staff/${currentUser.email.split('@')[0].toLowerCase()}/`);
+      if (!currentUser.mailboxPrefix || !currentUser.mailboxEmail) {
+        try {
+          const dbUser = await this.prisma.user.findUnique({
+            where: { id: currentUser.id || currentUser.sub },
+            select: { mailboxEmail: true, mailboxPrefix: true, canAccessSupport: true },
+          });
+          if (dbUser) {
+            if (dbUser.mailboxEmail) currentUser.mailboxEmail = dbUser.mailboxEmail;
+            if (dbUser.mailboxPrefix) currentUser.mailboxPrefix = dbUser.mailboxPrefix;
+            if (dbUser.canAccessSupport !== undefined) currentUser.canAccessSupport = dbUser.canAccessSupport;
+          }
+        } catch (e: any) {
+          this.logger.warn(`[MailService.listFolders] Could not fetch staff user details from DB: ${e.message}`);
+        }
+      }
+
+      let staffPrefix = currentUser.mailboxPrefix;
+      if (!staffPrefix) {
+        if (currentUser.mailboxEmail) {
+          const slug = currentUser.mailboxEmail.split('@')[0].toLowerCase().replace(/[^a-z0-9_-]/g, '');
+          staffPrefix = `${slug}/`;
+        } else if (currentUser.email) {
+          const slug = currentUser.email.split('@')[0].toLowerCase().replace(/[^a-z0-9_-]/g, '');
+          staffPrefix = `staff/${slug}/`;
+        } else {
+          staffPrefix = this.defaultPrefix;
+        }
+      }
+      if (!staffPrefix.endsWith('/')) staffPrefix += '/';
+
       const label = currentUser.mailboxEmail || currentUser.email;
+      const staffCount = await this.countPrefixObjects(staffPrefix);
 
       const staffFolders: MailFolder[] = [
-        { name: `My Mailbox (${label})`, prefix: staffPrefix, isStaff: true },
+        { name: `My Mailbox (${label})`, prefix: staffPrefix, isStaff: true, count: staffCount },
       ];
 
-      if (currentUser.canAccessSupport !== false) {
-        staffFolders.push({ name: 'Support Team Inbox', prefix: this.defaultPrefix, isStaff: false });
+      // ONLY allow support if canAccessSupport is explicitly true
+      if (currentUser.canAccessSupport === true) {
+        const supportCount = await this.countPrefixObjects(this.defaultPrefix);
+        staffFolders.push({ name: 'Support Team Inbox', prefix: this.defaultPrefix, isStaff: false, count: supportCount });
       }
 
       return staffFolders;
@@ -159,12 +239,43 @@ export class MailService {
     const folders: MailFolder[] = [];
     const seen = new Set<string>();
 
-    const addFolder = (name: string, prefix: string, isStaff: boolean = false) => {
+    const addFolder = (
+      name: string,
+      prefix: string,
+      isStaff: boolean = false,
+      extra?: { assignedStaffName?: string; assignedStaffEmail?: string; assignedMailboxEmail?: string },
+    ) => {
       const cleanPrefix = prefix.endsWith('/') ? prefix : `${prefix}/`;
       if (!seen.has(cleanPrefix)) {
         seen.add(cleanPrefix);
-        folders.push({ name, prefix: cleanPrefix, isStaff });
+        folders.push({
+          name,
+          prefix: cleanPrefix,
+          isStaff,
+          ...extra,
+        });
       }
+    };
+
+    // Load registered staff users from DB to correlate assigned folders
+    let staffUsers: any[] = [];
+    try {
+      staffUsers = await this.prisma.user.findMany({
+        where: { role: 'staff' },
+        select: { firstName: true, lastName: true, email: true, mailboxEmail: true, mailboxPrefix: true },
+      });
+    } catch (e: any) {
+      this.logger.warn(`[MailService.listFolders] Could not load staff users from DB: ${e.message}`);
+    }
+
+    const getStaffForPrefix = (prefix: string) => {
+      const clean = prefix.endsWith('/') ? prefix : `${prefix}/`;
+      return staffUsers.find(
+        (u) =>
+          u.mailboxPrefix === clean ||
+          (u.mailboxEmail && `${u.mailboxEmail.split('@')[0].toLowerCase()}/` === clean) ||
+          (u.email && `staff/${u.email.split('@')[0].toLowerCase()}/` === clean),
+      );
     };
 
     // Always include default support inbox for admins
@@ -182,8 +293,17 @@ export class MailService {
           if (cp.Prefix) {
             const clean = cp.Prefix;
             if (clean !== 'support/' && clean !== 'staff/') {
+              const assigned = getStaffForPrefix(clean);
               const label = clean.replace(/\/$/, '');
-              addFolder(label.charAt(0).toUpperCase() + label.slice(1), clean, false);
+              const displayName = assigned?.mailboxEmail
+                ? `Staff: ${assigned.mailboxEmail}`
+                : label.charAt(0).toUpperCase() + label.slice(1);
+
+              addFolder(displayName, clean, !!assigned, {
+                assignedStaffName: assigned ? `${assigned.firstName || ''} ${assigned.lastName || ''}`.trim() : undefined,
+                assignedStaffEmail: assigned?.email,
+                assignedMailboxEmail: assigned?.mailboxEmail,
+              });
             }
           }
         }
@@ -199,13 +319,46 @@ export class MailService {
       if (staffRes.CommonPrefixes) {
         for (const cp of staffRes.CommonPrefixes) {
           if (cp.Prefix && cp.Prefix !== 'staff/') {
+            const assigned = getStaffForPrefix(cp.Prefix);
             const sub = cp.Prefix.replace(/^staff\//, '').replace(/\/$/, '');
             const label = sub.replace(/[_-]/g, ' ');
             const capitalized = label.replace(/\b\w/g, (l) => l.toUpperCase());
-            addFolder(`Staff: ${capitalized}`, cp.Prefix, true);
+            addFolder(
+              assigned?.mailboxEmail ? `Staff: ${assigned.mailboxEmail}` : `Staff: ${capitalized}`,
+              cp.Prefix,
+              true,
+              {
+                assignedStaffName: assigned ? `${assigned.firstName || ''} ${assigned.lastName || ''}`.trim() : undefined,
+                assignedStaffEmail: assigned?.email,
+                assignedMailboxEmail: assigned?.mailboxEmail,
+              },
+            );
           }
         }
       }
+
+      // 3. Ensure any folders configured on registered staff are present in list
+      for (const st of staffUsers) {
+        if (st.mailboxPrefix) {
+          addFolder(
+            st.mailboxEmail ? `Staff: ${st.mailboxEmail}` : `Staff: ${st.firstName || 'Member'}`,
+            st.mailboxPrefix,
+            true,
+            {
+              assignedStaffName: `${st.firstName || ''} ${st.lastName || ''}`.trim(),
+              assignedStaffEmail: st.email,
+              assignedMailboxEmail: st.mailboxEmail,
+            },
+          );
+        }
+      }
+
+      // Calculate object counts for each folder in parallel
+      await Promise.all(
+        folders.map(async (f) => {
+          f.count = await this.countPrefixObjects(f.prefix);
+        }),
+      );
     } catch (err: any) {
       this.logger.warn(`[MailService.listFolders] Could not list prefixes from S3: ${err.message}`);
     }
@@ -222,14 +375,25 @@ export class MailService {
     const isAdmin = userRole === 'admin' || userRole === 'super_admin';
 
     if (isStaff && !isAdmin) {
-      const staffPrefix = currentUser.mailboxPrefix || 
-        (currentUser.mailboxEmail ? `staff/${currentUser.mailboxEmail.split('@')[0].toLowerCase()}/` : `staff/${currentUser.email.split('@')[0].toLowerCase()}/`);
+      let staffPrefix = currentUser.mailboxPrefix;
+      if (!staffPrefix) {
+        if (currentUser.mailboxEmail) {
+          const slug = currentUser.mailboxEmail.split('@')[0].toLowerCase().replace(/[^a-z0-9_-]/g, '');
+          staffPrefix = `${slug}/`;
+        } else if (currentUser.email) {
+          const slug = currentUser.email.split('@')[0].toLowerCase().replace(/[^a-z0-9_-]/g, '');
+          staffPrefix = `staff/${slug}/`;
+        } else {
+          staffPrefix = this.defaultPrefix;
+        }
+      }
+      if (!staffPrefix.endsWith('/')) staffPrefix += '/';
 
       if (folder && folder.trim()) {
         let f = folder.trim();
         if (!f.endsWith('/')) f += '/';
         if (f === staffPrefix) return f;
-        if (currentUser.canAccessSupport !== false && f === this.defaultPrefix) return f;
+        if (currentUser.canAccessSupport === true && f === this.defaultPrefix) return f;
         this.logger.warn(`[MailService] Staff ${currentUser.email} attempted to query folder "${f}". Restricted to assigned "${staffPrefix}".`);
         return staffPrefix;
       }
@@ -558,8 +722,8 @@ export class MailService {
 
     if (isStaff && !isAdmin) {
       const staffPrefix = currentUser.mailboxPrefix || 
-        (currentUser.mailboxEmail ? `staff/${currentUser.mailboxEmail.split('@')[0].toLowerCase()}/` : `staff/${currentUser.email.split('@')[0].toLowerCase()}/`);
-      const isAllowed = key.startsWith(staffPrefix) || (currentUser.canAccessSupport && key.startsWith(this.defaultPrefix));
+        (currentUser.mailboxEmail ? `${currentUser.mailboxEmail.split('@')[0].toLowerCase()}/` : `staff/${currentUser.email.split('@')[0].toLowerCase()}/`);
+      const isAllowed = key.startsWith(staffPrefix) || (currentUser.canAccessSupport === true && key.startsWith(this.defaultPrefix));
       if (!isAllowed) {
         throw new ForbiddenException('You do not have permission to view this email.');
       }
@@ -719,6 +883,22 @@ export class MailService {
     let replyToEmail = this.replyTo;
 
     if (currentUser) {
+      if (!currentUser.mailboxEmail) {
+        try {
+          const dbUser = await this.prisma.user.findUnique({
+            where: { id: currentUser.id || currentUser.sub },
+            select: { mailboxEmail: true, firstName: true, lastName: true },
+          });
+          if (dbUser?.mailboxEmail) {
+            currentUser.mailboxEmail = dbUser.mailboxEmail;
+          }
+          if (dbUser?.firstName && !currentUser.firstName) currentUser.firstName = dbUser.firstName;
+          if (dbUser?.lastName && !currentUser.lastName) currentUser.lastName = dbUser.lastName;
+        } catch (e) {
+          // ignore
+        }
+      }
+
       const userRole = (currentUser.role || '').toLowerCase();
       const isStaffOrAdmin = ['staff', 'admin', 'super_admin'].includes(userRole);
       const activeMailbox = currentUser.mailboxEmail || (currentUser.email?.endsWith('@vidyaloans.in') ? currentUser.email : null);
@@ -741,7 +921,7 @@ export class MailService {
       to: dto.to,
       cc: dto.cc,
       bcc: dto.bcc,
-      replyTo: dto.replyTo || replyToEmail,
+      replyTo: (currentUser?.mailboxEmail) ? currentUser.mailboxEmail : (dto.replyTo || replyToEmail),
       subject: dto.subject,
       text: dto.text,
       html: dto.html || (dto.text ? `<div style="font-family: sans-serif; white-space: pre-wrap;">${dto.text}</div>` : ''),

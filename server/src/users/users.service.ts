@@ -43,6 +43,10 @@ export const USER_VALID_COLUMNS = new Set([
   'officeId',
   'officeLocation',
   'bank',
+  'staffId',
+  'mailboxEmail',
+  'mailboxPrefix',
+  'canAccessSupport',
 ]);
 
 export function sanitizeUserPayload(payload: any): Record<string, any> {
@@ -326,49 +330,74 @@ export class UsersService implements OnModuleInit {
   /**
    * Generate sequential staff ID with format VL-STF-{3-digit}
    * Fetches the highest existing staff ID and increments by 1
+   * Probes candidate uniqueness against primary key 'id' to guarantee no duplicates
    */
   private async generateSequentialStaffId(): Promise<string> {
     const prefix = 'VL-STF-';
 
     try {
-      // Fetch all staff IDs
-      const { data: allIds, error } = await this.db
-        .from('User')
-        .select('staffId')
-        .not('staffId', 'is', null);
+      const numericIds: number[] = [];
 
-      if (error) {
-        if (error.code === 'PGRST204' || error.message?.includes('staffId')) {
-          console.warn('[UsersService] staffId column not in schema cache — using random staff ID fallback');
-          const seq = String(Math.floor(Math.random() * 1_000)).padStart(3, '0');
-          return `${prefix}${seq}`;
+      // 1. Fetch existing staff IDs by inspecting primary key 'id'
+      try {
+        const { data: usersById } = await this.db
+          .from('User')
+          .select('id')
+          .or(`id.like.${prefix}%,id.like.VL-SF-%`);
+
+        if (usersById && Array.isArray(usersById)) {
+          for (const u of usersById) {
+            const match = String(u.id || '').match(/\d+/);
+            if (match) {
+              const num = parseInt(match[0], 10);
+              if (!isNaN(num) && num > 0) numericIds.push(num);
+            }
+          }
         }
-        console.error('[UsersService] Error fetching staff IDs:', error);
+      } catch (e) {
+        console.warn('[UsersService] Error querying User.id for staff sequences:', e);
       }
 
-      let nextSeq = 1;
+      // 2. Also inspect staffId column if available
+      try {
+        const { data: usersByStaffId } = await this.db
+          .from('User')
+          .select('staffId')
+          .not('staffId', 'is', null);
 
-      if (allIds && allIds.length > 0) {
-        // Extract numeric suffixes from any staffId prefix (VL-STF-XXX or VL-SF-XXX)
-        const numericIds = allIds
-          .map(u => {
-            if (!u.staffId) return 0;
-            const match = String(u.staffId).match(/\d+/);
-            const num = match ? parseInt(match[0], 10) : 0;
-            return isNaN(num) ? 0 : num;
-          })
-          .filter(n => n > 0);
-
-        if (numericIds.length > 0) {
-          nextSeq = Math.max(...numericIds) + 1;
+        if (usersByStaffId && Array.isArray(usersByStaffId)) {
+          for (const u of usersByStaffId) {
+            const match = String(u.staffId || '').match(/\d+/);
+            if (match) {
+              const num = parseInt(match[0], 10);
+              if (!isNaN(num) && num > 0) numericIds.push(num);
+            }
+          }
         }
+      } catch (e) {
+        // Non-blocking fallback
       }
 
-      return `${prefix}${String(nextSeq).padStart(3, '0')}`;
+      let nextSeq = numericIds.length > 0 ? Math.max(...numericIds) + 1 : 1;
+
+      // 3. Collision-safe verification: check against findById to guarantee no duplicate
+      let candidate = `${prefix}${String(nextSeq).padStart(3, '0')}`;
+      let attempts = 0;
+      while (attempts < 200) {
+        const existing = await this.findById(candidate);
+        if (!existing) {
+          return candidate;
+        }
+        nextSeq++;
+        candidate = `${prefix}${String(nextSeq).padStart(3, '0')}`;
+        attempts++;
+      }
+
+      return candidate;
     } catch (err) {
-      console.error('[UsersService] Failed to generate sequential staff ID, falling back to random:', err);
-      const seq = String(Math.floor(Math.random() * 1_000)).padStart(3, '0');
-      return `${prefix}${seq}`;
+      console.error('[UsersService] Failed to generate sequential staff ID, falling back:', err);
+      const fallbackSeq = String(Date.now()).slice(-3);
+      return `${prefix}${fallbackSeq}`;
     }
   }
 
@@ -522,11 +551,11 @@ export class UsersService implements OnModuleInit {
     const registeredAtIndia = this.convertToIndiaTime(now);
     const id = await this.createUniqueUserId(data.role, data.email);
 
-    // Generate staff ID if role is 'staff'
+    // Assign staff ID matching the verified unique sequential ID
     let staffId: string | null = null;
     if (data.role === 'staff') {
-      staffId = await this.generateSequentialStaffId();
-      console.log(`[UsersService.create] Generated staff ID: ${staffId} for email: ${data.email}`);
+      staffId = id;
+      console.log(`[UsersService.create] Assigned staff ID: ${staffId} for email: ${data.email}`);
     }
 
     // Build the insert payload — only include staffId for staff users to avoid
@@ -611,6 +640,36 @@ export class UsersService implements OnModuleInit {
     }
 
     user = insertedUser;
+
+    if (user && user.id && (data.mailboxEmail || data.mailboxPrefix || data.canAccessSupport !== undefined || staffId)) {
+      const updateData: any = {};
+      if (data.mailboxEmail && !user.mailboxEmail) updateData.mailboxEmail = data.mailboxEmail.trim().toLowerCase();
+      if (data.mailboxPrefix && !user.mailboxPrefix) {
+        let pref = data.mailboxPrefix.trim();
+        if (!pref.endsWith('/')) pref += '/';
+        updateData.mailboxPrefix = pref;
+      }
+      if (data.canAccessSupport !== undefined && user.canAccessSupport === undefined) {
+        updateData.canAccessSupport = Boolean(data.canAccessSupport);
+      }
+      if (staffId && !user.staffId) updateData.staffId = staffId;
+
+      if (Object.keys(updateData).length > 0) {
+        try {
+          const { data: updated } = await this.db
+            .from('User')
+            .update(updateData)
+            .eq('id', user.id)
+            .select()
+            .maybeSingle();
+          if (updated) {
+            user = { ...user, ...updated };
+          }
+        } catch (e) {
+          console.warn('[UsersService.create] Failed to patch staff mailbox columns:', e);
+        }
+      }
+    }
 
     // Insert into referral_codes table
     try {
