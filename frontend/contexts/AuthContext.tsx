@@ -79,6 +79,8 @@ interface AuthContextType {
     isBank: boolean;
     isStaff: boolean;
     isAgent: boolean;
+    isAnalyst: boolean;
+    isMarketing: boolean;
     isLoading: boolean;
     login: (accessToken: string, userData?: Partial<AuthUser> & { refresh_token?: string }) => void;
     logout: () => Promise<void>;
@@ -92,7 +94,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-type Portal = "student" | "staff" | "admin" | "bank" | "agent" | "it";
+type Portal = "student" | "staff" | "admin" | "bank" | "agent" | "it" | "analyst" | "marketing";
 
 function getPortalFromPathname(pathname?: string): Portal {
     if (!pathname) return "student";
@@ -101,6 +103,8 @@ function getPortalFromPathname(pathname?: string): Portal {
     if (pathname.startsWith("/bank")) return "bank";
     if (pathname.startsWith("/agent")) return "agent";
     if (pathname.startsWith("/it")) return "it";
+    if (pathname.startsWith("/analyst")) return "analyst";
+    if (pathname.startsWith("/marketing")) return "marketing";
     return "student";
 }
 
@@ -153,6 +157,26 @@ function getStorageKeys(portal: Portal) {
             userId: "itUserId",
             user: "itAuthUser",
             loginPath: "/it",
+        };
+    }
+    if (portal === "analyst") {
+        return {
+            token: "analystAccessToken",
+            refreshToken: "analystRefreshToken",
+            email: "analystUserEmail",
+            userId: "analystUserId",
+            user: "analystAuthUser",
+            loginPath: "/admin/login",
+        };
+    }
+    if (portal === "marketing") {
+        return {
+            token: "marketingAccessToken",
+            refreshToken: "marketingRefreshToken",
+            email: "marketingUserEmail",
+            userId: "marketingUserId",
+            user: "marketingAuthUser",
+            loginPath: "/admin/login",
         };
     }
     return {
@@ -439,10 +463,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const isBank = user?.role === 'bank' || user?.role === 'partner_bank';
     const isStaff = user?.role === 'staff';
     const isAgent = user?.role === 'agent' || user?.role === 'partner_agent' || isAdmin;
+    const isAnalyst = user?.role === 'analyst' || user?.role === 'data_analyst' || isAdmin || isStaff;
+    const isMarketing = user?.role === 'marketing' || user?.role === 'marketing_lead' || isAdmin || isStaff;
 
     return (
         <AuthContext.Provider
-            value={{ user, token, isAuthenticated, isAdmin, isBank, isStaff, isAgent, isLoading, login, logout, refreshAuth, refreshUser }}
+            value={{ user, token, isAuthenticated, isAdmin, isBank, isStaff, isAgent, isAnalyst, isMarketing, isLoading, login, logout, refreshAuth, refreshUser }}
         >
             {children}
         </AuthContext.Provider>

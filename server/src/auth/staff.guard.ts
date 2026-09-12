@@ -38,7 +38,7 @@ export class StaffGuard implements CanActivate {
             // Verify JWT token signature and expiry
             const payload = await this.jwtService.verifyAsync(token);
 
-            const allowedRoles = ['staff', 'admin', 'super_admin', 'bank', 'partner_bank', 'support', 'it', 'user', 'agent', 'partner_agent'];
+            const allowedRoles = ['staff', 'admin', 'super_admin', 'bank', 'partner_bank', 'support', 'it', 'user', 'agent', 'partner_agent', 'analyst', 'marketing'];
 
             // Fast path: role is embedded in the JWT payload — no DB lookup needed
             const payloadRoleLower = (payload.role || '').toLowerCase();

@@ -474,6 +474,20 @@ export class AuthService {
             userExists: false
           };
         }
+        if (targetPortal === 'analyst') {
+          return {
+            success: false,
+            message: 'Access Denied: No analyst account found with this email address.',
+            userExists: false
+          };
+        }
+        if (targetPortal === 'marketing') {
+          return {
+            success: false,
+            message: 'Access Denied: No marketing account found with this email address.',
+            userExists: false
+          };
+        }
       } else {
         const userRole = (existingUser.role || '').toLowerCase();
         if (targetPortal === 'admin') {
@@ -519,6 +533,22 @@ export class AuthService {
             return {
               success: false,
               message: 'Access Denied: You do not have agent partner privileges to access this portal.',
+              userExists: true
+            };
+          }
+        } else if (targetPortal === 'analyst') {
+          if (!['analyst', 'admin', 'super_admin', 'staff'].includes(userRole)) {
+            return {
+              success: false,
+              message: 'Access Denied: You do not have data analyst privileges to access this portal.',
+              userExists: true
+            };
+          }
+        } else if (targetPortal === 'marketing') {
+          if (!['marketing', 'admin', 'super_admin', 'staff'].includes(userRole)) {
+            return {
+              success: false,
+              message: 'Access Denied: You do not have marketing privileges to access this portal.',
               userExists: true
             };
           }
