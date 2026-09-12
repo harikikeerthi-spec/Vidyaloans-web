@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
-import { adminApi, apiFetch } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 
 interface ApplicationStats {
     totalApplications: number;
@@ -20,18 +20,18 @@ export default function AnalystDashboardPage() {
     const [refreshing, setRefreshing] = useState(false);
     const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
     const [stats, setStats] = useState<ApplicationStats>({
-        totalApplications: 1842,
-        submitted: 320,
-        underReview: 480,
-        approved: 642,
-        rejected: 120,
-        disbursed: 280,
-        totalSanctionValueCr: 342.8,
-        avgTatDays: 5.4,
+        totalApplications: 0,
+        submitted: 0,
+        underReview: 0,
+        approved: 0,
+        rejected: 0,
+        disbursed: 0,
+        totalSanctionValueCr: 0,
+        avgTatDays: 0,
     });
     const [applications, setApplications] = useState<any[]>([]);
-    const [dbBanks, setDbBanks] = useState<any[]>([]);
-    const [dbCountries, setDbCountries] = useState<any[]>([]);
+    const [bankTelemetry, setBankTelemetry] = useState<any[]>([]);
+    const [destinationBreakdown, setDestinationBreakdown] = useState<any[]>([]);
     const [selectedTimeframe, setSelectedTimeframe] = useState<"month" | "quarter" | "year">("month");
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedStatusFilter, setSelectedStatusFilter] = useState("all");
@@ -39,84 +39,30 @@ export default function AnalystDashboardPage() {
     const fetchDashboardData = useCallback(async () => {
         try {
             setRefreshing(true);
-            const [statsRes, appsRes, banksRes, countriesRes, disbursedRes]: any = await Promise.all([
-                adminApi.getApplicationStats().catch(() => null),
-                adminApi.getApplications({ limit: "100" }).catch(() => null),
-                apiFetch<any>("/api/reference/banks").catch(() => null),
-                apiFetch<any>("/api/reference/countries").catch(() => null),
-                apiFetch<any>("/api/reference/disbursed-amount").catch(() => null),
-            ]);
+            const res = await apiFetch<any>(`/api/analyst/dashboard?timeframe=${selectedTimeframe}`);
 
-            // Set DB Banks & Countries if available
-            if (banksRes?.data && Array.isArray(banksRes.data)) {
-                setDbBanks(banksRes.data);
+            if (res?.success) {
+                if (res.stats) {
+                    setStats(res.stats);
+                }
+                if (Array.isArray(res.bankTelemetry)) {
+                    setBankTelemetry(res.bankTelemetry);
+                }
+                if (Array.isArray(res.destinationBreakdown)) {
+                    setDestinationBreakdown(res.destinationBreakdown);
+                }
+                if (Array.isArray(res.applications)) {
+                    setApplications(res.applications);
+                }
             }
-            if (countriesRes?.data && Array.isArray(countriesRes.data)) {
-                setDbCountries(countriesRes.data);
-            }
-
-            // Extract real applications list
-            let liveApps: any[] = [];
-            if (appsRes?.applications && Array.isArray(appsRes.applications)) {
-                liveApps = appsRes.applications;
-            } else if (Array.isArray(appsRes)) {
-                liveApps = appsRes;
-            }
-
-            if (liveApps.length > 0) {
-                setApplications(liveApps);
-
-                // Compute live stats from actual records
-                const totalApps = liveApps.length;
-                let submittedCount = 0;
-                let reviewCount = 0;
-                let approvedCount = 0;
-                let rejectedCount = 0;
-                let disbursedCount = 0;
-                let totalVolume = 0;
-
-                liveApps.forEach((app: any) => {
-                    const st = (app.status || "").toLowerCase();
-                    const stage = (app.stage || "").toLowerCase();
-                    const amount = Number(app.loanAmount || app.amount || 0);
-                    totalVolume += isNaN(amount) ? 0 : amount;
-
-                    if (st === "disbursed" || stage === "disbursed") disbursedCount++;
-                    else if (st === "approved" || st === "sanctioned" || stage === "sanction") approvedCount++;
-                    else if (st === "rejected") rejectedCount++;
-                    else if (st === "submitted" || stage === "submitted") submittedCount++;
-                    else reviewCount++;
-                });
-
-                const volumeCr = totalVolume > 0 ? Number((totalVolume / 10000000).toFixed(2)) : 342.8;
-
-                setStats(prev => ({
-                    ...prev,
-                    totalApplications: Math.max(totalApps, statsRes?.totalApplications || prev.totalApplications),
-                    submitted: submittedCount || prev.submitted,
-                    underReview: reviewCount || prev.underReview,
-                    approved: approvedCount || prev.approved,
-                    rejected: rejectedCount || prev.rejected,
-                    disbursed: disbursedCount || prev.disbursed,
-                    totalSanctionValueCr: volumeCr,
-                    avgTatDays: statsRes?.avgTatDays || prev.avgTatDays || 5.2,
-                }));
-            } else if (statsRes && typeof statsRes === "object") {
-                setStats(prev => ({
-                    ...prev,
-                    ...statsRes,
-                    totalSanctionValueCr: statsRes.totalSanctionValueCr || prev.totalSanctionValueCr,
-                }));
-            }
-
             setLastUpdated(new Date());
         } catch (err) {
-            console.warn("Could not fetch analyst live metrics, using cached telemetry", err);
+            console.error("Failed to load analyst live metrics", err);
         } finally {
             setLoading(false);
             setRefreshing(false);
         }
-    }, []);
+    }, [selectedTimeframe]);
 
     useEffect(() => {
         fetchDashboardData();
@@ -131,96 +77,15 @@ export default function AnalystDashboardPage() {
         return 1.0;
     }, [selectedTimeframe]);
 
-    // Dynamic bank telemetry based on DB banks or loaded applications
-    const bankTelemetry = useMemo(() => {
-        if (dbBanks.length > 0) {
-            return dbBanks.slice(0, 5).map((b, idx) => {
-                const matchedApps = applications.filter(a =>
-                    (a.preferredBank || a.bank || "").toLowerCase().includes(b.name.toLowerCase()) ||
-                    (a.preferredBank || a.bank || "").toLowerCase().includes((b.shortName || "").toLowerCase())
-                );
-                const count = matchedApps.length > 0 ? matchedApps.length : Math.round(284 / (idx + 1));
-                const volume = Number(((count * 45) / 100).toFixed(1));
-                return {
-                    name: b.name,
-                    volumeCr: volume,
-                    count: count,
-                    sanctionRate: Math.max(72, 85 - idx * 3),
-                    avgTat: (4.0 + idx * 0.6).toFixed(1),
-                    status: idx < 3 ? "Optimal" : "Moderate TAT",
-                };
-            });
-        }
-        return [
-            { name: "HDFC Credila", volumeCr: Number((124.5 * timeframeMultiplier).toFixed(1)), count: Math.round(284 * timeframeMultiplier), sanctionRate: 84, avgTat: "4.2", status: "Optimal" },
-            { name: "Avanse Financial", volumeCr: Number((88.2 * timeframeMultiplier).toFixed(1)), count: Math.round(198 * timeframeMultiplier), sanctionRate: 81, avgTat: "4.8", status: "Optimal" },
-            { name: "Auxilo Finserve", volumeCr: Number((64.6 * timeframeMultiplier).toFixed(1)), count: Math.round(156 * timeframeMultiplier), sanctionRate: 79, avgTat: "5.1", status: "Optimal" },
-            { name: "IDFC FIRST Bank", volumeCr: Number((42.1 * timeframeMultiplier).toFixed(1)), count: Math.round(94 * timeframeMultiplier), sanctionRate: 72, avgTat: "6.2", status: "Moderate TAT" },
-            { name: "Poonawalla Fincorp", volumeCr: Number((23.4 * timeframeMultiplier).toFixed(1)), count: Math.round(52 * timeframeMultiplier), sanctionRate: 68, avgTat: "6.8", status: "Review" },
-        ];
-    }, [dbBanks, applications, timeframeMultiplier]);
-
-    // Dynamic destination breakdown
-    const destinationBreakdown = useMemo(() => {
-        if (dbCountries.length > 0) {
-            const colors = ["bg-[#4F46E5]", "bg-blue-600", "bg-cyan-600", "bg-emerald-600", "bg-purple-600"];
-            return dbCountries.slice(0, 5).map((c, i) => ({
-                country: c.name,
-                share: Math.max(10, 42 - i * 8),
-                color: colors[i % colors.length],
-                volumeCr: Number((144.2 / (i + 1)).toFixed(1)),
-            }));
-        }
-        return [
-            { country: "United States", share: 42, color: "bg-[#4F46E5]", volumeCr: Number((144.2 * timeframeMultiplier).toFixed(1)) },
-            { country: "United Kingdom", share: 24, color: "bg-blue-600", volumeCr: Number((82.3 * timeframeMultiplier).toFixed(1)) },
-            { country: "Canada", share: 16, color: "bg-cyan-600", volumeCr: Number((54.8 * timeframeMultiplier).toFixed(1)) },
-            { country: "Germany & EU", share: 10, color: "bg-emerald-600", volumeCr: Number((34.2 * timeframeMultiplier).toFixed(1)) },
-            { country: "Australia & Others", share: 8, color: "bg-purple-600", volumeCr: Number((27.3 * timeframeMultiplier).toFixed(1)) },
-        ];
-    }, [dbCountries, timeframeMultiplier]);
-
-    // Live display applications
-    const displayApplications = useMemo(() => {
-        if (applications.length > 0) {
-            return applications.map((app: any, idx: number) => {
-                const studentName = app.user
-                    ? `${app.user.firstName || ""} ${app.user.lastName || ""}`.trim() || app.user.email
-                    : app.studentName || `Applicant #${app.id?.slice(0, 6) || idx + 1}`;
-                const amount = app.loanAmount ? `₹${Number(app.loanAmount).toLocaleString("en-IN")}` : "₹45,00,000";
-                return {
-                    id: app.id ? `APP-${app.id.slice(0, 6).toUpperCase()}` : `APP-${9820 - idx}`,
-                    studentName,
-                    destination: app.targetCountry || "USA",
-                    degree: app.degree || "Masters Degree",
-                    loanAmount: amount,
-                    lender: app.preferredBank || app.bank || "HDFC Credila",
-                    stage: app.stage || "Underwriting",
-                    riskScore: idx % 3 === 0 ? "Prime (96/100)" : "Low Risk (92/100)",
-                    tatDays: 3 + (idx % 4),
-                    status: (app.status || "processing").toLowerCase(),
-                };
-            });
-        }
-        return [
-            { id: "APP-9821", studentName: "Rohan Sharma", destination: "USA (NYU)", degree: "MS Computer Science", loanAmount: "₹65,00,000", lender: "HDFC Credila", stage: "Bank Underwriting", riskScore: "Low Risk (94/100)", tatDays: 3, status: "processing" },
-            { id: "APP-9820", studentName: "Ananya Iyer", destination: "UK (Imperial College)", degree: "MSc Finance", loanAmount: "₹45,00,000", lender: "Auxilo", stage: "Sanction Offer Ready", riskScore: "Prime (98/100)", tatDays: 2, status: "approved" },
-            { id: "APP-9819", studentName: "Vikram Malhotra", destination: "Canada (U of Toronto)", degree: "MBA", loanAmount: "₹72,00,000", lender: "Avanse", stage: "Document Verification", riskScore: "Moderate (76/100)", tatDays: 5, status: "under_review" },
-            { id: "APP-9818", studentName: "Sanya Kapoor", destination: "Germany (TUM)", degree: "MSc Data Engineering", loanAmount: "₹38,00,000", lender: "IDFC FIRST Bank", stage: "Disbursement In-Flight", riskScore: "Prime (96/100)", tatDays: 4, status: "disbursed" },
-            { id: "APP-9817", studentName: "Karthik Reddy", destination: "Ireland (Trinity)", degree: "MSc Business Analytics", loanAmount: "₹42,00,000", lender: "Poonawalla", stage: "Credit Query Raised", riskScore: "Attention Required (58/100)", tatDays: 7, status: "query" },
-            { id: "APP-9816", studentName: "Meera Patel", destination: "Australia (Melbourne)", degree: "Master of Public Health", loanAmount: "₹50,00,000", lender: "ICICI Bank", stage: "File Logged", riskScore: "Moderate (82/100)", tatDays: 4, status: "processing" },
-        ];
-    }, [applications]);
-
     const filteredApplications = useMemo(() => {
-        return displayApplications.filter((app: any) => {
-            const matchesSearch = app.studentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                                  app.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                                  app.lender.toLowerCase().includes(searchQuery.toLowerCase());
+        return applications.filter((app: any) => {
+            const matchesSearch = (app.studentName || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                  (app.id || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                  (app.lender || "").toLowerCase().includes(searchQuery.toLowerCase());
             const matchesStatus = selectedStatusFilter === "all" || app.status === selectedStatusFilter;
             return matchesSearch && matchesStatus;
         });
-    }, [displayApplications, searchQuery, selectedStatusFilter]);
+    }, [applications, searchQuery, selectedStatusFilter]);
 
     const totalSanctionValue = (stats.totalSanctionValueCr * timeframeMultiplier).toFixed(1);
     const totalAppCount = Math.round(stats.totalApplications * timeframeMultiplier);
@@ -588,30 +453,38 @@ export default function AnalystDashboardPage() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {filteredApplications.map((app: any) => (
-                                <tr key={app.id} className="hover:bg-slate-50/60 transition-colors">
-                                    <td className="py-3 px-3 font-mono font-bold text-slate-700">{app.id}</td>
-                                    <td className="py-3 px-3 font-semibold text-slate-900">{app.studentName}</td>
-                                    <td className="py-3 px-3 text-slate-600">{app.destination}</td>
-                                    <td className="py-3 px-3 font-mono font-bold text-[#0A2540]">{app.loanAmount}</td>
-                                    <td className="py-3 px-3 text-slate-700">{app.lender}</td>
-                                    <td className="py-3 px-3">
-                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                            app.status === "approved" || app.status === "disbursed"
-                                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                                : app.status === "query"
-                                                ? "bg-rose-50 text-rose-700 border border-rose-200"
-                                                : "bg-indigo-50 text-[#4F46E5] border border-indigo-200"
-                                        }`}>
-                                            {app.stage}
-                                        </span>
+                            {filteredApplications.length === 0 ? (
+                                <tr>
+                                    <td colSpan={8} className="py-12 text-center text-slate-400">
+                                        {loading ? "Loading live portfolio applications..." : "No applications found matching the selected criteria."}
                                     </td>
-                                    <td className="py-3 px-3">
-                                        <span className="text-slate-700 font-medium">{app.riskScore}</span>
-                                    </td>
-                                    <td className="py-3 px-3 font-mono text-slate-500">{app.tatDays}d</td>
                                 </tr>
-                            ))}
+                            ) : (
+                                filteredApplications.map((app: any) => (
+                                    <tr key={app.id} className="hover:bg-slate-50/60 transition-colors">
+                                        <td className="py-3 px-3 font-mono font-bold text-slate-700">{app.id}</td>
+                                        <td className="py-3 px-3 font-semibold text-slate-900">{app.studentName}</td>
+                                        <td className="py-3 px-3 text-slate-600">{app.destination}</td>
+                                        <td className="py-3 px-3 font-mono font-bold text-[#0A2540]">{app.loanAmount}</td>
+                                        <td className="py-3 px-3 text-slate-700">{app.lender}</td>
+                                        <td className="py-3 px-3">
+                                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                                app.status === "approved" || app.status === "disbursed"
+                                                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                                    : app.status === "query"
+                                                    ? "bg-rose-50 text-rose-700 border border-rose-200"
+                                                    : "bg-indigo-50 text-[#4F46E5] border border-indigo-200"
+                                            }`}>
+                                                {app.stage}
+                                            </span>
+                                        </td>
+                                        <td className="py-3 px-3">
+                                            <span className="text-slate-700 font-medium">{app.riskScore}</span>
+                                        </td>
+                                        <td className="py-3 px-3 font-mono text-slate-500">{app.tatDays}d</td>
+                                    </tr>
+                                ))
+                            )}
                         </tbody>
                     </table>
                 </div>

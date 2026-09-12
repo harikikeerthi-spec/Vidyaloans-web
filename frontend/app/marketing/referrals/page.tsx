@@ -28,35 +28,12 @@ export default function MarketingReferralsPage() {
         const fetchReferralLeaderboard = async () => {
             try {
                 setLoading(true);
-                const res = await apiFetch<any>("/api/referral/leaderboard?limit=10").catch(() => null);
-                if (res?.leaderboard && Array.isArray(res.leaderboard) && res.leaderboard.length > 0) {
-                    const mapped: ReferrerProfile[] = res.leaderboard.map((item: any, idx: number) => {
-                        const count = item.count || item.totalReferrals || 20 - idx * 2;
-                        const sanctions = Math.round(count * 0.7);
-                        return {
-                            rank: idx + 1,
-                            name: item.name || item.user?.firstName ? `${item.user?.firstName} ${item.user?.lastName || ""}` : `Advocate #${idx + 1}`,
-                            college: item.college || "University Alumni Partner",
-                            code: item.code || `VIDYA_REF_${idx + 1}`,
-                            referralsCount: count,
-                            sanctionsIssued: sanctions,
-                            totalEarned: `₹${(sanctions * 5000).toLocaleString("en-IN")}`,
-                            tier: idx < 2 ? "Platinum" : idx < 5 ? "Gold" : "Silver",
-                            status: "Active Advocate",
-                        };
-                    });
-                    setLeaderboard(mapped);
-                } else {
-                    setLeaderboard([
-                        { rank: 1, name: "Varun Nair", college: "IIT Madras Alumni (NYU Courant)", code: "VARUN_NYU25", referralsCount: 48, sanctionsIssued: 34, totalEarned: "₹1,70,000", tier: "Platinum", status: "Active Advocate" },
-                        { rank: 2, name: "Priyanka Saxena", college: "BITS Pilani (CMU)", code: "PRIYA_CMU", referralsCount: 39, sanctionsIssued: 28, totalEarned: "₹1,40,000", tier: "Platinum", status: "Active Advocate" },
-                        { rank: 3, name: "Siddharth Rao", college: "DTU Delhi (U of Toronto)", code: "SID_TORONTO", referralsCount: 31, sanctionsIssued: 21, totalEarned: "₹1,05,000", tier: "Gold", status: "Active Advocate" },
-                        { rank: 4, name: "Aishwarya Pillai", college: "VIT Vellore (Imperial College)", code: "AISH_UK25", referralsCount: 26, sanctionsIssued: 17, totalEarned: "₹85,000", tier: "Gold", status: "Active Advocate" },
-                        { rank: 5, name: "Aditya Kulkarni", college: "COEP Pune (TU Munich)", code: "ADI_TUM", referralsCount: 22, sanctionsIssued: 14, totalEarned: "₹70,000", tier: "Silver", status: "Active Advocate" },
-                    ]);
+                const res = await apiFetch<any>("/api/marketing/referrals");
+                if (res?.success && Array.isArray(res.leaderboard)) {
+                    setLeaderboard(res.leaderboard);
                 }
             } catch (e) {
-                console.warn("Could not fetch referral leaderboard", e);
+                console.error("Could not fetch dynamic referral leaderboard", e);
             } finally {
                 setLoading(false);
             }
@@ -212,30 +189,38 @@ export default function MarketingReferralsPage() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {leaderboard.map((adv) => (
-                                <tr key={adv.code} className="hover:bg-slate-50/60 transition-colors">
-                                    <td className="py-3 px-3">
-                                        <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs ${
-                                            adv.rank === 1 ? "bg-amber-100 text-amber-800 font-mono" : adv.rank === 2 ? "bg-slate-200 text-slate-800 font-mono" : "bg-orange-100 text-orange-800 font-mono"
-                                        }`}>
-                                            {adv.rank}
-                                        </div>
-                                    </td>
-                                    <td className="py-3 px-3 font-semibold text-slate-900">{adv.name}</td>
-                                    <td className="py-3 px-3 text-slate-600">{adv.college}</td>
-                                    <td className="py-3 px-3 font-mono font-bold text-[#4F46E5]">{adv.code}</td>
-                                    <td className="py-3 px-3 font-mono text-slate-700">{adv.referralsCount}</td>
-                                    <td className="py-3 px-3 font-mono font-bold text-slate-900">{adv.sanctionsIssued}</td>
-                                    <td className="py-3 px-3 font-mono font-bold text-emerald-700">{adv.totalEarned}</td>
-                                    <td className="py-3 px-3">
-                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                            adv.tier === "Platinum" ? "bg-purple-50 text-purple-700 border border-purple-200" : adv.tier === "Gold" ? "bg-amber-50 text-amber-700 border border-amber-200" : "bg-slate-100 text-slate-700 border border-slate-200"
-                                        }`}>
-                                            {adv.tier}
-                                        </span>
+                            {leaderboard.length === 0 ? (
+                                <tr>
+                                    <td colSpan={8} className="py-12 text-center text-slate-400">
+                                        {loading ? "Loading advocate rankings..." : "No referral advocates recorded yet."}
                                     </td>
                                 </tr>
-                            ))}
+                            ) : (
+                                leaderboard.map((adv) => (
+                                    <tr key={adv.code} className="hover:bg-slate-50/60 transition-colors">
+                                        <td className="py-3 px-3">
+                                            <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs ${
+                                                adv.rank === 1 ? "bg-amber-100 text-amber-800 font-mono" : adv.rank === 2 ? "bg-slate-200 text-slate-800 font-mono" : "bg-orange-100 text-orange-800 font-mono"
+                                            }`}>
+                                                {adv.rank}
+                                            </div>
+                                        </td>
+                                        <td className="py-3 px-3 font-semibold text-slate-900">{adv.name}</td>
+                                        <td className="py-3 px-3 text-slate-600">{adv.college}</td>
+                                        <td className="py-3 px-3 font-mono font-bold text-[#4F46E5]">{adv.code}</td>
+                                        <td className="py-3 px-3 font-mono text-slate-700">{adv.referralsCount}</td>
+                                        <td className="py-3 px-3 font-mono font-bold text-slate-900">{adv.sanctionsIssued}</td>
+                                        <td className="py-3 px-3 font-mono font-bold text-emerald-700">{adv.totalEarned}</td>
+                                        <td className="py-3 px-3">
+                                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                                adv.tier === "Platinum" ? "bg-purple-50 text-purple-700 border border-purple-200" : adv.tier === "Gold" ? "bg-amber-50 text-amber-700 border border-amber-200" : "bg-slate-100 text-slate-700 border border-slate-200"
+                                            }`}>
+                                                {adv.tier}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
                         </tbody>
                     </table>
                 </div>

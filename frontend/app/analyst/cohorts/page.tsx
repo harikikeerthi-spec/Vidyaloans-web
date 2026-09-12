@@ -1,24 +1,28 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { adminApi } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 
 export default function AnalystCohortsPage() {
     const [activeTab, setActiveTab] = useState<"intakes" | "academics" | "degrees">("intakes");
-    const [applications, setApplications] = useState<any[]>([]);
+    const [intakeCohorts, setIntakeCohorts] = useState<any[]>([]);
+    const [degreeCohorts, setDegreeCohorts] = useState<any[]>([]);
+    const [academicBands, setAcademicBands] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const fetchCohortData = async () => {
             try {
                 setLoading(true);
-                const res: any = await adminApi.getApplications({ limit: "100" }).catch(() => null);
-                if (res?.applications && Array.isArray(res.applications)) {
-                    setApplications(res.applications);
+                const res = await apiFetch<any>("/api/analyst/cohorts");
+                if (res?.success) {
+                    if (Array.isArray(res.intakes)) setIntakeCohorts(res.intakes);
+                    if (Array.isArray(res.degrees)) setDegreeCohorts(res.degrees);
+                    if (Array.isArray(res.academics)) setAcademicBands(res.academics);
                 }
             } catch (err) {
-                console.warn("Could not fetch live applications for cohorts", err);
+                console.error("Could not fetch live cohorts telemetry", err);
             } finally {
                 setLoading(false);
             }
@@ -26,33 +30,6 @@ export default function AnalystCohortsPage() {
 
         fetchCohortData();
     }, []);
-
-    const intakeCohorts = useMemo(() => {
-        const appCount = applications.length;
-        const multiplier = appCount > 0 ? (appCount * 25) / 1000 : 1.0;
-
-        return [
-            { intake: "Fall 2024", applicants: Math.round(3420 * multiplier), sanctionValueCr: Number((412.5 * multiplier).toFixed(1)), approvalRate: 81.2, avgTicketLakhs: 48.5, disbursalRate: 74.0, status: "Completed Intake" },
-            { intake: "Spring 2025", applicants: Math.round(1840 * multiplier), sanctionValueCr: Number((218.4 * multiplier).toFixed(1)), approvalRate: 79.5, avgTicketLakhs: 44.2, disbursalRate: 68.2, status: "Active Disbursals" },
-            { intake: "Fall 2025", applicants: Math.round(4890 * multiplier), sanctionValueCr: Number((645.0 * multiplier).toFixed(1)), approvalRate: 83.4, avgTicketLakhs: 52.8, disbursalRate: 42.1, status: "Current Peak Intake" },
-            { intake: "Spring 2026", applicants: Math.round(1120 * multiplier), sanctionValueCr: Number((135.2 * multiplier).toFixed(1)), approvalRate: 76.8, avgTicketLakhs: 46.0, disbursalRate: 12.4, status: "Early Applications" },
-        ];
-    }, [applications]);
-
-    const degreeCohorts = [
-        { category: "Computer Science, AI & Data Science", share: 44, volumeCr: 283.8, avgTicket: "₹56 Lakhs", sanctionRate: "88.4%", riskRating: "Very Low Risk" },
-        { category: "Business Administration & Management (MBA/MS)", share: 22, volumeCr: 141.9, avgTicket: "₹68 Lakhs", sanctionRate: "82.1%", riskRating: "Low Risk" },
-        { category: "Mechanical, Electrical & Civil Engineering", share: 14, volumeCr: 90.3, avgTicket: "₹42 Lakhs", sanctionRate: "76.5%", riskRating: "Moderate" },
-        { category: "Biotech, Healthcare & Life Sciences", share: 12, volumeCr: 77.4, avgTicket: "₹48 Lakhs", sanctionRate: "79.0%", riskRating: "Low Risk" },
-        { category: "Arts, Architecture, Design & Law", share: 8, volumeCr: 51.6, avgTicket: "₹38 Lakhs", sanctionRate: "69.4%", riskRating: "Moderate" },
-    ];
-
-    const academicBands = [
-        { band: "GPA 8.5+ or First Class with Distinction", share: 38, sanctionProb: "94%", collateralFreeApproval: "100% Guaranteed" },
-        { band: "GPA 7.5 - 8.4 (Strong Academic Record)", share: 42, sanctionProb: "86%", collateralFreeApproval: "Up to ₹1.25 Cr" },
-        { band: "GPA 6.5 - 7.4 (Average Record)", share: 16, sanctionProb: "68%", collateralFreeApproval: "Up to ₹75 Lakhs with Strong Co-Borrower" },
-        { band: "GPA Below 6.5 (Special Scrutiny)", share: 4, sanctionProb: "42%", collateralFreeApproval: "Collateral Mandatory" },
-    ];
 
     return (
         <div className="space-y-6 max-w-7xl mx-auto">

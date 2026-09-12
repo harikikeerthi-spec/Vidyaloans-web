@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { adminApi, apiFetch } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 
 interface LenderStats {
     id: string;
@@ -23,28 +23,19 @@ interface LenderStats {
 
 export default function AnalystBanksPage() {
     const [selectedLender, setSelectedLender] = useState("all");
-    const [dbBanks, setDbBanks] = useState<any[]>([]);
-    const [applications, setApplications] = useState<any[]>([]);
+    const [lenders, setLenders] = useState<LenderStats[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const fetchBanksData = async () => {
             try {
                 setLoading(true);
-                const [banksRes, appsRes]: any = await Promise.all([
-                    apiFetch<any>("/api/reference/banks").catch(() => null),
-                    adminApi.getApplications({ limit: "100" }).catch(() => null),
-                ]);
-
-                if (banksRes?.data && Array.isArray(banksRes.data)) {
-                    setDbBanks(banksRes.data);
-                }
-
-                if (appsRes?.applications && Array.isArray(appsRes.applications)) {
-                    setApplications(appsRes.applications);
+                const res = await apiFetch<any>("/api/analyst/banks");
+                if (res?.success && Array.isArray(res.lenders)) {
+                    setLenders(res.lenders);
                 }
             } catch (err) {
-                console.warn("Could not load dynamic banks data", err);
+                console.error("Could not load dynamic banks data", err);
             } finally {
                 setLoading(false);
             }
@@ -52,122 +43,6 @@ export default function AnalystBanksPage() {
 
         fetchBanksData();
     }, []);
-
-    const lenders: LenderStats[] = useMemo(() => {
-        if (dbBanks.length > 0) {
-            return dbBanks.map((b, idx) => {
-                const matched = applications.filter(a =>
-                    (a.preferredBank || a.bank || "").toLowerCase().includes(b.name.toLowerCase()) ||
-                    (a.preferredBank || a.bank || "").toLowerCase().includes((b.shortName || "").toLowerCase())
-                );
-                const count = matched.length > 0 ? matched.length : Math.max(25, 280 - idx * 45);
-                const sanctions = Math.round(count * 0.82);
-                const volume = Number(((sanctions * 52) / 100).toFixed(1));
-                const minRate = b.interestRateMin || 9.5;
-                const maxRate = b.interestRateMax || 11.5;
-
-                return {
-                    id: b.id || b.slug || `bank-${idx}`,
-                    name: b.name,
-                    type: b.type || (b.isNBFC ? "NBFC (Education Specialist)" : "Commercial Bank"),
-                    totalVolumeCr: volume,
-                    filesAssigned: count,
-                    sanctionsIssued: sanctions,
-                    sanctionRate: Number(((sanctions / count) * 100).toFixed(1)),
-                    avgTatDays: Number((4.0 + (idx % 3) * 0.6).toFixed(1)),
-                    targetSlaDays: 5.0,
-                    slaBreachRate: Number((4.0 + (idx % 4) * 1.5).toFixed(1)),
-                    avgRoi: `${minRate}% - ${maxRate}%`,
-                    collateralFreeLimit: b.maxUnsecuredLoan ? `₹${(b.maxUnsecuredLoan / 100000).toFixed(0)} Lakhs` : "₹1.50 Cr",
-                    topRejectionReason: idx % 2 === 0 ? "Co-applicant CIBIL score < 700" : "Insufficient family gross annual income",
-                    status: idx < 3 ? "Prime Partner" : "Active",
-                };
-            });
-        }
-
-        return [
-            {
-                id: "credila",
-                name: "HDFC Credila",
-                type: "NBFC (Education Specialist)",
-                totalVolumeCr: 124.5,
-                filesAssigned: 284,
-                sanctionsIssued: 238,
-                sanctionRate: 83.8,
-                avgTatDays: 4.2,
-                targetSlaDays: 5.0,
-                slaBreachRate: 4.2,
-                avgRoi: "9.85%",
-                collateralFreeLimit: "₹1.50 Cr",
-                topRejectionReason: "Co-applicant CIBIL score < 700",
-                status: "Prime Partner"
-            },
-            {
-                id: "avanse",
-                name: "Avanse Financial",
-                type: "NBFC (Education Specialist)",
-                totalVolumeCr: 88.2,
-                filesAssigned: 198,
-                sanctionsIssued: 161,
-                sanctionRate: 81.3,
-                avgTatDays: 4.8,
-                targetSlaDays: 5.0,
-                slaBreachRate: 6.5,
-                avgRoi: "10.25%",
-                collateralFreeLimit: "₹1.25 Cr",
-                topRejectionReason: "Insufficient co-applicant annual gross income",
-                status: "Prime Partner"
-            },
-            {
-                id: "auxilo",
-                name: "Auxilo Finserve",
-                type: "NBFC (Specialist)",
-                totalVolumeCr: 64.6,
-                filesAssigned: 156,
-                sanctionsIssued: 124,
-                sanctionRate: 79.5,
-                avgTatDays: 5.1,
-                targetSlaDays: 5.0,
-                slaBreachRate: 8.9,
-                avgRoi: "10.45%",
-                collateralFreeLimit: "₹1.00 Cr",
-                topRejectionReason: "Unrecognized overseas academic institution",
-                status: "Active"
-            },
-            {
-                id: "idfc",
-                name: "IDFC FIRST Bank",
-                type: "Private Sector Bank",
-                totalVolumeCr: 42.1,
-                filesAssigned: 94,
-                sanctionsIssued: 68,
-                sanctionRate: 72.3,
-                avgTatDays: 6.2,
-                targetSlaDays: 5.0,
-                slaBreachRate: 14.8,
-                avgRoi: "9.25%",
-                collateralFreeLimit: "₹75 Lakhs",
-                topRejectionReason: "High existing debt-to-income ratio (DTI)",
-                status: "Moderate TAT"
-            },
-            {
-                id: "poonawalla",
-                name: "Poonawalla Fincorp",
-                type: "NBFC (Emerging Partner)",
-                totalVolumeCr: 23.4,
-                filesAssigned: 52,
-                sanctionsIssued: 35,
-                sanctionRate: 67.3,
-                avgTatDays: 6.8,
-                targetSlaDays: 5.0,
-                slaBreachRate: 18.2,
-                avgRoi: "10.80%",
-                collateralFreeLimit: "₹50 Lakhs",
-                topRejectionReason: "Incomplete collateral title documentation",
-                status: "Under Review"
-            }
-        ];
-    }, [dbBanks, applications]);
 
     const filteredLenders = useMemo(() => {
         if (selectedLender === "all") return lenders;

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
-import { campaignApi, adminApi, apiFetch } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 
 interface MarketingStats {
     totalLeads: number;
@@ -18,62 +18,35 @@ export default function MarketingDashboardPage() {
     const [refreshing, setRefreshing] = useState(false);
     const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
     const [stats, setStats] = useState<MarketingStats>({
-        totalLeads: 14280,
-        blendedCac: 380,
-        emailOpenRate: 41.2,
-        whatsAppCtr: 28.4,
-        referralVolumeCr: 98.4,
-        activeCampaigns: 4,
+        totalLeads: 0,
+        blendedCac: 0,
+        emailOpenRate: 0,
+        whatsAppCtr: 0,
+        referralVolumeCr: 0,
+        activeCampaigns: 0,
     });
+    const [channelsBreakdown, setChannelsBreakdown] = useState<any[]>([]);
     const [campaigns, setCampaigns] = useState<any[]>([]);
-    const [topReferrers, setTopReferrers] = useState<any[]>([]);
 
     const fetchMarketingData = useCallback(async () => {
         try {
             setRefreshing(true);
-            const [statsRes, campRes, refRes, userStatsRes]: any = await Promise.all([
-                campaignApi.getOverviewStats().catch(() => null),
-                campaignApi.getAll(10, 0).catch(() => null),
-                apiFetch<any>("/api/referral/leaderboard?limit=5").catch(() => null),
-                adminApi.getUserStats().catch(() => null),
-            ]);
+            const res = await apiFetch<any>("/api/marketing/dashboard");
 
-            if (campRes?.data && Array.isArray(campRes.data)) {
-                setCampaigns(campRes.data);
-            } else if (Array.isArray(campRes)) {
-                setCampaigns(campRes);
-            }
-
-            if (refRes?.leaderboard && Array.isArray(refRes.leaderboard)) {
-                setTopReferrers(refRes.leaderboard);
-            }
-
-            const totalUsers = userStatsRes?.totalStudents || userStatsRes?.totalUsers || 14280;
-
-            if (statsRes?.data) {
-                const s = statsRes.data;
-                setStats(prev => ({
-                    ...prev,
-                    totalLeads: Math.max(totalUsers, s.totalRecipients || prev.totalLeads),
-                    activeCampaigns: s.totalCampaigns || campaigns.length || prev.activeCampaigns,
-                    emailOpenRate: s.avgOpenRate ? Number(s.avgOpenRate.toFixed(1)) : prev.emailOpenRate,
-                    whatsAppCtr: s.avgClickRate ? Number(s.avgClickRate.toFixed(1)) : prev.whatsAppCtr,
-                }));
-            } else {
-                setStats(prev => ({
-                    ...prev,
-                    totalLeads: totalUsers,
-                }));
+            if (res?.success) {
+                if (res.stats) setStats(res.stats);
+                if (Array.isArray(res.channelsBreakdown)) setChannelsBreakdown(res.channelsBreakdown);
+                if (Array.isArray(res.recentCampaigns)) setCampaigns(res.recentCampaigns);
             }
 
             setLastUpdated(new Date());
         } catch (err) {
-            console.warn("Could not load dynamic marketing telemetry", err);
+            console.error("Could not load dynamic marketing telemetry", err);
         } finally {
             setLoading(false);
             setRefreshing(false);
         }
-    }, [campaigns.length]);
+    }, []);
 
     useEffect(() => {
         fetchMarketingData();
@@ -81,31 +54,15 @@ export default function MarketingDashboardPage() {
         return () => clearInterval(interval);
     }, [fetchMarketingData]);
 
-    const channelsBreakdown = [
-        { channel: "Organic Search & SEO Guides", leads: 5426, share: 38, cac: "₹95", color: "bg-[#4F46E5]" },
-        { channel: "Student & Alumni Referrals", leads: 3712, share: 26, cac: "₹226", color: "bg-indigo-600" },
-        { channel: "WhatsApp Direct Broadcast", leads: 2150, share: 15, cac: "₹97", color: "bg-emerald-600" },
-        { channel: "Meta Ads (Instagram Stories)", leads: 1850, share: 13, cac: "₹614", color: "bg-blue-600" },
-        { channel: "Google Search Ads (Paid)", leads: 1142, share: 8, cac: "₹780", color: "bg-purple-600" },
-    ];
-
     const displayCampaigns = useMemo(() => {
-        if (campaigns.length > 0) {
-            return campaigns.slice(0, 5).map((c) => ({
-                id: c.id,
-                name: c.name || c.title || "Targeted Student Blast",
-                channel: c.channel || "Email & WhatsApp",
-                audience: c.audienceCount ? `${c.audienceCount.toLocaleString()} Students` : "Target Cohort",
-                openRate: c.openRate ? `${c.openRate}%` : "42.5%",
-                status: c.status || "Active",
-            }));
-        }
-        return [
-            { id: "1", name: "HDFC Credila 9.5% Rate Drop", channel: "Email + WhatsApp", audience: "4,850 Students", openRate: "46.2%", status: "Active" },
-            { id: "2", name: "DigiLocker KYC Fast-Track Reminder", channel: "In-App + Push", audience: "2,420 Students", openRate: "58.4%", status: "Active" },
-            { id: "3", name: "US Visa Mock Interview Invite", channel: "Personal Email", audience: "1,240 Students", openRate: "51.0%", status: "Completed" },
-            { id: "4", name: "Fall 2025 Scholarship & Forex Perks", channel: "Newsletter", audience: "9,600 Students", openRate: "34.8%", status: "Active" },
-        ];
+        return campaigns.map((c) => ({
+            id: c.id,
+            name: c.name || c.title || "Student Outreach Blast",
+            channel: c.channel || "Email & Direct",
+            audience: c.audience || `${(c.totalCount || 100).toLocaleString()} Students`,
+            openRate: c.openRate || "42.5%",
+            status: c.status || "Active",
+        }));
     }, [campaigns]);
 
     return (

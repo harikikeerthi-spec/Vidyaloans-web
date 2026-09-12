@@ -7,21 +7,23 @@ import { adminApi } from "@/lib/api";
 export default function AnalystForecastsPage() {
     const [confidenceInterval, setConfidenceInterval] = useState<"90%" | "95%">("95%");
     const [growthRatePercent, setGrowthRatePercent] = useState<number>(25);
-    const [baselineVolumeCr, setBaselineVolumeCr] = useState<number>(342.8);
-    const [baselineFiles, setBaselineFiles] = useState<number>(1842);
+    const [baselineVolumeCr, setBaselineVolumeCr] = useState<number>(0);
+    const [baselineFiles, setBaselineFiles] = useState<number>(0);
 
     useEffect(() => {
         const fetchBaseline = async () => {
             try {
-                const stats: any = await adminApi.getApplicationStats().catch(() => null);
-                if (stats?.totalSanctionValueCr) {
-                    setBaselineVolumeCr(stats.totalSanctionValueCr);
-                }
-                if (stats?.totalApplications) {
-                    setBaselineFiles(stats.totalApplications);
+                const res: any = await fetch("/api/analyst/dashboard").then(r => r.json()).catch(() => null);
+                if (res?.stats) {
+                    if (res.stats.totalSanctionValueCr !== undefined) {
+                        setBaselineVolumeCr(res.stats.totalSanctionValueCr);
+                    }
+                    if (res.stats.totalApplications !== undefined) {
+                        setBaselineFiles(res.stats.totalApplications);
+                    }
                 }
             } catch (err) {
-                console.warn("Using default baseline metrics for forecasts", err);
+                console.error("Failed to load baseline metrics for forecasts", err);
             }
         };
 

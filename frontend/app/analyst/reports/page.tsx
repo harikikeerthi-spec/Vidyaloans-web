@@ -13,19 +13,19 @@ export default function AnalystReportsPage() {
     useEffect(() => {
         const loadReportData = async () => {
             try {
-                const [appsRes, banksRes]: any = await Promise.all([
-                    adminApi.getApplications({ limit: "150" }).catch(() => null),
-                    apiFetch<any>("/api/reference/banks").catch(() => null),
+                const [dashRes, banksRes]: any = await Promise.all([
+                    apiFetch<any>("/api/analyst/dashboard").catch(() => null),
+                    apiFetch<any>("/api/analyst/banks").catch(() => null),
                 ]);
 
-                if (appsRes?.applications && Array.isArray(appsRes.applications)) {
-                    setApplications(appsRes.applications);
+                if (dashRes?.applications && Array.isArray(dashRes.applications)) {
+                    setApplications(dashRes.applications);
                 }
-                if (banksRes?.data && Array.isArray(banksRes.data)) {
-                    setBanks(banksRes.data);
+                if (banksRes?.lenders && Array.isArray(banksRes.lenders)) {
+                    setBanks(banksRes.lenders);
                 }
             } catch (err) {
-                console.warn("Could not load dynamic report sources", err);
+                console.error("Could not load dynamic report sources", err);
             }
         };
 

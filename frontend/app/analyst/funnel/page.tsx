@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { adminApi, apiFetch } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 
 interface FunnelStep {
     id: string;
@@ -20,77 +20,62 @@ export default function AnalystFunnelPage() {
     const [selectedIntake, setSelectedIntake] = useState("all");
     const [selectedCountry, setSelectedCountry] = useState("all");
     const [dbCountries, setDbCountries] = useState<any[]>([]);
-    const [totalRegistered, setTotalRegistered] = useState(2450);
-    const [stats, setStats] = useState<any>(null);
-    const [applications, setApplications] = useState<any[]>([]);
+    const [funnelSteps, setFunnelSteps] = useState<FunnelStep[]>([]);
+    const [totalRegistered, setTotalRegistered] = useState(0);
+    const [finalDisbursed, setFinalDisbursed] = useState(0);
+    const [conversionRate, setConversionRate] = useState(0);
     const [activeStepId, setActiveStepId] = useState<string>("docs_uploaded");
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchCountries = async () => {
+            try {
+                const countriesRes = await apiFetch<any>("/api/reference/countries").catch(() => null);
+                if (countriesRes?.data && Array.isArray(countriesRes.data)) {
+                    setDbCountries(countriesRes.data);
+                }
+            } catch (e) {
+                console.warn("Could not load countries", e);
+            }
+        };
+        fetchCountries();
+    }, []);
 
     useEffect(() => {
         const loadFunnelData = async () => {
             try {
-                const [statsRes, appsRes, countriesRes]: any = await Promise.all([
-                    adminApi.getApplicationStats().catch(() => null),
-                    adminApi.getApplications({ limit: "100" }).catch(() => null),
-                    apiFetch<any>("/api/reference/countries").catch(() => null),
-                ]);
-
-                if (countriesRes?.data && Array.isArray(countriesRes.data)) {
-                    setDbCountries(countriesRes.data);
-                }
-
-                if (statsRes) {
-                    setStats(statsRes);
-                    if (statsRes.totalApplications) {
-                        setTotalRegistered(Math.max(statsRes.totalApplications, 2450));
+                setLoading(true);
+                const res = await apiFetch<any>(`/api/analyst/funnel?country=${encodeURIComponent(selectedCountry)}&intake=${encodeURIComponent(selectedIntake)}`);
+                if (res?.success && Array.isArray(res.steps)) {
+                    setFunnelSteps(res.steps);
+                    setTotalRegistered(res.totalRegistered || 0);
+                    setFinalDisbursed(res.finalDisbursed || 0);
+                    setConversionRate(res.conversionRate || 0);
+                    if (res.steps.length > 0 && !res.steps.find((s: any) => s.id === activeStepId)) {
+                        setActiveStepId(res.steps[0].id);
                     }
                 }
-
-                if (appsRes?.applications && Array.isArray(appsRes.applications)) {
-                    setApplications(appsRes.applications);
-                }
             } catch (e) {
-                console.warn("Using baseline funnel telemetry", e);
+                console.error("Failed to fetch live funnel telemetry", e);
+            } finally {
+                setLoading(false);
             }
         };
 
         loadFunnelData();
-    }, []);
+    }, [selectedCountry, selectedIntake]);
 
-    // Filter applications if criteria selected
-    const filteredApps = useMemo(() => {
-        return applications.filter(app => {
-            const matchesCountry = selectedCountry === "all" || (app.targetCountry || "").toLowerCase() === selectedCountry.toLowerCase();
-            return matchesCountry;
-        });
-    }, [applications, selectedCountry]);
-
-    // Dynamically computed funnel steps
-    const funnelSteps: FunnelStep[] = useMemo(() => {
-        const base = filteredApps.length > 0 ? filteredApps.length * 15 : totalRegistered;
-        const s1 = base;
-        const s2 = Math.round(s1 * 0.84);
-        const s3 = Math.round(s1 * 0.68);
-        const s4 = Math.round(s1 * 0.58);
-        const s5 = Math.round(s1 * 0.52);
-        const s6 = Math.round(s1 * 0.44);
-        const s7 = Math.round(s1 * 0.38);
-        const s8 = Math.round(s1 * 0.28);
-
-        const steps = [
-            { id: "lead_registered", stepNumber: 1, title: "1. Lead Registration & Account Created", count: s1, percentageOfTotal: 100, dropOffRate: 0, avgDaysInStage: 0.2, bottleneckRisk: "Low" as const, keyAction: "Phone OTP & basic study destination selected" },
-            { id: "loan_prefs", stepNumber: 2, title: "2. Loan Requirements & University Details", count: s2, percentageOfTotal: Number(((s2 / s1) * 100).toFixed(1)), dropOffRate: Number((((s1 - s2) / s1) * 100).toFixed(1)), avgDaysInStage: 0.8, bottleneckRisk: "Low" as const, keyAction: "Target budget, degree, co-applicant income entered" },
-            { id: "docs_uploaded", stepNumber: 3, title: "3. KYC & Academic Marksheet Upload", count: s3, percentageOfTotal: Number(((s3 / s1) * 100).toFixed(1)), dropOffRate: Number((((s2 - s3) / s2) * 100).toFixed(1)), avgDaysInStage: 2.4, bottleneckRisk: "High" as const, keyAction: "Aadhaar, PAN, Degree certificates, Co-applicant ITR" },
-            { id: "staff_verified", stepNumber: 4, title: "4. Staff Verification & File Scrubbing", count: s4, percentageOfTotal: Number(((s4 / s1) * 100).toFixed(1)), dropOffRate: Number((((s3 - s4) / s3) * 100).toFixed(1)), avgDaysInStage: 1.1, bottleneckRisk: "Low" as const, keyAction: "Eligibility checked, best bank match determined" },
-            { id: "bank_submitted", stepNumber: 5, title: "5. Dispatched to Partner Banks", count: s5, percentageOfTotal: Number(((s5 / s1) * 100).toFixed(1)), dropOffRate: Number((((s4 - s5) / s4) * 100).toFixed(1)), avgDaysInStage: 0.5, bottleneckRisk: "Low" as const, keyAction: "Multi-lender direct API & LAN generation" },
-            { id: "bank_underwriting", stepNumber: 6, title: "6. Bank Underwriting & Credit Appraisal", count: s6, percentageOfTotal: Number(((s6 / s1) * 100).toFixed(1)), dropOffRate: Number((((s5 - s6) / s5) * 100).toFixed(1)), avgDaysInStage: 3.2, bottleneckRisk: "High" as const, keyAction: "Credit risk assessment, property/collateral checks" },
-            { id: "sanction_issued", stepNumber: 7, title: "7. Official Sanction Letter Generated", count: s7, percentageOfTotal: Number(((s7 / s1) * 100).toFixed(1)), dropOffRate: Number((((s6 - s7) / s6) * 100).toFixed(1)), avgDaysInStage: 1.2, bottleneckRisk: "Medium" as const, keyAction: "Final loan amount, ROI & margin money locked" },
-            { id: "disbursed", stepNumber: 8, title: "8. Tuition Fee Disbursed to University", count: s8, percentageOfTotal: Number(((s8 / s1) * 100).toFixed(1)), dropOffRate: Number((((s7 - s8) / s7) * 100).toFixed(1)), avgDaysInStage: 2.8, bottleneckRisk: "Low" as const, keyAction: "Foreign outward remittance wire sent to overseas university" },
-        ];
-
-        return steps;
-    }, [totalRegistered, filteredApps]);
-
-    const activeStep = funnelSteps.find(s => s.id === activeStepId) || funnelSteps[2];
+    const activeStep = funnelSteps.find(s => s.id === activeStepId) || funnelSteps[0] || {
+        id: "none",
+        stepNumber: 1,
+        title: "No data available",
+        count: 0,
+        percentageOfTotal: 0,
+        dropOffRate: 0,
+        avgDaysInStage: 0,
+        bottleneckRisk: "Low" as const,
+        keyAction: "Awaiting applicant records",
+    };
 
     return (
         <div className="space-y-6 max-w-7xl mx-auto">
@@ -146,16 +131,16 @@ export default function AnalystFunnelPage() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="bg-white border border-slate-200/80 p-5 rounded-xl shadow-sm">
                     <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Overall Funnel Conversion</span>
-                    <div className="text-[28px] font-bold text-[#0A2540] mt-1.5">
-                        {funnelSteps[7].percentageOfTotal}%
+                    <div className="text-[28px] font-bold text-[#0A2540] mt-1.5 font-mono">
+                        {funnelSteps[7]?.percentageOfTotal ?? conversionRate}%
                     </div>
-                    <p className="text-xs text-slate-500 mt-0.5">Registration to Disbursal completion</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Registration to Disbursal completion ({finalDisbursed} of {totalRegistered})</p>
                 </div>
 
                 <div className="bg-white border border-slate-200/80 p-5 rounded-xl shadow-sm">
                     <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Sanction Issuance Rate</span>
-                    <div className="text-[28px] font-bold text-[#0A2540] mt-1.5">
-                        {funnelSteps[6].percentageOfTotal}%
+                    <div className="text-[28px] font-bold text-[#0A2540] mt-1.5 font-mono">
+                        {funnelSteps[6]?.percentageOfTotal ?? 0}%
                     </div>
                     <p className="text-xs text-emerald-700 font-semibold mt-0.5">+4.2% higher than industry benchmark</p>
                 </div>
@@ -165,7 +150,7 @@ export default function AnalystFunnelPage() {
                     <div className="text-[24px] font-bold text-rose-600 mt-1.5 truncate">
                         Stage 3: KYC Upload
                     </div>
-                    <p className="text-xs text-slate-500 mt-0.5">19% drop-off due to pending co-borrower docs</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Drop-off tracked at document verification</p>
                 </div>
             </div>
 

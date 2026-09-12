@@ -2,35 +2,24 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { adminApi } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 
 export default function MarketingContentPage() {
     const [selectedCategory, setSelectedCategory] = useState("all");
     const [searchQuery, setSearchQuery] = useState("");
     const [blogs, setBlogs] = useState<any[]>([]);
-    const [blogStats, setBlogStats] = useState<any>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const fetchContentData = async () => {
             try {
                 setLoading(true);
-                const [blogsRes, statsRes]: any = await Promise.all([
-                    adminApi.getBlogs().catch(() => null),
-                    adminApi.getBlogStats().catch(() => null),
-                ]);
-
-                if (blogsRes?.data && Array.isArray(blogsRes.data)) {
-                    setBlogs(blogsRes.data);
-                } else if (Array.isArray(blogsRes)) {
-                    setBlogs(blogsRes);
-                }
-
-                if (statsRes) {
-                    setBlogStats(statsRes);
+                const res = await apiFetch<any>("/api/marketing/blogs");
+                if (res?.success && Array.isArray(res.blogs)) {
+                    setBlogs(res.blogs);
                 }
             } catch (err) {
-                console.warn("Could not load dynamic blog content", err);
+                console.error("Could not load dynamic blog content", err);
             } finally {
                 setLoading(false);
             }
@@ -48,25 +37,15 @@ export default function MarketingContentPage() {
     ];
 
     const displayArticles = useMemo(() => {
-        if (blogs.length > 0) {
-            return blogs.map((b, idx) => ({
-                id: b.id ? `ART-${b.id.slice(0, 4)}` : `ART-${100 + idx}`,
-                title: b.title || "Study Abroad Financing Guide",
-                category: b.category || "Study Abroad Guides",
-                views: b.views ? `${b.views.toLocaleString()}` : `${15000 + idx * 3200}`,
-                leads: Math.round((b.views || 15000) * 0.024),
-                publishedDate: b.createdAt ? new Date(b.createdAt).toISOString().slice(0, 10) : "2025-08-15",
-                status: b.isPublished ? "Ranking #1" : "Draft",
-            }));
-        }
-
-        return [
-            { id: "ART-101", title: "Complete Guide to Collateral-Free Education Loans for US MS (2025)", category: "Study Abroad Guides", views: "34,200", leads: 482, publishedDate: "2025-07-15", status: "Ranking #1" },
-            { id: "ART-102", title: "HDFC Credila vs Avanse vs Auxilo: Ultimate Lender Comparison", category: "Lender Reviews", views: "28,900", leads: 410, publishedDate: "2025-07-28", status: "Ranking #1" },
-            { id: "ART-103", title: "How to Use Loan Sanction Letter as Proof of Funds for F-1 Visa", category: "Visa & Financial Solvency", views: "22,400", leads: 390, publishedDate: "2025-08-04", status: "Ranking #2" },
-            { id: "ART-104", title: "Top 15 UK Scholarships for Indian Students Covering Full Tuition", category: "Scholarships", views: "19,800", leads: 260, publishedDate: "2025-08-11", status: "Ranking #3" },
-            { id: "ART-105", title: "DigiLocker KYC Verification for Instant Loan Sanction Letters", category: "Product Updates", views: "14,500", leads: 315, publishedDate: "2025-08-18", status: "Active" },
-        ];
+        return blogs.map((b, idx) => ({
+            id: b.id ? `ART-${b.id.slice(0, 4).toUpperCase()}` : `ART-${100 + idx}`,
+            title: b.title || "Study Abroad Financing Guide",
+            category: b.category || "Study Abroad Guides",
+            views: b.views ? `${b.views.toLocaleString()}` : "0",
+            leads: Math.round((b.views || 0) * 0.024),
+            publishedDate: b.createdAt ? new Date(b.createdAt).toISOString().slice(0, 10) : "2026-09-01",
+            status: b.isPublished ? "Ranking #1" : "Draft",
+        }));
     }, [blogs]);
 
     const filteredArticles = useMemo(() => {

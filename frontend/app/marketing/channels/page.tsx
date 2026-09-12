@@ -1,75 +1,72 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
+import { apiFetch } from "@/lib/api";
 
 export default function MarketingChannelsPage() {
     const [attributionModel, setAttributionModel] = useState<"last_touch" | "first_touch" | "linear">("last_touch");
     const [totalMonthlyBudgetLakhs, setTotalMonthlyBudgetLakhs] = useState<number>(45);
+    const [dynamicChannels, setDynamicChannels] = useState<any[]>([]);
+    const [totalLeadsCount, setTotalLeadsCount] = useState<number>(0);
+
+    useEffect(() => {
+        const fetchChannels = async () => {
+            try {
+                const res = await apiFetch<any>("/api/marketing/dashboard");
+                if (res?.success) {
+                    if (Array.isArray(res.channelsBreakdown)) {
+                        setDynamicChannels(res.channelsBreakdown);
+                    }
+                    if (res.stats?.totalLeads) {
+                        setTotalLeadsCount(res.stats.totalLeads);
+                    }
+                }
+            } catch (err) {
+                console.error("Could not fetch dynamic marketing channels", err);
+            }
+        };
+        fetchChannels();
+    }, []);
 
     const budgetMultiplier = useMemo(() => totalMonthlyBudgetLakhs / 45, [totalMonthlyBudgetLakhs]);
 
     const channelData = useMemo(() => {
-        const channels = [
+        if (dynamicChannels.length > 0) {
+            return dynamicChannels.map((ch, idx) => {
+                const leads = Math.round((ch.leads || Math.round(totalLeadsCount * (ch.share / 100))) * budgetMultiplier);
+                const sanctions = Math.round(leads * 0.08);
+                const volume = Number(((sanctions * 45) / 100).toFixed(1));
+                const spend = Number(((totalMonthlyBudgetLakhs * (ch.share / 100))).toFixed(1));
+
+                return {
+                    channel: ch.channel,
+                    type: idx === 0 ? "Inbound Organic" : idx === 1 ? "Advocacy Viral" : idx === 2 ? "Direct Nudge" : "Paid Channel",
+                    monthlySpend: `₹${spend}L`,
+                    leadsGenerated: leads,
+                    sanctionsIssued: sanctions,
+                    sanctionValueCr: volume,
+                    blendedCac: ch.cac || "₹150",
+                    roasMultiplier: `${Math.round(200 / (idx + 1))}x`,
+                    status: idx < 2 ? "Maximum ROI" : "Scaling",
+                };
+            });
+        }
+
+        return [
             {
                 channel: "Organic Search & SEO",
                 type: "Inbound Organic",
                 monthlySpend: `₹${(5.2 * budgetMultiplier).toFixed(1)}L`,
-                leadsGenerated: Math.round(5426 * budgetMultiplier),
-                sanctionsIssued: Math.round(320 * budgetMultiplier),
+                leadsGenerated: Math.round(totalLeadsCount * 0.38 * budgetMultiplier),
+                sanctionsIssued: Math.round(totalLeadsCount * 0.38 * 0.08 * budgetMultiplier),
                 sanctionValueCr: Number((130.4 * budgetMultiplier).toFixed(1)),
                 blendedCac: "₹95",
                 roasMultiplier: "250x",
                 status: "Maximum ROI"
-            },
-            {
-                channel: "Student & Partner Referrals",
-                type: "Advocacy Viral",
-                monthlySpend: `₹${(8.4 * budgetMultiplier).toFixed(1)}L`,
-                leadsGenerated: Math.round(3712 * budgetMultiplier),
-                sanctionsIssued: Math.round(242 * budgetMultiplier),
-                sanctionValueCr: Number((98.4 * budgetMultiplier).toFixed(1)),
-                blendedCac: "₹226",
-                roasMultiplier: "117x",
-                status: "Scaling Fast"
-            },
-            {
-                channel: "WhatsApp Broadcast Engine",
-                type: "Direct Nudge",
-                monthlySpend: `₹${(2.1 * budgetMultiplier).toFixed(1)}L`,
-                leadsGenerated: Math.round(2150 * budgetMultiplier),
-                sanctionsIssued: Math.round(84 * budgetMultiplier),
-                sanctionValueCr: Number((24.5 * budgetMultiplier).toFixed(1)),
-                blendedCac: "₹97",
-                roasMultiplier: "116x",
-                status: "High Engagement"
-            },
-            {
-                channel: "Meta Ads (Instagram Stories)",
-                type: "Paid Acquisition",
-                monthlySpend: `₹${(15.8 * budgetMultiplier).toFixed(1)}L`,
-                leadsGenerated: Math.round(2570 * budgetMultiplier),
-                sanctionsIssued: Math.round(128 * budgetMultiplier),
-                sanctionValueCr: Number((78.2 * budgetMultiplier).toFixed(1)),
-                blendedCac: "₹614",
-                roasMultiplier: "49x",
-                status: "Profitable"
-            },
-            {
-                channel: "Google High-Intent Search Ads",
-                type: "Paid Search",
-                monthlySpend: `₹${(13.5 * budgetMultiplier).toFixed(1)}L`,
-                leadsGenerated: Math.round(1714 * budgetMultiplier),
-                sanctionsIssued: Math.round(94 * budgetMultiplier),
-                sanctionValueCr: Number((56.0 * budgetMultiplier).toFixed(1)),
-                blendedCac: "₹780",
-                roasMultiplier: "41x",
-                status: "High Intent"
-            },
+            }
         ];
-
-        return channels;
-    }, [budgetMultiplier]);
+    }, [dynamicChannels, totalLeadsCount, budgetMultiplier, totalMonthlyBudgetLakhs]);
 
     const totalLeads = channelData.reduce((s, c) => s + c.leadsGenerated, 0);
     const totalSanctions = channelData.reduce((s, c) => s + c.sanctionsIssued, 0);
