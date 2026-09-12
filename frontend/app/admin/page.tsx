@@ -12,6 +12,17 @@ import CampaignsDashboard from "@/components/Admin/CampaignsDashboard";
 import AdminBanksSection from "@/components/Admin/AdminBanksSection";
 import AdminCountriesSection from "@/components/Admin/AdminCountriesSection";
 import SiteSettingsSection from "@/components/Admin/SiteSettingsSection";
+import { 
+  Building2, 
+  X, 
+  Smile, 
+  Mail, 
+  Phone, 
+  AlertTriangle, 
+  Info, 
+  CheckCircle,
+  ChevronDown
+} from 'lucide-react';
 
 // ─── Application Progress & Helpers ──────────────────────────────────────────────
 
@@ -4388,6 +4399,245 @@ export default function AdminDashboardPage() {
                                     )}
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                ) : newUserQuery.role === 'bank' ? (
+                    <div 
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="create-bank-rep-modal-title"
+                        className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center p-4 z-50"
+                        onClick={() => setShowCreateUserModal(false)}
+                    >
+                        <div 
+                            className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[94vh] animate-in fade-in zoom-in-95 duration-200"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {/* Header - Seamless white without border */}
+                            <div className="flex items-start justify-between px-7 sm:px-8 pt-7 sm:pt-8 pb-4 shrink-0">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0">
+                                        <Building2 size={24} />
+                                    </div>
+                                    <div>
+                                        <h2 id="create-bank-rep-modal-title" className="text-xl font-bold text-slate-900 tracking-tight">
+                                            Create Bank Representative Profile
+                                        </h2>
+                                        <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+                                            Register a new lending partner officer or bank representative.
+                                        </p>
+                                    </div>
+                                </div>
+                                <button 
+                                    type="button"
+                                    onClick={() => setShowCreateUserModal(false)}
+                                    className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-lg transition-colors cursor-pointer"
+                                    aria-label="Close dialog"
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            {/* Body & Form */}
+                            <form id="create-bank-rep-form" onSubmit={handleCreateUser} className="flex flex-col flex-1 overflow-hidden m-0">
+                                <div className="px-7 sm:px-8 py-2 space-y-6 overflow-y-auto flex-1">
+                                    
+                                    {/* Basic Information Section */}
+                                    <section>
+                                        <div className="flex items-center gap-2 mb-4 text-indigo-600 font-bold text-xs uppercase tracking-wider">
+                                            <Smile size={18} />
+                                            <span>BASIC INFORMATION</span>
+                                        </div>
+                                        
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            {/* First Name */}
+                                            <div className="space-y-1.5">
+                                                <label className="text-xs font-semibold text-slate-700 flex items-center">
+                                                    First Name <span className="text-red-500 ml-1">*</span>
+                                                </label>
+                                                <input 
+                                                    type="text" 
+                                                    required
+                                                    placeholder="E.g. Hari" 
+                                                    value={newUserQuery.firstName || ""}
+                                                    onChange={(e) => setNewUserQuery({ ...newUserQuery, firstName: e.target.value })}
+                                                    className="w-full px-4 py-3 bg-[#F8FAFC]/90 border border-slate-200/90 rounded-xl text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                                                />
+                                            </div>
+
+                                            {/* Last Name */}
+                                            <div className="space-y-1.5">
+                                                <label className="text-xs font-semibold text-slate-700 flex items-center">
+                                                    Last Name <span className="text-red-500 ml-1">*</span>
+                                                </label>
+                                                <input 
+                                                    type="text" 
+                                                    required
+                                                    placeholder="E.g. Kalyan" 
+                                                    value={newUserQuery.lastName || ""}
+                                                    onChange={(e) => setNewUserQuery({ ...newUserQuery, lastName: e.target.value })}
+                                                    className="w-full px-4 py-3 bg-[#F8FAFC]/90 border border-slate-200/90 rounded-xl text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                                                />
+                                            </div>
+
+                                            {/* Email Address */}
+                                            <div className="space-y-1.5">
+                                                <label className="text-xs font-semibold text-slate-700 flex items-center">
+                                                    Email Address <span className="text-red-500 ml-1">*</span>
+                                                </label>
+                                                <div className="relative">
+                                                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                                                        <Mail size={18} />
+                                                    </div>
+                                                    <input 
+                                                        type="email" 
+                                                        required
+                                                        placeholder="officer@bank.com" 
+                                                        value={newUserQuery.email || ""}
+                                                        onChange={(e) => setNewUserQuery({ ...newUserQuery, email: e.target.value })}
+                                                        className="w-full pl-10 pr-4 py-3 bg-[#F8FAFC]/90 border border-slate-200/90 rounded-xl text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {/* Mobile Number */}
+                                            <div className="space-y-1.5">
+                                                <label className="text-xs font-semibold text-slate-700 flex items-center">
+                                                    Mobile Number <span className="text-red-500 ml-1">*</span>
+                                                </label>
+                                                <div className="relative">
+                                                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                                                        <Phone size={18} />
+                                                    </div>
+                                                    <input 
+                                                        type="tel" 
+                                                        required
+                                                        placeholder="+91 98765 43210" 
+                                                        value={newUserQuery.mobile || ""}
+                                                        onChange={(e) => setNewUserQuery({ ...newUserQuery, mobile: e.target.value })}
+                                                        className="w-full pl-10 pr-4 py-3 bg-[#F8FAFC]/90 border border-slate-200/90 rounded-xl text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </section>
+
+                                    {/* Assigned Lending Bank Partner Enclosed Box */}
+                                    <section className="bg-[#F8FAFC]/90 border border-slate-200/80 rounded-2xl p-5 sm:p-6 space-y-3.5">
+                                        <label className="flex items-center gap-2 text-xs font-bold text-slate-900">
+                                            <Building2 size={18} className="text-slate-800" />
+                                            <span>Assigned Lending Bank Partner</span>
+                                            <span className="text-red-500">*</span>
+                                        </label>
+                                        
+                                        {/* Error State Select with Custom Downward Chevron */}
+                                        <div className="relative">
+                                            <select 
+                                                required
+                                                value={newUserQuery.bank || ""}
+                                                onChange={(e) => {
+                                                    const selectedVal = e.target.value;
+                                                    const selectedObj = bankPartners.find((b: any) => b.shortName?.toLowerCase() === selectedVal?.toLowerCase() || b.id === selectedVal);
+                                                    setNewUserQuery({ 
+                                                        ...newUserQuery, 
+                                                        bank: selectedVal,
+                                                        firstName: newUserQuery.firstName || (selectedObj?.shortName || selectedVal)
+                                                    });
+                                                }}
+                                                className={`w-full px-4 py-3 bg-white rounded-xl text-sm font-medium text-slate-800 outline-none appearance-none shadow-2xs pr-10 transition-all cursor-pointer ${
+                                                    !newUserQuery.bank 
+                                                        ? 'border-2 border-red-400 focus:ring-2 focus:ring-red-100' 
+                                                        : 'border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'
+                                                }`}
+                                            >
+                                                <option value="">-- Select Bank Partner ({bankPartners && bankPartners.length > 0 ? `${bankPartners.length} Active Partners` : '5 Active Partners'}) --</option>
+                                                {bankPartners && bankPartners.length > 0 ? (
+                                                    bankPartners.map((bp: any) => (
+                                                        <option key={bp.id || bp.shortName} value={bp.shortName}>
+                                                            {bp.name} ({bp.shortName?.toUpperCase()})
+                                                        </option>
+                                                    ))
+                                                ) : (
+                                                    <>
+                                                        <option value="auxilo">Auxilo Finserve (AUXILO)</option>
+                                                        <option value="avanse">Avanse Financial Services (AVANSE)</option>
+                                                        <option value="credila">HDFC Credila (CREDILA)</option>
+                                                        <option value="idfc">IDFC FIRST Bank (IDFC)</option>
+                                                        <option value="sbi">State Bank of India (SBI)</option>
+                                                    </>
+                                                )}
+                                            </select>
+                                            <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-600">
+                                                <ChevronDown size={18} />
+                                            </div>
+                                        </div>
+
+                                        {/* Validation Message */}
+                                        {!newUserQuery.bank && (
+                                            <div className="flex items-center gap-1.5 text-red-500 text-xs font-medium pt-0.5">
+                                                <AlertTriangle size={15} className="text-red-500 shrink-0" />
+                                                <span>Selecting a bank partner is required before submitting.</span>
+                                            </div>
+                                        )}
+
+                                        {/* Info Box */}
+                                        <div className="flex gap-3 bg-[#EFF6FF] border border-blue-100/90 text-blue-900 rounded-xl p-3.5 mt-3">
+                                            <Info size={18} className="text-blue-500 shrink-0 mt-0.5" />
+                                            <p className="text-xs text-blue-900/80 leading-relaxed font-normal">
+                                                Links the officer profile to the selected lender&apos;s underwriting portal, auto-allocation queue, and decision system.
+                                            </p>
+                                        </div>
+                                    </section>
+                                </div>
+
+                                {/* Footer - Clean white matching screenshot */}
+                                <div className="px-7 sm:px-8 py-5 pb-7 sm:pb-8 bg-white flex items-center justify-between gap-4 shrink-0">
+                                    <button 
+                                        type="button" 
+                                        onClick={() => setShowCreateUserModal(false)}
+                                        className="px-7 py-3 text-xs font-bold tracking-wider text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors uppercase cursor-pointer shadow-2xs"
+                                    >
+                                        CANCEL
+                                    </button>
+                                    
+                                    <button 
+                                        type="submit"
+                                        disabled={
+                                            createUserLoading || 
+                                            !newUserQuery.bank || 
+                                            !newUserQuery.firstName?.trim() || 
+                                            !newUserQuery.lastName?.trim() || 
+                                            !newUserQuery.email?.trim() || 
+                                            !newUserQuery.mobile?.trim()
+                                        }
+                                        className={
+                                            (createUserLoading || 
+                                            !newUserQuery.bank || 
+                                            !newUserQuery.firstName?.trim() || 
+                                            !newUserQuery.lastName?.trim() || 
+                                            !newUserQuery.email?.trim() || 
+                                            !newUserQuery.mobile?.trim())
+                                                ? "flex-1 sm:flex-initial px-8 py-3 rounded-xl flex items-center justify-center gap-2 font-bold text-xs uppercase tracking-wider bg-[#E8EFF7] text-[#8C9BAE] cursor-not-allowed transition-colors"
+                                                : "flex-1 sm:flex-initial px-8 py-3 rounded-xl flex items-center justify-center gap-2 font-bold text-xs uppercase tracking-wider bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer shadow-md shadow-indigo-200 transition-colors active:scale-[0.99]"
+                                        }
+                                    >
+                                        {createUserLoading ? (
+                                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                        ) : (
+                                            <CheckCircle size={18} className={
+                                                (createUserLoading || 
+                                                !newUserQuery.bank || 
+                                                !newUserQuery.firstName?.trim() || 
+                                                !newUserQuery.lastName?.trim() || 
+                                                !newUserQuery.email?.trim() || 
+                                                !newUserQuery.mobile?.trim()) ? "text-[#8C9BAE]" : "text-white"
+                                            } />
+                                        )}
+                                        <span>{createUserLoading ? "CREATING..." : "CREATE BANK OFFICER PROFILE"}</span>
+                                    </button>
+                                </div>
+                            </form>
+
                         </div>
                     </div>
                 ) : (

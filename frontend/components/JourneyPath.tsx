@@ -32,7 +32,7 @@ const steps = [
         color: '#0ea5e9',
         gradient: 'linear-gradient(135deg, #0ea5e9, #38bdf8)',
         cta: 'Practice Now',
-        ctaHref: '/explore',
+        ctaHref: '/',
         stat: 'AI-Powered',
     },
     {
@@ -78,7 +78,7 @@ const steps = [
         color: '#10b981',
         gradient: 'linear-gradient(135deg, #10b981, #34d399)',
         cta: 'Visa Guide',
-        ctaHref: '/explore',
+        ctaHref: '/',
         stat: '98% Success',
     },
     {
