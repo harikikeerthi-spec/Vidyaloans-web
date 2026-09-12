@@ -34,10 +34,11 @@ export default function LandingUniversityAiSearch() {
             .then((res: any) => {
                 if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
                     const activeNames: string[] = res.data
-                        .filter((c: any) => c.isActive !== false)
-                        .map((c: any) => c.name);
+                        .filter((c: any) => c.isActive !== false && c.name)
+                        .map((c: any) => c.name.trim());
                     if (activeNames.length > 0) {
-                        const filtered = activeNames.filter((n: string) => n !== "Other");
+                        const uniqueNames = Array.from(new Set(activeNames));
+                        const filtered = uniqueNames.filter((n: string) => n !== "Other");
                         setCountryOptions([...filtered, "Other"]);
                     }
                 }
@@ -149,9 +150,9 @@ export default function LandingUniversityAiSearch() {
                             Select Study Destination
                         </div>
                         <div className="flex flex-wrap gap-2 items-center">
-                            {countryOptions.map((c) => (
+                            {countryOptions.map((c, idx) => (
                                 <button
-                                    key={c}
+                                    key={`${c}-${idx}`}
                                     type="button"
                                     onClick={() => {
                                         setSelectedCountry(c);

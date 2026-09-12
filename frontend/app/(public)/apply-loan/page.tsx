@@ -132,10 +132,11 @@ export default function ApplyLoanPage() {
             .then((res: any) => {
                 if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
                     const activeNames: string[] = res.data
-                        .filter((c: any) => c.isActive !== false)
-                        .map((c: any) => c.name);
+                        .filter((c: any) => c.isActive !== false && c.name)
+                        .map((c: any) => c.name.trim());
                     if (activeNames.length > 0) {
-                        const filtered = activeNames.filter((n: string) => n !== "Other");
+                        const uniqueNames = Array.from(new Set(activeNames));
+                        const filtered = uniqueNames.filter((n: string) => n !== "Other");
                         setCountryOptions([...filtered, "Other"]);
                     }
                 }
@@ -1453,6 +1454,9 @@ function SelectField({ label, icon, value, onChange, options, error, required }:
     label: string; icon?: string; value: string; onChange: (v: string) => void;
     options: { value: string; label: string }[]; error?: string; required?: boolean;
 }) {
+    // Deduplicate options by value to prevent React duplicate key warnings
+    const uniqueOptions = options.filter((o, idx, arr) => arr.findIndex((x) => x.value === o.value) === idx);
+
     return (
         <div className="space-y-3">
             <label className="text-[10px] uppercase tracking-[0.2em] font-black text-gray-500">
@@ -1470,7 +1474,11 @@ function SelectField({ label, icon, value, onChange, options, error, required }:
                     className={`w-full ${icon ? 'pl-12' : 'px-6'} pr-10 py-4 bg-white/70 border rounded-2xl shadow-sm appearance-none outline-none text-sm font-bold text-gray-900 focus:bg-white transition-all cursor-pointer ${error ? "border-red-300 ring-2 ring-red-100" : "border-gray-200 focus:border-[#6605c7]/50 focus:ring-4 focus:ring-purple-100 hover:border-gray-300"}`}
                 >
                     <option value="" disabled className="text-gray-400">Choose Option...</option>
-                    {options.map((o) => <option key={o.value} value={o.value} className="bg-white text-gray-900">{o.label}</option>)}
+                    {uniqueOptions.map((o, idx) => (
+                        <option key={`${o.value}-${idx}`} value={o.value} className="bg-white text-gray-900">
+                            {o.label}
+                        </option>
+                    ))}
                 </select>
                 <div className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
                     <span className="material-symbols-outlined text-lg">expand_more</span>
@@ -1490,13 +1498,16 @@ function SearchableSelectField({ label, icon, value, onChange, options, error, r
     const [search, setSearch] = useState("");
     const dropdownRef = useRef<HTMLDivElement>(null);
 
+    // Deduplicate options by value to prevent React duplicate key warnings
+    const uniqueOptions = options.filter((o, idx, arr) => arr.findIndex((x) => x.value === o.value) === idx);
+
     // Filter options based on search query
-    const filteredOptions = options.filter(o =>
+    const filteredOptions = uniqueOptions.filter(o =>
         o.label.toLowerCase().includes(search.toLowerCase())
     );
 
     // Selected label
-    const selectedOption = options.find(o => o.value === value);
+    const selectedOption = uniqueOptions.find(o => o.value === value);
     const selectedLabel = selectedOption ? selectedOption.label : "Choose Option...";
 
     // Close on click outside
@@ -1569,11 +1580,11 @@ function SearchableSelectField({ label, icon, value, onChange, options, error, r
                         {/* Options List */}
                         <div className="overflow-y-auto max-h-60 divide-y divide-gray-50">
                             {filteredOptions.length > 0 ? (
-                                filteredOptions.map((o) => {
+                                filteredOptions.map((o, idx) => {
                                     const isSelected = o.value === value;
                                     return (
                                         <button
-                                            key={o.value}
+                                            key={`${o.value}-${idx}`}
                                             type="button"
                                             onClick={() => {
                                                 onChange(o.value);

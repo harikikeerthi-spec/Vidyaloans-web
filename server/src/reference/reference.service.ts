@@ -277,10 +277,21 @@ export class ReferenceService {
         .order('name', { ascending: true });
 
       if (data && data.length > 0) {
-        // Merge DB data with local store to ensure user added items persist
-        const existingIds = new Set(data.map((c: any) => c.id));
-        const extraFromStore = this.countriesStore.filter(c => !existingIds.has(c.id));
-        return { success: true, data: [...data, ...extraFromStore] };
+        // Deduplicate DB items by name
+        const seenNames = new Set<string>();
+        const uniqueData: any[] = [];
+        for (const c of data) {
+          const key = (c.name || '').toLowerCase().trim();
+          if (key && !seenNames.has(key)) {
+            seenNames.add(key);
+            uniqueData.push(c);
+          }
+        }
+        const existingIds = new Set(uniqueData.map((c: any) => c.id));
+        const extraFromStore = this.countriesStore.filter(
+          c => !existingIds.has(c.id) && !seenNames.has((c.name || '').toLowerCase().trim())
+        );
+        return { success: true, data: [...uniqueData, ...extraFromStore] };
       }
     } catch (e) {
       console.warn('Country table fetch error, falling back to local store:', e);

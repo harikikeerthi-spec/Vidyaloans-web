@@ -4,12 +4,30 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { adminApi, referenceApi, mailApi } from "@/lib/api";
+import { formatPhone, isPhoneValid } from "@/lib/validation";
 
 export default function CreateStaffPage() {
     const router = useRouter();
     const [loading, setLoading] = useState(false);
     const [officesLoading, setOfficesLoading] = useState(false);
     const [offices, setOffices] = useState<any[]>([]);
+
+    // Validation state
+    const [errors, setErrors] = useState<{
+        firstName?: string;
+        lastName?: string;
+        email?: string;
+        mobile?: string;
+        officeId?: string;
+        mailboxEmail?: string;
+    }>({});
+    const [touched, setTouched] = useState<{
+        firstName?: boolean;
+        lastName?: boolean;
+        email?: boolean;
+        mobile?: boolean;
+        mailboxEmail?: boolean;
+    }>({});
 
     // S3 Folders state from AWS SES bucket
     const [s3Folders, setS3Folders] = useState<any[]>([]);
@@ -156,27 +174,128 @@ export default function CreateStaffPage() {
         }
     };
 
+    // Validation helpers
+    const isValidEmail = (email: string) => {
+        const re = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+        return re.test(email.trim()) && email.trim().length <= 100;
+    };
+
+    const validateEmailField = (email: string): string => {
+        const trimmed = email.trim();
+        if (!trimmed) return "Login email address is required.";
+        if (/\s/.test(trimmed)) return "Email address cannot contain spaces.";
+        if (!isValidEmail(trimmed)) return "Please enter a valid email address (e.g. name@example.com).";
+        return "";
+    };
+
+    const validatePhoneField = (phone: string): string => {
+        const clean = phone.replace(/\D/g, "");
+        if (!clean) return "Mobile number is required.";
+        if (clean.length > 0 && clean[0] < "6") {
+            return "Indian mobile numbers must start with 6, 7, 8, or 9.";
+        }
+        if (clean.length !== 10) {
+            return `Mobile number must be exactly 10 digits (${clean.length}/10 entered).`;
+        }
+        if (!isPhoneValid(clean)) {
+            return "Please enter a valid, realistic Indian mobile number.";
+        }
+        return "";
+    };
+
+    const validateMailboxEmailField = (email: string): string => {
+        const trimmed = email.trim();
+        if (!trimmed) return "";
+        if (/\s/.test(trimmed)) return "Official business email cannot contain spaces.";
+        if (!isValidEmail(trimmed)) return "Please enter a valid email address (e.g. name@vidyaloans.in).";
+        return "";
+    };
+
+    const handlePhoneChange = (raw: string) => {
+        let val = raw;
+        if (val.startsWith("+91")) {
+            val = val.slice(3);
+        } else if (val.startsWith("+")) {
+            val = val.slice(1);
+        }
+        let digits = val.replace(/\D/g, "");
+        if (digits.length === 12 && digits.startsWith("91")) {
+            digits = digits.slice(2);
+        } else if (digits.length === 11 && digits.startsWith("0")) {
+            digits = digits.slice(1);
+        }
+        digits = formatPhone(digits);
+
+        setFormData(prev => ({ ...prev, mobile: digits }));
+
+        if (touched.mobile || digits.length === 10) {
+            setErrors(prev => ({ ...prev, mobile: validatePhoneField(digits) }));
+        } else if (errors.mobile) {
+            setErrors(prev => ({ ...prev, mobile: undefined }));
+        }
+    };
+
+    const handleEmailChange = (val: string) => {
+        setFormData(prev => ({ ...prev, email: val }));
+        if (touched.email) {
+            setErrors(prev => ({ ...prev, email: validateEmailField(val) }));
+        } else if (errors.email) {
+            setErrors(prev => ({ ...prev, email: undefined }));
+        }
+    };
+
     // Submit handler
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (!formData.firstName.trim() || !formData.lastName.trim()) {
-            alert("Please enter both First Name and Last Name.");
-            return;
+        const newErrors: typeof errors = {};
+
+        if (!formData.firstName.trim()) {
+            newErrors.firstName = "First name is required.";
+        }
+        if (!formData.lastName.trim()) {
+            newErrors.lastName = "Last name is required.";
         }
 
-        if (!formData.email.trim()) {
-            alert("Please enter a valid Login Email Address.");
-            return;
+        const emailErr = validateEmailField(formData.email);
+        if (emailErr) {
+            newErrors.email = emailErr;
         }
 
-        if (!formData.mobile.trim()) {
-            alert("Please enter a Mobile Number.");
-            return;
+        const phoneErr = validatePhoneField(formData.mobile);
+        if (phoneErr) {
+            newErrors.mobile = phoneErr;
+        }
+
+        if (formData.mailboxEmail.trim()) {
+            const mailboxErr = validateMailboxEmailField(formData.mailboxEmail);
+            if (mailboxErr) {
+                newErrors.mailboxEmail = mailboxErr;
+            }
         }
 
         if (!formData.officeId) {
-            alert("Please select an Assigned Operational Office / Branch.");
+            newErrors.officeId = "Please select an assigned operational office / branch.";
+        }
+
+        setErrors(newErrors);
+        setTouched({
+            firstName: true,
+            lastName: true,
+            email: true,
+            mobile: true,
+            mailboxEmail: true,
+        });
+
+        if (Object.keys(newErrors).length > 0) {
+            const firstKey = Object.keys(newErrors)[0];
+            const targetId =
+                firstKey === "firstName" ? "staff-first-name" :
+                firstKey === "lastName" ? "staff-last-name" :
+                firstKey === "email" ? "staff-login-email" :
+                firstKey === "mobile" ? "staff-mobile" :
+                firstKey === "officeId" ? "staff-office-select" : "staff-mailbox-email";
+            document.getElementById(targetId)?.focus();
             return;
         }
 
@@ -186,12 +305,15 @@ export default function CreateStaffPage() {
                 ? (formData.mailboxPrefix.trim().endsWith("/") ? formData.mailboxPrefix.trim() : `${formData.mailboxPrefix.trim()}/`)
                 : (formData.mailboxEmail.trim() ? `${formData.mailboxEmail.trim().split("@")[0].toLowerCase()}/` : undefined);
 
+            const cleanDigits = formData.mobile.replace(/\D/g, "");
+            const formattedMobile = `+91 ${cleanDigits}`;
+
             const payload = {
                 role: "staff",
                 firstName: formData.firstName.trim(),
                 lastName: formData.lastName.trim(),
-                email: formData.email.trim(),
-                mobile: formData.mobile.trim(),
+                email: formData.email.trim().toLowerCase(),
+                mobile: formattedMobile,
                 officeId: formData.officeId,
                 officeLocation: formData.officeLocation,
                 mailboxEmail: formData.mailboxEmail.trim().toLowerCase() || undefined,
@@ -307,12 +429,24 @@ export default function CreateStaffPage() {
                                     <input
                                         id="staff-first-name"
                                         type="text"
-                                        required
                                         value={formData.firstName}
-                                        onChange={e => setFormData({ ...formData, firstName: e.target.value })}
+                                        onChange={e => {
+                                            setFormData({ ...formData, firstName: e.target.value });
+                                            if (errors.firstName) setErrors(prev => ({ ...prev, firstName: undefined }));
+                                        }}
                                         placeholder="E.g. Priya"
-                                        className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-md text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400"
+                                        className={`w-full px-3.5 py-2.5 bg-white border rounded-md text-sm font-medium text-slate-900 focus:outline-none transition-all placeholder:text-slate-400 ${
+                                            errors.firstName
+                                                ? "border-rose-400 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                                                : "border-[#E2E8F0] focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600"
+                                        }`}
                                     />
+                                    {errors.firstName && (
+                                        <p className="text-[11px] font-medium text-rose-600 mt-1.5 flex items-center gap-1">
+                                            <span className="material-symbols-outlined text-[14px]">error</span>
+                                            {errors.firstName}
+                                        </p>
+                                    )}
                                 </div>
 
                                 <div>
@@ -322,46 +456,122 @@ export default function CreateStaffPage() {
                                     <input
                                         id="staff-last-name"
                                         type="text"
-                                        required
                                         value={formData.lastName}
-                                        onChange={e => setFormData({ ...formData, lastName: e.target.value })}
+                                        onChange={e => {
+                                            setFormData({ ...formData, lastName: e.target.value });
+                                            if (errors.lastName) setErrors(prev => ({ ...prev, lastName: undefined }));
+                                        }}
                                         placeholder="E.g. Sharma"
-                                        className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-md text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400"
+                                        className={`w-full px-3.5 py-2.5 bg-white border rounded-md text-sm font-medium text-slate-900 focus:outline-none transition-all placeholder:text-slate-400 ${
+                                            errors.lastName
+                                                ? "border-rose-400 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                                                : "border-[#E2E8F0] focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600"
+                                        }`}
                                     />
+                                    {errors.lastName && (
+                                        <p className="text-[11px] font-medium text-rose-600 mt-1.5 flex items-center gap-1">
+                                            <span className="material-symbols-outlined text-[14px]">error</span>
+                                            {errors.lastName}
+                                        </p>
+                                    )}
                                 </div>
 
                                 <div>
                                     <label htmlFor="staff-login-email" className="text-[13px] font-medium text-slate-700 mb-1.5 block">
                                         Login Email Address<span className="text-rose-500">*</span>
                                     </label>
-                                    <input
-                                        id="staff-login-email"
-                                        type="email"
-                                        required
-                                        value={formData.email}
-                                        onChange={e => setFormData({ ...formData, email: e.target.value })}
-                                        placeholder="priya.personal@gmail.com"
-                                        className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-md text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400"
-                                    />
-                                    <p className="text-[11px] text-slate-400 mt-1">
-                                        Used strictly for authentication and logging in at <code className="bg-slate-100 px-1 py-0.5 rounded text-slate-700 font-mono">/staff/login</code>.
-                                    </p>
+                                    <div className="relative">
+                                        <input
+                                            id="staff-login-email"
+                                            type="email"
+                                            value={formData.email}
+                                            onChange={e => handleEmailChange(e.target.value)}
+                                            onBlur={() => {
+                                                setTouched(prev => ({ ...prev, email: true }));
+                                                setErrors(prev => ({ ...prev, email: validateEmailField(formData.email) }));
+                                            }}
+                                            placeholder="priya.personal@gmail.com"
+                                            className={`w-full px-3.5 py-2.5 bg-white border rounded-md text-sm font-medium text-slate-900 focus:outline-none transition-all placeholder:text-slate-400 ${
+                                                errors.email
+                                                    ? "border-rose-400 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 pr-10"
+                                                    : formData.email && isValidEmail(formData.email)
+                                                    ? "border-emerald-400 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 pr-10"
+                                                    : "border-[#E2E8F0] focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600"
+                                            }`}
+                                        />
+                                        {formData.email && (
+                                            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none flex items-center">
+                                                {errors.email ? (
+                                                    <span className="material-symbols-outlined text-rose-500 text-lg">error</span>
+                                                ) : isValidEmail(formData.email) ? (
+                                                    <span className="material-symbols-outlined text-emerald-600 text-lg">check_circle</span>
+                                                ) : null}
+                                            </div>
+                                        )}
+                                    </div>
+                                    {errors.email ? (
+                                        <p className="text-[11px] font-medium text-rose-600 mt-1.5 flex items-center gap-1">
+                                            <span className="material-symbols-outlined text-[14px]">error</span>
+                                            {errors.email}
+                                        </p>
+                                    ) : (
+                                        <p className="text-[11px] text-slate-400 mt-1">
+                                            Used strictly for authentication and logging in at <code className="bg-slate-100 px-1 py-0.5 rounded text-slate-700 font-mono">/staff/login</code>.
+                                        </p>
+                                    )}
                                 </div>
 
                                 <div>
                                     <label htmlFor="staff-mobile" className="text-[13px] font-medium text-slate-700 mb-1.5 block">
-                                        Mobile Number<span className="text-rose-500">*</span>
+                                        Mobile Number (India)<span className="text-rose-500">*</span>
                                     </label>
-                                    <input
-                                        id="staff-mobile"
-                                        type="tel"
-                                        required
-                                        value={formData.mobile}
-                                        onChange={e => setFormData({ ...formData, mobile: e.target.value })}
-                                        placeholder="+91 98765 43210"
-                                        className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-md text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400"
-                                    />
-                                    <p className="text-[11px] text-slate-400 mt-1">Direct contact for OTP, notifications and internal escalation.</p>
+                                    <div className="relative flex rounded-md shadow-xs">
+                                        <div className="inline-flex items-center gap-1.5 px-3 py-2.5 bg-slate-50 border border-r-0 border-[#E2E8F0] rounded-l-md text-slate-700 text-xs font-bold select-none shrink-0">
+                                            <span className="text-base leading-none">🇮🇳</span>
+                                            <span>+91</span>
+                                        </div>
+                                        <input
+                                            id="staff-mobile"
+                                            type="tel"
+                                            maxLength={10}
+                                            value={formData.mobile}
+                                            onChange={e => handlePhoneChange(e.target.value)}
+                                            onBlur={() => {
+                                                setTouched(prev => ({ ...prev, mobile: true }));
+                                                setErrors(prev => ({ ...prev, mobile: validatePhoneField(formData.mobile) }));
+                                            }}
+                                            placeholder="98765 43210"
+                                            className={`flex-1 min-w-0 px-3 py-2.5 bg-white border rounded-r-md text-sm font-semibold tracking-wide text-slate-900 focus:outline-none transition-all placeholder:text-slate-400 ${
+                                                errors.mobile
+                                                    ? "border-rose-400 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 pr-10"
+                                                    : formData.mobile && isPhoneValid(formData.mobile)
+                                                    ? "border-emerald-400 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 pr-10"
+                                                    : "border-[#E2E8F0] focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600"
+                                            }`}
+                                        />
+                                        {formData.mobile && (
+                                            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none flex items-center">
+                                                {errors.mobile ? (
+                                                    <span className="material-symbols-outlined text-rose-500 text-lg">error</span>
+                                                ) : isPhoneValid(formData.mobile) ? (
+                                                    <span className="material-symbols-outlined text-emerald-600 text-lg">check_circle</span>
+                                                ) : null}
+                                            </div>
+                                        )}
+                                    </div>
+                                    {errors.mobile ? (
+                                        <p className="text-[11px] font-medium text-rose-600 mt-1.5 flex items-center gap-1">
+                                            <span className="material-symbols-outlined text-[14px]">error</span>
+                                            {errors.mobile}
+                                        </p>
+                                    ) : formData.mobile && isPhoneValid(formData.mobile) ? (
+                                        <p className="text-[11px] font-medium text-emerald-600 mt-1.5 flex items-center gap-1">
+                                            <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                                            Valid Indian mobile number (+91 {formData.mobile.slice(0, 5)} {formData.mobile.slice(5)})
+                                        </p>
+                                    ) : (
+                                        <p className="text-[11px] text-slate-400 mt-1">10-digit Indian mobile number for OTP and internal escalation.</p>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -491,7 +701,6 @@ export default function CreateStaffPage() {
                                     <input
                                         id="staff-mailbox-email"
                                         type="email"
-                                        required
                                         value={formData.mailboxEmail}
                                         onChange={e => {
                                             const val = e.target.value;
@@ -505,10 +714,31 @@ export default function CreateStaffPage() {
                                                 mailboxEmail: val,
                                                 mailboxPrefix: matched ? matched.prefix : (prev.mailboxPrefix && prev.mailboxPrefix !== `${slug}/` ? prev.mailboxPrefix : (slug ? `${slug}/` : ''))
                                             }));
+                                            if (touched.mailboxEmail) {
+                                                setErrors(prev => ({ ...prev, mailboxEmail: validateMailboxEmailField(val) }));
+                                            } else if (errors.mailboxEmail) {
+                                                setErrors(prev => ({ ...prev, mailboxEmail: undefined }));
+                                            }
+                                        }}
+                                        onBlur={() => {
+                                            if (formData.mailboxEmail) {
+                                                setTouched(prev => ({ ...prev, mailboxEmail: true }));
+                                                setErrors(prev => ({ ...prev, mailboxEmail: validateMailboxEmailField(formData.mailboxEmail) }));
+                                            }
                                         }}
                                         placeholder="abhi@vidyaloans.in"
-                                        className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-md text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400"
+                                        className={`w-full px-3.5 py-2.5 bg-white border rounded-md text-sm font-medium text-slate-900 focus:outline-none transition-all placeholder:text-slate-400 ${
+                                            errors.mailboxEmail
+                                                ? "border-rose-400 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                                                : "border-[#E2E8F0] focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600"
+                                        }`}
                                     />
+                                    {errors.mailboxEmail && (
+                                        <p className="text-[11px] font-medium text-rose-600 mt-1.5 flex items-center gap-1">
+                                            <span className="material-symbols-outlined text-[14px]">error</span>
+                                            {errors.mailboxEmail}
+                                        </p>
+                                    )}
                                     {formData.mailboxEmail && (
                                         <p className="text-[11px] text-slate-400 mt-1">
                                             Outgoing emails will be sent from <span className="text-indigo-600 font-semibold font-mono">{formData.mailboxEmail}</span>
@@ -595,7 +825,6 @@ export default function CreateStaffPage() {
                                 </label>
                                 <select
                                     id="staff-office-select"
-                                    required
                                     value={formData.officeId}
                                     onChange={e => {
                                         const selected = offices.find(o => o.id === e.target.value);
@@ -604,8 +833,13 @@ export default function CreateStaffPage() {
                                             officeId: e.target.value,
                                             officeLocation: selected ? `${selected.name} - ${selected.city} (${selected.location})` : ""
                                         });
+                                        if (errors.officeId) setErrors(prev => ({ ...prev, officeId: undefined }));
                                     }}
-                                    className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-md text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 cursor-pointer"
+                                    className={`w-full px-3.5 py-2.5 bg-white border rounded-md text-sm font-medium text-slate-900 focus:outline-none transition-all cursor-pointer ${
+                                        errors.officeId
+                                            ? "border-rose-400 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                                            : "border-[#E2E8F0] focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600"
+                                    }`}
                                 >
                                     <option value="">-- Select Office Location ({offices.length} Registered Branches) --</option>
                                     {offices.map((off: any) => (
@@ -614,6 +848,12 @@ export default function CreateStaffPage() {
                                         </option>
                                     ))}
                                 </select>
+                                {errors.officeId && (
+                                    <p className="text-[11px] font-medium text-rose-600 mt-1.5 flex items-center gap-1">
+                                        <span className="material-symbols-outlined text-[14px]">error</span>
+                                        {errors.officeId}
+                                    </p>
+                                )}
                                 {officesLoading && (
                                     <p className="text-[11px] text-slate-400 mt-1 flex items-center gap-1">
                                         <span className="animate-spin text-xs">⏳</span> Loading branches...
@@ -655,6 +895,13 @@ export default function CreateStaffPage() {
                                     <span className="text-slate-400 text-[11px] block font-medium">Portal Login Email:</span>
                                     <span className="text-slate-800 font-semibold truncate block">
                                         {formData.email || "—"}
+                                    </span>
+                                </div>
+
+                                <div>
+                                    <span className="text-slate-400 text-[11px] block font-medium">Mobile Number:</span>
+                                    <span className="text-slate-800 font-semibold truncate block">
+                                        {formData.mobile ? `+91 ${formData.mobile.slice(0, 5)} ${formData.mobile.slice(5)}` : "—"}
                                     </span>
                                 </div>
 
