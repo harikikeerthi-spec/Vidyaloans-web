@@ -206,17 +206,20 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     try {
       // Check if WhatsApp Simulator is connected
-      const digits = payload.customerPhone.replace('whatsapp:', '').trim().replace(/\D/g, '');
+      const rawPhone = payload.customerPhone || '';
+      const digits = rawPhone.replace('whatsapp:', '').trim().replace(/\D/g, '');
       const cleanPhone = digits.length > 10 && digits.startsWith('91') ? digits.substring(2) : (digits.length > 10 ? digits.slice(-10) : digits);
-      const room = this.server?.sockets?.adapter?.rooms?.get(`sim_${cleanPhone}`);
+      const room = rawPhone ? this.server?.sockets?.adapter?.rooms?.get(`sim_${cleanPhone}`) : null;
       const isSimConnected = room ? room.size > 0 : false;
       const initialStatus = isSimConnected ? 'read' : 'sent';
 
       // 1. Save to database
+      const senderName = `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || undefined;
       const msg = await this.chatService.saveMessage({
         conversationId: payload.conversationId,
         senderType,
-        senderId: user.email || user.sub,
+        senderId: user?.email || user?.sub || 'user',
+        senderName,
         receiverType: 'customer',
         content: payload.content,
         status: initialStatus
@@ -245,6 +248,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             lastMessage: msg
           });
         }
+      } else if (convType === 'bank') {
+        this.server.to('room_staff').emit('conversation_updated', {
+          conversationId: payload.conversationId,
+          lastMessage: msg
+        });
+        this.server.to('room_bank').emit('conversation_updated', {
+          conversationId: payload.conversationId,
+          lastMessage: msg
+        });
       } else {
         if (user.role === 'bank' || user.role === 'partner_bank') {
           this.server.to('room_bank').emit('conversation_updated', {
@@ -496,6 +508,25 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         conversationId: payload.conversationId,
         lastMessage: lastMsg
       });
+    }
+  }
+
+  @OnEvent('chat.conversation.created')
+  async handleConversationCreated(payload: { conversation: any, type: string, bankName?: string }) {
+    this.logger.log(`Broadcasting newly created conversation ${payload.conversation?.id}`);
+    if (this.server && payload.conversation) {
+      if (payload.type === 'bank') {
+        this.server.to('room_bank').emit('conversation_updated', {
+          conversationId: payload.conversation.id
+        });
+        this.server.to('room_staff').emit('conversation_updated', {
+          conversationId: payload.conversation.id
+        });
+      } else {
+        this.server.to('room_staff').emit('conversation_updated', {
+          conversationId: payload.conversation.id
+        });
+      }
     }
   }
 }

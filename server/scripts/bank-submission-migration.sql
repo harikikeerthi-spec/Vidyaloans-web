@@ -56,3 +56,28 @@ CREATE INDEX IF NOT EXISTS idx_banksubmission_status ON "BankSubmission"("workfl
 CREATE UNIQUE INDEX IF NOT EXISTS idx_banksubmission_app_bank ON "BankSubmission"("applicationId", "bankId");
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON "BankSubmission" TO anon, authenticated, service_role;
+
+-- Ensure LoanApplication has required columns for bank workflow
+ALTER TABLE "LoanApplication" ADD COLUMN IF NOT EXISTS "bankSubmissionId" TEXT;
+ALTER TABLE "LoanApplication" ADD COLUMN IF NOT EXISTS "bankWorkflowStatus" VARCHAR(50);
+ALTER TABLE "LoanApplication" ADD COLUMN IF NOT EXISTS "bankWorkflowStage" VARCHAR(50);
+ALTER TABLE "LoanApplication" ADD COLUMN IF NOT EXISTS "submittedToBankAt" TIMESTAMP(3);
+ALTER TABLE "LoanApplication" ADD COLUMN IF NOT EXISTS "targetBank" VARCHAR(255);
+ALTER TABLE "LoanApplication" ADD COLUMN IF NOT EXISTS "assignedBank" VARCHAR(255);
+ALTER TABLE "LoanApplication" ADD COLUMN IF NOT EXISTS "decisionStatus" VARCHAR(50);
+ALTER TABLE "LoanApplication" ADD COLUMN IF NOT EXISTS "decisionNotes" TEXT;
+ALTER TABLE "LoanApplication" ADD COLUMN IF NOT EXISTS "decisionMadeAt" TIMESTAMP(3);
+ALTER TABLE "LoanApplication" ADD COLUMN IF NOT EXISTS "decisionMadeBy" TEXT;
+ALTER TABLE "LoanApplication" ADD COLUMN IF NOT EXISTS "conditions" JSONB;
+ALTER TABLE "LoanApplication" ADD COLUMN IF NOT EXISTS "counterOfferDetails" JSONB;
+ALTER TABLE "LoanApplication" ADD COLUMN IF NOT EXISTS "rejectionReason" TEXT;
+ALTER TABLE "LoanApplication" ADD COLUMN IF NOT EXISTS "disbursementStatus" VARCHAR(50);
+ALTER TABLE "LoanApplication" ADD COLUMN IF NOT EXISTS "disbursementAmount" DOUBLE PRECISION;
+ALTER TABLE "LoanApplication" ADD COLUMN IF NOT EXISTS "disbursementDate" TIMESTAMP(3);
+ALTER TABLE "LoanApplication" ADD COLUMN IF NOT EXISTS "disbursementReferenceNo" VARCHAR(255);
+ALTER TABLE "LoanApplication" ADD COLUMN IF NOT EXISTS "processingFeeStatus" VARCHAR(50);
+ALTER TABLE "LoanApplication" ADD COLUMN IF NOT EXISTS "processingFeeAmount" DOUBLE PRECISION;
+ALTER TABLE "LoanApplication" ADD COLUMN IF NOT EXISTS "processingFeePaidAt" TIMESTAMP(3);
+ALTER TABLE "LoanApplication" ADD COLUMN IF NOT EXISTS "queriesRaised" INTEGER DEFAULT 0;
+ALTER TABLE "LoanApplication" ADD COLUMN IF NOT EXISTS "lastQueryAt" TIMESTAMP(3);
+ALTER TABLE "LoanApplication" ADD COLUMN IF NOT EXISTS "queryResponsePending" BOOLEAN DEFAULT false;

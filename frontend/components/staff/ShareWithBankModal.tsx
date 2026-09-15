@@ -139,6 +139,22 @@ export default function ShareWithBankModal({
         } else {
           setSubmissionId(`MULT-${applicationId.slice(-6).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`);
         }
+
+        // Auto-create chat conversations for each submitted bank in multi-bank mode
+        for (const b of selectedBanksList) {
+          try {
+            await apiFetch("/api/chat/bank-start", {
+              method: "POST",
+              body: JSON.stringify({
+                bankName: b.bankName,
+                applicationId,
+                applicationNumber,
+              }),
+            });
+          } catch (chatErr) {
+            console.warn(`[ShareWithBankModal] Failed to create bank chat for ${b.bankName}:`, chatErr);
+          }
+        }
       } else {
         // Submit to bank workflow — this creates the BankSubmission record,
         // sets bank, submittedToBankAt, bankWorkflowStatus, status='submitted_to_bank',
@@ -187,6 +203,21 @@ export default function ShareWithBankModal({
           realSubmissionId ||
           `SUB-${applicationId.slice(-6).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
         setSubmissionId(submissionRef);
+
+        // Auto-create a bank chat conversation so it shows in staff BANKS tab
+        try {
+          await apiFetch("/api/chat/bank-start", {
+            method: "POST",
+            body: JSON.stringify({
+              bankName: selectedBankName,
+              applicationId,
+              applicationNumber,
+            }),
+          });
+        } catch (chatErr) {
+          // Non-fatal: chat creation failure should not block the submission success
+          console.warn("[ShareWithBankModal] Failed to create bank chat conversation:", chatErr);
+        }
       }
 
       setSuccess(true);

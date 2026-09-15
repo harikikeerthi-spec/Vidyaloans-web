@@ -21,12 +21,15 @@ export class ChatController {
   ) {}
 
   @Get('conversations')
-  async getConversations(@Req() req: any, @Query('bankName') bankName?: string) {
-    // For bank users: if explicit bankName is passed from client, use it;
-    // otherwise fall back to the user object's bankName / firstName
+  async getConversations(@Req() req: any, @Query('bankName') bankName?: string, @Query('role') role?: string) {
     const userWithBank = { ...req.user };
+    if (role && (role === 'bank' || role === 'partner_bank')) {
+      userWithBank.role = role;
+    }
     if (bankName) {
       userWithBank.bankName = bankName;
+    } else if (userWithBank.bank) {
+      userWithBank.bankName = userWithBank.bank;
     }
     return this.chatService.getConversations('active', userWithBank);
   }

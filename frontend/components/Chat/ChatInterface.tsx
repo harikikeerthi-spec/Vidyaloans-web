@@ -14,6 +14,17 @@ const BANK_NAME_MAP: Record<string, string> = {
     poonawalla: "Poonawalla Fincorp",
 };
 
+export function normalizeBankName(nameOrKey?: string | null): string | undefined {
+    if (!nameOrKey) return undefined;
+    const lower = nameOrKey.toLowerCase().trim();
+    if (lower.includes('avanse')) return 'Avanse Financial';
+    if (lower.includes('auxilo')) return 'Auxilo Finserve';
+    if (lower.includes('credila') || lower.includes('hdfc')) return 'HDFC Credila';
+    if (lower.includes('idfc')) return 'IDFC FIRST Bank';
+    if (lower.includes('poonawalla')) return 'Poonawalla Fincorp';
+    return nameOrKey;
+}
+
 function formatMessageGroupDate(dateStr: string) {
     const date = new Date(dateStr);
     const today = new Date();
@@ -301,17 +312,48 @@ export default function ChatInterface({ role, initialUser, initialBank, initialC
     // Resolve the full bank name for the current bank session
     const resolvedBankName = useMemo(() => {
         if (role !== 'bank') return undefined;
-        // 1. Try user.bankName
-        if (user?.bankName) return user.bankName;
-        // 2. Try selectedBank from sessionStorage
-        if (typeof window !== 'undefined') {
-            const savedKey = sessionStorage.getItem('selectedBank') || localStorage.getItem('selectedBank');
-            if (savedKey && BANK_NAME_MAP[savedKey]) return BANK_NAME_MAP[savedKey];
+        // 1. Try initialBank.bankName from props
+        if (initialBank?.bankName) {
+            const norm = normalizeBankName(initialBank.bankName);
+            if (norm) return norm;
         }
-        // 3. Fallback to user.firstName (legacy)
-        if (user?.firstName) return user.firstName;
+        // 2. Try window URL query param ?bank= or ?bankName=
+        if (typeof window !== 'undefined') {
+            const sp = new URLSearchParams(window.location.search);
+            const urlBank = sp.get('bank') || sp.get('bankName');
+            if (urlBank) {
+                const norm = normalizeBankName(urlBank);
+                if (norm) return norm;
+            }
+        }
+        // 3. Try user.bankName or user.bank
+        const userBank = user?.bankName || (user as any)?.bank;
+        if (userBank) {
+            const norm = normalizeBankName(userBank);
+            if (norm) return norm;
+        }
+        // 4. Try sessionStorage/localStorage
+        if (typeof window !== 'undefined') {
+            const storedName = sessionStorage.getItem('selectedBankName') || localStorage.getItem('selectedBankName');
+            if (storedName) {
+                const norm = normalizeBankName(storedName);
+                if (norm) return norm;
+            }
+            const storedKey = sessionStorage.getItem('selectedBank') || localStorage.getItem('selectedBank');
+            if (storedKey) {
+                const norm = normalizeBankName(storedKey);
+                if (norm) return norm;
+            }
+        }
+        // 5. If user is bank representative whose firstName contains bank name
+        if (user?.role === 'bank' || (user as any)?.role === 'partner_bank') {
+            if (user?.firstName) {
+                const norm = normalizeBankName(user.firstName);
+                if (norm && norm !== user.firstName) return norm;
+            }
+        }
         return undefined;
-    }, [role, user]);
+    }, [role, user, initialBank?.bankName]);
 
     const fetchConversations = async () => {
         try {
@@ -935,6 +977,7 @@ export default function ChatInterface({ role, initialUser, initialBank, initialC
                     return [data.conversation, ...prev];
                 });
                 setActiveConversation(data.conversation.id);
+                fetchConversations();
             } else {
                 console.error("startBankChat response not successful:", data);
             }
@@ -1197,7 +1240,11 @@ export default function ChatInterface({ role, initialUser, initialBank, initialC
         if (role === 'bank') {
             // Extra client-side safety: show bank-type conversations matching this bank
             if (c.metadata?.type !== 'bank') return false;
-            if (resolvedBankName && c.metadata?.bank && c.metadata.bank !== resolvedBankName) return false;
+            if (resolvedBankName) {
+                const convBank = normalizeBankName(c.metadata?.bank);
+                const targetBank = normalizeBankName(resolvedBankName);
+                if (convBank && targetBank && convBank !== targetBank) return false;
+            }
             return true;
         }
         if (role === 'agent') {
@@ -1212,6 +1259,13 @@ export default function ChatInterface({ role, initialUser, initialBank, initialC
         if (chatTypeFilter === 'student') return c.metadata?.type !== 'bank';
         return true; // 'all'
     });
+
+    // In bank portal, auto-select the first conversation if none is active
+    useEffect(() => {
+        if (role === 'bank' && !activeConversation && filteredConversations.length > 0) {
+            setActiveConversation(filteredConversations[0].id);
+        }
+    }, [role, activeConversation, filteredConversations]);
 
     const filteredUsers = allUsers.filter(u =>
         u.role !== 'admin' && u.role !== 'staff' && u.role !== 'agent' &&

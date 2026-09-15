@@ -35,6 +35,9 @@ import { SiteSettingsModule } from './site-settings/site-settings.module';
 import { MailModule } from './mail/mail.module';
 import { AnalystModule } from './analyst/analyst.module';
 import { MarketingModule } from './marketing/marketing.module';
+import { ErrorLogModule } from './error-log/error-log.module';
+import { APP_FILTER } from '@nestjs/core';
+import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 
 @Module({
   imports: [
@@ -74,8 +77,15 @@ import { MarketingModule } from './marketing/marketing.module';
     MailModule,
     AnalystModule,
     MarketingModule,
+    ErrorLogModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_FILTER,
+      useClass: GlobalExceptionFilter,
+    },
+  ],
 })
 export class AppModule { }

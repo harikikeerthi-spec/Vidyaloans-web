@@ -1,43 +1,156 @@
 "use client";
 
 import { useUserDossier } from "../DossierContext";
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { documentApi, staffProfileApi } from "@/lib/api";
+import { getProfileDocumentRequirements, getDocumentRequirementName } from "@/lib/documentRequirements";
+
+export const DOCUMENT_OPTIONS_GROUPED = [
+    {
+        group: "Parents Documents",
+        options: [
+            { value: "father_aadhar", label: "Father's Aadhaar Card" },
+            { value: "father_pan", label: "Father's PAN Card" },
+            { value: "mother_aadhar", label: "Mother's Aadhaar Card" },
+            { value: "mother_pan", label: "Mother's PAN Card" },
+            { value: "parent_aadhar", label: "Parent's Aadhaar Card" },
+            { value: "parent_pan", label: "Parent's PAN Card" },
+        ],
+    },
+    {
+        group: "Co-Applicant Documents",
+        options: [
+            { value: "coapplicant_aadhar", label: "Co-Applicant's Aadhaar Card" },
+            { value: "coapplicant_pan", label: "Co-Applicant's PAN Card" },
+            { value: "coapplicant_income_proof", label: "Co-Applicant Income Proof (Salary Slips / Form 16)" },
+            { value: "coapplicant_bank_statement", label: "Co-Applicant 6-Month Bank Statement" },
+            { value: "coapplicant_itr", label: "Co-Applicant ITR (Income Tax Return)" },
+        ],
+    },
+    {
+        group: "Student Documents",
+        options: [
+            { value: "passport", label: "Passport (Front & Back)" },
+            { value: "national_id", label: "National ID / Aadhaar Card" },
+            { value: "pan", label: "PAN Card" },
+            { value: "marksheet_10", label: "10th Marksheet" },
+            { value: "marksheet_12", label: "12th / Diploma Marksheet" },
+            { value: "degree_certificate", label: "Degree Certificate / CMM" },
+            { value: "ug_transcript", label: "Undergraduate Transcript" },
+            { value: "ug_degree", label: "Undergraduate Degree" },
+            { value: "pg_transcript", label: "Postgraduate Transcript" },
+            { value: "pg_degree", label: "Postgraduate Degree" },
+            { value: "offer_letter", label: "Offer / Admission Letter" },
+            { value: "visa", label: "Visa" },
+            { value: "english_test", label: "IELTS / TOEFL / PTE Score Card" },
+            { value: "aptitude_test", label: "GRE / GMAT / SAT Score Card" },
+            { value: "lor", label: "Letter of Recommendation (LOR)" },
+            { value: "sop", label: "Statement of Purpose (SOP)" },
+        ],
+    },
+    {
+        group: "Financial & Supporting Documents",
+        options: [
+            { value: "income_proof", label: "Income Proof" },
+            { value: "bank_statement", label: "Bank Statement (6 Months)" },
+            { value: "financial_statement", label: "Financial Statement" },
+            { value: "loan_sanction", label: "Loan Sanction Letter" },
+            { value: "collateral_docs", label: "Property / Collateral Documents" },
+            { value: "insurance", label: "Insurance" },
+            { value: "other", label: "Other Document (Specify Custom Name)" },
+        ],
+    },
+];
 
 const DOC_TYPE_LABELS: Record<string, string> = {
-    passport: "Passport",
-    visa: "Visa",
-    offer_letter: "Offer Letter",
-    financial_statement: "Financial Statement",
-    bank_statement: "Bank Statement",
-    academic_transcript: "Academic Transcript",
+    // Parents
+    father_aadhar: "Father's Aadhaar Card",
+    father_pan: "Father's PAN Card",
+    mother_aadhar: "Mother's Aadhaar Card",
+    mother_pan: "Mother's PAN Card",
+    parent_aadhar: "Parent's Aadhaar Card",
+    parent_pan: "Parent's PAN Card",
+
+    // Co-applicant
+    coapplicant_aadhar: "Co-Applicant's Aadhaar Card",
+    coapplicant_pan: "Co-Applicant's PAN Card",
+    coapplicant_income_proof: "Co-Applicant Income Proof",
+    coapplicant_bank_statement: "Co-Applicant 6-Month Bank Statement",
+    coapplicant_itr: "Co-Applicant ITR",
+
+    // Student
+    passport: "Passport (Front & Back)",
+    national_id: "National ID / Aadhaar Card",
+    aadhar: "Aadhaar Card",
+    aadhaar: "Aadhaar Card",
+    pan: "PAN Card",
+    marksheet_10: "10th Marksheet",
+    marksheet_12: "12th / Diploma Marksheet",
     degree_certificate: "Degree Certificate / CMM",
     cmm: "Degree Certificate / CMM",
     consolidated_marks_memo: "Degree Certificate / CMM",
-    identity_proof: "Identity Proof",
-    address_proof: "Address Proof",
-    income_proof: "Income Proof",
-    loan_sanction: "Loan Sanction Letter",
-    insurance: "Insurance",
+    ug_transcript: "Undergraduate Transcript",
+    ug_degree: "Undergraduate Degree",
+    pg_transcript: "Postgraduate Transcript",
+    pg_degree: "Postgraduate Degree",
+    offer_letter: "Offer / Admission Letter",
+    visa: "Visa",
+    english_test: "IELTS / TOEFL / PTE Score Card",
     ielts_toefl: "IELTS / TOEFL Score",
+    aptitude_test: "GRE / GMAT / SAT Score Card",
+    work_letters: "Work Experience Letters",
     lor: "Letter of Recommendation",
     sop: "Statement of Purpose",
+
+    // Financial & Supporting
+    income_proof: "Income Proof",
+    bank_statement: "Bank Statement",
+    financial_statement: "Financial Statement",
+    loan_sanction: "Loan Sanction Letter",
+    collateral_docs: "Property / Collateral Documents",
+    insurance: "Insurance",
     other: "Other Document",
 };
 
-const DOC_TYPE_OPTIONS = Object.entries(DOC_TYPE_LABELS).map(([value, label]) => ({ value, label }));
-
-function getDocLabel(doc: any): string {
-    const t = doc.docType || doc.type || doc.documentType || "other";
+function getDocLabel(doc: any, userData?: any): string {
+    if (doc.docName) return doc.docName;
+    if (doc.verificationMetadata?.docName) return doc.verificationMetadata.docName;
+    const t = (doc.docType || doc.type || doc.documentType || "other").toLowerCase();
     if (DOC_TYPE_LABELS[t]) return DOC_TYPE_LABELS[t];
+    if (userData) {
+        const dynName = getDocumentRequirementName(t, undefined, userData);
+        if (dynName && dynName !== t) return dynName;
+    }
     if (t.startsWith("custom_")) {
         return t.replace("custom_", "").replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
     }
     return t.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
 }
 
-function statusConfig(status: string) {
+function getDocScope(docType: string): { label: string; color: string; icon: string; category: "parent" | "coapplicant" | "student" | "financial" } {
+    const t = String(docType || "").toLowerCase();
+    if (t.startsWith("father_") || t.startsWith("mother_") || t.startsWith("parent_")) {
+        return { label: "Parent Document", color: "bg-amber-50 text-amber-700 border-amber-200", icon: "family_restroom", category: "parent" };
+    }
+    if (t.startsWith("coapplicant_")) {
+        return { label: "Co-Applicant Document", color: "bg-purple-50 text-purple-700 border-purple-200", icon: "group", category: "coapplicant" };
+    }
+    if (t.includes("bank") || t.includes("income") || t.includes("financial") || t.includes("itr") || t.includes("salary") || t.includes("collateral")) {
+        return { label: "Financial Document", color: "bg-blue-50 text-blue-700 border-blue-200", icon: "account_balance", category: "financial" };
+    }
+    return { label: "Student Document", color: "bg-indigo-50 text-indigo-700 border-indigo-200", icon: "school", category: "student" };
+}
+
+function statusConfig(status: string, isUploaded: boolean) {
+    if (!isUploaded) {
+        return {
+            label: "Not Uploaded",
+            className: "bg-slate-100 text-slate-600 border-slate-200",
+            icon: "upload_file",
+            iconColor: "text-slate-400",
+        };
+    }
     const s = (status || "").toLowerCase();
     if (s === "approved" || s === "verified") {
         return {
@@ -72,7 +185,7 @@ export default function DocumentsTab() {
 
     // Upload modal state
     const [isUploadOpen, setIsUploadOpen] = useState(false);
-    const [uploadDocType, setUploadDocType] = useState("passport");
+    const [uploadDocType, setUploadDocType] = useState("father_aadhar");
     const [uploadCustomType, setUploadCustomType] = useState("");
     const [uploadFile, setUploadFile] = useState<File | null>(null);
     const [uploadProgress, setUploadProgress] = useState(0);
@@ -85,52 +198,153 @@ export default function DocumentsTab() {
     const [rejectReason, setRejectReason] = useState("");
     const [actionLoading, setActionLoading] = useState<string | null>(null); // docId being actioned
 
-    // Filter logic: Pending shows documents that are not verified and not rejected
-    const filtered = userDocuments.filter((doc) => {
-        const label = getDocLabel(doc).toLowerCase();
-        const matchesSearch = label.includes(search.toLowerCase());
-        const status = (doc.status || "pending").toLowerCase();
-        
-        const isVerified = status === "approved" || status === "verified";
-        const isRejected = status === "rejected";
-        const isPending = !isVerified && !isRejected;
+    // Combine standard requirements (student + parents + coapplicant) with uploaded documents
+    const allDocuments = useMemo(() => {
+        const inferredReqs = getProfileDocumentRequirements(userData || {});
 
-        const matchesFilter =
-            filterStatus === "all" ||
-            (filterStatus === "approved" && isVerified) ||
-            (filterStatus === "rejected" && isRejected) ||
-            (filterStatus === "pending" && isPending);
-            
-        return matchesSearch && matchesFilter;
-    }).sort((a, b) => {
-        const aUploaded = !!(a.uploaded || a.filePath);
-        const bUploaded = !!(b.uploaded || b.filePath);
-        if (aUploaded !== bUploaded) {
-            return aUploaded ? -1 : 1;
+        const coAppObj = userData?.coApplicant || {};
+        const coAppName = typeof coAppObj === "object" ? (coAppObj.name || coAppObj.coApplicantName || userData?.coApplicantName) : "";
+        const parentOrCoAppLabel = coAppName ? `${coAppName} (Co-Applicant)` : "Parent / Co-Applicant";
+
+        const standardReqs = [...inferredReqs];
+        if (!standardReqs.some(r => r.type === "coapplicant_bank_statement")) {
+            standardReqs.push({
+                name: `${parentOrCoAppLabel}'s 6-Month Bank Statement`,
+                label: `${parentOrCoAppLabel}'s 6-Month Bank Statement`,
+                type: "coapplicant_bank_statement",
+                category: "financial",
+                required: true,
+            });
         }
-        const aTime = new Date(a.updatedAt || a.uploadedAt || a.createdAt || 0).getTime();
-        const bTime = new Date(b.updatedAt || b.uploadedAt || b.createdAt || 0).getTime();
-        return bTime - aTime;
-    });
+        if (!standardReqs.some(r => r.type === "coapplicant_income_proof")) {
+            standardReqs.push({
+                name: `${parentOrCoAppLabel}'s Income Proof (Salary Slips / Form 16 / ITR)`,
+                label: `${parentOrCoAppLabel}'s Income Proof (Salary Slips / Form 16 / ITR)`,
+                type: "coapplicant_income_proof",
+                category: "financial",
+                required: true,
+            });
+        }
+
+        const normalizedType = (t: string) => {
+            const s = (t || "").toLowerCase();
+            if (s === "aadhar" || s === "aadhaar") return "national_id";
+            if (s === "cmm" || s === "consolidated_marks_memo") return "degree_certificate";
+            return s;
+        };
+
+        const result: any[] = [];
+        const matchedUserDocIds = new Set<string>();
+
+        // 1. Process standard requirements
+        for (const req of standardReqs) {
+            const reqNorm = normalizedType(req.type);
+            const matchingDoc = userDocuments.find(d => {
+                const docNorm = normalizedType(d.docType || d.type || "");
+                return docNorm === reqNorm || docNorm === req.type.toLowerCase();
+            });
+
+            if (matchingDoc) {
+                matchedUserDocIds.add(matchingDoc.id || matchingDoc._id || matchingDoc.docType);
+                result.push({
+                    ...matchingDoc,
+                    docType: matchingDoc.docType || req.type,
+                    docName: matchingDoc.docName || req.name,
+                    category: req.category,
+                    isRequirement: true,
+                    uploaded: Boolean(matchingDoc.uploaded || matchingDoc.filePath),
+                });
+            } else {
+                result.push({
+                    id: `req-${req.type}`,
+                    docType: req.type,
+                    docName: req.name,
+                    status: "pending",
+                    uploaded: false,
+                    category: req.category,
+                    isRequirement: true,
+                });
+            }
+        }
+
+        // 2. Append any extra uploaded documents not in standard requirements
+        for (const doc of userDocuments) {
+            const docId = doc.id || doc._id || doc.docType;
+            if (!matchedUserDocIds.has(docId)) {
+                result.push({
+                    ...doc,
+                    isRequirement: false,
+                    uploaded: Boolean(doc.uploaded || doc.filePath),
+                });
+            }
+        }
+
+        return result;
+    }, [userData, userDocuments]);
+
+    // Filter logic
+    const filtered = useMemo(() => {
+        return allDocuments.filter((doc) => {
+            const label = getDocLabel(doc, userData).toLowerCase();
+            const matchesSearch = label.includes(search.toLowerCase()) || (doc.docType || "").toLowerCase().includes(search.toLowerCase());
+            
+            const isUploaded = Boolean(doc.uploaded || doc.filePath);
+            const status = (doc.status || "pending").toLowerCase();
+            const isVerified = (status === "approved" || status === "verified") && isUploaded;
+            const isRejected = status === "rejected";
+            const isPending = !isVerified && !isRejected;
+
+            const matchesStatus =
+                filterStatus === "all" ||
+                (filterStatus === "approved" && isVerified) ||
+                (filterStatus === "rejected" && isRejected) ||
+                (filterStatus === "pending" && isPending);
+
+            return matchesSearch && matchesStatus;
+        }).sort((a, b) => {
+            const aUploaded = Boolean(a.uploaded || a.filePath);
+            const bUploaded = Boolean(b.uploaded || b.filePath);
+            if (aUploaded !== bUploaded) {
+                return aUploaded ? -1 : 1;
+            }
+            const aTime = new Date(a.updatedAt || a.uploadedAt || a.createdAt || 0).getTime();
+            const bTime = new Date(b.updatedAt || b.uploadedAt || b.createdAt || 0).getTime();
+            return bTime - aTime;
+        });
+    }, [allDocuments, search, filterStatus, userData]);
 
     const stats = {
-        total: userDocuments.length,
-        verified: userDocuments.filter((d) => {
+        total: allDocuments.length,
+        verified: allDocuments.filter((d) => {
             const s = (d.status || "").toLowerCase();
-            return s === "approved" || s === "verified";
+            return (s === "approved" || s === "verified") && Boolean(d.uploaded || d.filePath);
         }).length,
-        rejected: userDocuments.filter((d) => (d.status || "").toLowerCase() === "rejected").length,
-        pending: userDocuments.filter((d) => {
+        rejected: allDocuments.filter((d) => (d.status || "").toLowerCase() === "rejected").length,
+        pending: allDocuments.filter((d) => {
             const s = (d.status || "").toLowerCase();
-            return s !== "approved" && s !== "verified" && s !== "rejected";
+            const isVerified = (s === "approved" || s === "verified") && Boolean(d.uploaded || d.filePath);
+            return !isVerified && s !== "rejected";
         }).length,
     };
 
-    // ── Upload handler ──────────────────────────────────────────────────
+    // Open upload modal with specific doc type pre-selected
+    const openUploadModal = (docType?: string) => {
+        if (docType) {
+            setUploadDocType(docType);
+        }
+        setUploadError("");
+        setUploadFile(null);
+        setUploadCustomType("");
+        setIsUploadOpen(true);
+    };
+
+    // ── Upload handler (Without OCR for Staff) ───────────────────────────
     const handleUpload = async () => {
         if (!uploadFile) return;
 
         let finalDocType = uploadDocType;
+        let finalDocName: string | undefined = undefined;
+
         if (uploadDocType === "other") {
             if (!uploadCustomType.trim()) {
                 setUploadError("Please specify the custom document type name.");
@@ -138,23 +352,35 @@ export default function DocumentsTab() {
             }
             const cleanSlug = uploadCustomType.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_');
             finalDocType = `custom_${cleanSlug}`;
+            finalDocName = uploadCustomType.trim();
+        } else {
+            finalDocName = DOC_TYPE_LABELS[uploadDocType] || uploadDocType;
         }
 
         setUploading(true);
         setUploadError("");
         try {
-            const res = await documentApi.upload(userId, finalDocType, uploadFile, (pct) => setUploadProgress(pct)) as any;
+            // Staff upload: skipOcr=true ensures OCR processing and strict cross-validation are bypassed!
+            const res = await documentApi.upload(
+                userId,
+                finalDocType,
+                uploadFile,
+                (pct) => setUploadProgress(pct),
+                finalDocName,
+                true // skipOcr = true
+            ) as any;
+
             const docId = res?.data?.id || res?.data?._id;
             if (docId) {
                 // Staff uploads go to verified directly
-                await documentApi.accept(docId);
+                await documentApi.accept(docId).catch(() => {});
             }
 
             // Log activity in DB
             const studentName = userData ? `${userData.firstName || ''} ${userData.lastName || ''}`.trim() : 'student';
             staffProfileApi.logActivity({
                 type: 'upload',
-                msg: `Uploaded ${getDocLabel({ docType: finalDocType })} for ${studentName}`,
+                msg: `Uploaded ${getDocLabel({ docType: finalDocType, docName: finalDocName }, userData)} for ${studentName} without OCR`,
                 icon: 'upload_file',
                 color: 'bg-purple-50 text-purple-700 border-purple-100'
             }).catch(console.error);
@@ -189,7 +415,7 @@ export default function DocumentsTab() {
             const studentName = userData ? `${userData.firstName || ''} ${userData.lastName || ''}`.trim() : 'student';
             staffProfileApi.logActivity({
                 type: 'approved',
-                msg: `Verified ${getDocLabel(doc)} for ${studentName}`,
+                msg: `Verified ${getDocLabel(doc, userData)} for ${studentName}`,
                 icon: 'verified',
                 color: 'bg-emerald-50 text-emerald-700 border-emerald-100'
             }).catch(console.error);
@@ -220,7 +446,7 @@ export default function DocumentsTab() {
             const studentName = userData ? `${userData.firstName || ''} ${userData.lastName || ''}`.trim() : 'student';
             staffProfileApi.logActivity({
                 type: 'rejected',
-                msg: `Rejected ${getDocLabel(rejectDoc)} for ${studentName}${rejectReason ? `: "${rejectReason}"` : ''}`,
+                msg: `Rejected ${getDocLabel(rejectDoc, userData)} for ${studentName}${rejectReason ? `: "${rejectReason}"` : ''}`,
                 icon: 'block',
                 color: 'bg-rose-50 text-rose-700 border-rose-100'
             }).catch(console.error);
@@ -237,7 +463,7 @@ export default function DocumentsTab() {
 
     // ── View Document Handler ───────────────────────────────────────────
     const handleView = async (doc: any) => {
-        const docLabel = getDocLabel(doc);
+        const docLabel = getDocLabel(doc, userData);
         try {
             const res = await documentApi.getPresignedView(userId, doc.docType) as any;
             if (res && res.url) {
@@ -265,12 +491,14 @@ export default function DocumentsTab() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
                     <h2 className="text-xl font-black text-slate-900 tracking-tight" style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>
-                        Documents
+                        Documents Dossier
                     </h2>
-                    <p className="text-xs text-slate-500 mt-1 font-semibold">All documents uploaded by this student</p>
+                    <p className="text-xs text-slate-500 mt-1 font-semibold">
+                        Student, Parents & Co-Applicant required documents for loan processing
+                    </p>
                 </div>
                 <button
-                    onClick={() => { setIsUploadOpen(true); setUploadError(""); }}
+                    onClick={() => openUploadModal()}
                     className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-[#6605c7] to-[#8b24e5] hover:opacity-90 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md hover:shadow-purple-500/20 active:scale-95 cursor-pointer border-0"
                 >
                     <span className="material-symbols-outlined text-[16px]">upload_file</span>
@@ -283,7 +511,7 @@ export default function DocumentsTab() {
                 {[
                     { label: "Total Documents", value: stats.total, icon: "folder", color: "from-indigo-500/10 to-indigo-500/5", text: "text-indigo-600" },
                     { label: "Verified", value: stats.verified, icon: "verified", color: "from-emerald-500/10 to-emerald-500/5", text: "text-emerald-600" },
-                    { label: "Pending Review", value: stats.pending, icon: "schedule", color: "from-amber-500/10 to-amber-500/5", text: "text-amber-600" },
+                    { label: "Pending / Required", value: stats.pending, icon: "schedule", color: "from-amber-500/10 to-amber-500/5", text: "text-amber-600" },
                     { label: "Rejected", value: stats.rejected, icon: "block", color: "from-rose-500/10 to-rose-500/5", text: "text-rose-600" },
                 ].map((stat, i) => (
                     <div key={i} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex items-center gap-4">
@@ -298,7 +526,7 @@ export default function DocumentsTab() {
                 ))}
             </div>
 
-            {/* Filters */}
+            {/* Search & Status Filters */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                 <div className="relative flex-1 max-w-xs">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-[18px] text-slate-400">search</span>
@@ -306,23 +534,23 @@ export default function DocumentsTab() {
                         type="text"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Search documents..."
-                        className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#6605c7]/20 focus:border-[#6605c7] transition-all placeholder:text-slate-400"
+                        placeholder="Search document name..."
+                        className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#6605c7]/20 focus:border-[#6605c7] transition-all placeholder:text-slate-400"
                     />
                 </div>
 
-                <div className="flex items-center gap-2 bg-slate-100/60 p-1 rounded-xl border border-slate-200/60">
+                <div className="flex items-center gap-1.5 bg-slate-100/70 p-1 rounded-xl border border-slate-200/60">
                     {(["all", "pending", "approved", "rejected"] as const).map((f) => (
                         <button
                             key={f}
                             onClick={() => setFilterStatus(f)}
                             className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer border-0 ${
                                 filterStatus === f
-                                    ? "bg-white text-[#6605c7] shadow-sm border border-[#6605c7]/10"
-                                    : "text-slate-500 hover:text-slate-700 hover:bg-white/50"
+                                    ? "bg-white text-[#6605c7] shadow-sm font-black"
+                                    : "text-slate-500 hover:text-slate-800 hover:bg-white/50 font-bold"
                             }`}
                         >
-                            {f === "all" ? "All" : f === "approved" ? "Verified" : f.charAt(0).toUpperCase() + f.slice(1)}
+                            {f === "all" ? "All Status" : f === "approved" ? "Verified" : f === "pending" ? "Pending" : "Rejected"}
                         </button>
                     ))}
                 </div>
@@ -335,25 +563,25 @@ export default function DocumentsTab() {
                         <span className="material-symbols-outlined text-[32px] text-[#6605c7]/40">folder_off</span>
                     </div>
                     <h3 className="text-sm font-black text-slate-700 uppercase tracking-wide">
-                        {userDocuments.length === 0 ? "No Documents Uploaded" : "No Results Found"}
+                        No Documents Found
                     </h3>
                     <p className="text-xs text-slate-400 font-semibold mt-2 max-w-xs">
-                        {userDocuments.length === 0
-                            ? "This student hasn't uploaded any documents to their vault yet."
-                            : "Try adjusting your search or filter settings."}
+                        No documents match your current filter criteria.
                     </p>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {filtered.map((doc: any, idx: number) => {
+                        const isUploaded = Boolean(doc.uploaded || doc.filePath);
                         const status = (doc.status || "pending").toLowerCase();
-                        const isVerified = status === "approved" || status === "verified";
+                        const isVerified = (status === "approved" || status === "verified") && isUploaded;
                         const isRejected = status === "rejected";
 
-                        const { label, className, icon, iconColor } = statusConfig(doc.status);
-                        const docLabel = getDocLabel(doc);
+                        const { label, className, icon, iconColor } = statusConfig(doc.status, isUploaded);
+                        const docLabel = getDocLabel(doc, userData);
+                        const scopeInfo = getDocScope(doc.docType);
                         const uploadDate = doc.createdAt || doc.uploadedAt || doc.created_at;
-                        const docId = doc.id || doc._id;
+                        const docId = doc.id || doc._id || doc.docType;
                         const isActioning = actionLoading === docId;
 
                         return (
@@ -361,26 +589,29 @@ export default function DocumentsTab() {
                                 key={docId || idx}
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: idx * 0.04 }}
-                                className="bg-white border border-slate-100 rounded-2xl shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden group flex flex-col justify-between"
+                                transition={{ delay: idx * 0.03 }}
+                                className={`bg-white border rounded-2xl shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden group flex flex-col justify-between ${
+                                    !isUploaded ? "border-dashed border-slate-200 bg-slate-50/40" : "border-slate-100"
+                                }`}
                             >
                                 <div>
                                     {/* Document preview thumbnail area */}
                                     <div className="relative h-36 bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center border-b border-slate-100">
                                         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 p-4 text-center">
                                             <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                                                (doc.uploaded || doc.filePath) ? 'bg-[#6605c7]/10 text-[#6605c7]' : 'bg-slate-200/60 text-slate-400'
+                                                isUploaded ? 'bg-[#6605c7]/10 text-[#6605c7]' : 'bg-slate-200/60 text-slate-400'
                                             }`}>
                                                 <span className="material-symbols-outlined text-[28px]">
-                                                    {(doc.uploaded || doc.filePath) ? 'description' : 'upload_file'}
+                                                    {isUploaded ? 'description' : 'upload_file'}
                                                 </span>
                                             </div>
                                             <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 truncate max-w-full">
-                                                {(doc.uploaded || doc.filePath) ? 'Click view to preview' : 'Not Uploaded'}
+                                                {isUploaded ? 'Click view to preview' : 'Not Uploaded'}
                                             </span>
                                         </div>
-                                        {/* Hover overlay */}
-                                        {(doc.uploaded || doc.filePath) && (
+
+                                        {/* Hover overlay for uploaded items */}
+                                        {isUploaded && (
                                             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                                 <button
                                                     onClick={() => handleView(doc)}
@@ -395,29 +626,37 @@ export default function DocumentsTab() {
 
                                     {/* Card body */}
                                     <div className="p-4">
-                                        <div className="flex items-start justify-between gap-2 mb-3">
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-[12px] font-black text-slate-800 truncate">{docLabel}</p>
-                                                {uploadDate && (
-                                                    <p className="text-[9px] font-bold text-slate-400 mt-0.5 font-mono">
-                                                        {new Date(uploadDate).toLocaleDateString("en-IN", {
-                                                            day: "2-digit",
-                                                            month: "short",
-                                                            year: "numeric",
-                                                        })}
-                                                    </p>
-                                                )}
-                                            </div>
-                                            <span className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border ${className} flex-shrink-0`}>
-                                                <span className={`material-symbols-outlined text-[12px] ${iconColor}`}>{icon}</span>
+                                        {/* Scope Badge */}
+                                        <div className="flex items-center justify-between gap-2 mb-2">
+                                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-wider border ${scopeInfo.color}`}>
+                                                <span className="material-symbols-outlined text-[11px]">{scopeInfo.icon}</span>
+                                                {scopeInfo.label}
+                                            </span>
+                                            <span className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-wider border ${className} flex-shrink-0`}>
+                                                <span className={`material-symbols-outlined text-[11px] ${iconColor}`}>{icon}</span>
                                                 {label}
                                             </span>
                                         </div>
 
+                                        <div className="mb-2">
+                                            <p className="text-[12px] font-black text-slate-800 line-clamp-2" title={docLabel}>
+                                                {docLabel}
+                                            </p>
+                                            {uploadDate && isUploaded && (
+                                                <p className="text-[9px] font-bold text-slate-400 mt-1 font-mono">
+                                                    Uploaded: {new Date(uploadDate).toLocaleDateString("en-IN", {
+                                                        day: "2-digit",
+                                                        month: "short",
+                                                        year: "numeric",
+                                                    })}
+                                                </p>
+                                            )}
+                                        </div>
+
                                         {/* Rejection reason */}
                                         {isRejected && doc.rejectionReason && (
-                                            <div className="mb-3 p-2.5 bg-rose-50 rounded-lg border border-rose-100">
-                                                <p className="text-[9px] font-black text-rose-600 uppercase tracking-wider mb-1">Rejection Reason</p>
+                                            <div className="mt-2 p-2 bg-rose-50 rounded-lg border border-rose-100">
+                                                <p className="text-[8px] font-black text-rose-600 uppercase tracking-wider mb-0.5">Rejection Reason</p>
                                                 <p className="text-[10px] font-semibold text-rose-700">{doc.rejectionReason}</p>
                                             </div>
                                         )}
@@ -426,56 +665,66 @@ export default function DocumentsTab() {
 
                                 {/* Actions area */}
                                 <div className="p-4 pt-0">
-                                    {/* View / Open / Download row */}
-                                    {(doc.uploaded || doc.filePath) && (
-                                        <div className="flex gap-2 mb-3">
-                                            <button
-                                                onClick={() => handleView(doc)}
-                                                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-50 hover:bg-[#6605c7] hover:text-white text-slate-700 border border-slate-200 hover:border-[#6605c7] rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer border-0"
-                                            >
-                                                <span className="material-symbols-outlined text-[13px]">visibility</span>
-                                                View
-                                            </button>
-                                            <a
-                                                href={`/api/documents/view/${userId}/${doc.docType}`}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-50 hover:bg-slate-700 hover:text-white text-slate-700 border border-slate-200 hover:border-slate-700 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer text-decoration-none"
-                                            >
-                                                <span className="material-symbols-outlined text-[13px]">open_in_new</span>
-                                            </a>
-                                        </div>
-                                    )}
+                                    {isUploaded ? (
+                                        <>
+                                            {/* View / Open row */}
+                                            <div className="flex gap-2 mb-2">
+                                                <button
+                                                    onClick={() => handleView(doc)}
+                                                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-50 hover:bg-[#6605c7] hover:text-white text-slate-700 border border-slate-200 hover:border-[#6605c7] rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer border-0"
+                                                >
+                                                    <span className="material-symbols-outlined text-[13px]">visibility</span>
+                                                    View
+                                                </button>
+                                                <a
+                                                    href={`/api/documents/view/${userId}/${doc.docType}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-50 hover:bg-slate-700 hover:text-white text-slate-700 border border-slate-200 hover:border-slate-700 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer text-decoration-none"
+                                                    title="Open in new tab"
+                                                >
+                                                    <span className="material-symbols-outlined text-[13px]">open_in_new</span>
+                                                </a>
+                                            </div>
 
-                                    {/* Accept / Reject actions */}
-                                    <div className="flex gap-2">
-                                        {/* Accept */}
-                                        {!isVerified && !isRejected && (
-                                            <button
-                                                onClick={() => handleApprove(doc)}
-                                                disabled={isActioning}
-                                                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-700 border border-emerald-200 hover:border-emerald-600 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed border-0"
-                                            >
-                                                {isActioning ? (
-                                                    <span className="w-3 h-3 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
-                                                ) : (
-                                                    <span className="material-symbols-outlined text-[13px]">check_circle</span>
+                                            {/* Accept / Reject actions */}
+                                            <div className="flex gap-2">
+                                                {!isVerified && !isRejected && (
+                                                    <button
+                                                        onClick={() => handleApprove(doc)}
+                                                        disabled={isActioning}
+                                                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-700 border border-emerald-200 hover:border-emerald-600 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed border-0"
+                                                    >
+                                                        {isActioning ? (
+                                                            <span className="w-3 h-3 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+                                                        ) : (
+                                                            <span className="material-symbols-outlined text-[13px]">check_circle</span>
+                                                        )}
+                                                        Accept
+                                                    </button>
                                                 )}
-                                                Accept
-                                            </button>
-                                        )}
-                                        {/* Reject */}
-                                        {!isVerified && !isRejected && (
-                                            <button
-                                                onClick={() => { setRejectDoc(doc); setRejectReason(""); }}
-                                                disabled={isActioning}
-                                                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-700 border border-rose-200 hover:border-rose-600 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed border-0"
-                                            >
-                                                <span className="material-symbols-outlined text-[13px]">block</span>
-                                                Reject
-                                            </button>
-                                        )}
-                                    </div>
+                                                {!isVerified && !isRejected && (
+                                                    <button
+                                                        onClick={() => { setRejectDoc(doc); setRejectReason(""); }}
+                                                        disabled={isActioning}
+                                                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-700 border border-rose-200 hover:border-rose-600 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed border-0"
+                                                    >
+                                                        <span className="material-symbols-outlined text-[13px]">block</span>
+                                                        Reject
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </>
+                                    ) : (
+                                        /* Unuploaded requirement action: Quick Upload */
+                                        <button
+                                            onClick={() => openUploadModal(doc.docType)}
+                                            className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 bg-gradient-to-r from-[#6605c7] to-[#8b24e5] hover:opacity-95 text-white rounded-xl text-[9px] font-black uppercase tracking-wider shadow-sm transition-all cursor-pointer border-0"
+                                        >
+                                            <span className="material-symbols-outlined text-[14px]">cloud_upload</span>
+                                            Upload Document
+                                        </button>
+                                    )}
                                 </div>
                             </motion.div>
                         );
@@ -483,7 +732,7 @@ export default function DocumentsTab() {
                 </div>
             )}
 
-            {/* ── Upload Document Modal ─────────────────────────────────── */}
+            {/* ── Upload Document Modal (OCR Bypassed for Staff) ─────────── */}
             <AnimatePresence>
                 {isUploadOpen && (
                     <motion.div
@@ -506,7 +755,7 @@ export default function DocumentsTab() {
                                 </div>
                                 <div>
                                     <h3 className="text-[13px] font-black text-slate-800 uppercase tracking-wider">Upload Document</h3>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">Staff-uploaded docs appear in the Verified tab</p>
+                                    <p className="text-[10px] text-slate-500 font-semibold mt-0.5">Direct upload without OCR • Directly verified</p>
                                 </div>
                                 <button
                                     onClick={() => !uploading && setIsUploadOpen(false)}
@@ -517,9 +766,11 @@ export default function DocumentsTab() {
                             </div>
 
                             <div className="p-6 space-y-4">
-                                {/* Doc Type */}
+                                {/* Doc Type with clean groupings */}
                                 <div>
-                                    <label className="block text-[9px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Document Type</label>
+                                    <label className="block text-[9px] font-black uppercase tracking-wider text-slate-500 mb-1.5">
+                                        Document Type
+                                    </label>
                                     <select
                                         value={uploadDocType}
                                         onChange={(e) => {
@@ -530,8 +781,14 @@ export default function DocumentsTab() {
                                         }}
                                         className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#6605c7]/20 focus:border-[#6605c7] cursor-pointer transition-all"
                                     >
-                                        {DOC_TYPE_OPTIONS.map((opt) => (
-                                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                        {DOCUMENT_OPTIONS_GROUPED.map((grp) => (
+                                            <optgroup key={grp.group} label={grp.group}>
+                                                {grp.options.map((opt) => (
+                                                    <option key={opt.value} value={opt.value}>
+                                                        {opt.label}
+                                                    </option>
+                                                ))}
+                                            </optgroup>
                                         ))}
                                     </select>
                                 </div>
@@ -601,6 +858,14 @@ export default function DocumentsTab() {
                                     </div>
                                 </div>
 
+                                {/* OCR Bypass Notice Banner */}
+                                <div className="flex items-center gap-2 px-3 py-2 bg-purple-50/70 border border-purple-100 rounded-xl text-purple-700">
+                                    <span className="material-symbols-outlined text-[16px] text-purple-600 flex-shrink-0">verified_user</span>
+                                    <p className="text-[9px] font-semibold leading-relaxed">
+                                        Staff Upload Mode: OCR verification is bypassed. The document will be registered and marked as Verified immediately.
+                                    </p>
+                                </div>
+
                                 {/* Progress bar */}
                                 {uploading && (
                                     <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
@@ -630,8 +895,9 @@ export default function DocumentsTab() {
                                 <button
                                     onClick={handleUpload}
                                     disabled={uploading || !uploadFile}
-                                    className="px-5 py-2 text-[10px] font-black uppercase tracking-wider text-white bg-gradient-to-r from-[#6605c7] to-[#8b24e5] hover:opacity-90 rounded-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-purple-500/20 border-0"
+                                    className="flex items-center gap-1.5 px-5 py-2 text-[10px] font-black uppercase tracking-wider text-white bg-gradient-to-r from-[#6605c7] to-[#8b24e5] hover:opacity-90 rounded-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-purple-500/20 border-0"
                                 >
+                                    <span className="material-symbols-outlined text-[15px]">upload</span>
                                     {uploading ? `Uploading ${Math.round(uploadProgress)}%...` : "Upload Document"}
                                 </button>
                             </div>
@@ -663,7 +929,7 @@ export default function DocumentsTab() {
                                 </div>
                                 <div>
                                     <h3 className="text-[13px] font-black text-slate-800 uppercase tracking-wider">Reject Document</h3>
-                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">{getDocLabel(rejectDoc)}</p>
+                                    <p className="text-[10px] text-slate-400 font-semibold mt-0.5">{getDocLabel(rejectDoc, userData)}</p>
                                 </div>
                             </div>
 

@@ -1793,7 +1793,18 @@ const ApplicationDetailView: React.FC<ApplicationDetailViewProps> = ({
 
                   <button
                     onClick={() => {
-                      const bankParam = application.bank || application.targetBank || application.lender || application.assignedBank || "Poonawalla Fincorp";
+                      let bankParam = application.bank || "";
+                      const isAnyBank = !bankParam || bankParam.toLowerCase().includes("any") || bankParam.toLowerCase().includes("pending");
+                      if (isAnyBank) {
+                        const sub = application.bankSubmissions?.[0] || application.submissions?.[0];
+                        if (sub?.bankName || sub?.bank) {
+                          bankParam = sub.bankName || sub.bank;
+                        } else if (application.targetBank && !application.targetBank.toLowerCase().includes("any")) {
+                          bankParam = application.targetBank;
+                        } else {
+                          bankParam = application.assignedBank || application.lender || "IDFC FIRST Bank";
+                        }
+                      }
                       const appNo = application.applicationNumber || `APP-${(application.id || application._id || 'UNKNOWN').slice(-6)}`;
                       router.push(`/staff/chat-customer?bankName=${encodeURIComponent(bankParam)}&applicationId=${application.id || application._id}&applicationNumber=${encodeURIComponent(appNo)}`);
                     }}

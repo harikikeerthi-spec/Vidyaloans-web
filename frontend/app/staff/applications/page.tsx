@@ -363,7 +363,17 @@ function ApplicationsPageInner() {
                                 const progress = getApplicationDisplayProgress(item);
                                 const stageLabel = getApplicationStageLabel(item, progress);
                                 const statusKey = (item.status || 'draft').toLowerCase();
-                                const bankName = item.bank || item.targetBank || item.lender || "IDFC FIRST Bank";
+                                let bankName = item.bank || item.targetBank || item.lender || "IDFC FIRST Bank";
+                                if (!bankName || bankName.toLowerCase().includes('any') || bankName.toLowerCase().includes('pending')) {
+                                    const sub = item.bankSubmissions?.[0] || item.submissions?.[0];
+                                    if (sub?.bankName || sub?.bank) {
+                                        bankName = sub.bankName || sub.bank;
+                                    } else if (item.targetBank && !item.targetBank.toLowerCase().includes('any')) {
+                                        bankName = item.targetBank;
+                                    } else {
+                                        bankName = "IDFC FIRST Bank";
+                                    }
+                                }
                                 const userEmail = item.email || item.student?.email || item.user?.email || "";
                                 const userPhone = item.phone || item.mobile || item.student?.phone || item.student?.mobile || item.user?.phone || item.user?.mobile || "";
 

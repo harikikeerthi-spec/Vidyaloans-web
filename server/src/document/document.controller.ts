@@ -66,6 +66,7 @@ export class DocumentController {
     @Body('userId') userId: string,
     @Body('docType') docType: string,
     @Body('docName') docName?: string,
+    @Body('skipOcr') skipOcr?: string | boolean,
     @Req() req?: any,
   ) {
     if (!file) throw new BadRequestException('File is required');
@@ -74,9 +75,10 @@ export class DocumentController {
 
     // ── 0A. Strict User Ownership Authorization Check ────────────────────────
     const requester = req?.user;
+    let isStaffOrAdmin = false;
     if (requester && requester.id !== 'guest-user') {
       const isOwner = requester.id === userId || requester.email === userId;
-      const isStaffOrAdmin = ['admin', 'staff', 'superadmin'].includes(requester.role);
+      isStaffOrAdmin = ['admin', 'staff', 'superadmin'].includes(requester.role);
       if (!isOwner && !isStaffOrAdmin) {
         throw new ForbiddenException('Unauthorized: You can only upload documents for your own account.');
       }
@@ -125,21 +127,23 @@ export class DocumentController {
     }
 
     console.log(
-      `[UPLOAD] Processing pre-storage check: userId=${userId}, docType=${docType}, file=${file.originalname} (${file.size} bytes), wasAlreadyUploaded=${wasAlreadyUploaded}`,
+      `[UPLOAD] Processing pre-storage check: userId=${userId}, docType=${docType}, file=${file.originalname} (${file.size} bytes), wasAlreadyUploaded=${wasAlreadyUploaded}, isStaffOrAdmin=${isStaffOrAdmin}, skipOcr=${skipOcr}`,
     );
 
     try {
       const isOtherDoc = (docType.toLowerCase().includes('_other') || docType.toLowerCase().includes('other_') || docType.toLowerCase() === 'other') && !docType.toLowerCase().includes('mother');
+      const isStaffUpload = isStaffOrAdmin || skipOcr === 'true' || skipOcr === true;
+      const shouldSkipOcr = isStaffUpload || isOtherDoc;
       let kycResult: any;
 
-      if (isOtherDoc) {
-        console.log(`[UPLOAD] Bypassing AI KYC check for custom document type: ${docType}`);
+      if (shouldSkipOcr) {
+        console.log(`[UPLOAD] Bypassing AI KYC/OCR check for ${docType} (isStaffUpload=${isStaffUpload}, isOtherDoc=${isOtherDoc})`);
         kycResult = {
           document_type: docType,
           confidence_score: 100,
           is_valid: true,
           extracted_data: {},
-          document_validation: {},
+          document_validation: { staffUploaded: isStaffUpload },
           ocr_issues: []
         };
       } else {
@@ -194,41 +198,43 @@ export class DocumentController {
       }
 
       // ── Pre-check 2: Reject duplicate Aadhaar/PAN/Passport number across different slots ──
-      const extData = kycResult.extracted_data || {};
-      const newAadhaar = (extData.aadhar_number || extData.aadhaar_number || extData.id_number || '').toString().replace(/[^0-9]/g, '');
-      const newPan = (extData.pan_number || extData.pan || '').toString().replace(/[^A-Z0-9]/gi, '').toUpperCase();
-      const newPassport = (extData.passport_number || '').toString().replace(/[^A-Z0-9]/gi, '').toUpperCase();
+      if (!shouldSkipOcr) {
+        const extData = kycResult.extracted_data || {};
+        const newAadhaar = (extData.aadhar_number || extData.aadhaar_number || extData.id_number || '').toString().replace(/[^0-9]/g, '');
+        const newPan = (extData.pan_number || extData.pan || '').toString().replace(/[^A-Z0-9]/gi, '').toUpperCase();
+        const newPassport = (extData.passport_number || '').toString().replace(/[^A-Z0-9]/gi, '').toUpperCase();
 
-      for (const otherDoc of existingUserDocs) {
-        if (otherDoc.docType.toLowerCase() !== docType.toLowerCase() && (otherDoc.uploaded || otherDoc.status === 'uploaded' || otherDoc.status === 'verified')) {
-          const extMeta = otherDoc.verificationMetadata?.details?.extractedFields || otherDoc.verificationMetadata?.extractedFields || otherDoc.verificationMetadata || {};
-          const existAadhaar = (extMeta.aadhar_number || extMeta.aadhaar_number || extMeta.id_number || '').toString().replace(/[^0-9]/g, '');
-          const existPan = (extMeta.pan_number || extMeta.pan || '').toString().replace(/[^A-Z0-9]/gi, '').toUpperCase();
-          const existPassport = (extMeta.passport_number || '').toString().replace(/[^A-Z0-9]/gi, '').toUpperCase();
+        for (const otherDoc of existingUserDocs) {
+          if (otherDoc.docType.toLowerCase() !== docType.toLowerCase() && (otherDoc.uploaded || otherDoc.status === 'uploaded' || otherDoc.status === 'verified')) {
+            const extMeta = otherDoc.verificationMetadata?.details?.extractedFields || otherDoc.verificationMetadata?.extractedFields || otherDoc.verificationMetadata || {};
+            const existAadhaar = (extMeta.aadhar_number || extMeta.aadhaar_number || extMeta.id_number || '').toString().replace(/[^0-9]/g, '');
+            const existPan = (extMeta.pan_number || extMeta.pan || '').toString().replace(/[^A-Z0-9]/gi, '').toUpperCase();
+            const existPassport = (extMeta.passport_number || '').toString().replace(/[^A-Z0-9]/gi, '').toUpperCase();
 
-          const slotLabel = otherDoc.verificationMetadata?.docName || otherDoc.docName || otherDoc.docType.replace(/_/g, ' ').toUpperCase();
+            const slotLabel = otherDoc.verificationMetadata?.docName || otherDoc.docName || otherDoc.docType.replace(/_/g, ' ').toUpperCase();
 
-          if (newAadhaar && newAadhaar.length >= 12 && existAadhaar && newAadhaar === existAadhaar) {
-            console.warn(`[UPLOAD] Rejecting duplicate Aadhaar number ${newAadhaar} already uploaded in ${otherDoc.docType}`);
-            const masked = newAadhaar.slice(-4).padStart(newAadhaar.length, 'X').replace(/(\d{4})/g, '$1 ').trim();
-            throw new BadRequestException(
-              `Duplicate document error: This Aadhaar Card (No. ${masked}) is already uploaded under "${slotLabel}". Please upload the correct document for ${docName || docType.replace(/_/g, ' ').toUpperCase()}.`
-            );
-          }
+            if (newAadhaar && newAadhaar.length >= 12 && existAadhaar && newAadhaar === existAadhaar) {
+              console.warn(`[UPLOAD] Rejecting duplicate Aadhaar number ${newAadhaar} already uploaded in ${otherDoc.docType}`);
+              const masked = newAadhaar.slice(-4).padStart(newAadhaar.length, 'X').replace(/(\d{4})/g, '$1 ').trim();
+              throw new BadRequestException(
+                `Duplicate document error: This Aadhaar Card (No. ${masked}) is already uploaded under "${slotLabel}". Please upload the correct document for ${docName || docType.replace(/_/g, ' ').toUpperCase()}.`
+              );
+            }
 
-          if (newPan && newPan.length >= 10 && existPan && newPan === existPan) {
-            console.warn(`[UPLOAD] Rejecting duplicate PAN number ${newPan} already uploaded in ${otherDoc.docType}`);
-            const masked = newPan.slice(0, 3) + '*****' + newPan.slice(-2);
-            throw new BadRequestException(
-              `Duplicate document error: This PAN Card (No. ${masked}) is already uploaded under "${slotLabel}". Please upload the correct document for ${docName || docType.replace(/_/g, ' ').toUpperCase()}.`
-            );
-          }
+            if (newPan && newPan.length >= 10 && existPan && newPan === existPan) {
+              console.warn(`[UPLOAD] Rejecting duplicate PAN number ${newPan} already uploaded in ${otherDoc.docType}`);
+              const masked = newPan.slice(0, 3) + '*****' + newPan.slice(-2);
+              throw new BadRequestException(
+                `Duplicate document error: This PAN Card (No. ${masked}) is already uploaded under "${slotLabel}". Please upload the correct document for ${docName || docType.replace(/_/g, ' ').toUpperCase()}.`
+              );
+            }
 
-          if (newPassport && newPassport.length >= 6 && existPassport && newPassport === existPassport) {
-            console.warn(`[UPLOAD] Rejecting duplicate Passport number ${newPassport} already uploaded in ${otherDoc.docType}`);
-            throw new BadRequestException(
-              `Duplicate document error: This Passport (No. ${newPassport}) is already uploaded under "${slotLabel}". Please upload the correct document for ${docName || docType.replace(/_/g, ' ').toUpperCase()}.`
-            );
+            if (newPassport && newPassport.length >= 6 && existPassport && newPassport === existPassport) {
+              console.warn(`[UPLOAD] Rejecting duplicate Passport number ${newPassport} already uploaded in ${otherDoc.docType}`);
+              throw new BadRequestException(
+                `Duplicate document error: This Passport (No. ${newPassport}) is already uploaded under "${slotLabel}". Please upload the correct document for ${docName || docType.replace(/_/g, ' ').toUpperCase()}.`
+              );
+            }
           }
         }
       }
@@ -266,53 +272,57 @@ export class DocumentController {
 
       // ── 3. Build Verification Metadata & Update User profile ─────────────
       const maskedExtractedFields = maskSensitiveIds(kycResult.extracted_data || {}, docType);
+      const docStatus = isStaffUpload ? 'verified' : 'uploaded';
 
       const verificationResult = {
         isValid: true,
-        code: 'AI_VERIFIED',
+        code: isStaffUpload ? 'STAFF_VERIFIED' : 'AI_VERIFIED',
         confidence: kycResult.confidence_score,
         docName: docName || undefined,
         fileHash: incomingHash,
         details: {
-          message: 'Document verified by AI OCR pre-storage.',
+          message: isStaffUpload
+            ? 'Document uploaded directly by staff without OCR.'
+            : 'Document verified by AI OCR pre-storage.',
           extractedFields: maskedExtractedFields,
           document_validation: kycResult.document_validation,
           ocr_issues: kycResult.ocr_issues,
         },
       };
 
-      if (
-        kycResult.extracted_data &&
-        Object.keys(kycResult.extracted_data).length > 0
-      ) {
-        await this.usersService.updateExtractedDetails(userId, {
-          documentVerified: true,
-          ...kycResult.extracted_data,
-        }, docType);
-      }
+      if (!shouldSkipOcr) {
+        if (
+          kycResult.extracted_data &&
+          Object.keys(kycResult.extracted_data).length > 0
+        ) {
+          await this.usersService.updateExtractedDetails(userId, {
+            documentVerified: true,
+            ...kycResult.extracted_data,
+          }, docType);
+        }
 
-      // Perform cross-document name & parent verification against reference document (Passport / Aadhaar)
-      const crossDocResult = await this.usersService.performCrossDocumentValidation(
-        userId,
-        docType,
-        kycResult.extracted_data || {}
-      );
+        // Perform cross-document name & parent verification against reference document (Passport / Aadhaar)
+        const crossDocResult = await this.usersService.performCrossDocumentValidation(
+          userId,
+          docType,
+          kycResult.extracted_data || {}
+        );
 
-      // Hard reject: student doc (PAN/10th/12th/Degree) name doesn't match Aadhaar/Passport reference
-      if (crossDocResult.hardReject && crossDocResult.rejectReason) {
-        // Delete the already-uploaded S3 file so it doesn't stay stored
-        try { await this.s3Service.delete(s3Key); } catch {}
-        throw new BadRequestException(crossDocResult.rejectReason);
-      }
+        // Hard reject: student doc (PAN/10th/12th/Degree) name doesn't match Aadhaar/Passport reference
+        if (crossDocResult.hardReject && crossDocResult.rejectReason) {
+          // Delete the already-uploaded S3 file so it doesn't stay stored
+          try { await this.s3Service.delete(s3Key); } catch {}
+          throw new BadRequestException(crossDocResult.rejectReason);
+        }
 
-      if (crossDocResult.issues && crossDocResult.issues.length > 0) {
-        const existingIssues = verificationResult.details.ocr_issues || [];
-        verificationResult.details.ocr_issues = Array.from(new Set([...existingIssues, ...crossDocResult.issues]));
-        if (kycResult) {
-          kycResult.ocr_issues = verificationResult.details.ocr_issues;
+        if (crossDocResult.issues && crossDocResult.issues.length > 0) {
+          const existingIssues = verificationResult.details.ocr_issues || [];
+          verificationResult.details.ocr_issues = Array.from(new Set([...existingIssues, ...crossDocResult.issues]));
+          if (kycResult) {
+            kycResult.ocr_issues = verificationResult.details.ocr_issues;
+          }
         }
       }
-
 
       // ── 4. Save record in database ───────────────────────────────────────
       const document = await this.usersService.upsertUserDocument(
@@ -321,12 +331,12 @@ export class DocumentController {
         {
           uploaded: true,
           filePath: s3Key,
-          status: 'uploaded',
+          status: docStatus,
           verificationMetadata: verificationResult,
         },
       );
 
-      console.log(`[UPLOAD] DB record saved. Doc ID: ${document?.id}`);
+      console.log(`[UPLOAD] DB record saved. Doc ID: ${document?.id}, status: ${docStatus}`);
 
       // ── 5. Generate a short-lived presigned URL for preview ───────────────
       return {
@@ -339,7 +349,7 @@ export class DocumentController {
         data: {
           ...document,
           wasAlreadyUploaded,
-          status: 'uploaded',
+          status: docStatus,
           previewUrl,
           verification: verificationResult,
           aiExplanation: null,
@@ -349,7 +359,7 @@ export class DocumentController {
             extractedFields: kycResult.extracted_data,
             document_validation: kycResult.document_validation,
             ocr_issues: kycResult.ocr_issues,
-            reason: 'Verified',
+            reason: isStaffUpload ? 'Staff Upload (Verified)' : 'Verified',
           },
         },
         file: {

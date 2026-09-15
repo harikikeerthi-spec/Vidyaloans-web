@@ -8,7 +8,8 @@ export const HTTP_API_PREFIX = "/api" as const;
 export type QueryRecord = Record<string, string | number | boolean | undefined | null>;
 
 /** Query string from params; omits undefined / null / "". */
-export function httpApiQuery(params: QueryRecord): string {
+export function httpApiQuery(params?: QueryRecord): string {
+    if (!params) return "";
     const sp = new URLSearchParams();
     for (const [key, val] of Object.entries(params)) {
         if (val === undefined || val === null || val === "") continue;
@@ -194,6 +195,16 @@ export const HttpApiPaths = {
             `${HTTP_API_PREFIX}/applications/admin/documents/${enc(documentId)}/verify`,
         applicationDocumentView: (applicationId: string, documentId: string) =>
             `${HTTP_API_PREFIX}/applications/admin/${enc(applicationId)}/documents/${enc(documentId)}/view`,
+        errorLogs: (params?: QueryRecord) =>
+            `${HTTP_API_PREFIX}/admin/error-logs${httpApiQuery(params)}`,
+        errorLogStats: () => `${HTTP_API_PREFIX}/admin/error-logs/stats`,
+        errorLogById: (id: string) => `${HTTP_API_PREFIX}/admin/error-logs/${enc(id)}`,
+        errorLogResolve: (id: string) => `${HTTP_API_PREFIX}/admin/error-logs/${enc(id)}/resolve`,
+        errorLogUnresolve: (id: string) => `${HTTP_API_PREFIX}/admin/error-logs/${enc(id)}/unresolve`,
+        errorLogBulkResolve: () => `${HTTP_API_PREFIX}/admin/error-logs/bulk-resolve`,
+        errorLogDelete: (id: string) => `${HTTP_API_PREFIX}/admin/error-logs/${enc(id)}`,
+        errorLogPurge: () => `${HTTP_API_PREFIX}/admin/error-logs/purge`,
+        errorLogClientReport: () => `${HTTP_API_PREFIX}/admin/error-logs/client`,
     },
 
     bank: {

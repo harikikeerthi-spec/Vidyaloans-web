@@ -1133,6 +1133,13 @@ export const adminApi = {
         apiFetch(HttpApiPaths.admin.applicationTracking(id)),
     getApplicationDocuments: (id: string) =>
         apiFetch(HttpApiPaths.admin.applicationDocuments(id)),
+    getApplicationNotes: (id: string) =>
+        apiFetch(HttpApiPaths.admin.applicationNotes(id)),
+    addApplicationNote: (id: string, data: { content: string; type?: string; isInternal?: boolean }) =>
+        apiFetch(HttpApiPaths.admin.applicationNotes(id), {
+            method: "POST",
+            body: JSON.stringify(data),
+        }),
     updateApplicationStatus: (id: string, data: Record<string, unknown>) =>
         apiFetch(HttpApiPaths.admin.applicationStatus(id), {
             method: "PUT",
@@ -1279,6 +1286,42 @@ export const adminApi = {
             body: JSON.stringify({ status, rejectionReason }),
             headers: authHeaders(),
         }),
+
+    // Error Logs
+    getErrorLogs: (params?: Record<string, any>) =>
+        apiFetch<any>(HttpApiPaths.admin.errorLogs(params)),
+    getErrorLogStats: () =>
+        apiFetch<any>(HttpApiPaths.admin.errorLogStats()),
+    getErrorLogById: (id: string) =>
+        apiFetch<any>(HttpApiPaths.admin.errorLogById(id)),
+    resolveErrorLog: (id: string, note?: string) =>
+        apiFetch<any>(HttpApiPaths.admin.errorLogResolve(id), {
+            method: "PATCH",
+            body: JSON.stringify({ note }),
+        }),
+    unresolveErrorLog: (id: string) =>
+        apiFetch<any>(HttpApiPaths.admin.errorLogUnresolve(id), {
+            method: "PATCH",
+        }),
+    bulkResolveErrorLogs: (ids: string[], note?: string) =>
+        apiFetch<any>(HttpApiPaths.admin.errorLogBulkResolve(), {
+            method: "POST",
+            body: JSON.stringify({ ids, note }),
+        }),
+    deleteErrorLog: (id: string) =>
+        apiFetch<any>(HttpApiPaths.admin.errorLogDelete(id), {
+            method: "DELETE",
+        }),
+    purgeErrorLogs: (days = 30) =>
+        apiFetch<any>(HttpApiPaths.admin.errorLogPurge(), {
+            method: "POST",
+            body: JSON.stringify({ days }),
+        }),
+    reportClientError: (data: any) =>
+        apiFetch<any>(HttpApiPaths.admin.errorLogClientReport(), {
+            method: "POST",
+            body: JSON.stringify(data),
+        }),
 };
 
 // ─── Documents ────────────────────────────────────────────────────────
@@ -1316,7 +1359,14 @@ export const documentApi = {
             body: JSON.stringify({ userId, docType }),
         }),
 
-    upload: (userId: string, docType: string, file: File, onProgress?: (progress: number) => void) => {
+    upload: (
+        userId: string,
+        docType: string,
+        file: File,
+        onProgress?: (progress: number) => void,
+        docName?: string,
+        skipOcr?: boolean
+    ) => {
         return new Promise(async (resolve, reject) => {
             const token = (() => {
                 if (typeof window === 'undefined') return null;
@@ -1334,6 +1384,8 @@ export const documentApi = {
             form.append('file', file);
             form.append('userId', userId);
             form.append('docType', docType);
+            if (docName) form.append('docName', docName);
+            if (skipOcr) form.append('skipOcr', 'true');
 
             xhr.upload.addEventListener('progress', (e) => {
                 if (e.lengthComputable && onProgress) {

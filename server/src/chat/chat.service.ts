@@ -1,6 +1,6 @@
 import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
-import { EventEmitter2 } from '@nestjs/event-emitter';
+import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 
 @Injectable()
 export class ChatService {
@@ -210,7 +210,7 @@ export class ChatService {
           // Bank partners should only see conversations explicitly marked for banks
           query = query.contains('metadata', { type: 'bank' });
           
-          let bankName = user.bankName || user.firstName || null;
+          let bankName = user.bankName || user.bank || user.firstName || null;
           if (bankName) {
               const lower = String(bankName).toLowerCase().trim();
               const BANK_NAME_MAP: Record<string, string> = {
@@ -246,6 +246,24 @@ export class ChatService {
 
           if (user && (user.role === 'bank' || user.role === 'partner_bank')) {
               fallbackQuery = fallbackQuery.contains('metadata', { type: 'bank' });
+              let bankName = user.bankName || user.bank || user.firstName || null;
+              if (bankName) {
+                  const lower = String(bankName).toLowerCase().trim();
+                  const BANK_NAME_MAP: Record<string, string> = {
+                      auxilo: "Auxilo Finserve",
+                      avanse: "Avanse Financial",
+                      credila: "HDFC Credila",
+                      idfc: "IDFC FIRST Bank",
+                      poonawalla: "Poonawalla Fincorp",
+                  };
+                  for (const [k, v] of Object.entries(BANK_NAME_MAP)) {
+                      if (lower.includes(k)) {
+                          bankName = v;
+                          break;
+                      }
+                  }
+                  fallbackQuery = fallbackQuery.contains('metadata', { bank: bankName });
+              }
           } else if (user && (user.role === 'agent' || user.role === 'partner_agent')) {
               fallbackQuery = fallbackQuery.or('metadata->>type.eq.agent,metadata->>type.eq.agent_to_staff');
           }
@@ -462,6 +480,81 @@ export class ChatService {
       throw new HttpException(error.message || 'Failed to update customer name', HttpStatus.BAD_REQUEST);
     }
     return data;
+  }
+
+  @OnEvent('bank.submission.created')
+  async handleBankSubmissionCreated(payload: {
+    submissionId: string;
+    applicationId: string;
+    bankId: string;
+    bankName: string;
+  }) {
+    try {
+      let bankName = payload.bankName;
+      const BANK_NAME_MAP: Record<string, string> = {
+        auxilo: "Auxilo Finserve",
+        avanse: "Avanse Financial",
+        credila: "HDFC Credila",
+        idfc: "IDFC FIRST Bank",
+        poonawalla: "Poonawalla Fincorp",
+      };
+      const lower = String(bankName || '').toLowerCase().trim();
+      for (const [key, val] of Object.entries(BANK_NAME_MAP)) {
+        if (lower.includes(key)) {
+          bankName = val;
+          break;
+        }
+      }
+
+      const safeBank = bankName.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+      const syntheticPhone = payload.applicationId
+        ? `BNK_${safeBank}_APP_${payload.applicationId}`
+        : `BNK_${safeBank}`;
+
+      let studentName = '';
+      let appNumber = '';
+
+      if (payload.applicationId) {
+        const { data: application } = await this.db
+          .from('LoanApplication')
+          .select('firstName, lastName, applicationNumber')
+          .eq('id', payload.applicationId)
+          .single();
+        if (application) {
+          studentName = `${application.firstName || ''} ${application.lastName || ''}`.trim();
+          appNumber = application.applicationNumber || '';
+        }
+      }
+
+      const shortAppId = appNumber || (payload.applicationId ? payload.applicationId.slice(0, 8) : '');
+      const displayName = payload.applicationId
+        ? `${bankName} - App #${shortAppId}`
+        : `${bankName} (Bank)`;
+
+      const conversation = await this.getOrCreateConversation(
+        syntheticPhone,
+        `bank+${safeBank.toLowerCase()}@internal`,
+        'bank',
+        displayName,
+        bankName,
+        {
+          type: 'bank',
+          bank: bankName,
+          applicationId: payload.applicationId || null,
+          applicationNumber: appNumber || null,
+          studentName: studentName || null,
+        }
+      );
+      this.logger.log(`[ChatService] Auto-created bank chat conversation ${conversation.id} for bank: ${bankName}, app: ${payload.applicationId}`);
+
+      this.eventEmitter.emit('chat.conversation.created', {
+        conversation,
+        type: 'bank',
+        bankName,
+      });
+    } catch (err) {
+      this.logger.error('[ChatService] Failed to auto-create bank conversation on submission:', err);
+    }
   }
 }
 

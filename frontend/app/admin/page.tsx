@@ -5,13 +5,14 @@ import Link from "next/link";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSiteSettings } from "@/contexts/SiteSettingsContext";
-import { adminApi, assignmentApi, staffProfileApi, referenceApi } from "@/lib/api";
+import { adminApi, assignmentApi, staffProfileApi, referenceApi, documentApi } from "@/lib/api";
 import { format, formatDistanceToNow } from "date-fns";
 import ChatInterface from "@/components/Chat/ChatInterface";
 import CampaignsDashboard from "@/components/Admin/CampaignsDashboard";
 import AdminBanksSection from "@/components/Admin/AdminBanksSection";
 import AdminCountriesSection from "@/components/Admin/AdminCountriesSection";
 import SiteSettingsSection from "@/components/Admin/SiteSettingsSection";
+import AdminErrorLogsSection from "@/components/Admin/AdminErrorLogsSection";
 import { 
   Building2, 
   X, 
@@ -242,6 +243,7 @@ const sectionToPathMap: Record<string, string> = {
     chat: '/admin/chat',
     community: '/admin/community',
     audit_logs: '/admin/audit-logs',
+    error_logs: '/admin/error-logs',
     blogs: '/admin/blogs',
     campaigns_dashboard: '/admin/campaigns',
     campaigns_create: '/admin/campaigns/create',
@@ -276,6 +278,7 @@ const pathToSectionMap: Record<string, string> = {
     '/admin/chat': 'chat',
     '/admin/community': 'community',
     '/admin/audit-logs': 'audit_logs',
+    '/admin/error-logs': 'error_logs',
     '/admin/blogs': 'blogs',
     '/admin/campaigns': 'campaigns_dashboard',
     '/admin/campaigns/create': 'campaigns_create',
@@ -348,6 +351,7 @@ export default function AdminDashboardPage() {
     const [filterToDate, setFilterToDate] = useState("");
     const [filterBlogTime, setFilterBlogTime] = useState("all");
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [unresolvedErrorCount, setUnresolvedErrorCount] = useState<number>(0);
     const [usersExpanded, setUsersExpanded] = useState(true);
     const [supportExpanded, setSupportExpanded] = useState(false);
     const [marketingExpanded, setMarketingExpanded] = useState(false);
@@ -409,7 +413,209 @@ export default function AdminDashboardPage() {
     // AI Review
     const [aiReview, setAiReview] = useState<any>(null);
     const [aiReviewLoading, setAiReviewLoading] = useState(false);
-    const [drawerTab, setDrawerTab] = useState<'details' | 'documents' | 'notes' | 'history' | 'ai_review'>('details');
+    const [drawerTab, setDrawerTab] = useState<'details' | 'documents' | 'notes' | 'history'>('details');
+
+    // Application Profile Drawer Dynamic Data
+    const [drawerDocs, setDrawerDocs] = useState<any[]>([]);
+    const [drawerDocsLoading, setDrawerDocsLoading] = useState(false);
+    const [drawerTimeline, setDrawerTimeline] = useState<any[]>([]);
+    const [drawerStages, setDrawerStages] = useState<any[]>([]);
+    const [drawerTimelineLoading, setDrawerTimelineLoading] = useState(false);
+    const [drawerNotes, setDrawerNotes] = useState<any[]>([]);
+    const [drawerNotesLoading, setDrawerNotesLoading] = useState(false);
+    const [newDrawerNote, setNewDrawerNote] = useState("");
+    const [savingDrawerNote, setSavingDrawerNote] = useState(false);
+
+    const fetchDrawerApplicationData = useCallback(async (appId: string) => {
+        if (!appId) return;
+        setDrawerDocsLoading(true);
+        setDrawerTimelineLoading(true);
+        setDrawerNotesLoading(true);
+        try {
+            const [appRes, docsRes, trackingRes, notesRes]: [any, any, any, any] = await Promise.all([
+                adminApi.getApplication(appId).catch((err) => {
+                    console.error("Failed to load application details:", err);
+                    return null;
+                }),
+                adminApi.getApplicationDocuments(appId).catch((err) => {
+                    console.error("Failed to load application documents:", err);
+                    return null;
+                }),
+                adminApi.getApplicationTracking(appId).catch((err) => {
+                    console.error("Failed to load application tracking:", err);
+                    return null;
+                }),
+                adminApi.getApplicationNotes(appId).catch((err) => {
+                    console.error("Failed to load application notes:", err);
+                    return null;
+                })
+            ]);
+
+            const fullApp = appRes?.data || appRes || {};
+            if (fullApp && (fullApp.id || fullApp.applicationNumber)) {
+                setSelectedApp((prev: any) => ({ ...prev, ...fullApp }));
+            }
+
+            // Extract dynamic documents
+            let docsList: any[] = [];
+            if (docsRes?.data && Array.isArray(docsRes.data)) {
+                docsList = docsRes.data;
+            } else if (Array.isArray(docsRes)) {
+                docsList = docsRes;
+            } else if (fullApp?.documents && Array.isArray(fullApp.documents)) {
+                docsList = fullApp.documents;
+            }
+            setDrawerDocs(docsList);
+
+            // Extract dynamic timeline & stages
+            const trackingData = trackingRes?.data || trackingRes || {};
+            const stagesList = trackingData.stages || [];
+            setDrawerStages(stagesList);
+
+            const timelineList = (trackingData.timeline && trackingData.timeline.length > 0)
+                ? trackingData.timeline
+                : (fullApp?.statusHistory || []);
+            setDrawerTimeline(timelineList);
+
+            // Extract dynamic notes
+            let notesList: any[] = [];
+            if (notesRes?.data && Array.isArray(notesRes.data)) {
+                notesList = notesRes.data;
+            } else if (Array.isArray(notesRes)) {
+                notesList = notesRes;
+            } else if (fullApp?.notes && Array.isArray(fullApp.notes)) {
+                notesList = fullApp.notes;
+            }
+            setDrawerNotes(notesList);
+        } catch (e) {
+            console.error("Error loading application drawer data:", e);
+        } finally {
+            setDrawerDocsLoading(false);
+            setDrawerTimelineLoading(false);
+            setDrawerNotesLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (selectedApp?.id) {
+            fetchDrawerApplicationData(selectedApp.id);
+        } else {
+            setDrawerDocs([]);
+            setDrawerTimeline([]);
+            setDrawerStages([]);
+            setDrawerNotes([]);
+            setNewDrawerNote("");
+        }
+    }, [selectedApp?.id, fetchDrawerApplicationData]);
+
+    const handleSaveDrawerNote = async () => {
+        if (!newDrawerNote.trim() || !selectedApp?.id) return;
+        setSavingDrawerNote(true);
+        try {
+            const res: any = await adminApi.addApplicationNote(selectedApp.id, {
+                content: newDrawerNote.trim(),
+                type: 'admin_note',
+                isInternal: true,
+            });
+            if (res?.success || res?.data) {
+                setNewDrawerNote("");
+                const addedNote = res.data;
+                if (addedNote) {
+                    setDrawerNotes((prev) => [addedNote, ...prev]);
+                } else {
+                    fetchDrawerApplicationData(selectedApp.id);
+                }
+            }
+        } catch (e: any) {
+            alert("Failed to save note: " + (e?.message || e));
+        } finally {
+            setSavingDrawerNote(false);
+        }
+    };
+
+    const handleViewDoc = async (doc: any) => {
+        try {
+            const userId = selectedApp?.userId;
+            if (doc.filePath && doc.filePath.startsWith('in.gov.')) {
+                window.open(`/api/applications/admin/${selectedApp.id}/documents/${doc.id}/view`, '_blank');
+                return;
+            }
+            if (userId && doc.docType) {
+                try {
+                    const res = await documentApi.getPresignedView(userId, doc.docType) as any;
+                    if (res?.url) {
+                        window.open(res.url, '_blank', 'noopener,noreferrer');
+                        return;
+                    }
+                } catch (e) {
+                    console.warn('Presigned view error, using direct endpoint:', e);
+                }
+                window.open(`/api/documents/view/${userId}/${doc.docType}`, '_blank', 'noopener,noreferrer');
+            } else if (doc.id && !doc.id.startsWith('vault_')) {
+                window.open(`/api/applications/admin/${selectedApp.id}/documents/${doc.id}/view`, '_blank');
+            } else if (doc.filePath) {
+                window.open(doc.filePath, '_blank', 'noopener,noreferrer');
+            }
+        } catch (e) {
+            console.error('Error opening document:', e);
+        }
+    };
+
+    const handleDownloadDoc = async (doc: any) => {
+        try {
+            const userId = selectedApp?.userId;
+            if (doc.id && !doc.id.startsWith('vault_')) {
+                window.open(`/api/applications/admin/${selectedApp.id}/documents/${doc.id}/view?download=true`, '_blank');
+                return;
+            }
+            if (userId && doc.docType) {
+                try {
+                    const res = await documentApi.getPresignedView(userId, doc.docType) as any;
+                    if (res?.url) {
+                        const link = document.createElement('a');
+                        link.href = res.url;
+                        link.download = `${(doc.docName || doc.docType || 'document').replace(/\s+/g, '_')}.pdf`;
+                        link.target = '_blank';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        return;
+                    }
+                } catch (e) {}
+                window.open(`/api/documents/view/${userId}/${doc.docType}?download=true`, '_blank');
+            } else if (doc.filePath) {
+                window.open(doc.filePath, '_blank');
+            }
+        } catch (e) {
+            console.error('Error downloading document:', e);
+        }
+    };
+
+    const formatFileSize = (bytes?: number) => {
+        if (!bytes || bytes <= 0) return '';
+        if (bytes < 1024) return `${bytes} B`;
+        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+        return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    };
+
+    const getTimelineIcon = (status: string = '') => {
+        const s = status.toLowerCase();
+        if (s.includes('approve') || s.includes('sanction')) return { icon: 'check_circle', color: 'bg-emerald-100 text-emerald-600 border-emerald-500' };
+        if (s.includes('disburs')) return { icon: 'payments', color: 'bg-emerald-100 text-emerald-600 border-emerald-500' };
+        if (s.includes('reject') || s.includes('cancel')) return { icon: 'cancel', color: 'bg-rose-100 text-rose-600 border-rose-500' };
+        if (s.includes('bank')) return { icon: 'account_balance', color: 'bg-blue-100 text-blue-600 border-blue-500' };
+        if (s.includes('doc') || s.includes('verif')) return { icon: 'fact_check', color: 'bg-indigo-100 text-indigo-600 border-indigo-500' };
+        if (s.includes('submit')) return { icon: 'send', color: 'bg-sky-100 text-sky-600 border-sky-500' };
+        if (s.includes('draft')) return { icon: 'edit_document', color: 'bg-slate-100 text-slate-600 border-slate-400' };
+        return { icon: 'update', color: 'bg-purple-100 text-purple-600 border-purple-500' };
+    };
+
+    const formatStatusLabel = (st?: string) => {
+        if (!st) return '—';
+        return st
+            .replace(/_/g, ' ')
+            .replace(/\b\w/g, (c) => c.toUpperCase());
+    };
 
     // Analytics
     const [analyticsData, setAnalyticsData] = useState<any>({});
@@ -1167,7 +1373,7 @@ export default function AdminDashboardPage() {
 
 
     const handleAIReview = async (appId: string) => {
-        setAiReviewLoading(true); setAiReview(null); setDrawerTab('ai_review');
+        setAiReviewLoading(true); setAiReview(null);
         try {
             const result: any = await adminApi.aiReviewApplication(appId);
             setAiReview(result.data);
@@ -1481,6 +1687,7 @@ export default function AdminDashboardPage() {
         { section: "community", icon: "groups", label: "Community", badge: 0 },
         { section: "site_settings", icon: "settings_suggest", label: "Site Settings", badge: 0 },
         { section: "audit_logs", icon: "policy", label: "Audit Logs", badge: 0 },
+        { section: "error_logs", icon: "bug_report", label: "Error Logs", badge: unresolvedErrorCount },
     ];
 
     // User Directory sub-nav items
@@ -1526,6 +1733,7 @@ export default function AdminDashboardPage() {
         chat: 'Student Chat',
         community: 'Community Forum',
         audit_logs: 'Audit Logs',
+        error_logs: 'System Error Logs & Diagnostics',
 
         // Marketing/Campaigns
         campaigns_dashboard: 'Email Campaigns · Dashboard',
@@ -2273,6 +2481,11 @@ export default function AdminDashboardPage() {
                                 )}
                             </div>
                         </div>
+                    )}
+
+                    {/* ─── ERROR LOGS & TELEMETRY ───────────────────────────────── */}
+                    {activeSection === "error_logs" && (
+                        <AdminErrorLogsSection onUnresolvedCountChange={(count) => setUnresolvedErrorCount(count)} />
                     )}
 
                     {/* ─── CHAT ─────────────────────────────────────────────────── */}
@@ -3729,10 +3942,6 @@ export default function AdminDashboardPage() {
                                     <span className="material-symbols-outlined text-[14px]">timeline</span>
                                     Timeline
                                 </button>
-                                <button onClick={() => { if (!aiReview) handleAIReview(selectedApp.id); else setDrawerTab('ai_review'); }} className={`whitespace-nowrap pb-3 text-[11px] font-black uppercase tracking-widest border-b-2 transition-all flex items-center gap-2 ${drawerTab === 'ai_review' ? 'border-purple-600 text-purple-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
-                                    <span className="material-symbols-outlined text-[14px]">psychology</span>
-                                    AI Review
-                                </button>
                             </div>
                         </div>
 
@@ -3939,148 +4148,444 @@ export default function AdminDashboardPage() {
                                 </>
                             ) : drawerTab === 'documents' ? (
                                 <div className="space-y-6">
-                                    <div className="flex items-center gap-3 mb-4">
-                                        <span className="material-symbols-outlined text-purple-600 text-[20px]">description</span>
-                                        <h3 className="text-[13px] font-bold text-gray-900 uppercase tracking-wide">Attached Documents</h3>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="flex items-center gap-3">
+                                            <span className="material-symbols-outlined text-purple-600 text-[20px]">description</span>
+                                            <h3 className="text-[13px] font-bold text-gray-900 uppercase tracking-wide">Attached Documents</h3>
+                                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                                                {drawerDocs.length} files
+                                            </span>
+                                        </div>
+                                        <button
+                                            onClick={() => fetchDrawerApplicationData(selectedApp.id)}
+                                            disabled={drawerDocsLoading}
+                                            className="p-1.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-all cursor-pointer"
+                                            title="Refresh Documents"
+                                        >
+                                            <span className={`material-symbols-outlined text-[18px] ${drawerDocsLoading ? 'animate-spin text-purple-600' : ''}`}>refresh</span>
+                                        </button>
                                     </div>
-                                    <div className="space-y-3">
-                                        {[
-                                            { name: '10th Marksheet', status: 'verified', date: '2024-01-15' },
-                                            { name: '12th Marksheet', status: 'verified', date: '2024-01-15' },
-                                            { name: 'Passport/ID', status: 'verified', date: '2024-01-15' },
-                                            { name: 'Bank Statements', status: 'pending', date: '2024-01-16' },
-                                            { name: 'Income Certificate', status: 'rejected', date: '2024-01-16' },
-                                        ].map((doc, i) => (
-                                            <div key={i} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-all">
-                                                <div className="flex items-center gap-3">
-                                                    <span className="material-symbols-outlined text-gray-400 text-[20px]">article</span>
-                                                    <div>
-                                                        <p className="text-[12px] font-bold text-gray-900">{doc.name}</p>
-                                                        <p className="text-[10px] text-gray-500 font-medium">{doc.date}</p>
+
+                                    {/* Summary Quick Stats */}
+                                    <div className="grid grid-cols-4 gap-2">
+                                        <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-center">
+                                            <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Total</p>
+                                            <p className="text-[15px] font-bold text-slate-800">{drawerDocs.length}</p>
+                                        </div>
+                                        <div className="p-2.5 rounded-lg bg-emerald-50/60 border border-emerald-200 text-center">
+                                            <p className="text-[9px] font-black uppercase tracking-wider text-emerald-600">Verified</p>
+                                            <p className="text-[15px] font-bold text-emerald-700">{drawerDocs.filter((d: any) => ['verified', 'approved'].includes(d.status)).length}</p>
+                                        </div>
+                                        <div className="p-2.5 rounded-lg bg-amber-50/60 border border-amber-200 text-center">
+                                            <p className="text-[9px] font-black uppercase tracking-wider text-amber-600">Pending</p>
+                                            <p className="text-[15px] font-bold text-amber-700">{drawerDocs.filter((d: any) => ['pending', 'uploaded'].includes(d.status)).length}</p>
+                                        </div>
+                                        <div className="p-2.5 rounded-lg bg-rose-50/60 border border-rose-200 text-center">
+                                            <p className="text-[9px] font-black uppercase tracking-wider text-rose-600">Rejected</p>
+                                            <p className="text-[15px] font-bold text-rose-700">{drawerDocs.filter((d: any) => d.status === 'rejected').length}</p>
+                                        </div>
+                                    </div>
+
+                                    {drawerDocsLoading ? (
+                                        <div className="flex flex-col items-center justify-center py-16 bg-purple-50/30 rounded-lg border border-dashed border-purple-200">
+                                            <div className="w-8 h-8 border-3 border-purple-200 border-t-purple-600 rounded-full animate-spin mb-3" />
+                                            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Loading application documents...</p>
+                                        </div>
+                                    ) : drawerDocs.length === 0 ? (
+                                        <div className="flex flex-col items-center justify-center py-14 bg-slate-50 rounded-lg border border-dashed border-slate-200 text-center px-4">
+                                            <span className="material-symbols-outlined text-4xl text-slate-300 mb-2">folder_off</span>
+                                            <p className="text-[12px] font-bold text-slate-700">No documents found for this application</p>
+                                            <p className="text-[10px] text-slate-400 mt-1 max-w-sm">The applicant has not uploaded documents yet, or documents are pending sync from student vault.</p>
+                                            <button
+                                                onClick={() => fetchDrawerApplicationData(selectedApp.id)}
+                                                className="mt-4 px-3 py-1.5 text-[11px] font-bold bg-white text-purple-600 border border-purple-200 rounded-lg hover:bg-purple-50 transition-all inline-flex items-center gap-1.5 shadow-xs cursor-pointer"
+                                            >
+                                                <span className="material-symbols-outlined text-[14px]">sync</span>
+                                                Check Again
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-3">
+                                            {drawerDocs.map((doc: any, i: number) => {
+                                                const docTitle = doc.docName || (doc.docType ? doc.docType.replace(/_/g, ' ').toUpperCase() : 'Document');
+                                                const isUploaded = Boolean(doc.filePath || doc.url || doc.status === 'verified' || doc.status === 'approved' || doc.status === 'pending');
+                                                const docDate = doc.uploadedAt || doc.createdAt || doc.updatedAt;
+                                                return (
+                                                    <div key={doc.id || i} className="p-4 bg-white rounded-lg border border-slate-200 hover:border-purple-200 hover:shadow-xs transition-all">
+                                                        <div className="flex items-start justify-between gap-3">
+                                                            <div className="flex items-start gap-3 min-w-0">
+                                                                <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                                                                    ['verified', 'approved'].includes(doc.status) ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
+                                                                    doc.status === 'rejected' ? 'bg-rose-50 text-rose-600 border border-rose-100' :
+                                                                    isUploaded ? 'bg-amber-50 text-amber-600 border border-amber-100' :
+                                                                    'bg-slate-100 text-slate-400 border border-slate-200'
+                                                                }`}>
+                                                                    <span className="material-symbols-outlined text-[18px]">
+                                                                        {['verified', 'approved'].includes(doc.status) ? 'verified' :
+                                                                         doc.status === 'rejected' ? 'error' :
+                                                                         isUploaded ? 'article' : 'upload_file'}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="min-w-0">
+                                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                                        <p className="text-[12px] font-bold text-slate-900 truncate">{docTitle}</p>
+                                                                        {doc.isVaultDoc && (
+                                                                            <span className="px-1.5 py-0.2 rounded text-[8px] font-bold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                                                                Vault
+                                                                            </span>
+                                                                        )}
+                                                                        {doc.isRequired && (
+                                                                            <span className="px-1.5 py-0.2 rounded text-[8px] font-bold uppercase tracking-wider bg-rose-50 text-rose-700 border border-rose-200">
+                                                                                Required
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-500 font-medium flex-wrap">
+                                                                        {doc.fileName && (
+                                                                            <span className="truncate max-w-[200px] text-slate-700 font-mono text-[10px]">{doc.fileName}</span>
+                                                                        )}
+                                                                        {doc.fileSize && (
+                                                                            <span>• {formatFileSize(doc.fileSize)}</span>
+                                                                        )}
+                                                                        <span>• {docDate ? format(new Date(docDate), 'dd MMM yyyy, hh:mm a') : 'No upload date'}</span>
+                                                                    </div>
+                                                                    {doc.rejectionReason && (
+                                                                        <p className="mt-2 text-[10px] text-rose-700 bg-rose-50 px-2.5 py-1.5 rounded border border-rose-200 font-medium">
+                                                                            <span className="font-bold">Rejection note: </span>{doc.rejectionReason}
+                                                                        </p>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center gap-1.5 shrink-0">
+                                                                <span className={`inline-flex items-center px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded-full border ${
+                                                                    ['verified', 'approved'].includes(doc.status) ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                                                    doc.status === 'rejected' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                                                                    isUploaded ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                                                    'bg-slate-100 text-slate-500 border-slate-200'
+                                                                }`}>
+                                                                    {['verified', 'approved'].includes(doc.status) && '✓ Verified'}
+                                                                    {doc.status === 'rejected' && '✗ Rejected'}
+                                                                    {!['verified', 'approved', 'rejected'].includes(doc.status) && isUploaded && '⏳ Pending'}
+                                                                    {!isUploaded && '— Not Uploaded'}
+                                                                </span>
+                                                                {isUploaded && (
+                                                                    <>
+                                                                        <button
+                                                                            onClick={() => handleViewDoc(doc)}
+                                                                            className="p-1.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded transition-all cursor-pointer"
+                                                                            title="Preview Document"
+                                                                        >
+                                                                            <span className="material-symbols-outlined text-[17px]">visibility</span>
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => handleDownloadDoc(doc)}
+                                                                            className="p-1.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded transition-all cursor-pointer"
+                                                                            title="Download Document"
+                                                                        >
+                                                                            <span className="material-symbols-outlined text-[17px]">download</span>
+                                                                        </button>
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <span className={`inline-flex items-center px-2 py-1 text-[9px] font-bold uppercase rounded-full ${
-                                                        doc.status === 'verified' ? 'bg-emerald-100 text-emerald-700' :
-                                                        doc.status === 'pending' ? 'bg-amber-100 text-amber-700' :
-                                                        'bg-red-100 text-red-700'
-                                                    }`}>
-                                                        {doc.status === 'verified' && '✓ Verified'}
-                                                        {doc.status === 'pending' && '⏳ Pending'}
-                                                        {doc.status === 'rejected' && '✗ Rejected'}
-                                                    </span>
-                                                    <button className="p-2 text-gray-400 hover:text-purple-600 transition-all">
-                                                        <span className="material-symbols-outlined">download</span>
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
                                 </div>
                             ) : drawerTab === 'notes' ? (
                                 <div className="space-y-6">
-                                    <div className="flex items-center gap-3 mb-4">
-                                        <span className="material-symbols-outlined text-purple-600 text-[20px]">note</span>
-                                        <h3 className="text-[13px] font-bold text-gray-900 uppercase tracking-wide">Admin Notes</h3>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="flex items-center gap-3">
+                                            <span className="material-symbols-outlined text-purple-600 text-[20px]">note</span>
+                                            <h3 className="text-[13px] font-bold text-gray-900 uppercase tracking-wide">Admin Notes</h3>
+                                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                                                {drawerNotes.length} notes
+                                            </span>
+                                        </div>
+                                        <button
+                                            onClick={() => fetchDrawerApplicationData(selectedApp.id)}
+                                            disabled={drawerNotesLoading}
+                                            className="p-1.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-all cursor-pointer"
+                                            title="Refresh Notes"
+                                        >
+                                            <span className={`material-symbols-outlined text-[18px] ${drawerNotesLoading ? 'animate-spin text-purple-600' : ''}`}>refresh</span>
+                                        </button>
                                     </div>
-                                    <div className="bg-purple-50 p-4 rounded-lg border border-purple-100 mb-4">
-                                        <textarea placeholder="Add internal notes here..." rows={4} className="w-full px-4 py-3 bg-white border border-purple-100 rounded-lg text-[12px] font-medium focus:outline-none focus:ring-2 focus:ring-purple-600/10 focus:border-purple-600/30 transition-all resize-none" />
-                                        <button className="mt-3 px-4 py-2 bg-purple-600 text-white text-[11px] font-bold rounded hover:bg-purple-700 transition-all">Save Note</button>
+
+                                    {/* Add Note Input Box */}
+                                    <div className="bg-purple-50/50 p-4 rounded-xl border border-purple-100">
+                                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                                            New Internal Remark / Note
+                                        </label>
+                                        <textarea
+                                            value={newDrawerNote}
+                                            onChange={(e) => setNewDrawerNote(e.target.value)}
+                                            placeholder="Write an internal note or observation regarding this application..."
+                                            rows={3}
+                                            disabled={savingDrawerNote}
+                                            className="w-full px-4 py-3 bg-white border border-purple-200/80 rounded-lg text-[12px] font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-600/20 focus:border-purple-600 transition-all resize-none shadow-2xs"
+                                        />
+                                        <div className="flex items-center justify-between mt-3">
+                                            <p className="text-[10px] text-slate-400 font-medium flex items-center gap-1">
+                                                <span className="material-symbols-outlined text-[14px]">lock</span>
+                                                Visible to admin and staff only
+                                            </p>
+                                            <button
+                                                onClick={handleSaveDrawerNote}
+                                                disabled={savingDrawerNote || !newDrawerNote.trim()}
+                                                className="px-4 py-2 bg-purple-600 text-white text-[11px] font-bold rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all inline-flex items-center gap-1.5 shadow-xs cursor-pointer"
+                                            >
+                                                {savingDrawerNote ? (
+                                                    <>
+                                                        <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                                        Saving...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <span className="material-symbols-outlined text-[15px]">send</span>
+                                                        Save Note
+                                                    </>
+                                                )}
+                                            </button>
+                                        </div>
                                     </div>
+
+                                    {/* Dynamic Notes Feed */}
                                     <div className="space-y-3">
-                                        <p className="text-[11px] font-bold text-gray-600 uppercase tracking-wide">Recent Notes</p>
-                                        {[
-                                            { author: 'Admin John', note: 'Applicant called to confirm address', date: '2 hours ago' },
-                                            { author: 'Admin Sarah', note: 'Requested additional bank statements', date: '1 day ago' },
-                                        ].map((item, i) => (
-                                            <div key={i} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                                                <div className="flex items-start justify-between mb-2">
-                                                    <p className="text-[12px] font-bold text-gray-900">{item.author}</p>
-                                                    <p className="text-[10px] text-gray-500 font-medium">{item.date}</p>
-                                                </div>
-                                                <p className="text-[12px] text-gray-700">{item.note}</p>
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-[11px] font-bold text-gray-700 uppercase tracking-wide">Recorded Notes</p>
+                                            {drawerNotes.length > 0 && (
+                                                <span className="text-[10px] text-slate-400 font-medium">Newest first</span>
+                                            )}
+                                        </div>
+
+                                        {drawerNotesLoading ? (
+                                            <div className="flex flex-col items-center justify-center py-14 bg-purple-50/20 rounded-lg border border-dashed border-purple-200">
+                                                <div className="w-8 h-8 border-3 border-purple-200 border-t-purple-600 rounded-full animate-spin mb-3" />
+                                                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Loading notes...</p>
                                             </div>
-                                        ))}
+                                        ) : drawerNotes.length === 0 ? (
+                                            <div className="flex flex-col items-center justify-center py-12 bg-slate-50 rounded-lg border border-dashed border-slate-200 text-center px-4">
+                                                <span className="material-symbols-outlined text-4xl text-slate-300 mb-2">speaker_notes_off</span>
+                                                <p className="text-[12px] font-bold text-slate-700">No admin notes added yet</p>
+                                                <p className="text-[10px] text-slate-400 mt-1 max-w-sm">Use the field above to record internal notes, remarks, or updates about this application.</p>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-3">
+                                                {drawerNotes.map((item: any, i: number) => {
+                                                    const noteTime = item.createdAt ? new Date(item.createdAt) : null;
+                                                    const isAutoOrSystem = (item.authorName || '').toLowerCase().includes('system') || item.type === 'ai_review' || item.type === 'share';
+                                                    return (
+                                                        <div key={item.id || i} className="p-4 bg-white rounded-xl border border-slate-200 hover:border-purple-200 hover:shadow-xs transition-all">
+                                                            <div className="flex items-start justify-between gap-2 mb-2">
+                                                                <div className="flex items-center gap-2 flex-wrap">
+                                                                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold ${
+                                                                        isAutoOrSystem ? 'bg-indigo-100 text-indigo-700' : 'bg-purple-100 text-purple-700'
+                                                                    }`}>
+                                                                        <span className="material-symbols-outlined text-[15px]">
+                                                                            {isAutoOrSystem ? 'smart_toy' : 'person'}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div>
+                                                                        <p className="text-[12px] font-bold text-slate-900 leading-tight">
+                                                                            {item.authorName || item.author || 'Admin Staff'}
+                                                                        </p>
+                                                                        <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">
+                                                                            {item.type ? item.type.replace(/_/g, ' ') : 'Internal Note'}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                                {noteTime && (
+                                                                    <div className="text-right">
+                                                                        <p className="text-[10px] font-semibold text-slate-600">{format(noteTime, 'dd MMM yyyy, hh:mm a')}</p>
+                                                                        <p className="text-[9px] text-slate-400 font-medium">{formatDistanceToNow(noteTime, { addSuffix: true })}</p>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            <p className="text-[12px] text-slate-700 whitespace-pre-wrap leading-relaxed bg-slate-50/70 p-3 rounded-lg border border-slate-100 mt-2">
+                                                                {item.content}
+                                                            </p>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             ) : drawerTab === 'history' ? (
                                 <div className="space-y-6">
-                                    <div className="flex items-center gap-3 mb-4">
-                                        <span className="material-symbols-outlined text-purple-600 text-[20px]">timeline</span>
-                                        <h3 className="text-[13px] font-bold text-gray-900 uppercase tracking-wide">Application Timeline</h3>
-                                    </div>
-                                    <div className="relative">
-                                        {[
-                                            { status: 'Application Submitted', date: '2024-01-10', time: '10:30 AM', icon: 'check' },
-                                            { status: 'Documents Received', date: '2024-01-11', time: '02:15 PM', icon: 'description' },
-                                            { status: 'AI Review Completed', date: '2024-01-12', time: '09:00 AM', icon: 'psychology' },
-                                            { status: 'Pending Admin Review', date: '2024-01-13', time: 'In Progress', icon: 'hourglass_bottom' },
-                                        ].map((item, i) => (
-                                            <div key={i} className="flex gap-4 mb-6 last:mb-0 relative">
-                                                <div className="relative z-10 flex flex-col items-center">
-                                                    <div className="w-10 h-10 rounded-full bg-purple-100 border-2 border-purple-600 flex items-center justify-center text-purple-600">
-                                                        <span className="material-symbols-outlined text-[18px]">{item.icon}</span>
-                                                    </div>
-                                                    {i < 3 && <div className="w-1 h-12 bg-purple-200 my-2" />}
-                                                </div>
-                                                <div className="pt-2">
-                                                    <p className="text-[12px] font-bold text-gray-900">{item.status}</p>
-                                                    <p className="text-[11px] text-gray-500 font-medium">{item.date} at {item.time}</p>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="space-y-8">
-                                    {aiReviewLoading ? (
-                                        <div className="flex flex-col items-center justify-center py-24 bg-purple-50 rounded-lg border border-dashed border-purple-200">
-                                            <div className="w-12 h-12 border-4 border-purple-100 border-t-purple-600 rounded-full animate-spin mb-6" />
-                                            <p className="text-[11px] font-black uppercase tracking-widest text-purple-400 animate-pulse">Running AI Analysis...</p>
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div className="flex items-center gap-3">
+                                            <span className="material-symbols-outlined text-purple-600 text-[20px]">timeline</span>
+                                            <h3 className="text-[13px] font-bold text-gray-900 uppercase tracking-wide">Application Timeline</h3>
                                         </div>
-                                    ) : aiReview ? (
-                                        <>
-                                            <div className="p-6 rounded-lg bg-gradient-to-r from-purple-900 to-purple-800 text-white shadow-lg relative overflow-hidden">
-                                                <div className="relative z-10">
-                                                    <div className="flex justify-between items-start mb-4">
-                                                        <div>
-                                                            <p className="text-[10px] font-bold uppercase tracking-widest text-purple-300 mb-1">AI Recommendation</p>
-                                                            <h3 className="text-[16px] font-bold text-white">{aiReview.recommendation?.replace(/_/g, ' ').toUpperCase()}</h3>
-                                                        </div>
-                                                        <div className="text-right">
-                                                            <p className="text-[28px] font-bold leading-none tabular-nums">{aiReview.overallScore}%</p>
-                                                            <p className="text-[9px] font-bold uppercase tracking-widest text-purple-300">Score</p>
-                                                        </div>
-                                                    </div>
-                                                    <p className="text-[12px] text-purple-100 font-medium">"{aiReview.aiSummary}"</p>
-                                                </div>
-                                                <span className="material-symbols-outlined absolute -right-4 top-1/2 -translate-y-1/2 text-[100px] text-white/5 pointer-events-none">psychology</span>
-                                            </div>
-
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div className="p-4 rounded-lg bg-gray-50 border border-gray-200">
-                                                    <p className="text-[9px] font-bold text-gray-600 uppercase tracking-widest mb-2">Risk Level</p>
-                                                    <div className="flex items-center gap-2">
-                                                        <div className={`w-2.5 h-2.5 rounded-full ${aiReview.creditAssessment?.riskLevel === 'low' ? 'bg-emerald-500' : 'bg-red-500'}`} />
-                                                        <span className="text-[12px] font-bold text-gray-900 uppercase">{aiReview.creditAssessment?.riskLevel}</span>
-                                                    </div>
-                                                </div>
-                                                <div className="p-4 rounded-lg bg-gray-50 border border-gray-200">
-                                                    <p className="text-[9px] font-bold text-gray-600 uppercase tracking-widest mb-2">Completeness</p>
-                                                    <p className="text-[12px] font-bold text-gray-900">{aiReview.completenessCheck?.percentage || 85}% Verified</p>
-                                                </div>
-                                            </div>
-                                        </>
-                                    ) : (
-                                        <div className="text-center py-16">
-                                            <button onClick={() => handleAIReview(selectedApp.id)} className="px-6 py-3 bg-purple-600 text-white text-[11px] font-bold rounded-lg hover:bg-purple-700 transition-all inline-flex items-center gap-2 shadow-md">
-                                                <span className="material-symbols-outlined text-[16px]">psychology</span>
-                                                Run AI Review
+                                        <div className="flex items-center gap-2">
+                                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-purple-50 text-purple-700 border border-purple-200">
+                                                Stage: {formatStatusLabel(selectedApp.stage || selectedApp.currentStage || 'Draft')}
+                                            </span>
+                                            <button
+                                                onClick={() => fetchDrawerApplicationData(selectedApp.id)}
+                                                disabled={drawerTimelineLoading}
+                                                className="p-1.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-all cursor-pointer"
+                                                title="Refresh Timeline"
+                                            >
+                                                <span className={`material-symbols-outlined text-[18px] ${drawerTimelineLoading ? 'animate-spin text-purple-600' : ''}`}>refresh</span>
                                             </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Stage Progression Stepper */}
+                                    {drawerStages.length > 0 && (
+                                        <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-200 mb-6">
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Application Stage Progress</p>
+                                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                                {drawerStages.map((st: any, sIdx: number) => {
+                                                    const isCurrent = st.isCurrent || st.key === selectedApp.stage;
+                                                    const isDone = st.isCompleted;
+                                                    return (
+                                                        <div
+                                                            key={st.key || sIdx}
+                                                            className={`p-2.5 rounded-lg border flex flex-col justify-between transition-all ${
+                                                                isCurrent ? 'bg-purple-50/80 border-purple-300 ring-2 ring-purple-500/20' :
+                                                                isDone ? 'bg-emerald-50/50 border-emerald-200' :
+                                                                'bg-white border-slate-200 opacity-60'
+                                                            }`}
+                                                        >
+                                                            <div className="flex items-center justify-between mb-1">
+                                                                <span className="text-[9px] font-black text-slate-400">0{sIdx + 1}</span>
+                                                                <span className={`material-symbols-outlined text-[14px] ${
+                                                                    isCurrent ? 'text-purple-600 animate-pulse' :
+                                                                    isDone ? 'text-emerald-600' :
+                                                                    'text-slate-300'
+                                                                }`}>
+                                                                    {isDone ? 'check_circle' : isCurrent ? 'radio_button_checked' : 'radio_button_unchecked'}
+                                                                </span>
+                                                            </div>
+                                                            <p className={`text-[11px] font-bold truncate ${
+                                                                isCurrent ? 'text-purple-900' :
+                                                                isDone ? 'text-emerald-900' :
+                                                                'text-slate-600'
+                                                            }`}>
+                                                                {st.label || formatStatusLabel(st.key)}
+                                                            </p>
+                                                            {st.completedAt && (
+                                                                <p className="text-[8px] font-medium text-slate-400 mt-1">
+                                                                    {format(new Date(st.completedAt), 'dd MMM yyyy')}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Timeline Event List */}
+                                    {drawerTimelineLoading ? (
+                                        <div className="flex flex-col items-center justify-center py-16 bg-purple-50/30 rounded-lg border border-dashed border-purple-200">
+                                            <div className="w-8 h-8 border-3 border-purple-200 border-t-purple-600 rounded-full animate-spin mb-3" />
+                                            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Loading application timeline...</p>
+                                        </div>
+                                    ) : (
+                                        <div className="relative pl-6 space-y-6 before:absolute before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
+                                            {(() => {
+                                                let events = [...drawerTimeline];
+                                                if (events.length === 0) {
+                                                    if (selectedApp.createdAt) {
+                                                        events.push({
+                                                            title: 'Application Created',
+                                                            toStatus: 'draft',
+                                                            createdAt: selectedApp.createdAt,
+                                                            notes: 'Application draft was initiated by applicant.',
+                                                            changedByName: selectedApp.firstName ? `${selectedApp.firstName} ${selectedApp.lastName || ''}`.trim() : 'Applicant'
+                                                        });
+                                                    }
+                                                    if (selectedApp.submittedAt || (selectedApp.status && selectedApp.status !== 'draft')) {
+                                                        events.push({
+                                                            title: 'Application Submitted',
+                                                            toStatus: 'submitted',
+                                                            createdAt: selectedApp.submittedAt || selectedApp.createdAt,
+                                                            notes: 'Application submitted for admin & staff processing.',
+                                                            changedByName: selectedApp.firstName ? `${selectedApp.firstName} ${selectedApp.lastName || ''}`.trim() : 'Applicant'
+                                                        });
+                                                    }
+                                                    if (drawerDocs.some((d: any) => ['verified', 'approved'].includes(d.status))) {
+                                                        const verifiedDoc = drawerDocs.find((d: any) => ['verified', 'approved'].includes(d.status));
+                                                        events.push({
+                                                            title: 'Documents Verified',
+                                                            toStatus: 'documents_verified',
+                                                            createdAt: verifiedDoc?.updatedAt || verifiedDoc?.uploadedAt || selectedApp.updatedAt || selectedApp.createdAt,
+                                                            notes: 'Applicant documents were checked and verified.',
+                                                            changedByName: selectedApp.staffName || 'Staff Reviewer'
+                                                        });
+                                                    }
+                                                    if (selectedApp.status && selectedApp.status !== 'draft' && selectedApp.status !== 'submitted') {
+                                                        events.push({
+                                                            title: `Current Status: ${formatStatusLabel(selectedApp.status)}`,
+                                                            toStatus: selectedApp.status,
+                                                            createdAt: selectedApp.updatedAt || selectedApp.createdAt,
+                                                            notes: selectedApp.remarks || selectedApp.rejectionReason || 'Application status updated.',
+                                                            changedByName: selectedApp.staffName || 'System'
+                                                        });
+                                                    }
+                                                }
+
+                                                // Sort newest first
+                                                events.sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+
+                                                return events.map((item: any, i: number) => {
+                                                    const itemStatus = item.toStatus || item.toStage || item.status || 'updated';
+                                                    const meta = getTimelineIcon(itemStatus);
+                                                    const title = item.title || (item.toStatus ? `Status: ${formatStatusLabel(item.toStatus)}` : (item.toStage ? `Stage: ${formatStatusLabel(item.toStage)}` : 'Application Event'));
+                                                    const time = item.createdAt ? new Date(item.createdAt) : null;
+
+                                                    return (
+                                                        <div key={item.id || i} className="relative group">
+                                                            {/* Node Icon */}
+                                                            <div className={`absolute -left-6 top-0.5 w-6 h-6 rounded-full border-2 flex items-center justify-center shadow-xs transition-transform group-hover:scale-110 ${meta.color}`}>
+                                                                <span className="material-symbols-outlined text-[13px]">{meta.icon}</span>
+                                                            </div>
+
+                                                            <div className="bg-white p-4 rounded-xl border border-slate-200 hover:border-purple-200 hover:shadow-xs transition-all">
+                                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-2">
+                                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                                        <p className="text-[12px] font-bold text-slate-900">{title}</p>
+                                                                        {item.fromStatus && item.toStatus && item.fromStatus !== item.toStatus && (
+                                                                            <span className="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider bg-slate-100 text-slate-600 border border-slate-200">
+                                                                                {item.fromStatus} → {item.toStatus}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    {time && (
+                                                                        <div className="text-left sm:text-right">
+                                                                            <p className="text-[10px] font-semibold text-slate-700">{format(time, 'dd MMM yyyy, hh:mm a')}</p>
+                                                                            <p className="text-[9px] text-slate-400 font-medium">{formatDistanceToNow(time, { addSuffix: true })}</p>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+
+                                                                {(item.changedByName || item.changedBy) && (
+                                                                    <p className="text-[10px] text-slate-500 font-medium mb-1.5">
+                                                                        <span className="text-slate-400">Updated by:</span> <span className="font-semibold text-slate-700">{item.changedByName || item.changedBy}</span>
+                                                                    </p>
+                                                                )}
+
+                                                                {(item.notes || item.changeReason) && (
+                                                                    <div className="mt-2 p-2.5 rounded-lg bg-slate-50 border border-slate-200/80 text-[11px] text-slate-700 font-medium">
+                                                                        {item.notes || item.changeReason}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                });
+                                            })()}
                                         </div>
                                     )}
                                 </div>
-                            )}
+                            ) : null}
                         </div>
 
                         <div className="sticky bottom-0 bg-gray-50 p-6 pt-4 border-t border-gray-200">

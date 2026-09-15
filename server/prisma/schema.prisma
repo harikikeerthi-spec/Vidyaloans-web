@@ -443,6 +443,39 @@ model AuditLog {
   @@index([createdAt])
 }
 
+model ErrorLog {
+  id             String    @id @default(uuid())
+  fingerprint    String
+  level          String    @default("ERROR")
+  name           String    @default("Error")
+  message        String    @db.Text
+  statusCode     Int?      @default(500)
+  endpoint       String?
+  method         String?
+  stack          String?   @db.Text
+  source         String    @default("backend")
+  context        String?
+  metadata       Json?
+  userId         String?
+  userEmail      String?
+  userRole       String?
+  isResolved     Boolean   @default(false)
+  resolvedAt     DateTime?
+  resolvedBy     String?
+  resolutionNote String?   @db.Text
+  occurrences    Int       @default(1)
+  firstSeenAt    DateTime  @default(now())
+  lastSeenAt     DateTime  @default(now())
+  createdAt      DateTime  @default(now())
+
+  @@index([isResolved, lastSeenAt(sort: Desc)])
+  @@index([fingerprint])
+  @@index([level])
+  @@index([statusCode])
+  @@index([source])
+  @@index([createdAt(sort: Desc)])
+}
+
 model ForumPost {
   id       String   @id @default(uuid())
   title    String?
