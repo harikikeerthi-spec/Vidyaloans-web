@@ -59,8 +59,11 @@ const getApplicationStageLabel = (app: any, progress: number): string => {
 };
 
 const renderBankLogo = (name?: string, sizeClass: string = "h-5") => {
-    if (!name) return <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 text-[9px] font-semibold">N/A</span>;
-    const b = name.toLowerCase();
+    if (!name) return null;
+    const b = name.trim().toLowerCase();
+    if (!b || b === 'any bank' || b === 'any' || b === '-' || b === 'pending partner' || b === 'n/a' || b === 'not assigned' || b === 'unassigned') {
+        return null;
+    }
     if (b.includes('idfc')) return <img src="/images/lenders/idfc-first-bank.jpg" alt="IDFC" className={`${sizeClass} object-contain inline-block`} />;
     if (b.includes('avanse')) return <img src="/images/lenders/avanse.jpg" alt="Avanse" className={`${sizeClass} object-contain inline-block`} />;
     if (b.includes('auxilo')) return <img src="/images/lenders/auxilo.png" alt="Auxilo" className={`${sizeClass} object-contain inline-block`} />;
@@ -3554,7 +3557,7 @@ export default function AdminDashboardPage() {
                                                     />
                                                 </th>
                                                 <th className="px-4 py-2.5 font-bold text-slate-600 text-[9px] uppercase tracking-wider">Application Ref</th>
-                                                <th className="px-4 py-2.5 font-bold text-slate-600 text-[9px] uppercase tracking-wider">Applicant & Target</th>
+                                                <th className="px-4 py-2.5 font-bold text-slate-600 text-[9px] uppercase tracking-wider min-w-[210px] max-w-[280px]">Applicant & Target</th>
                                                 <th className="px-4 py-2.5 font-bold text-slate-600 text-[9px] uppercase tracking-wider">Assigned Staff</th>
                                                 <th className="px-4 py-2.5 font-bold text-slate-600 text-[9px] uppercase tracking-wider">Lender & Loan</th>
                                                 <th className="px-4 py-2.5 font-bold text-slate-600 text-[9px] uppercase tracking-wider">Progress & Stage</th>
@@ -3629,7 +3632,7 @@ export default function AdminDashboardPage() {
                                                     </td>
                                                     
                                                     {/* Applicant & Target Details */}
-                                                    <td className="px-4 py-3 max-w-[180px]">
+                                                    <td className="px-4 py-3 min-w-[210px] max-w-[280px]">
                                                         <button
                                                             onClick={() => handleViewUserProfile(item)}
                                                             className="flex flex-col cursor-pointer hover:bg-indigo-50/80 p-1.5 rounded -m-1.5 transition-all group w-full text-left"
@@ -3640,11 +3643,27 @@ export default function AdminDashboardPage() {
                                                                 <span className="material-symbols-outlined text-[11px] opacity-0 group-hover:opacity-100 transition-opacity">open_in_new</span>
                                                             </p>
                                                             <p className="text-[10px] text-slate-500 truncate" title={item.email}>{item.email}</p>
-                                                            {(item.targetUniversity || item.universityName || item.studyDestination || item.country) && (
-                                                                <span className="text-[9px] text-slate-500 font-medium truncate mt-0.5 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 w-fit">
-                                                                    🎓 {item.targetUniversity || item.universityName || 'Uni'} ({item.studyDestination || item.country || 'Global'})
-                                                                </span>
-                                                            )}
+                                                            {(() => {
+                                                                const uni = (item.targetUniversity || item.universityName || '').trim();
+                                                                const destination = (item.studyDestination || item.country || '').trim();
+                                                                if (!uni && !destination) return null;
+                                                                const fullTarget = uni ? (destination && destination.toLowerCase() !== 'global' ? `${uni} (${destination})` : uni) : destination;
+
+                                                                return (
+                                                                    <div
+                                                                        className="mt-1.5 inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-slate-100/90 hover:bg-slate-200/70 border border-slate-200/80 text-slate-700 max-w-full transition-colors"
+                                                                        title={fullTarget}
+                                                                    >
+                                                                        <span className="material-symbols-outlined text-[13px] text-indigo-600 flex-shrink-0">school</span>
+                                                                        <span className="text-[10px] font-semibold truncate tracking-tight">
+                                                                            {uni || destination}
+                                                                            {uni && destination && destination.toLowerCase() !== 'global' && (
+                                                                                <span className="text-slate-500 font-normal ml-1">({destination})</span>
+                                                                            )}
+                                                                        </span>
+                                                                    </div>
+                                                                );
+                                                            })()}
                                                         </button>
                                                     </td>
                                                     
@@ -3970,11 +3989,18 @@ export default function AdminDashboardPage() {
                                             <h3 className="text-[13px] font-bold text-gray-900 uppercase tracking-wide">Loan Details</h3>
                                         </div>
                                         <div className="grid grid-cols-2 gap-y-4 gap-x-6 bg-purple-50/30 p-6 rounded-lg border border-purple-100">
-                                            <DetailRow label="Bank Partner" value={selectedApp.bank || '—'} />
+                                            <DetailRow 
+                                                label="Bank Partner" 
+                                                value={
+                                                    selectedApp.bank && !['any bank', 'any', '-', 'pending partner', 'n/a', 'not assigned', 'unassigned'].includes(selectedApp.bank.toLowerCase().trim())
+                                                        ? selectedApp.bank
+                                                        : 'Not Assigned'
+                                                } 
+                                            />
                                             <DetailRow label="Loan Type" value={selectedApp.loanType || '—'} />
                                             <DetailRow label="Loan Amount" value={selectedApp.amount ? new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(selectedApp.amount) : '—'} highlight />
-                                            <DetailRow label="University" value={selectedApp.universityName || '—'} />
-                                            <DetailRow label="Country" value={selectedApp.country || '—'} />
+                                            <DetailRow label="University" value={selectedApp.universityName || selectedApp.targetUniversity || '—'} />
+                                            <DetailRow label="Country" value={selectedApp.country || selectedApp.studyDestination || '—'} />
                                             <DetailRow label="Applied On" value={selectedApp.createdAt ? format(new Date(selectedApp.createdAt), 'dd MMM yyyy') : '—'} />
                                         </div>
                                     </div>
@@ -4079,72 +4105,6 @@ export default function AdminDashboardPage() {
                                         </div>
                                     </div>
 
-                                    {/* Multi-Bank Application Priority Management */}
-                                    <div className="space-y-6">
-                                        <div className="flex items-center gap-3 mb-4">
-                                            <span className="material-symbols-outlined text-purple-600 text-[20px]">hub</span>
-                                            <h3 className="text-[13px] font-bold text-gray-900 uppercase tracking-wide">Multi-Bank Priority</h3>
-                                        </div>
-                                        <div className="bg-purple-50 p-6 rounded-lg border border-purple-100">
-                                            <div className="flex items-center justify-between mb-4">
-                                                <div>
-                                                    <p className="text-[12px] font-bold text-gray-900">Applicant has 3 active bank applications</p>
-                                                    <p className="text-[10px] text-gray-600 font-medium mt-1">Set priority to streamline the approval process</p>
-                                                </div>
-                                                <span className="material-symbols-outlined text-amber-500 text-[28px]">warning</span>
-                                            </div>
-                                            <div className="space-y-3 mt-4">
-                                                <p className="text-[11px] font-bold text-gray-700 uppercase tracking-wide mb-3">Set Priority Level</p>
-                                                <div className="grid grid-cols-3 gap-2">
-                                                    <button className="flex flex-col items-center justify-center p-3 bg-red-50 border-2 border-red-200 rounded-lg hover:bg-red-100 transition-all group cursor-pointer">
-                                                        <span className="material-symbols-outlined text-red-600 text-[24px] group-hover:scale-110 transition-transform">arrow_upward</span>
-                                                        <p className="text-[10px] font-bold text-red-700 mt-1 uppercase">High</p>
-                                                    </button>
-                                                    <button className="flex flex-col items-center justify-center p-3 bg-amber-50 border-2 border-amber-200 rounded-lg hover:bg-amber-100 transition-all group cursor-pointer">
-                                                        <span className="material-symbols-outlined text-amber-600 text-[24px] group-hover:scale-110 transition-transform">remove</span>
-                                                        <p className="text-[10px] font-bold text-amber-700 mt-1 uppercase">Medium</p>
-                                                    </button>
-                                                    <button className="flex flex-col items-center justify-center p-3 bg-gray-50 border-2 border-gray-200 rounded-lg hover:bg-gray-100 transition-all group cursor-pointer">
-                                                        <span className="material-symbols-outlined text-gray-600 text-[24px] group-hover:scale-110 transition-transform">arrow_downward</span>
-                                                        <p className="text-[10px] font-bold text-gray-700 mt-1 uppercase">Normal</p>
-                                                    </button>
-                                                </div>
-                                            </div>
-                                            <div className="mt-4 pt-4 border-t border-purple-200">
-                                                <p className="text-[10px] text-gray-600 font-medium"><span className="font-bold">High Priority:</span> Process first, allocate dedicated reviewer</p>
-                                                <p className="text-[10px] text-gray-600 font-medium mt-1"><span className="font-bold">Medium:</span> Process in standard queue, standard review</p>
-                                                <p className="text-[10px] text-gray-600 font-medium mt-1"><span className="font-bold">Normal:</span> Queue as received, batch review</p>
-                                            </div>
-                                        </div>
-
-                                        {/* Related Applications */}
-                                        <div className="bg-white p-6 rounded-lg border border-gray-200">
-                                            <p className="text-[12px] font-bold text-gray-900 mb-4 uppercase tracking-wide">Related Bank Applications</p>
-                                            <div className="space-y-3">
-                                                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                                    <div>
-                                                        <p className="text-[11px] font-bold text-gray-900">HDFC Bank</p>
-                                                        <p className="text-[10px] text-gray-600 font-medium">₹7,50,000 • Pending</p>
-                                                    </div>
-                                                    <span className="inline-flex items-center px-2 py-1 bg-amber-100 text-amber-700 rounded-full text-[9px] font-bold">App ID: HD234</span>
-                                                </div>
-                                                <div className="flex items-center justify-between p-3 bg-purple-50 rounded-lg border-2 border-purple-300">
-                                                    <div>
-                                                        <p className="text-[11px] font-bold text-gray-900">ICICI Bank (Current)</p>
-                                                        <p className="text-[10px] text-gray-600 font-medium">₹7,50,000 • Processing</p>
-                                                    </div>
-                                                    <span className="inline-flex items-center px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-[9px] font-bold">✓ Selected</span>
-                                                </div>
-                                                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                                    <div>
-                                                        <p className="text-[11px] font-bold text-gray-900">SBI</p>
-                                                        <p className="text-[10px] text-gray-600 font-medium">₹7,50,000 • Pending</p>
-                                                    </div>
-                                                    <span className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-[9px] font-bold">App ID: SB567</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
                                 </>
                             ) : drawerTab === 'documents' ? (
                                 <div className="space-y-6">
