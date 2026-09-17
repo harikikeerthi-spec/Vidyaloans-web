@@ -347,6 +347,7 @@ export default function AdminDashboardPage() {
     const [appPage, setAppPage] = useState(1);
     const [staffMembers, setStaffMembers] = useState<any[]>([]);
     const [reassigningAppId, setReassigningAppId] = useState<string | null>(null);
+    const [reassigningCounselorAppId, setReassigningCounselorAppId] = useState<string | null>(null);
     const [selectedAppIds, setSelectedAppIds] = useState<string[]>([]);
     const [bulkTargetStaffId, setBulkTargetStaffId] = useState<string>("");
     const [bulkReassigning, setBulkReassigning] = useState<boolean>(false);
@@ -1183,6 +1184,41 @@ export default function AdminDashboardPage() {
             alert("Failed to reassign staff: " + (e.message || e));
         } finally {
             setReassigningAppId(null);
+        }
+    };
+
+    const handleReassignCounselor = async (loanId: string, counselorStaffId: string) => {
+        if (!counselorStaffId) return;
+        try {
+            setReassigningCounselorAppId(loanId);
+            const targetStaff = staffMembers.find((s: any) => s.id === counselorStaffId || s.email === counselorStaffId);
+            const counselorName = targetStaff ? `${targetStaff.firstName || ''} ${targetStaff.lastName || ''}`.trim() : counselorStaffId;
+            const counselorEmail = targetStaff?.email || '';
+            const counselorPhone = targetStaff?.phoneNumber || targetStaff?.mobile || '';
+
+            await adminApi.updateApplication(loanId, {
+                counselorId: counselorStaffId,
+                counselorName,
+                counselorEmail,
+                counselorPhone
+            }).catch(() => null);
+
+            if (selectedApp && (selectedApp.id === loanId || selectedApp.applicationNumber === loanId)) {
+                setSelectedApp((prev: any) => ({
+                    ...prev,
+                    counselorId: counselorStaffId,
+                    counselorName,
+                    counselorEmail,
+                    counselorPhone,
+                    counselor: counselorName
+                }));
+            }
+            alert(`Assigned counselor successfully updated to ${counselorName}.`);
+            loadData();
+        } catch (e: any) {
+            alert("Failed to assign counselor: " + (e.message || e));
+        } finally {
+            setReassigningCounselorAppId(null);
         }
     };
 
@@ -4080,25 +4116,148 @@ export default function AdminDashboardPage() {
                                                     </div>
                                                 </div>
 
-                                                {/* Region Information */}
-                                                <div className="flex items-start gap-3 p-4 bg-white rounded-lg border border-green-100">
-                                                    <span className="material-symbols-outlined text-green-600 text-[20px] flex-shrink-0">location_on</span>
-                                                    <div className="flex-1">
-                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Region / Location</p>
-                                                        <p className="text-[12px] font-bold text-slate-900">{selectedApp.region || selectedApp.state || 'N/A'}</p>
-                                                        {selectedApp.city && <p className="text-[10px] text-slate-500 font-medium mt-1">City: {selectedApp.city}</p>}
-                                                        {selectedApp.country && <p className="text-[10px] text-slate-500 font-medium">Country: {selectedApp.country}</p>}
-                                                    </div>
-                                                </div>
+                                                {/* Dynamic Region / Location Information */}
+                                                {(() => {
+                                                    const city = selectedApp.city || selectedApp.user?.city || '';
+                                                    const state = selectedApp.state || selectedApp.user?.state || '';
+                                                    const pincode = selectedApp.pincode || selectedApp.user?.pincode || '';
+                                                    const address = selectedApp.address || selectedApp.user?.address || '';
+                                                    const country = selectedApp.nationality || 'India';
+                                                    const studyTarget = selectedApp.country || selectedApp.studyDestination || '';
 
-                                                {/* Counselor Information */}
-                                                <div className="flex items-start gap-3 p-4 bg-white rounded-lg border border-amber-100">
-                                                    <span className="material-symbols-outlined text-amber-600 text-[20px] flex-shrink-0">support_agent</span>
-                                                    <div className="flex-1">
-                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Assigned Counselor</p>
-                                                        <p className="text-[12px] font-bold text-slate-900">{selectedApp.counselorName || selectedApp.counselor || 'Not Assigned'}</p>
-                                                        {selectedApp.counselorEmail && <p className="text-[10px] text-slate-500 font-medium mt-1">{selectedApp.counselorEmail}</p>}
-                                                        {selectedApp.counselorPhone && <p className="text-[10px] text-slate-500 font-medium">{selectedApp.counselorPhone}</p>}
+                                                    const getIndianZone = (stateName: string) => {
+                                                        if (!stateName) return null;
+                                                        const s = stateName.toLowerCase();
+                                                        if (['telangana', 'andhra', 'karnataka', 'tamil nadu', 'kerala', 'puducherry'].some(x => s.includes(x))) return 'South India Zone';
+                                                        if (['maharashtra', 'gujarat', 'goa', 'rajasthan'].some(x => s.includes(x))) return 'West India Zone';
+                                                        if (['delhi', 'punjab', 'haryana', 'uttar pradesh', 'uttarakhand', 'himachal', 'jammu', 'chandigarh'].some(x => s.includes(x))) return 'North India Zone';
+                                                        if (['west bengal', 'bihar', 'odisha', 'jharkhand', 'assam', 'sikkim', 'meghalaya', 'tripura', 'manipur'].some(x => s.includes(x))) return 'East / North-East Zone';
+                                                        if (['madhya pradesh', 'chhattisgarh'].some(x => s.includes(x))) return 'Central India Zone';
+                                                        return `${stateName} Zone`;
+                                                    };
+
+                                                    const zoneLabel = selectedApp.region || getIndianZone(state) || (state ? `${state} Zone` : (city ? `${city} Region` : 'Domestic (India)'));
+                                                    const formattedLocation = [city, state].filter(Boolean).join(', ') || state || city || 'Location not specified';
+
+                                                    return (
+                                                        <div className="flex items-start gap-3.5 p-4 bg-white rounded-lg border border-emerald-100 shadow-2xs hover:border-emerald-200 transition-colors">
+                                                            <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 flex-shrink-0 mt-0.5">
+                                                                <span className="material-symbols-outlined text-[18px]">location_on</span>
+                                                            </div>
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="flex items-center justify-between mb-1 gap-2 flex-wrap">
+                                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Region / Location</p>
+                                                                    <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                                        {zoneLabel}
+                                                                    </span>
+                                                                </div>
+                                                                <p className="text-[13px] font-bold text-slate-900 truncate">{formattedLocation}</p>
+                                                                
+                                                                <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-100 text-[10px]">
+                                                                    <div>
+                                                                        <span className="text-slate-400 font-medium block">Origin Country:</span>
+                                                                        <span className="font-semibold text-slate-700">{country} {pincode ? `(PIN: ${pincode})` : ''}</span>
+                                                                    </div>
+                                                                    {studyTarget && (
+                                                                        <div>
+                                                                            <span className="text-slate-400 font-medium block">Target Destination:</span>
+                                                                            <span className="font-semibold text-indigo-600">✈️ {studyTarget}</span>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+
+                                                                {address && (
+                                                                    <div className="mt-2 text-[10px] text-slate-500 bg-slate-50 p-2 rounded border border-slate-100">
+                                                                        <span className="font-bold text-slate-600">Address: </span>
+                                                                        {address}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })()}
+
+                                                {/* Dynamic Assigned Counselor Information */}
+                                                <div className="flex items-start gap-3.5 p-4 bg-white rounded-lg border border-amber-100 shadow-2xs hover:border-amber-200 transition-colors">
+                                                    <div className="w-8 h-8 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 flex-shrink-0 mt-0.5">
+                                                        <span className="material-symbols-outlined text-[18px]">support_agent</span>
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center justify-between mb-1 gap-2 flex-wrap">
+                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Assigned Counselor</p>
+                                                            <select
+                                                                value={
+                                                                    selectedApp.counselorId ||
+                                                                    staffMembers.find((s: any) => 
+                                                                        s.id === selectedApp.counselorId || 
+                                                                        `${s.firstName || ''} ${s.lastName || ''}`.trim() === (selectedApp.counselorName || selectedApp.counselor)
+                                                                    )?.id || ''
+                                                                }
+                                                                disabled={reassigningCounselorAppId === selectedApp.id}
+                                                                onChange={(e) => handleReassignCounselor(selectedApp.id, e.target.value)}
+                                                                className="px-2 py-0.5 text-[10px] font-semibold bg-white border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-700 cursor-pointer"
+                                                            >
+                                                                <option value="" disabled>-- Assign Counselor --</option>
+                                                                {staffMembers.map((s: any) => {
+                                                                    const isResigned = s.isResigned || s.status === 'resigned' || s.status === 'inactive' || s.status === 'invalid';
+                                                                    const name = `${s.firstName || s.email} ${s.lastName || ''}`.trim();
+                                                                    const label = isResigned && !name.includes('(Invalid)') ? `${name} (Invalid)` : name;
+                                                                    return (
+                                                                        <option key={s.id} value={s.id}>
+                                                                            {label}
+                                                                        </option>
+                                                                    );
+                                                                })}
+                                                            </select>
+                                                        </div>
+
+                                                        {(() => {
+                                                            const matchedCounselor = staffMembers.find((s: any) =>
+                                                                s.id === selectedApp.counselorId ||
+                                                                s.email === selectedApp.counselorEmail ||
+                                                                `${s.firstName || ''} ${s.lastName || ''}`.trim() === (selectedApp.counselorName || selectedApp.counselor)
+                                                            );
+                                                            const counselorName = matchedCounselor
+                                                                ? `${matchedCounselor.firstName || ''} ${matchedCounselor.lastName || ''}`.trim() || matchedCounselor.email
+                                                                : (selectedApp.counselorName || selectedApp.counselor || '');
+                                                            const counselorEmail = matchedCounselor?.email || selectedApp.counselorEmail;
+                                                            const counselorPhone = matchedCounselor?.phoneNumber || matchedCounselor?.mobile || selectedApp.counselorPhone;
+
+                                                            if (counselorName) {
+                                                                return (
+                                                                    <div>
+                                                                        <div className="flex items-center gap-2 mt-0.5">
+                                                                            <p className="text-[12px] font-bold text-slate-900">{counselorName}</p>
+                                                                            <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                                                                Student Advisor
+                                                                            </span>
+                                                                        </div>
+                                                                        <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-100 text-[10px]">
+                                                                            {counselorEmail && (
+                                                                                <p className="text-slate-500 font-medium truncate flex items-center gap-1">
+                                                                                    <span className="material-symbols-outlined text-[13px] text-slate-400">mail</span>
+                                                                                    {counselorEmail}
+                                                                                </p>
+                                                                            )}
+                                                                            {counselorPhone && (
+                                                                                <p className="text-slate-500 font-medium truncate flex items-center gap-1">
+                                                                                    <span className="material-symbols-outlined text-[13px] text-slate-400">call</span>
+                                                                                    {counselorPhone}
+                                                                                </p>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            }
+
+                                                            return (
+                                                                <div className="mt-1">
+                                                                    <p className="text-[11px] text-amber-700 font-medium bg-amber-50/60 p-2 rounded border border-amber-100/80">
+                                                                        No counselor currently assigned. Select a staff member from the dropdown above to assign dedicated student guidance.
+                                                                    </p>
+                                                                </div>
+                                                            );
+                                                        })()}
                                                     </div>
                                                 </div>
                                             </div>
