@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from "react";
+import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { useStaffLayout } from "@/app/staff/layout";
@@ -61,31 +62,73 @@ const StudentContactDropdownBesideName = ({
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [openUpward, setOpenUpward] = useState(false);
+    const [coords, setCoords] = useState<{ top: number; left: number } | null>(null);
     const [copiedText, setCopiedText] = useState<string | null>(null);
+    const [mounted, setMounted] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
+    const dropdownRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
+        setMounted(true);
+    }, []);
+
+    const updatePosition = useCallback(() => {
+        if (!menuRef.current) return;
+        const rect = menuRef.current.getBoundingClientRect();
+        const dropdownApproxHeight = 110;
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const shouldOpenUp = spaceBelow < dropdownApproxHeight && rect.top > dropdownApproxHeight;
+
+        let left = rect.left;
+        const menuWidth = 280;
+        if (left + menuWidth > window.innerWidth - 16) {
+            left = Math.max(16, window.innerWidth - menuWidth - 16);
+        }
+
+        setOpenUpward(shouldOpenUp);
+        setCoords({
+            top: shouldOpenUp ? rect.top - 6 : rect.bottom + 6,
+            left,
+        });
+    }, []);
+
+    useEffect(() => {
+        if (!isOpen) return;
+
+        updatePosition();
+
         const handleClickOutside = (event: MouseEvent) => {
-            if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+            if (
+                menuRef.current && !menuRef.current.contains(event.target as Node) &&
+                dropdownRef.current && !dropdownRef.current.contains(event.target as Node)
+            ) {
                 setIsOpen(false);
             }
         };
+
+        const handleScrollOrResize = () => {
+            updatePosition();
+        };
+
         document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
+        window.addEventListener("scroll", handleScrollOrResize, true);
+        window.addEventListener("resize", handleScrollOrResize);
+
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+            window.removeEventListener("scroll", handleScrollOrResize, true);
+            window.removeEventListener("resize", handleScrollOrResize);
+        };
+    }, [isOpen, updatePosition]);
 
     const toggleOpen = (e: React.MouseEvent) => {
         e.stopPropagation();
-        if (!isOpen && menuRef.current) {
-            const rect = menuRef.current.getBoundingClientRect();
-            const spaceBelow = window.innerHeight - rect.bottom;
-            if (spaceBelow < 280) {
-                setOpenUpward(true);
-            } else {
-                setOpenUpward(false);
-            }
+        if (!isOpen) {
+            updatePosition();
+            setIsOpen(true);
+        } else {
+            setIsOpen(false);
         }
-        setIsOpen(!isOpen);
     };
 
     const handleCopy = (text: string, label: string, e: React.MouseEvent) => {
@@ -93,8 +136,7 @@ const StudentContactDropdownBesideName = ({
         if (!text || text === '—') return;
         navigator.clipboard.writeText(text);
         setCopiedText(label);
-        setTimeout(() => setCopiedText(null), 2000);
-        setIsOpen(false);
+        setTimeout(() => setCopiedText(null), 1800);
     };
 
     const cleanPhone = phone ? phone.replace(/[^0-9+]/g, '') : '';
@@ -113,82 +155,95 @@ const StudentContactDropdownBesideName = ({
                 title="Click for Phone & Email options"
             >
                 <span className="material-symbols-outlined text-[15px]">
-                    {isOpen ? (openUpward ? 'expand_more' : 'expand_less') : (openUpward ? 'expand_less' : 'expand_more')}
+                    {isOpen ? 'expand_less' : 'expand_more'}
                 </span>
             </button>
 
             {copiedText && (
-                <span className="absolute left-8 top-0 whitespace-nowrap text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 animate-fade-in z-50">
+                <span className="absolute left-8 top-0 whitespace-nowrap text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 animate-fade-in z-50 shadow-xs">
                     {copiedText} Copied!
                 </span>
             )}
 
             {/* Dropdown Options Popover */}
-            {isOpen && (
+            {isOpen && mounted && coords && typeof document !== 'undefined' && createPortal(
                 <div
+                    ref={dropdownRef}
                     onClick={(e) => e.stopPropagation()}
-                    className={`absolute left-0 ${openUpward ? 'bottom-full mb-2' : 'top-full mt-1.5'} bg-white border border-slate-200 rounded-2xl shadow-2xl z-[100] py-2 min-w-[220px] text-xs font-semibold text-slate-700 divide-y divide-slate-100 animate-fade-in`}
+                    style={{
+                        position: 'fixed',
+                        top: `${coords.top}px`,
+                        left: `${coords.left}px`,
+                        transform: openUpward ? 'translateY(-100%)' : 'none',
+                        zIndex: 99999,
+                    }}
+                    className="bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-2xl shadow-xl p-2 min-w-[270px] max-w-[340px] text-xs font-semibold text-slate-700 space-y-1.5 animate-fade-in"
                 >
                     {/* Phone Options */}
                     {hasPhone && (
-                        <div className="py-1">
-                            <div className="px-3 py-1 text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                                <span className="material-symbols-outlined text-[13px] text-[#6605c7]">call</span>
-                                <span className="font-mono text-slate-600">{phone}</span>
+                        <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 bg-slate-50/80 hover:bg-purple-50/40 rounded-xl border border-slate-100 transition-colors">
+                            <div className="flex items-center gap-2 min-w-0">
+                                <span className="material-symbols-outlined text-[15px] text-[#6605c7] shrink-0">call</span>
+                                <span className="font-mono text-slate-800 text-[12px] font-bold tracking-tight truncate">{phone}</span>
                             </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                                <a
+                                    href={`tel:${cleanPhone}`}
+                                    onClick={() => setIsOpen(false)}
+                                    className="w-7 h-7 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 flex items-center justify-center transition-colors shadow-2xs cursor-pointer"
+                                    title={`Call ${cleanPhone}`}
+                                >
+                                    <span className="material-symbols-outlined text-[14px]">phone_in_talk</span>
+                                </a>
 
-                            <a
-                                href={`tel:${cleanPhone}`}
-                                onClick={() => setIsOpen(false)}
-                                className="flex items-center gap-2 px-3 py-1.5 hover:bg-purple-50 hover:text-[#6605c7] transition-colors"
-                            >
-                                <span className="material-symbols-outlined text-[14px] text-emerald-600">phone_in_talk</span>
-                                <span>Call {cleanPhone}</span>
-                            </a>
-
-
-
-                            <button
-                                type="button"
-                                onClick={(e) => handleCopy(phone!, 'Phone', e)}
-                                className="w-full text-left flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50 hover:text-indigo-600 transition-colors border-0 bg-transparent cursor-pointer font-semibold"
-                            >
-                                <span className="material-symbols-outlined text-[14px] text-slate-400">content_copy</span>
-                                <span>Copy Phone Number</span>
-                            </button>
+                                <button
+                                    type="button"
+                                    onClick={(e) => handleCopy(phone!, 'Phone', e)}
+                                    className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-all cursor-pointer shadow-2xs ${copiedText === 'Phone' ? 'bg-emerald-50 text-emerald-600 border-emerald-300' : 'bg-white hover:bg-slate-100 text-slate-500 hover:text-slate-800 border-slate-200'}`}
+                                    title="Copy Phone Number"
+                                >
+                                    <span className="material-symbols-outlined text-[14px]">
+                                        {copiedText === 'Phone' ? 'check' : 'content_copy'}
+                                    </span>
+                                </button>
+                            </div>
                         </div>
                     )}
 
                     {/* Email Options */}
                     {hasEmail && (
-                        <div className="py-1">
-                            <div className="px-3 py-1 text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                                <span className="material-symbols-outlined text-[13px] text-[#6605c7]">mail</span>
-                                <span className="font-mono text-slate-600 truncate max-w-[150px]" title={email}>{email}</span>
+                        <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 bg-slate-50/80 hover:bg-indigo-50/40 rounded-xl border border-slate-100 transition-colors">
+                            <div className="flex items-center gap-2 min-w-0">
+                                <span className="material-symbols-outlined text-[15px] text-[#6605c7] shrink-0">mail</span>
+                                <span className="font-mono text-slate-700 text-[11px] font-semibold truncate max-w-[150px]" title={email}>{email}</span>
                             </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                                {onOpenEmailModal && (
+                                    <button
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); setIsOpen(false); onOpenEmailModal(email!, name || ''); }}
+                                        className="w-7 h-7 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 flex items-center justify-center transition-colors shadow-2xs cursor-pointer"
+                                        title="Send Email"
+                                    >
+                                        <span className="material-symbols-outlined text-[14px]">send</span>
+                                    </button>
+                                )}
 
-                            {onOpenEmailModal && (
                                 <button
                                     type="button"
-                                    onClick={(e) => { e.stopPropagation(); setIsOpen(false); onOpenEmailModal(email!, name || ''); }}
-                                    className="w-full text-left flex items-center gap-2 px-3 py-1.5 hover:bg-indigo-50 hover:text-indigo-600 transition-colors border-0 bg-transparent cursor-pointer font-semibold"
+                                    onClick={(e) => handleCopy(email!, 'Email', e)}
+                                    className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-all cursor-pointer shadow-2xs ${copiedText === 'Email' ? 'bg-emerald-50 text-emerald-600 border-emerald-300' : 'bg-white hover:bg-slate-100 text-slate-500 hover:text-slate-800 border-slate-200'}`}
+                                    title="Copy Email Address"
                                 >
-                                    <span className="material-symbols-outlined text-[14px] text-indigo-600">send</span>
-                                    <span>Send Email</span>
+                                    <span className="material-symbols-outlined text-[14px]">
+                                        {copiedText === 'Email' ? 'check' : 'content_copy'}
+                                    </span>
                                 </button>
-                            )}
-
-                            <button
-                                type="button"
-                                onClick={(e) => handleCopy(email!, 'Email', e)}
-                                className="w-full text-left flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50 hover:text-indigo-600 transition-colors border-0 bg-transparent cursor-pointer font-semibold"
-                            >
-                                <span className="material-symbols-outlined text-[14px] text-slate-400">content_copy</span>
-                                <span>Copy Email Address</span>
-                            </button>
+                            </div>
                         </div>
                     )}
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );
@@ -344,7 +399,7 @@ function ApplicationsPageInner() {
             </div>
 
             <div className="rounded-[24px] border border-slate-100 overflow-hidden shadow-sm bg-white">
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto min-h-[320px]">
                     <table className="w-full text-left">
                         <thead className="bg-slate-50/80 border-b border-slate-200/80 text-slate-600 text-xs uppercase tracking-wider font-sans font-extrabold text-left">
                             <tr>

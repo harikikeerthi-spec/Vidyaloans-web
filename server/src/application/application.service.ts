@@ -1822,13 +1822,23 @@ export class ApplicationService {
         authorId: authorId || 'system',
         authorName: authorName || 'Staff Officer',
         content: data.content,
-        type: data.type || 'general',
-        isInternal: data.isInternal || false
+        type: data.type || 'admin_note',
+        isInternal: data.isInternal !== undefined ? data.isInternal : true
       })
       .select()
       .single();
 
     if (error) throw error;
+
+    try {
+      this.eventEmitter.emit('application.note.added', {
+        applicationId,
+        note,
+      });
+    } catch {
+      // non-fatal
+    }
+
     return { success: true, data: note, message: 'Note added successfully' };
   }
 
@@ -2360,8 +2370,12 @@ export class ApplicationService {
       evvRiskFlags = report.riskFlags ?? null;
       evvBehaviours = report.behaviours ?? null;
       evvMonthlyMetrics = report.monthlyMetrics ?? null;
-      evvValidation = report.validation ?? null;
-      evvWeightBreakdown = report.evvScore?.breakdown ?? null;
+      evvWeightBreakdown = {
+        breakdown: report.evvScore?.breakdown ?? [],
+        sixComponents: report.evvScore?.evv6Components ?? null,
+        bankPolicy: report.bankPolicy ?? null,
+        disclaimer: report.disclaimer ?? "Internal EVV assessment — not an official bank sanction or automatic loan decision.",
+      };
       // Store sampled snapshots (max 200 rows to avoid JSON size limits)
       evvSnapshots = (report.snapshots || []).slice(0, 200);
 

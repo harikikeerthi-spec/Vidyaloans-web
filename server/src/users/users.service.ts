@@ -478,6 +478,18 @@ export class UsersService implements OnModuleInit {
     const term = bankIdentifierOrEmail.trim();
     const lower = term.toLowerCase();
 
+    const getBankFallbackLogo = (nameOrShort?: string | null): string | null => {
+      if (!nameOrShort) return null;
+      const l = nameOrShort.toLowerCase();
+      if (l.includes('avanse')) return '/banks/avanse.png';
+      if (l.includes('auxilo')) return '/banks/auxilo.png';
+      if (l.includes('credila') || l.includes('hdfc')) return '/banks/credila.png';
+      if (l.includes('idfc')) return '/banks/idfc.png';
+      if (l.includes('poonawalla')) return '/banks/poonawalla.jpg';
+      if (l.includes('sbi') || l.includes('state bank')) return '/banks/sbi.png';
+      return null;
+    };
+
     try {
       // 1. If it looks like an email, first check if the User record has an assigned bank
       if (lower.includes('@')) {
@@ -498,7 +510,7 @@ export class UsersService implements OnModuleInit {
         return {
           bankId: bankByExact.shortName || bankByExact.id,
           bankName: bankByExact.name,
-          bankLogo: bankByExact.logoUrl || null,
+          bankLogo: bankByExact.logoUrl || getBankFallbackLogo(bankByExact.shortName || bankByExact.name),
         };
       }
 
@@ -509,10 +521,18 @@ export class UsersService implements OnModuleInit {
           const bShort = (b.shortName || '').toLowerCase();
           const bName = (b.name || '').toLowerCase();
           if (bShort && (lower.includes(bShort) || bShort.includes(lower))) {
-            return { bankId: b.shortName || b.id, bankName: b.name, bankLogo: b.logoUrl || null };
+            return {
+              bankId: b.shortName || b.id,
+              bankName: b.name,
+              bankLogo: b.logoUrl || getBankFallbackLogo(b.shortName || b.name),
+            };
           }
           if (bName && (lower.includes(bName) || bName.includes(lower))) {
-            return { bankId: b.shortName || b.id, bankName: b.name, bankLogo: b.logoUrl || null };
+            return {
+              bankId: b.shortName || b.id,
+              bankName: b.name,
+              bankLogo: b.logoUrl || getBankFallbackLogo(b.shortName || b.name),
+            };
           }
         }
       }
@@ -522,10 +542,11 @@ export class UsersService implements OnModuleInit {
 
     // 4. Backward-compatible fallbacks for seed test users
     if (lower.includes('auxilo') || lower === 'luharika28@gmail.com') return { bankId: 'auxilo', bankName: 'Auxilo Finserve', bankLogo: '/banks/auxilo.png' };
-    if (lower.includes('avanse') || lower === 'ropayi2211@aspensif.com') return { bankId: 'avanse', bankName: 'Avanse Financial', bankLogo: '/banks/avanse.png' };
+    if (lower.includes('avanse') || lower === 'ropayi2211@aspensif.com' || lower === 'shannukalneedi@gmail.com') return { bankId: 'avanse', bankName: 'Avanse Financial Services', bankLogo: '/banks/avanse.png' };
     if (lower.includes('credila') || lower.includes('hdfc') || lower === 'keerthichinnu0728@gmail.com') return { bankId: 'credila', bankName: 'HDFC Credila', bankLogo: '/banks/credila.png' };
     if (lower.includes('idfc') || lower === 'abhimadasu4@gmail.com') return { bankId: 'idfc', bankName: 'IDFC FIRST Bank', bankLogo: '/banks/idfc.png' };
     if (lower.includes('poonawalla') || lower === 'farmatech@gmail.com') return { bankId: 'poonawalla', bankName: 'Poonawalla Fincorp', bankLogo: '/banks/poonawalla.jpg' };
+    if (lower.includes('sbi') || lower.includes('state bank')) return { bankId: 'sbi', bankName: 'State Bank of India', bankLogo: '/banks/sbi.png' };
 
     return { bankId: null, bankName: null, bankLogo: null };
   }

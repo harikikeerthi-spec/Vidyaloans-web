@@ -243,24 +243,33 @@ export default function UserProfileEdit({ params }: { params?: Promise<{ id: str
                 </div>
                 
                 {/* Steps Menu */}
-                <div className="max-w-7xl mx-auto px-6 flex gap-8">
-                    {[
-                        { id: 1, label: "Profile" },
-                        { id: 2, label: "Applications" },
-                        { id: 3, label: "Documents" },
-                    ].map(step => (
-                        <button
-                            key={step.id}
-                            onClick={() => setActiveStep(step.id)}
-                            className={`pb-3 font-bold text-[13px] uppercase tracking-wide border-b-2 transition-colors flex items-center gap-2 ${activeStep === step.id ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
-                        >
-                            <div className={`w-5 h-5 rounded-full text-[10px] flex items-center justify-center border ${activeStep === step.id ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
-                                {step.id}
-                            </div>
-                            {step.label}
-                        </button>
-                    ))}
-                </div>
+                {(() => {
+                    const isStaff = (userData?.role || "").toLowerCase() === "staff";
+                    const steps = [
+                        { id: 1, label: isStaff ? "Staff Profile" : "Profile" },
+                        ...(!isStaff ? [
+                            { id: 2, label: "Applications" },
+                            { id: 3, label: "Documents" },
+                        ] : []),
+                    ];
+
+                    return (
+                        <div className="max-w-7xl mx-auto px-6 flex gap-8">
+                            {steps.map(step => (
+                                <button
+                                    key={step.id}
+                                    onClick={() => setActiveStep(step.id)}
+                                    className={`pb-3 font-bold text-[13px] uppercase tracking-wide border-b-2 transition-colors flex items-center gap-2 ${activeStep === step.id ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                                >
+                                    <div className={`w-5 h-5 rounded-full text-[10px] flex items-center justify-center border ${activeStep === step.id ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
+                                        {step.id}
+                                    </div>
+                                    {step.label}
+                                </button>
+                            ))}
+                        </div>
+                    );
+                })()}
             </div>
 
             {/* Main Content Area */}

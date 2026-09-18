@@ -21,9 +21,9 @@ export default function NotesTab() {
         try {
             const res = await adminApi.getRemarks(appRefId) as any;
             if (res && res.success && Array.isArray(res.data)) {
-                setNotes(res.data.filter((r: any) => r.type === "note" && r.isInternal === true));
+                setNotes(res.data.filter((r: any) => r.isInternal === true || r.type === "note" || r.type === "admin_note" || r.type === "staff_note"));
             } else if (Array.isArray(res)) {
-                setNotes(res.filter((r: any) => r.type === "note" && r.isInternal === true));
+                setNotes(res.filter((r: any) => r.isInternal === true || r.type === "note" || r.type === "admin_note" || r.type === "staff_note"));
             }
         } catch (err) {
             console.error("Failed to fetch notes:", err);
@@ -202,12 +202,16 @@ export default function NotesTab() {
                                     <div className="flex-1 bg-white border border-slate-100 rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden">
                                         <div className="flex items-center justify-between px-5 py-3 bg-slate-50/80 border-b border-slate-100">
                                             <div className="flex items-center gap-2">
-                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                                                    {note.authorName || "Staff Member"}
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-700">
+                                                    {note.authorName || (note.type === "admin_note" ? "Administrator" : "Staff Member")}
                                                 </span>
                                                 <span className="w-1 h-1 rounded-full bg-slate-300" />
-                                                <span className="text-[9px] font-mono font-bold text-[#6605c7] bg-[#6605c7]/5 px-2 py-0.5 rounded-full border border-[#6605c7]/10">
-                                                    Internal Note
+                                                <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded-full border ${
+                                                    (note.type || '').includes('admin') || (note.authorName || '').toLowerCase().includes('admin')
+                                                        ? 'text-purple-700 bg-purple-100 border-purple-200'
+                                                        : 'text-[#6605c7] bg-[#6605c7]/5 border-[#6605c7]/10'
+                                                }`}>
+                                                    {(note.type || '').includes('admin') || (note.authorName || '').toLowerCase().includes('admin') ? 'ADMIN NOTE' : 'INTERNAL NOTE'}
                                                 </span>
                                             </div>
                                             <span className="text-[9px] font-bold text-slate-400 font-mono">

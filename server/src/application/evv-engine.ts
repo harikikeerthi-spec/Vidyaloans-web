@@ -121,10 +121,125 @@ export interface ValidationReport {
 /** Weight-based EVV score breakdown */
 export interface EVVWeightBreakdown {
   component: string;
-  weight: number;           // e.g., 0.30
+  weight: number;           // e.g., 0.25
   rawScore: number;         // 0-100
-  weightedScore: number;    // rawScore * weight
+  weightedScore: number;    // Points earned towards total
   evidence: string;
+  maxPoints?: number;
+}
+
+/** Bank Policy configuration as required by the official 6-component EVV standard */
+export interface BankPolicy {
+  id: string;
+  bankName: string;
+  accountType: string;
+  minimumBalanceBenchmark: number; // M e.g. 5000, 2000, 1000
+  strongBalanceTarget: number;     // e.g. 50000 (10 * M)
+  fixedDates: number[];            // [1, 5, 10, 15, 20, 25]
+  analysisMonths: number;          // 6
+  defaultDateMode: 'FIXED' | 'CUSTOM';
+  largeCashDepositThreshold: number; // 50000
+  largeCreditAbsoluteThreshold: number; // 25000
+  largeCreditMonthlyRatioThreshold: number; // 0.25 (25%)
+  rapidOutflowDays: number;        // 3
+  rapidOutflowRatio: number;       // 0.70 (70%)
+  policyVersion: string;
+}
+
+/** Co-applicant income profile */
+export interface CoApplicantProfile {
+  isRepaymentIncomeContributor: 'YES' | 'NO' | 'UNKNOWN';
+  primaryEarningCoApplicant?: string;
+  declaredIncomeType?: string;
+  declaredMonthlyIncome?: number;
+  verificationStatus?: 'FULLY_VERIFIED' | 'PENDING_DOCS' | 'UNCLEAR' | 'NOT_ESTABLISHED';
+}
+
+/** Detailed 6-Component EVV Underwriting Architecture */
+export interface EVV6ComponentResult {
+  component1: {
+    name: string;
+    maxScore: number;
+    score: number;
+    sixMonthSampledAMB: number;
+    strongBalanceTarget: number;
+    baseScore: number;
+    consistencyDeduction: number;
+    monthsMeetingBenchmark: number;
+    trendDeduction: number;
+    trendPercent: number;
+    previous3MAmb: number;
+    latest3MAmb: number;
+    monthlySampledAMBs: { month: string; sampledAMB: number; benchmarkMet: boolean }[];
+    evidence: string;
+    formulaExplanation: string;
+  };
+  component2: {
+    name: string;
+    maxScore: number;
+    score: number;
+    benchmarkM: number;
+    sampledLowRatio: number;
+    dailyLowRatio: number;
+    finalSafetyRatio: number;
+    negativeBalanceDetected: boolean;
+    overdraftDetected: boolean;
+    lowBalanceDaysCount: number;
+    totalDaysAnalysed: number;
+    evidence: string;
+    formulaExplanation: string;
+  };
+  component3: {
+    name: string;
+    maxScore: number;
+    score: number;
+    confirmedBounces: number;
+    candidateCount: number;
+    recentBounceWithin30Days: boolean;
+    bouncesIn90Days: number;
+    bounceEvents: Array<{ date: string; narration: string; amount: number; linkedFee?: number }>;
+    evidence: string;
+    formulaExplanation: string;
+  };
+  component4: {
+    name: string;
+    maxScore: number;
+    score: number | 'N/A';
+    isRepaymentIncomeContributor: 'YES' | 'NO' | 'UNKNOWN';
+    profileType: string;
+    recurringMonthsCount: number;
+    baseScore: number;
+    verificationCap: number;
+    verificationCondition: string;
+    evidence: string;
+    formulaExplanation: string;
+  };
+  component5: {
+    name: string;
+    maxScore: number;
+    score: number;
+    totalCashDeposits: number;
+    totalCredits: number;
+    cashRatio: number;
+    largeCashDeposits: Array<{ date: string; narration: string; amount: number }>;
+    evidence: string;
+    formulaExplanation: string;
+  };
+  component6: {
+    name: string;
+    maxScore: number;
+    score: number;
+    consecutiveDrops: Array<{ fromDate: string; toDate: string; fromBal: number; toBal: number; dropPercent: number; severity: string }>;
+    passThroughEvents: Array<{ creditDate: string; creditAmount: number; debitedAmount: number; ratio: number }>;
+    evidence: string;
+    formulaExplanation: string;
+  };
+  bankPolicy: BankPolicy;
+  rawTotalScore: number;
+  finalTotalScore: number;
+  statusBand: 'Green' | 'Amber' | 'Red';
+  hardRiskFlags: string[];
+  mandatoryDisclaimer: string;
 }
 
 /** Final 0-100 EVV score with grade */
@@ -132,8 +247,10 @@ export interface EVVScore {
   score: number;            // 0-100
   grade: 'A+' | 'A' | 'B' | 'C' | 'D';
   gradeLabel: string;
+  statusBand?: 'Green' | 'Amber' | 'Red';
   breakdown: EVVWeightBreakdown[];
   summary: string;
+  evv6Components?: EVV6ComponentResult;
 }
 
 /** Underwriting decision */
@@ -176,9 +293,12 @@ export interface EVVReport {
 
   // Scores
   evvScore: EVVScore;
+  evv6Components?: EVV6ComponentResult;
+  bankPolicy?: BankPolicy;
   overallEvv: number;          // Average monthly balance (rupees)
   period: { from: string; to: string } | null;
   status: 'COMPUTED' | 'FAILED' | 'MANUAL_REVIEW';
+  disclaimer?: string;
 
   // Decision
   underwritingDecision: UnderwritingDecision;
@@ -215,22 +335,133 @@ export interface EvvResults {
 }
 
 // ============================================================
-// EVV SCORE WEIGHTS (configurable)
+// DEFAULT BANK POLICIES & KEYWORDS
 // ============================================================
 
-const EVV_WEIGHTS = {
-  averageBalance: 0.30,
-  balanceStability: 0.20,
-  incomeConsistency: 0.15,
-  transactionBehaviour: 0.10,
-  liquidity: 0.10,
-  existingEmi: 0.05,
-  minimumBalance: 0.05,
-  riskFlags: 0.05,
+export const DEFAULT_BANK_POLICIES: Record<string, BankPolicy> = {
+  DEFAULT: {
+    id: 'POLICY-DEF-2026',
+    bankName: 'Standard Bank Benchmark',
+    accountType: 'Regular Savings Account',
+    minimumBalanceBenchmark: 5000,
+    strongBalanceTarget: 50000,
+    fixedDates: [1, 5, 10, 15, 20, 25],
+    analysisMonths: 6,
+    defaultDateMode: 'FIXED',
+    largeCashDepositThreshold: 50000,
+    largeCreditAbsoluteThreshold: 25000,
+    largeCreditMonthlyRatioThreshold: 0.25,
+    rapidOutflowDays: 3,
+    rapidOutflowRatio: 0.70,
+    policyVersion: '2026.1',
+  },
+  SBI: {
+    id: 'POLICY-SBI-2026',
+    bankName: 'State Bank of India',
+    accountType: 'Regular Savings',
+    minimumBalanceBenchmark: 3000,
+    strongBalanceTarget: 30000,
+    fixedDates: [1, 5, 10, 15, 20, 25],
+    analysisMonths: 6,
+    defaultDateMode: 'FIXED',
+    largeCashDepositThreshold: 50000,
+    largeCreditAbsoluteThreshold: 25000,
+    largeCreditMonthlyRatioThreshold: 0.25,
+    rapidOutflowDays: 3,
+    rapidOutflowRatio: 0.70,
+    policyVersion: '2026.1',
+  },
+  HDFC: {
+    id: 'POLICY-HDFC-2026',
+    bankName: 'HDFC Bank',
+    accountType: 'Savings Max / Regular',
+    minimumBalanceBenchmark: 10000,
+    strongBalanceTarget: 100000,
+    fixedDates: [1, 5, 10, 15, 20, 25],
+    analysisMonths: 6,
+    defaultDateMode: 'FIXED',
+    largeCashDepositThreshold: 50000,
+    largeCreditAbsoluteThreshold: 25000,
+    largeCreditMonthlyRatioThreshold: 0.25,
+    rapidOutflowDays: 3,
+    rapidOutflowRatio: 0.70,
+    policyVersion: '2026.1',
+  },
+  ICICI: {
+    id: 'POLICY-ICICI-2026',
+    bankName: 'ICICI Bank',
+    accountType: 'Privilege / Standard Savings',
+    minimumBalanceBenchmark: 10000,
+    strongBalanceTarget: 100000,
+    fixedDates: [1, 5, 10, 15, 20, 25],
+    analysisMonths: 6,
+    defaultDateMode: 'FIXED',
+    largeCashDepositThreshold: 50000,
+    largeCreditAbsoluteThreshold: 25000,
+    largeCreditMonthlyRatioThreshold: 0.25,
+    rapidOutflowDays: 3,
+    rapidOutflowRatio: 0.70,
+    policyVersion: '2026.1',
+  },
+  PNB: {
+    id: 'POLICY-PNB-2026',
+    bankName: 'Punjab National Bank',
+    accountType: 'General Savings',
+    minimumBalanceBenchmark: 1000,
+    strongBalanceTarget: 10000,
+    fixedDates: [1, 5, 10, 15, 20, 25],
+    analysisMonths: 6,
+    defaultDateMode: 'FIXED',
+    largeCashDepositThreshold: 50000,
+    largeCreditAbsoluteThreshold: 25000,
+    largeCreditMonthlyRatioThreshold: 0.25,
+    rapidOutflowDays: 3,
+    rapidOutflowRatio: 0.70,
+    policyVersion: '2026.1',
+  },
 };
 
-// Minimum balance benchmark (₹ — typical Indian savings account)
-const MIN_BALANCE_BENCHMARK = 10000;
+// 6-Component Weights & Caps
+export const EVV_6_COMPONENT_MAX = {
+  comp1_AverageBalanceTrend: 25,
+  comp2_MinimumBalanceSafety: 20,
+  comp3_BounceFreeRecord: 20,
+  comp4_FinancialInflowRegularity: 15,
+  comp5_CashDepositRatio: 10,
+  comp6_WithdrawalDiscipline: 10,
+};
+
+// Minimum balance benchmark (₹ — fallback default)
+const MIN_BALANCE_BENCHMARK = 5000;
+
+// Candidate bounce keywords as specified in standard
+export const BOUNCE_CANDIDATE_KEYWORDS = [
+  'nach return', 'ecs return', 'emi return', 'cheque return', 'chq return',
+  'cheque bounce', 'cheque dishonour', 'cheque dishonor',
+  'insufficient funds', 'funds insufficient', 'mandate return',
+  'mandate failed', 'auto debit return', 'autodebit return', 'si return',
+  'standing instruction return', 'payment returned', 'debit returned',
+  'bounce', 'dishonour', 'returned'
+];
+
+// Exclusions from bounce detection
+export const BOUNCE_EXCLUSION_KEYWORDS = [
+  'reversal', 'reversed', 'refund', 'cashback',
+  'failed atm', 'atm reversal', 'upi reversal', 'failed cash withdrawal', 'chargeback'
+];
+
+// Physical cash deposit keywords
+export const PHYSICAL_CASH_KEYWORDS = [
+  'cash deposit', 'cash dep', 'cash paid in', 'cash at branch', 'cash acceptor',
+  'cash accepting machine', 'cdm', 'self cash deposit', 'by cash',
+  'cash remittance', 'cash received at branch'
+];
+
+// Excluded channels from cash deposits
+export const CASH_EXCLUSIONS = [
+  'upi', 'imps', 'neft', 'rtgs', 'salary', 'pension', 'interest', 'refund',
+  'cashback', 'reversal', 'transfer', 'trf', 'payroll'
+];
 
 // ============================================================
 // CHANNEL CLASSIFIERS
@@ -242,7 +473,7 @@ const NEFT_KEYWORDS = ['neft', 'neft cr', 'neft dr', 'neft/'];
 const RTGS_KEYWORDS = ['rtgs', 'rtgs/', 'rtgs cr', 'rtgs dr'];
 const IMPS_KEYWORDS = ['imps', 'imps/', 'imps cr', 'imps dr'];
 const CHEQUE_KEYWORDS = ['chq', 'cheque', 'clg', 'clearing', 'ecs', 'micr'];
-const BOUNCE_KEYWORDS = ['return', 'bounce', 'dishonour', 'returned', 'dishonored', 'chg-ret', 'rtn'];
+const BOUNCE_KEYWORDS = BOUNCE_CANDIDATE_KEYWORDS;
 const CHARGE_KEYWORDS = ['charge', 'fee', 'gst', 'service charge', 'annual fee', 'maintenance', 'sms charge', 'incidental charge'];
 const EMI_KEYWORDS = ['emi', 'loan', 'instalment', 'installment', 'principal', 'interest', 'mandate', 'nach', 'auto debit', 'si-'];
 const CREDIT_CARD_KEYWORDS = ['credit card', 'cc payment', 'hdfc cc', 'sbi card', 'icici card'];
@@ -665,7 +896,7 @@ Respond ONLY with this exact JSON structure:
 
   calculateSnapshots(
     dailyBalances: DailyBalance[],
-    intervalOrDays: number | number[] = 5,
+    intervalOrDays: number | number[] = [1, 5, 10, 15, 20, 25],
   ): SnapshotBalance[] {
     if (dailyBalances.length === 0) return [];
 
@@ -675,7 +906,7 @@ Respond ONLY with this exact JSON structure:
       if (interval === 1) {
         snapshotDays = Array.from({ length: 31 }, (_, i) => i + 1);
       } else if (interval === 5) {
-        snapshotDays = [5, 10, 15, 20, 25, 30];
+        snapshotDays = [1, 5, 10, 15, 20, 25];
       } else if (interval === 7) {
         snapshotDays = [7, 14, 21, 28];
       } else if (interval === 10) {
@@ -715,13 +946,9 @@ Respond ONLY with this exact JSON structure:
     for (const month of Array.from(months).sort()) {
       const [y, m] = month.split('-').map(Number);
       const lastDay = daysInMonth(y, m);
-      const days = [...snapshotDays];
-      if (!days.includes(lastDay)) {
-        days.push(lastDay);
-      }
+      const uniqueDays = Array.from(new Set(snapshotDays.map(d => Math.min(d, lastDay)))).sort((a, b) => a - b);
 
-      for (const day of days) {
-        if (day > lastDay) continue;
+      for (const day of uniqueDays) {
         const dateStr = `${month}-${String(day).padStart(2, '0')}`;
         const balance = getBalance(dateStr);
         snapshots.push({ date: dateStr, balance, month, snapshotDay: day });
@@ -1187,167 +1414,540 @@ Respond ONLY with this exact JSON structure:
   // 8. EVV SCORE CALCULATION (0-100)
   // ──────────────────────────────────────────────────────────
 
+  // ──────────────────────────────────────────────────────────
+  // 8. 6-COMPONENT EVV SCORE CALCULATION (0-100)
+  // ──────────────────────────────────────────────────────────
+
+  compute6ComponentEVV(
+    monthlyMetrics: MonthlyStatistics[],
+    dailyBalances: DailyBalance[],
+    snapshots: SnapshotBalance[],
+    transactions: ExtractedTransaction[],
+    bankPolicy: BankPolicy = DEFAULT_BANK_POLICIES.DEFAULT,
+    coApplicantProfile: CoApplicantProfile = { isRepaymentIncomeContributor: 'YES', verificationStatus: 'FULLY_VERIFIED' },
+    riskFlags: RiskFlag[] = [],
+  ): EVV6ComponentResult {
+    // 1. Identify completed calendar months
+    // A month is complete if its daily balances cover the 1st day to the last day
+    const completedMonthsSet = new Set<string>();
+    const monthsGroup = new Map<string, DailyBalance[]>();
+    for (const d of dailyBalances) {
+      const m = d.date.slice(0, 7);
+      if (!monthsGroup.has(m)) monthsGroup.set(m, []);
+      monthsGroup.get(m)!.push(d);
+    }
+
+    for (const [m, days] of Array.from(monthsGroup.entries())) {
+      const [y, mo] = m.split('-').map(Number);
+      const totalDaysInMo = daysInMonth(y, mo);
+      const dayNums = new Set(days.map(d => parseInt(d.date.slice(8, 10), 10)));
+      if (dayNums.has(1) && dayNums.has(totalDaysInMo)) {
+        completedMonthsSet.add(m);
+      }
+    }
+
+    // Take latest 6 completed months (or available completed months, up to 6)
+    let completedMonths = Array.from(completedMonthsSet).sort();
+    if (completedMonths.length > 6) {
+      completedMonths = completedMonths.slice(-6);
+    }
+
+    // Fallback: If no month has 1st to last day fully populated, use the available months (up to 6)
+    if (completedMonths.length === 0 && monthlyMetrics.length > 0) {
+      completedMonths = monthlyMetrics.map(m => m.month).slice(-6);
+    }
+
+    const completedMetrics = monthlyMetrics.filter(m => completedMonths.includes(m.month));
+    const completedSnapshots = snapshots.filter(s => completedMonths.includes(s.month));
+    const completedDaily = dailyBalances.filter(d => completedMonths.includes(d.date.slice(0, 7)));
+    const completedTxs = transactions.filter(t => completedMonths.includes(t.month || t.date.slice(0, 7)));
+
+    const M = bankPolicy.minimumBalanceBenchmark || 5000;
+    const strongTarget = bankPolicy.strongBalanceTarget || (10 * M);
+    const hardRiskFlags: string[] = [];
+
+    // =========================================================================
+    // COMPONENT 1: Average Balance Trend (Max 25 points)
+    // =========================================================================
+    const monthlySampledAMBs: { month: string; sampledAMB: number; benchmarkMet: boolean }[] = [];
+    for (const mo of completedMonths) {
+      const moSnaps = completedSnapshots.filter(s => s.month === mo);
+      const sampledAMB = moSnaps.length > 0
+        ? Math.round(moSnaps.reduce((acc, s) => acc + s.balance, 0) / moSnaps.length)
+        : Math.round(completedDaily.filter(d => d.date.startsWith(mo)).reduce((acc, d) => acc + d.balance, 0) / (completedDaily.filter(d => d.date.startsWith(mo)).length || 1));
+      monthlySampledAMBs.push({
+        month: mo,
+        sampledAMB,
+        benchmarkMet: sampledAMB >= M,
+      });
+    }
+
+    const sixMonthSampledAMB = monthlySampledAMBs.length > 0
+      ? Math.round(monthlySampledAMBs.reduce((s, m) => s + m.sampledAMB, 0) / monthlySampledAMBs.length)
+      : 0;
+
+    const baseScore = Math.round(25 * Math.min(sixMonthSampledAMB / strongTarget, 1));
+
+    // Consistency deduction based on count of months meeting M
+    const monthsMeetingBenchmark = monthlySampledAMBs.filter(m => m.benchmarkMet).length;
+    let consistencyDeduction = 0;
+    if (monthsMeetingBenchmark === 6) consistencyDeduction = 0;
+    else if (monthsMeetingBenchmark === 5) consistencyDeduction = 1;
+    else if (monthsMeetingBenchmark === 4) consistencyDeduction = 3;
+    else if (monthsMeetingBenchmark === 3) consistencyDeduction = 6;
+    else consistencyDeduction = 10;
+
+    // Trend deduction (latest half vs previous half)
+    let trendPercent = 0;
+    let trendDeduction = 0;
+    let previous3MAmb = 0;
+    let latest3MAmb = 0;
+    if (monthlySampledAMBs.length >= 4) {
+      const mid = Math.floor(monthlySampledAMBs.length / 2);
+      const prevList = monthlySampledAMBs.slice(0, mid);
+      const nextList = monthlySampledAMBs.slice(mid);
+      previous3MAmb = Math.round(prevList.reduce((s, m) => s + m.sampledAMB, 0) / prevList.length);
+      latest3MAmb = Math.round(nextList.reduce((s, m) => s + m.sampledAMB, 0) / nextList.length);
+      trendPercent = previous3MAmb > 0 ? ((latest3MAmb - previous3MAmb) / previous3MAmb) * 100 : 0;
+
+      if (trendPercent >= -10) trendDeduction = 0;
+      else if (trendPercent >= -24.999) trendDeduction = 2;
+      else if (trendPercent >= -39.999) trendDeduction = 5;
+      else trendDeduction = 10;
+    }
+
+    const comp1Score = Math.max(0, Math.min(25, baseScore - consistencyDeduction - trendDeduction));
+
+    // =========================================================================
+    // COMPONENT 2: Minimum-Balance Safety (Max 20 points)
+    // =========================================================================
+    const sampledLowCount = completedSnapshots.filter(s => s.balance < M).length;
+    const sampledLowRatio = completedSnapshots.length > 0 ? (sampledLowCount / completedSnapshots.length) * 100 : 0;
+    const dailyLowCount = completedDaily.filter(d => d.balance < M).length;
+    const dailyLowRatio = completedDaily.length > 0 ? (dailyLowCount / completedDaily.length) * 100 : 0;
+    const finalSafetyRatio = Math.max(sampledLowRatio, dailyLowRatio);
+
+    let comp2Score = 20;
+    if (finalSafetyRatio === 0) comp2Score = 20;
+    else if (finalSafetyRatio <= 5) comp2Score = 17;
+    else if (finalSafetyRatio <= 10) comp2Score = 14;
+    else if (finalSafetyRatio <= 20) comp2Score = 8;
+    else if (finalSafetyRatio <= 35) comp2Score = 4;
+    else comp2Score = 0;
+
+    // Hard Override: Negative balance or overdraft
+    const negativeBalanceDetected = dailyBalances.some(d => d.balance < 0) || transactions.some(t => t.balance < 0);
+    const overdraftDetected = dailyBalances.some(d => d.balance < 0);
+    if (negativeBalanceDetected || overdraftDetected) {
+      comp2Score = 0;
+      hardRiskFlags.push('Negative balance or unauthorised overdraft detected (Component 2 forced to 0).');
+    }
+
+    // =========================================================================
+    // COMPONENT 3: Bounce-Free Record (Max 20 points)
+    // =========================================================================
+    const candidateBounces: { date: string; narration: string; amount: number; linkedFee?: number }[] = [];
+    const sortedTxs = [...transactions].sort((a, b) => a.date.localeCompare(b.date));
+
+    for (let i = 0; i < sortedTxs.length; i++) {
+      const tx = sortedTxs[i];
+      const narr = (tx.narration || '').toLowerCase();
+      const isCandidate = BOUNCE_CANDIDATE_KEYWORDS.some(k => narr.includes(k));
+      const isExcluded = BOUNCE_EXCLUSION_KEYWORDS.some(k => narr.includes(k));
+
+      if (isCandidate && !isExcluded) {
+        // Group adjacent return charge within 2 days as 1 single event
+        let linkedFee = 0;
+        for (let j = 0; j < sortedTxs.length; j++) {
+          if (i === j) continue;
+          const other = sortedTxs[j];
+          const daysDiff = Math.abs((new Date(other.date).getTime() - new Date(tx.date).getTime()) / 86400000);
+          if (daysDiff <= 2) {
+            const otherNarr = (other.narration || '').toLowerCase();
+            if ((otherNarr.includes('chg') || otherNarr.includes('charge') || otherNarr.includes('fee')) && (otherNarr.includes('ret') || otherNarr.includes('bounce') || otherNarr.includes('dishonor'))) {
+              linkedFee = other.debit || other.amount || 0;
+            }
+          }
+        }
+        candidateBounces.push({ date: tx.date, narration: tx.narration, amount: tx.debit || tx.amount || 0, linkedFee });
+      }
+    }
+
+    // De-duplicate candidate bounces that are grouped
+    const uniqueBounceEvents: typeof candidateBounces = [];
+    for (const cb of candidateBounces) {
+      const exists = uniqueBounceEvents.some(u => {
+        const diff = Math.abs((new Date(u.date).getTime() - new Date(cb.date).getTime()) / 86400000);
+        return diff <= 2 && Math.abs(u.amount - cb.amount) < 100;
+      });
+      if (!exists) uniqueBounceEvents.push(cb);
+    }
+
+    const confirmedBounces = uniqueBounceEvents.length;
+    let comp3Score = 20;
+    if (confirmedBounces === 0) comp3Score = 20;
+    else if (confirmedBounces === 1) comp3Score = 10;
+    else if (confirmedBounces === 2) comp3Score = 5;
+    else comp3Score = 0;
+
+    const lastTxDate = sortedTxs[sortedTxs.length - 1]?.date ? new Date(sortedTxs[sortedTxs.length - 1].date) : new Date();
+    let recentBounceWithin30Days = false;
+    let bouncesIn90Days = 0;
+    for (const b of uniqueBounceEvents) {
+      const bDate = new Date(b.date);
+      const daysSince = (lastTxDate.getTime() - bDate.getTime()) / 86400000;
+      if (daysSince <= 30) recentBounceWithin30Days = true;
+      if (daysSince <= 90) bouncesIn90Days++;
+    }
+
+    if (recentBounceWithin30Days) {
+      hardRiskFlags.push('Recent returned payment detected within the last 30 days of statement.');
+    }
+    if (bouncesIn90Days >= 2) {
+      hardRiskFlags.push(`${bouncesIn90Days} payment return/bounce events detected in the latest 90 days.`);
+    }
+
+    // =========================================================================
+    // COMPONENT 4: Verified Financial Inflow Regularity (Max 15 points)
+    // =========================================================================
+    let comp4Score: number | 'N/A' = 0;
+    let recurringMonthsCount = 0;
+    let c4BaseScore = 0;
+    let verificationCap = 15;
+    let verificationCondition = 'Source, recurrence, and eligibility verified';
+
+    const incomeRole = coApplicantProfile.isRepaymentIncomeContributor || 'YES';
+    if (incomeRole === 'NO') {
+      comp4Score = 'N/A';
+      verificationCondition = 'Non-income contributor (co-applicant income not used for FOIR/repayment)';
+    } else if (incomeRole === 'UNKNOWN') {
+      comp4Score = 0;
+      verificationCondition = 'Unknown repayment-income contributor role';
+      hardRiskFlags.push('Repayment income contributor role is unconfirmed / unknown.');
+    } else {
+      // Income Contributor: Check recurring credits across completed months
+      for (const mo of completedMonths) {
+        const moTxs = completedTxs.filter(t => (t.month || t.date.slice(0, 7)) === mo && t.credit > 0);
+        const hasEligibleCredit = moTxs.some(t => {
+          const narr = (t.narration || '').toLowerCase();
+          const isCash = PHYSICAL_CASH_KEYWORDS.some(k => narr.includes(k));
+          const isExcl = ['reversal', 'refund', 'cashback', 'own transfer', 'self transfer', 'loan disb'].some(k => narr.includes(k));
+          return !isCash && !isExcl && t.credit >= 5000;
+        });
+        if (hasEligibleCredit) recurringMonthsCount++;
+      }
+
+      if (recurringMonthsCount >= 6) c4BaseScore = 15;
+      else if (recurringMonthsCount === 5) c4BaseScore = 13;
+      else if (recurringMonthsCount === 4) c4BaseScore = 10;
+      else if (recurringMonthsCount === 3) c4BaseScore = 6;
+      else c4BaseScore = 0;
+
+      const vStatus = coApplicantProfile.verificationStatus || 'FULLY_VERIFIED';
+      if (vStatus === 'FULLY_VERIFIED') verificationCap = 15;
+      else if (vStatus === 'PENDING_DOCS') { verificationCap = 10; verificationCondition = 'Statement pattern appears genuine; documents pending'; }
+      else if (vStatus === 'UNCLEAR') { verificationCap = 6; verificationCondition = 'Recurring credits exist but source/eligibility unclear'; }
+      else { verificationCap = 0; verificationCondition = 'Source not established'; }
+
+      comp4Score = Math.min(c4BaseScore, verificationCap);
+    }
+
+    // =========================================================================
+    // COMPONENT 5: Cash-Deposit Ratio (Max 10 points)
+    // =========================================================================
+    const cashDeposits: { date: string; narration: string; amount: number }[] = [];
+    let totalCredits = 0;
+    let totalCashDeposits = 0;
+
+    for (const tx of completedTxs) {
+      if (tx.credit > 0) {
+        totalCredits += tx.credit;
+        const narr = (tx.narration || '').toLowerCase();
+        const isPhysicalCash = PHYSICAL_CASH_KEYWORDS.some(k => narr.includes(k));
+        const isExcluded = CASH_EXCLUSIONS.some(k => narr.includes(k));
+        if (isPhysicalCash && !isExcluded) {
+          totalCashDeposits += tx.credit;
+          cashDeposits.push({ date: tx.date, narration: tx.narration, amount: tx.credit });
+        }
+      }
+    }
+
+    const cashRatio = totalCredits > 0 ? (totalCashDeposits / totalCredits) * 100 : 0;
+    let comp5Score = 10;
+    if (cashRatio < 10) comp5Score = 10;
+    else if (cashRatio <= 20) comp5Score = 7;
+    else if (cashRatio <= 35) comp5Score = 4;
+    else comp5Score = 0;
+
+    // Single cash deposit alert (>= 50,000 or >= 25% avg monthly credits)
+    const avgMonthlyCredits = totalCredits / (completedMonths.length || 1);
+    const largeCashAlertThreshold = Math.min(bankPolicy.largeCashDepositThreshold, 0.25 * avgMonthlyCredits || 50000);
+    const largeCashTxs = cashDeposits.filter(c => c.amount >= largeCashAlertThreshold);
+    if (largeCashTxs.length > 0) {
+      hardRiskFlags.push(`${largeCashTxs.length} large physical cash deposit(s) (≥₹${largeCashAlertThreshold.toLocaleString('en-IN')}) detected.`);
+    }
+
+    // =========================================================================
+    // COMPONENT 6: Withdrawal Discipline (Max 10 points)
+    // =========================================================================
+    const consecutiveDrops: { fromDate: string; toDate: string; fromBal: number; toBal: number; dropPercent: number; severity: string }[] = [];
+    let moderateDropsCount = 0;
+    let severeDropsCount = 0;
+    let criticalDropsCount = 0;
+
+    for (let i = 1; i < completedSnapshots.length; i++) {
+      const prevSnap = completedSnapshots[i - 1];
+      const currSnap = completedSnapshots[i];
+      if (prevSnap.balance >= M && prevSnap.balance > currSnap.balance) {
+        const dropPercent = ((prevSnap.balance - currSnap.balance) / prevSnap.balance) * 100;
+        let severity = 'NORMAL';
+        if (dropPercent >= 90) { severity = 'CRITICAL'; criticalDropsCount++; }
+        else if (dropPercent >= 75) { severity = 'SEVERE'; severeDropsCount++; }
+        else if (dropPercent >= 50) { severity = 'MODERATE'; moderateDropsCount++; }
+
+        if (severity !== 'NORMAL') {
+          consecutiveDrops.push({
+            fromDate: prevSnap.date,
+            toDate: currSnap.date,
+            fromBal: prevSnap.balance,
+            toBal: currSnap.balance,
+            dropPercent: Math.round(dropPercent),
+            severity,
+          });
+        }
+      }
+    }
+
+    const largeCreditThreshold = Math.max(bankPolicy.largeCreditAbsoluteThreshold || 25000, 0.25 * avgMonthlyCredits);
+    const passThroughEvents: { creditDate: string; creditAmount: number; debitedAmount: number; ratio: number }[] = [];
+
+    for (let i = 0; i < completedTxs.length; i++) {
+      const tx = completedTxs[i];
+      if (tx.credit >= largeCreditThreshold) {
+        const creditDate = new Date(tx.date);
+        let debitsInWindow = 0;
+        for (let j = i + 1; j < completedTxs.length; j++) {
+          const nextTx = completedTxs[j];
+          const daysDiff = (new Date(nextTx.date).getTime() - creditDate.getTime()) / 86400000;
+          if (daysDiff > bankPolicy.rapidOutflowDays) break;
+          if (nextTx.debit > 0) {
+            debitsInWindow += nextTx.debit;
+          }
+        }
+        const outflowRatio = (debitsInWindow / tx.credit) * 100;
+        if (outflowRatio >= (bankPolicy.rapidOutflowRatio * 100)) {
+          passThroughEvents.push({
+            creditDate: tx.date,
+            creditAmount: tx.credit,
+            debitedAmount: debitsInWindow,
+            ratio: Math.round(outflowRatio),
+          });
+        }
+      }
+    }
+
+    let dropsScore = 10;
+    if (criticalDropsCount >= 1) dropsScore = 3;
+    else if (severeDropsCount >= 2) dropsScore = 4;
+    else if (severeDropsCount === 1 || moderateDropsCount >= 2) dropsScore = 6;
+    else if (moderateDropsCount === 1) dropsScore = 8;
+    else dropsScore = 10;
+
+    let passThroughScore = 10;
+    if (passThroughEvents.length >= 3) passThroughScore = 0;
+    else if (passThroughEvents.length === 2) passThroughScore = 1;
+    else if (passThroughEvents.length === 1) passThroughScore = 4;
+    else passThroughScore = 10;
+
+    const comp6Score = Math.min(dropsScore, passThroughScore);
+
+    // =========================================================================
+    // FINAL TOTAL SCORE & STATUS BAND
+    // =========================================================================
+    const rawTotalScore = comp1Score + comp2Score + comp3Score + (comp4Score === 'N/A' ? 0 : comp4Score) + comp5Score + comp6Score;
+    const finalTotalScore = comp4Score === 'N/A' ? Math.min(100, Math.round((rawTotalScore / 85) * 100)) : Math.min(100, rawTotalScore);
+
+    const statusBand: 'Green' | 'Amber' | 'Red' =
+      finalTotalScore >= 80 ? 'Green' :
+      finalTotalScore >= 60 ? 'Amber' : 'Red';
+
+    const mandatoryDisclaimer = 'Internal EVV assessment — not an official bank sanction or automatic loan decision.';
+
+    return {
+      component1: {
+        name: 'Average Balance Trend',
+        maxScore: 25,
+        score: comp1Score,
+        sixMonthSampledAMB,
+        strongBalanceTarget: strongTarget,
+        baseScore,
+        consistencyDeduction,
+        monthsMeetingBenchmark,
+        trendDeduction,
+        trendPercent: Math.round(trendPercent * 10) / 10,
+        previous3MAmb,
+        latest3MAmb,
+        monthlySampledAMBs,
+        evidence: `6M AMB: ₹${sixMonthSampledAMB.toLocaleString('en-IN')} (Target ₹${strongTarget.toLocaleString('en-IN')}) | Consistency: ${monthsMeetingBenchmark}/${monthlySampledAMBs.length} mos | Trend: ${trendPercent >= 0 ? '+' : ''}${trendPercent.toFixed(1)}%`,
+        formulaExplanation: `Base Score = round(25 × min(${sixMonthSampledAMB}/${strongTarget}, 1)) = ${baseScore}. Consistency Deduction = ${consistencyDeduction}. Trend Deduction = ${trendDeduction}. Score = max(0, ${baseScore} - ${consistencyDeduction} - ${trendDeduction}) = ${comp1Score}/25.`,
+      },
+      component2: {
+        name: 'Minimum-Balance Safety',
+        maxScore: 20,
+        score: comp2Score,
+        benchmarkM: M,
+        sampledLowRatio: Math.round(sampledLowRatio * 10) / 10,
+        dailyLowRatio: Math.round(dailyLowRatio * 10) / 10,
+        finalSafetyRatio: Math.round(finalSafetyRatio * 10) / 10,
+        negativeBalanceDetected,
+        overdraftDetected,
+        lowBalanceDaysCount: dailyLowCount,
+        totalDaysAnalysed: completedDaily.length,
+        evidence: `Benchmark M: ₹${M.toLocaleString('en-IN')} | Final Safety Ratio: ${finalSafetyRatio.toFixed(1)}% (Sampled Low: ${sampledLowRatio.toFixed(1)}%, Daily Low: ${dailyLowRatio.toFixed(1)}%)`,
+        formulaExplanation: `Final Safety Ratio = max(${sampledLowRatio.toFixed(1)}%, ${dailyLowRatio.toFixed(1)}%) = ${finalSafetyRatio.toFixed(1)}%. Score tier = ${comp2Score}/20.${negativeBalanceDetected ? ' Negative balance detected: 0 pts override.' : ''}`,
+      },
+      component3: {
+        name: 'Bounce-Free Record',
+        maxScore: 20,
+        score: comp3Score,
+        confirmedBounces,
+        candidateCount: candidateBounces.length,
+        recentBounceWithin30Days,
+        bouncesIn90Days,
+        bounceEvents: uniqueBounceEvents,
+        evidence: `${confirmedBounces} confirmed bounce/dishonour event(s) detected (${bouncesIn90Days} in last 90 days)`,
+        formulaExplanation: `Evaluated all statement dates for NACH/ECS/EMI/Cheque return keywords. Unique grouped events: ${confirmedBounces}. Points: ${comp3Score}/20.`,
+      },
+      component4: {
+        name: 'Verified Financial Inflow Regularity',
+        maxScore: 15,
+        score: comp4Score,
+        isRepaymentIncomeContributor: incomeRole,
+        profileType: coApplicantProfile.declaredIncomeType || 'SALARIED',
+        recurringMonthsCount,
+        baseScore: c4BaseScore,
+        verificationCap,
+        verificationCondition,
+        evidence: incomeRole === 'NO'
+          ? 'N/A — Non-income contributor (primary earning co-applicant assessed separately)'
+          : `${recurringMonthsCount}/${completedMonths.length} recurring months verified. Cap: ${verificationCap}/15. Condition: ${verificationCondition}`,
+        formulaExplanation: incomeRole === 'NO'
+          ? 'Component 4 marked N/A. Scaled over 85 to 100.'
+          : `Recurrence Score: ${c4BaseScore}/15, Verification Cap: ${verificationCap}/15. Score: min(${c4BaseScore}, ${verificationCap}) = ${comp4Score}/15.`,
+      },
+      component5: {
+        name: 'Cash-Deposit Ratio',
+        maxScore: 10,
+        score: comp5Score,
+        totalCashDeposits,
+        totalCredits,
+        cashRatio: Math.round(cashRatio * 10) / 10,
+        largeCashDeposits: largeCashTxs,
+        evidence: `Cash Deposits: ₹${totalCashDeposits.toLocaleString('en-IN')} / Total Credits: ₹${totalCredits.toLocaleString('en-IN')} (${cashRatio.toFixed(1)}%)`,
+        formulaExplanation: `Cash Deposit Ratio = (${totalCashDeposits}/${totalCredits}) × 100 = ${cashRatio.toFixed(1)}%. Score = ${comp5Score}/10.${largeCashTxs.length > 0 ? ` ${largeCashTxs.length} large cash deposit(s) flagged.` : ''}`,
+      },
+      component6: {
+        name: 'Withdrawal Discipline',
+        maxScore: 10,
+        score: comp6Score,
+        consecutiveDrops,
+        passThroughEvents,
+        evidence: `${consecutiveDrops.length} sharp balance drop(s) (Mod: ${moderateDropsCount}, Sev: ${severeDropsCount}, Crit: ${criticalDropsCount}) | ${passThroughEvents.length} rapid pass-through event(s)`,
+        formulaExplanation: `Drop Score: ${dropsScore}/10, Pass-Through Score: ${passThroughScore}/10. Final Component 6 = min(${dropsScore}, ${passThroughScore}) = ${comp6Score}/10.`,
+      },
+      bankPolicy,
+      rawTotalScore,
+      finalTotalScore,
+      statusBand,
+      hardRiskFlags,
+      mandatoryDisclaimer,
+    };
+  }
+
   computeEVVScore(
     monthlyMetrics: MonthlyStatistics[],
     behaviours: FinancialBehaviour[],
     riskFlags: RiskFlag[],
+    dailyBalances: DailyBalance[] = [],
+    snapshots: SnapshotBalance[] = [],
+    transactions: ExtractedTransaction[] = [],
+    bankPolicy: BankPolicy = DEFAULT_BANK_POLICIES.DEFAULT,
+    coApplicantProfile: CoApplicantProfile = { isRepaymentIncomeContributor: 'YES', verificationStatus: 'FULLY_VERIFIED' },
   ): EVVScore {
     if (monthlyMetrics.length === 0) {
       return {
         score: 0,
         grade: 'D',
         gradeLabel: 'Very Poor',
+        statusBand: 'Red',
         breakdown: [],
         summary: 'Insufficient data to compute EVV score',
       };
     }
 
-    const avgBalances = monthlyMetrics.map(m => m.avgBalance);
-    const overallAvgBalance = avgBalances.reduce((s, b) => s + b, 0) / avgBalances.length;
-
-    const getBehaviour = (type: string) => behaviours.find(b => b.type === type);
-
-    // ── Component 1: Average Balance Score (30%)
-    // Benchmark: ₹1L = 100, ₹50k = 75, ₹25k = 55, ₹10k = 35, ₹5k = 20
-    const avgBalanceScore = clampScore(
-      overallAvgBalance >= 200000 ? 100 :
-      overallAvgBalance >= 100000 ? 85 :
-      overallAvgBalance >= 50000  ? 70 :
-      overallAvgBalance >= 25000  ? 55 :
-      overallAvgBalance >= 10000  ? 40 :
-      overallAvgBalance >= 5000   ? 25 : 10
+    // Run the authoritative 6-Component EVV engine
+    const evv6 = this.compute6ComponentEVV(
+      monthlyMetrics,
+      dailyBalances,
+      snapshots,
+      transactions,
+      bankPolicy,
+      coApplicantProfile,
+      riskFlags,
     );
 
-    // ── Component 2: Balance Stability Score (20%)
-    const avgBals = avgBalances;
-    const mean = avgBals.reduce((s, b) => s + b, 0) / avgBals.length;
-    const variance = avgBals.reduce((s, b) => s + Math.pow(b - mean, 2), 0) / avgBals.length;
-    const stdDev = Math.sqrt(variance);
-    const cv = mean > 0 ? stdDev / mean : 1; // Coefficient of Variation
-    const balanceStabilityScore = clampScore(
-      cv <= 0.1 ? 100 :
-      cv <= 0.2 ? 85 :
-      cv <= 0.35 ? 70 :
-      cv <= 0.5  ? 55 :
-      cv <= 0.75 ? 35 : 15
-    );
-
-    // ── Component 3: Income Consistency Score (15%)
-    const salaryBehaviour = getBehaviour('SALARY_PATTERN');
-    const salaryConsistency = salaryBehaviour?.confidence ?? 0;
-    const incomeConsistencyScore = clampScore(
-      salaryBehaviour?.detected ? salaryConsistency * 100 :
-      getBehaviour('BUSINESS_INCOME')?.detected ? 60 :
-      getBehaviour('RENTAL_INCOME')?.detected ? 55 : 30
-    );
-
-    // ── Component 4: Transaction Behaviour Score (10%)
-    const totalBounces = monthlyMetrics.reduce((s, m) => s + m.bounceCount, 0);
-    const hasCircular = getBehaviour('CIRCULAR_TRANSACTIONS')?.detected ?? false;
-    const hasDraining = getBehaviour('ACCOUNT_DRAINING')?.detected ?? false;
-    const txBehaviourScore = clampScore(
-      100
-      - (totalBounces * 15)
-      - (hasCircular ? 30 : 0)
-      - (hasDraining ? 25 : 0)
-    );
-
-    // ── Component 5: Liquidity Score (10%)
-    const minBalances = monthlyMetrics.map(m => m.lowestBalance);
-    const avgMinBalance = minBalances.reduce((s, b) => s + b, 0) / (minBalances.length || 1);
-    const liquidityScore = clampScore(
-      avgMinBalance >= 50000 ? 100 :
-      avgMinBalance >= 20000 ? 80 :
-      avgMinBalance >= 10000 ? 60 :
-      avgMinBalance >= 5000  ? 45 :
-      avgMinBalance >= 1000  ? 25 : 10
-    );
-
-    // ── Component 6: Existing EMI Score (5%) — lower EMI burden = higher score
-    const totalEMIs = monthlyMetrics.reduce((s, m) => s + m.emiCount, 0);
-    const avgEMIsPerMonth = totalEMIs / (monthlyMetrics.length || 1);
-    const emiScore = clampScore(
-      avgEMIsPerMonth === 0 ? 100 :
-      avgEMIsPerMonth <= 1  ? 80 :
-      avgEMIsPerMonth <= 2  ? 60 :
-      avgEMIsPerMonth <= 4  ? 40 : 20
-    );
-
-    // ── Component 7: Minimum Balance Score (5%)
-    const minBalViolations = monthlyMetrics.filter(m => m.lowestBalance < MIN_BALANCE_BENCHMARK).length;
-    const minBalScore = clampScore(100 - (minBalViolations / (monthlyMetrics.length || 1)) * 100);
-
-    // ── Component 8: Risk Flags Score (5%) — deductions per flag
-    const flagSeverityDeductions: Record<string, number> = {
-      critical: 25, high: 15, medium: 8, low: 3
-    };
-    const riskDeduction = riskFlags.reduce((s, f) => s + (flagSeverityDeductions[f.severity] ?? 5), 0);
-    const riskFlagsScore = clampScore(100 - riskDeduction);
-
-    // Compose final score
     const breakdown: EVVWeightBreakdown[] = [
       {
-        component: 'Average Balance',
-        weight: EVV_WEIGHTS.averageBalance,
-        rawScore: avgBalanceScore,
-        weightedScore: Math.round(avgBalanceScore * EVV_WEIGHTS.averageBalance),
-        evidence: `Overall average: ₹${Math.round(overallAvgBalance).toLocaleString('en-IN')}`,
+        component: 'Component 1: Average Balance Trend',
+        weight: 0.25,
+        rawScore: Math.round((evv6.component1.score / 25) * 100),
+        weightedScore: evv6.component1.score,
+        evidence: evv6.component1.evidence,
+        maxPoints: 25,
       },
       {
-        component: 'Balance Stability',
-        weight: EVV_WEIGHTS.balanceStability,
-        rawScore: balanceStabilityScore,
-        weightedScore: Math.round(balanceStabilityScore * EVV_WEIGHTS.balanceStability),
-        evidence: `Coefficient of variation: ${(cv * 100).toFixed(1)}%`,
+        component: 'Component 2: Minimum-Balance Safety',
+        weight: 0.20,
+        rawScore: Math.round((evv6.component2.score / 20) * 100),
+        weightedScore: evv6.component2.score,
+        evidence: evv6.component2.evidence,
+        maxPoints: 20,
       },
       {
-        component: 'Income Consistency',
-        weight: EVV_WEIGHTS.incomeConsistency,
-        rawScore: incomeConsistencyScore,
-        weightedScore: Math.round(incomeConsistencyScore * EVV_WEIGHTS.incomeConsistency),
-        evidence: salaryBehaviour?.detected
-          ? `Salary detected in ${Math.round(salaryConsistency * 100)}% of months`
-          : 'No regular salary pattern',
+        component: 'Component 3: Bounce-Free Record',
+        weight: 0.20,
+        rawScore: Math.round((evv6.component3.score / 20) * 100),
+        weightedScore: evv6.component3.score,
+        evidence: evv6.component3.evidence,
+        maxPoints: 20,
       },
       {
-        component: 'Transaction Behaviour',
-        weight: EVV_WEIGHTS.transactionBehaviour,
-        rawScore: txBehaviourScore,
-        weightedScore: Math.round(txBehaviourScore * EVV_WEIGHTS.transactionBehaviour),
-        evidence: `${totalBounces} bounce(s), circular: ${hasCircular}, draining: ${hasDraining}`,
+        component: 'Component 4: Verified Inflow Regularity',
+        weight: 0.15,
+        rawScore: evv6.component4.score === 'N/A' ? 100 : Math.round((evv6.component4.score / 15) * 100),
+        weightedScore: evv6.component4.score === 'N/A' ? 0 : evv6.component4.score,
+        evidence: evv6.component4.evidence,
+        maxPoints: 15,
       },
       {
-        component: 'Liquidity',
-        weight: EVV_WEIGHTS.liquidity,
-        rawScore: liquidityScore,
-        weightedScore: Math.round(liquidityScore * EVV_WEIGHTS.liquidity),
-        evidence: `Avg minimum monthly balance: ₹${Math.round(avgMinBalance).toLocaleString('en-IN')}`,
+        component: 'Component 5: Cash-Deposit Ratio',
+        weight: 0.10,
+        rawScore: Math.round((evv6.component5.score / 10) * 100),
+        weightedScore: evv6.component5.score,
+        evidence: evv6.component5.evidence,
+        maxPoints: 10,
       },
       {
-        component: 'Existing EMI Burden',
-        weight: EVV_WEIGHTS.existingEmi,
-        rawScore: emiScore,
-        weightedScore: Math.round(emiScore * EVV_WEIGHTS.existingEmi),
-        evidence: `${totalEMIs} EMI payment(s) detected (${avgEMIsPerMonth.toFixed(1)}/month)`,
-      },
-      {
-        component: 'Minimum Balance Compliance',
-        weight: EVV_WEIGHTS.minimumBalance,
-        rawScore: minBalScore,
-        weightedScore: Math.round(minBalScore * EVV_WEIGHTS.minimumBalance),
-        evidence: `${minBalViolations} month(s) below minimum ₹${MIN_BALANCE_BENCHMARK.toLocaleString('en-IN')}`,
-      },
-      {
-        component: 'Risk Flags',
-        weight: EVV_WEIGHTS.riskFlags,
-        rawScore: riskFlagsScore,
-        weightedScore: Math.round(riskFlagsScore * EVV_WEIGHTS.riskFlags),
-        evidence: riskFlags.length > 0 ? riskFlags.map(f => f.label).join(', ') : 'No risk flags',
+        component: 'Component 6: Withdrawal Discipline',
+        weight: 0.10,
+        rawScore: Math.round((evv6.component6.score / 10) * 100),
+        weightedScore: evv6.component6.score,
+        evidence: evv6.component6.evidence,
+        maxPoints: 10,
       },
     ];
 
-    const totalScore = clampScore(breakdown.reduce((s, b) => s + b.weightedScore, 0));
-
+    const totalScore = evv6.finalTotalScore;
     const grade =
       totalScore >= 90 ? 'A+' :
       totalScore >= 80 ? 'A' :
@@ -1364,8 +1964,10 @@ Respond ONLY with this exact JSON structure:
       score: totalScore,
       grade,
       gradeLabel,
+      statusBand: evv6.statusBand,
       breakdown,
-      summary: `${gradeLabel} financial profile. Score: ${totalScore}/100. ${riskFlags.length > 0 ? `${riskFlags.length} risk flag(s) detected.` : 'No risk flags.'}`,
+      summary: `${gradeLabel} financial profile (${evv6.statusBand} Band, ${totalScore}/100). C1=${evv6.component1.score}/25, C2=${evv6.component2.score}/20, C3=${evv6.component3.score}/20, C4=${evv6.component4.score}/15, C5=${evv6.component5.score}/10, C6=${evv6.component6.score}/10.`,
+      evv6Components: evv6,
     };
   }
 
@@ -1378,57 +1980,88 @@ Respond ONLY with this exact JSON structure:
     riskFlags: RiskFlag[],
     behaviours: FinancialBehaviour[],
     monthlyMetrics: MonthlyStatistics[],
+    evv6Components?: EVV6ComponentResult,
   ): UnderwritingDecision {
     const criticalFlags = riskFlags.filter(f => f.severity === 'critical');
     const highFlags = riskFlags.filter(f => f.severity === 'high');
+    const hardRiskFlags = evv6Components?.hardRiskFlags || [];
     const score = evvScore.score;
+    const statusBand = evv6Components?.statusBand || (score >= 80 ? 'Green' : score >= 60 ? 'Amber' : 'Red');
 
     const reasons: string[] = [];
     const conditions: string[] = [];
     const supportingEvidence: string[] = [];
 
-    // Always add score context
-    supportingEvidence.push(`EVV Score: ${score}/100 (Grade: ${evvScore.grade} — ${evvScore.gradeLabel})`);
+    // Score & policy context
+    supportingEvidence.push(`Total EVV Score: ${score}/100 (Status: ${statusBand}, Grade: ${evvScore.grade} — ${evvScore.gradeLabel})`);
+    if (evv6Components) {
+      supportingEvidence.push(
+        `6-Component Scores: C1(Trend)=${evv6Components.component1.score}/25, ` +
+        `C2(Safety)=${evv6Components.component2.score}/20, ` +
+        `C3(Bounces)=${evv6Components.component3.score}/20, ` +
+        `C4(Inflow)=${evv6Components.component4.score}/15, ` +
+        `C5(Cash)=${evv6Components.component5.score}/10, ` +
+        `C6(Discipline)=${evv6Components.component6.score}/10`
+      );
+      supportingEvidence.push(`Bank Benchmark M: ₹${evv6Components.bankPolicy.minimumBalanceBenchmark.toLocaleString('en-IN')}`);
+    }
 
-    const totalBounces = monthlyMetrics.reduce((s, m) => s + m.bounceCount, 0);
-    const avgBalance = monthlyMetrics.length > 0
-      ? monthlyMetrics.reduce((s, m) => s + m.avgBalance, 0) / monthlyMetrics.length
-      : 0;
+    // Hard-risk triggers force MANUAL REVIEW, but never automatic rejection
+    if (hardRiskFlags.length > 0) {
+      reasons.push(`${hardRiskFlags.length} Hard Risk Trigger(s) require underwriter review:`);
+      hardRiskFlags.forEach(f => reasons.push(`• ${f}`));
+      conditions.push('Underwriter to review flagged events, verify source documents, and obtain manager override if eligible.');
+      return {
+        decision: 'MANUAL_REVIEW',
+        decisionLabel: 'Manual Review Required (Hard Risk Override)',
+        confidence: 'HIGH',
+        reasons,
+        conditions,
+        supportingEvidence,
+        riskLevel: 'HIGH',
+      };
+    }
 
-    // REJECT conditions
-    if (criticalFlags.length >= 2) {
-      reasons.push(`${criticalFlags.length} critical risk flags detected`);
+    // Critical fraud/tampering flags or critically low score
+    if (criticalFlags.length >= 2 || score < 30) {
+      reasons.push(score < 30 ? `EVV score ${score}/100 is below minimum threshold.` : `${criticalFlags.length} critical statement risks detected.`);
       criticalFlags.forEach(f => reasons.push(`• ${f.label}: ${f.evidence}`));
-      return { decision: 'REJECT', decisionLabel: 'Reject', confidence: 'HIGH', reasons, supportingEvidence, riskLevel: 'CRITICAL' };
-    }
-    if (score < 30) {
-      reasons.push(`EVV score ${score}/100 is critically low`);
-      reasons.push(`Financial profile does not meet minimum lending criteria`);
-      return { decision: 'REJECT', decisionLabel: 'Reject', confidence: 'HIGH', reasons, supportingEvidence, riskLevel: 'CRITICAL' };
-    }
-
-    // APPROVE conditions
-    if (score >= 80 && criticalFlags.length === 0 && highFlags.length === 0 && totalBounces === 0) {
-      reasons.push(`Strong EVV score of ${score}/100 (${evvScore.grade})`);
-      reasons.push(`No critical or high severity risk flags`);
-      reasons.push(`No returned or bounced payments`);
-      if (avgBalance > 0) supportingEvidence.push(`Average monthly balance: ₹${Math.round(avgBalance).toLocaleString('en-IN')}`);
-      return { decision: 'APPROVE', decisionLabel: 'Approve', confidence: 'HIGH', reasons, supportingEvidence, riskLevel: 'LOW' };
+      return {
+        decision: 'REJECT',
+        decisionLabel: 'Reject',
+        confidence: 'HIGH',
+        reasons,
+        supportingEvidence,
+        riskLevel: 'CRITICAL',
+      };
     }
 
-    // APPROVE WITH CONDITIONS
+    // APPROVE conditions (Green Band 80-100)
+    if (score >= 80 && statusBand === 'Green' && criticalFlags.length === 0 && highFlags.length === 0) {
+      reasons.push(`Strong EVV score of ${score}/100 (${statusBand} Band, Grade ${evvScore.grade})`);
+      reasons.push('Demonstrates consistent balance maintenance and clean payment record meeting bank benchmark.');
+      return {
+        decision: 'APPROVE',
+        decisionLabel: 'Approve',
+        confidence: 'HIGH',
+        reasons,
+        supportingEvidence,
+        riskLevel: 'LOW',
+      };
+    }
+
+    // APPROVE WITH CONDITIONS (Amber Band 60-79)
     if (score >= 60 && criticalFlags.length === 0) {
-      reasons.push(`Adequate EVV score of ${score}/100 with manageable risk profile`);
+      reasons.push(`Satisfactory EVV score of ${score}/100 (${statusBand} Band) within acceptable risk tolerance.`);
       if (highFlags.length > 0) {
         conditions.push(`Provide satisfactory explanation for: ${highFlags.map(f => f.label).join(', ')}`);
       }
-      if (totalBounces > 0) {
-        conditions.push(`Explain ${totalBounces} returned/bounced payment(s)`);
+      if (evv6Components && evv6Components.component2.score < 14) {
+        conditions.push(`Frequent low-balance periods (Safety Ratio: ${evv6Components.component2.finalSafetyRatio}%). Review alternative liquidity proof.`);
       }
-      if (behaviours.find(b => b.type === 'CASH_INTENSIVE')?.detected) {
-        conditions.push('Provide income proof to explain cash-intensive transaction pattern');
+      if (evv6Components && evv6Components.component5.score < 7) {
+        conditions.push(`Cash deposit ratio is ${evv6Components.component5.cashRatio}%. Provide business receipts or source declaration.`);
       }
-      if (avgBalance > 0) supportingEvidence.push(`Average monthly balance: ₹${Math.round(avgBalance).toLocaleString('en-IN')}`);
       return {
         decision: 'APPROVE_WITH_CONDITIONS',
         decisionLabel: 'Approve with Conditions',
@@ -1440,11 +2073,9 @@ Respond ONLY with this exact JSON structure:
       };
     }
 
-    // MANUAL REVIEW (default)
-    reasons.push(`EVV score of ${score}/100 requires human review`);
-    if (criticalFlags.length > 0) reasons.push(`${criticalFlags.length} critical flag(s) need investigation`);
-    if (totalBounces > 0) reasons.push(`${totalBounces} returned payment(s) detected`);
-    highFlags.forEach(f => reasons.push(`• ${f.label}`));
+    // MANUAL REVIEW (default / Red < 60)
+    reasons.push(`EVV score of ${score}/100 (${statusBand} Band) requires manual underwriting evaluation.`);
+    highFlags.forEach(f => reasons.push(`• ${f.label}: ${f.evidence}`));
     return {
       decision: 'MANUAL_REVIEW',
       decisionLabel: 'Manual Review Required',
@@ -1465,8 +2096,13 @@ Respond ONLY with this exact JSON structure:
     mimetype: string,
     originalName?: string,
     seed?: string,
+    bankPolicyInput?: BankPolicy,
+    coApplicantProfileInput?: CoApplicantProfile,
   ): Promise<EVVReport> {
-    this.logger.log(`[EVV Full] Starting full EVV computation for ${originalName}`);
+    this.logger.log(`[EVV Full] Starting full 6-component EVV computation for ${originalName}`);
+
+    const bankPolicy = bankPolicyInput || DEFAULT_BANK_POLICIES.DEFAULT;
+    const coApplicantProfile = coApplicantProfileInput || { isRepaymentIncomeContributor: 'YES', verificationStatus: 'FULLY_VERIFIED' };
 
     // Step 1: Extract
     const rawTransactions = await this.extractTransactions(fileBuffer, mimetype, originalName, seed);
@@ -1481,7 +2117,7 @@ Respond ONLY with this exact JSON structure:
     }));
 
     // Step 2: Validate
-    const openingBalance = 0; // Will be updated if AI extracts metadata
+    const openingBalance = 0;
     const closingBalance = 0;
     const validation = this.validateExtractedData(transactions, openingBalance, closingBalance);
 
@@ -1492,8 +2128,8 @@ Respond ONLY with this exact JSON structure:
     // Step 3: Daily balances
     const dailyBalances = this.reconstructDailyBalances(transactions, openingBalance);
 
-    // Step 4: Snapshots (5-day continuous interval for EVV)
-    const snapshots = this.calculateSnapshots(dailyBalances, 5);
+    // Step 4: Snapshots (Fixed dates [1, 5, 10, 15, 20, 25] as standard)
+    const snapshots = this.calculateSnapshots(dailyBalances, bankPolicy.fixedDates || [1, 5, 10, 15, 20, 25]);
 
     // Step 5: Monthly metrics
     const monthlyMetrics = this.calculateMonthlyMetrics(dailyBalances, transactions, snapshots);
@@ -1504,11 +2140,26 @@ Respond ONLY with this exact JSON structure:
     // Step 7: Risk flags
     const riskFlags = this.detectRiskFlags(transactions, behaviours, monthlyMetrics);
 
-    // Step 8: EVV Score
-    const evvScore = this.computeEVVScore(monthlyMetrics, behaviours, riskFlags);
+    // Step 8: 6-Component EVV Score
+    const evvScore = this.computeEVVScore(
+      monthlyMetrics,
+      behaviours,
+      riskFlags,
+      dailyBalances,
+      snapshots,
+      transactions,
+      bankPolicy,
+      coApplicantProfile,
+    );
 
     // Step 9: Underwriting decision
-    const underwritingDecision = this.generateUnderwritingDecision(evvScore, riskFlags, behaviours, monthlyMetrics);
+    const underwritingDecision = this.generateUnderwritingDecision(
+      evvScore,
+      riskFlags,
+      behaviours,
+      monthlyMetrics,
+      evvScore.evv6Components,
+    );
 
     // Step 10: Overall EVV balance (average of all snapshots)
     const overallEvv = snapshots.length > 0
@@ -1539,7 +2190,7 @@ Respond ONLY with this exact JSON structure:
     const totalSnapshots = snapshots.length;
 
     return {
-      bankName: undefined,
+      bankName: bankPolicy.bankName,
       accountNumber: undefined,
       accountHolder: undefined,
       ifsc: undefined,
@@ -1560,9 +2211,12 @@ Respond ONLY with this exact JSON structure:
       riskFlags,
 
       evvScore,
+      evv6Components: evvScore.evv6Components,
+      bankPolicy,
       overallEvv,
       period,
-      status: 'COMPUTED',
+      status: evvScore.evv6Components?.hardRiskFlags && evvScore.evv6Components.hardRiskFlags.length > 0 ? 'MANUAL_REVIEW' : 'COMPUTED',
+      disclaimer: evvScore.evv6Components?.mandatoryDisclaimer,
 
       underwritingDecision,
       monthly_evv,

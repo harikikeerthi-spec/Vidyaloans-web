@@ -109,19 +109,25 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                     }
                     setComparedBankPartner(matchedBank || null);
 
-                    // Fetch user's applications
-                    const appsRes = await adminApi.getApplications({}) as any;
-                    const userApps = appsRes.data?.filter((app: any) => 
-                        app.userId === userId || app.user_id === userId || app.applicantId === userId
-                    ) || [];
-                    setUserApplications(userApps);
+                    // Fetch user's applications & documents only if not staff
+                    const isStaffUser = (foundUser.role || '').toLowerCase() === 'staff';
+                    if (!isStaffUser) {
+                        const appsRes = await adminApi.getApplications({}) as any;
+                        const userApps = appsRes.data?.filter((app: any) => 
+                            app.userId === userId || app.user_id === userId || app.applicantId === userId
+                        ) || [];
+                        setUserApplications(userApps);
 
-                    // Fetch user's documents
-                    try {
-                        const docsRes = await documentApi.getUsersDocuments(userId) as any;
-                        setUserDocuments(docsRes.data || []);
-                    } catch (e) {
-                        console.log("Could not fetch documents:", e);
+                        // Fetch user's documents
+                        try {
+                            const docsRes = await documentApi.getUsersDocuments(userId) as any;
+                            setUserDocuments(docsRes.data || []);
+                        } catch (e) {
+                            console.log("Could not fetch documents:", e);
+                        }
+                    } else {
+                        setUserApplications([]);
+                        setUserDocuments([]);
                     }
                 }
             } catch (e) {
@@ -251,32 +257,44 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                 </div>
 
                 {/* Tab Navigation */}
-                <div className="max-w-6xl mx-auto px-6 flex gap-8 border-t border-slate-200 overflow-x-auto">
-                    {[
-                        { id: "profile", label: "Profile Information", icon: "badge" },
-                        { id: "applications", label: "Applications", icon: "description", count: userApplications.length },
-                        { id: "documents", label: "Documents", icon: "folder", count: userDocuments.length },
-                        { id: "bank_compare", label: "Bank Profile & Compare", icon: "account_balance" },
-                    ].map((tab) => (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id as any)}
-                            className={`py-4 font-bold text-[13px] uppercase tracking-wide border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap cursor-pointer ${
-                                activeTab === tab.id
-                                    ? tab.id === "bank_compare" ? "border-emerald-600 text-emerald-600" : "border-indigo-600 text-indigo-600"
-                                    : "border-transparent text-slate-500 hover:text-slate-700"
-                            }`}
-                        >
-                            <span className="material-symbols-outlined text-[18px]">{tab.icon}</span>
-                            {tab.label}
-                            {tab.count !== undefined && (
-                                <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">
-                                    {tab.count}
-                                </span>
-                            )}
-                        </button>
-                    ))}
-                </div>
+                {(() => {
+                    const isStaff = (userData?.role || "").toLowerCase() === "staff";
+                    const isBank = (userData?.role || "").toLowerCase().includes("bank");
+                    const tabs = [
+                        { id: "profile", label: isStaff ? "Staff Profile" : "Profile Information", icon: "badge" },
+                        ...(!isStaff ? [
+                            { id: "applications", label: "Applications", icon: "description", count: userApplications.length },
+                            { id: "documents", label: "Documents", icon: "folder", count: userDocuments.length },
+                        ] : []),
+                        ...(isBank ? [
+                            { id: "bank_compare", label: "Bank Profile & Compare", icon: "account_balance" },
+                        ] : []),
+                    ];
+
+                    return (
+                        <div className="max-w-6xl mx-auto px-6 flex gap-8 border-t border-slate-200 overflow-x-auto">
+                            {tabs.map((tab) => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id as any)}
+                                    className={`py-4 font-bold text-[13px] uppercase tracking-wide border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap cursor-pointer ${
+                                        activeTab === tab.id
+                                            ? tab.id === "bank_compare" ? "border-emerald-600 text-emerald-600" : "border-indigo-600 text-indigo-600"
+                                            : "border-transparent text-slate-500 hover:text-slate-700"
+                                    }`}
+                                >
+                                    <span className="material-symbols-outlined text-[18px]">{tab.icon}</span>
+                                    {tab.label}
+                                    {tab.count !== undefined && (
+                                        <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">
+                                            {tab.count}
+                                        </span>
+                                    )}
+                                </button>
+                            ))}
+                        </div>
+                    );
+                })()}
             </div>
 
             {/* Main Content */}
@@ -485,8 +503,12 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                                     <p className="text-[14px] font-semibold text-slate-900 capitalize">{userData.role || "—"}</p>
                                 </div>
                                 <div>
-                                    <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Assigned Lending Bank</p>
-                                    {comparedBankPartner ? (
+                                    <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                                        {(userData.role || "").toLowerCase() === "staff" ? "Operational Department" : "Assigned Lending Bank"}
+                                    </p>
+                                    {(userData.role || "").toLowerCase() === "staff" ? (
+                                        <p className="text-[14px] font-semibold text-slate-900">{userData.department || "Loan Verification & Operations"}</p>
+                                    ) : comparedBankPartner ? (
                                         <div className="flex items-center gap-2">
                                             {comparedBankPartner.logoUrl && (
                                                 <img src={comparedBankPartner.logoUrl} alt="" className="w-5 h-5 object-contain" />
@@ -501,8 +523,14 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                                 </div>
                                 <div>
                                     <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Account Status</p>
-                                    <span className="px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wide bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                        Active
+                                    <span className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wide border ${
+                                        userData.isResigned 
+                                            ? "bg-rose-50 text-rose-700 border-rose-200" 
+                                            : userData.isOnLeave 
+                                            ? "bg-amber-50 text-amber-700 border-amber-200" 
+                                            : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                    }`}>
+                                        {userData.isResigned ? "Resigned" : (userData.isOnLeave ? "On Leave" : "Active")}
                                     </span>
                                 </div>
                             </div>
@@ -550,16 +578,34 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
 
                         {/* Quick Stats */}
                         <div className="space-y-4">
+                            {(userData.role || "").toLowerCase() === "staff" ? (
+                                <>
+                                    <div className="bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
+                                        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">Staff Designation</p>
+                                        <p className="text-xl font-black text-indigo-600 tracking-tight">{userData.designation || "Staff Operations"}</p>
+                                    </div>
+                                    <div className="bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
+                                        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">Availability Status</p>
+                                        <div className="flex items-center gap-2">
+                                            <span className={`w-2.5 h-2.5 rounded-full ${userData.isOnLeave ? 'bg-amber-500' : userData.isResigned ? 'bg-rose-500' : 'bg-emerald-500 animate-pulse'}`}></span>
+                                            <p className="text-xl font-black text-slate-900">{userData.isOnLeave ? "On Leave" : (userData.isResigned ? "Resigned" : "Active & Ready")}</p>
+                                        </div>
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
+                                        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">Applications</p>
+                                        <p className="text-3xl font-black text-slate-900">{userApplications.length}</p>
+                                    </div>
+                                    <div className="bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
+                                        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">Documents</p>
+                                        <p className="text-3xl font-black text-slate-900">{userDocuments.length}</p>
+                                    </div>
+                                </>
+                            )}
                             <div className="bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
-                                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">Applications</p>
-                                <p className="text-3xl font-black text-slate-900">{userApplications.length}</p>
-                            </div>
-                            <div className="bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
-                                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">Documents</p>
-                                <p className="text-3xl font-black text-slate-900">{userDocuments.length}</p>
-                            </div>
-                            <div className="bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
-                                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">Member Since</p>
+                                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">{(userData.role || "").toLowerCase() === "staff" ? "Staff Member Since" : "Member Since"}</p>
                                 <p className="text-sm font-semibold text-slate-900">
                                     {(userData.createdAt || userData.created_at) ? `${new Date(userData.createdAt || userData.created_at).toLocaleString('en-US', { timeZone: 'Asia/Kolkata', month: 'short', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })} IST (GMT+5:30)` : "—"}
                                 </p>
@@ -569,7 +615,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                 )}
 
                 {/* Applications Tab */}
-                {activeTab === "applications" && (
+                {activeTab === "applications" && (userData.role || "").toLowerCase() !== "staff" && (
                     <>
                         <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
                             {userApplications.length > 0 ? (
@@ -757,7 +803,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                 )}
 
                 {/* Documents Tab */}
-                {activeTab === "documents" && (
+                {activeTab === "documents" && (userData.role || "").toLowerCase() !== "staff" && (
                     <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
                         {userDocuments.length > 0 ? (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-6">

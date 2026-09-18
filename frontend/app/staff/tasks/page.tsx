@@ -44,9 +44,9 @@ export default function RemindersPage() {
             const res = await adminApi.getRemarks(appId) as any;
             let backendNotes: any[] = [];
             if (res && res.success && Array.isArray(res.data)) {
-                backendNotes = res.data.filter((r: any) => r.type === "note" && r.isInternal === true);
+                backendNotes = res.data.filter((r: any) => r.isInternal === true || r.type === "note" || r.type === "admin_note" || r.type === "staff_note");
             } else if (Array.isArray(res)) {
-                backendNotes = res.filter((r: any) => r.type === "note" && r.isInternal === true);
+                backendNotes = res.filter((r: any) => r.isInternal === true || r.type === "note" || r.type === "admin_note" || r.type === "staff_note");
             }
 
             // Sync current local follow-up notes to backend if they are missing
@@ -66,9 +66,9 @@ export default function RemindersPage() {
                         // Re-fetch remarks after syncing
                         const reRes = await adminApi.getRemarks(appId) as any;
                         if (reRes && reRes.success && Array.isArray(reRes.data)) {
-                            backendNotes = reRes.data.filter((r: any) => r.type === "note" && r.isInternal === true);
+                            backendNotes = reRes.data.filter((r: any) => r.isInternal === true || r.type === "note" || r.type === "admin_note" || r.type === "staff_note");
                         } else if (Array.isArray(reRes)) {
-                            backendNotes = reRes.filter((r: any) => r.type === "note" && r.isInternal === true);
+                            backendNotes = reRes.filter((r: any) => r.isInternal === true || r.type === "note" || r.type === "admin_note" || r.type === "staff_note");
                         }
                     } catch (syncErr) {
                         console.error("Failed to auto-sync local notes to backend:", syncErr);
@@ -980,15 +980,23 @@ export default function RemindersPage() {
                                         <p className="text-[10px] text-slate-400 italic py-2 pl-1 font-semibold">No internal notes added yet.</p>
                                     ) : (
                                         <div className="space-y-3 max-h-[220px] overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin' }}>
-                                            {notesList.map((note, idx) => (
-                                                <div key={note.id || note._id || idx} className="bg-slate-50/30 border border-slate-100 rounded-xl p-3 space-y-2">
-                                                    <div className="flex items-center justify-between text-[8px] font-bold text-slate-400">
-                                                        <span>{note.authorName || "Staff Member"}</span>
-                                                        <span>{note.createdAt || note.created_at ? formatNoteTime(note.createdAt || note.created_at) : ""}</span>
+                                            {notesList.map((note, idx) => {
+                                                const isAdmin = (note.type || '').includes('admin') || (note.authorName || '').toLowerCase().includes('admin');
+                                                return (
+                                                    <div key={note.id || note._id || idx} className={`border rounded-xl p-3 space-y-2 ${isAdmin ? 'bg-purple-50/40 border-purple-200/80' : 'bg-slate-50/30 border-slate-100'}`}>
+                                                        <div className="flex items-center justify-between text-[8px] font-bold">
+                                                            <div className="flex items-center gap-1.5">
+                                                                <span className="text-slate-700">{note.authorName || (isAdmin ? "Administrator" : "Staff Member")}</span>
+                                                                <span className={`px-1.5 py-0.2 rounded text-[7.5px] font-extrabold uppercase ${isAdmin ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-500'}`}>
+                                                                    {isAdmin ? 'ADMIN NOTE' : 'STAFF NOTE'}
+                                                                </span>
+                                                            </div>
+                                                            <span className="text-slate-400">{note.createdAt || note.created_at ? formatNoteTime(note.createdAt || note.created_at) : ""}</span>
+                                                        </div>
+                                                        <p className="text-[11px] font-semibold text-slate-700 leading-relaxed whitespace-pre-wrap">{note.content || note.remark || ""}</p>
                                                     </div>
-                                                    <p className="text-[11px] font-semibold text-slate-700 leading-relaxed whitespace-pre-wrap">{note.content || note.remark || ""}</p>
-                                                </div>
-                                            ))}
+                                                );
+                                            })}
                                         </div>
                                     )}
                                 </div>

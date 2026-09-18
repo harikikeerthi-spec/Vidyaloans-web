@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { format } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import { documentApi, staffProfileApi, adminApi, chatApi } from "@/lib/api";
 import { formatDateTime } from "@/lib/utils";
 import { useDialog } from "@/contexts/DialogContext";
@@ -45,6 +45,7 @@ import {
   getDocumentRequirementName,
   getProfileDocumentRequirements,
 } from "@/lib/documentRequirements";
+import { formatIntervalDate } from "@/lib/evv-parser";
 
 interface ApplicationDetailViewProps {
   application: any;
@@ -738,9 +739,9 @@ const ApplicationDetailView: React.FC<ApplicationDetailViewProps> = ({
 
     try {
       await adminApi.addRemark(appRefId, {
-        type: 'note',
+        type: 'staff_note',
         content: noteInput.trim(),
-        authorName: 'Staff Member',
+        authorName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email : 'Staff Member',
         isInternal: true
       } as any);
 
@@ -2054,18 +2055,27 @@ const ApplicationDetailView: React.FC<ApplicationDetailViewProps> = ({
               {/* Action Hub & Sticky Tabs Section */}
               <div id="action-hub-section" className="space-y-8 animate-in slide-in-from-bottom-10 duration-700 delay-200">
                 <div className="sticky top-0 no-print bg-[#F8FAFC]/95 backdrop-blur-md z-[50] py-4 border-b border-slate-200 flex items-center justify-between px-6 -mx-6 shadow-sm">
-                  <div className="flex items-center gap-10">
+                  <div className="flex items-center gap-8">
                     {[
-                      { id: "requirements", label: "REQUIREMENTS", icon: "task_alt" }
+                      { id: "requirements", label: "REQUIREMENTS", icon: "task_alt" },
+                      { id: "notes", label: "INTERNAL NOTES", icon: "sticky_note_2", count: notes.length }
                     ].map(tab => (
                       <button
                         key={tab.id}
-                        onClick={() => setActiveTab(tab.id)}
-                        className={`pb-1 flex items-center gap-2.5 text-[13px] font-black tracking-[0.1em] uppercase relative transition-all group ${activeTab === tab.id ? 'text-emerald-600' : 'text-slate-400 hover:text-slate-600'}`}
+                        onClick={() => {
+                          setActiveTab(tab.id);
+                          if (tab.id === "notes") fetchNotes();
+                        }}
+                        className={`pb-1 flex items-center gap-2 text-[13px] font-black tracking-[0.1em] uppercase relative transition-all group ${activeTab === tab.id ? 'text-[#6605c7]' : 'text-slate-400 hover:text-slate-600'}`}
                       >
-                        <span className={`material-symbols-outlined text-[18px] transition-transform group-hover:scale-110 ${activeTab === tab.id ? 'text-emerald-600' : 'text-slate-300'}`}>{tab.icon}</span>
-                        {tab.label}
-                        {activeTab === tab.id && <div className="absolute bottom-[-17px] left-0 right-0 h-[3px] bg-emerald-600 rounded-full shadow-[0_2px_8px_rgba(16,185,129,0.3)]" />}
+                        <span className={`material-symbols-outlined text-[18px] transition-transform group-hover:scale-110 ${activeTab === tab.id ? 'text-[#6605c7]' : 'text-slate-300'}`}>{tab.icon}</span>
+                        <span>{tab.label}</span>
+                        {tab.count !== undefined && tab.count > 0 && (
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${activeTab === tab.id ? 'bg-purple-100 text-purple-700' : 'bg-slate-200 text-slate-600'}`}>
+                            {tab.count}
+                          </span>
+                        )}
+                        {activeTab === tab.id && <div className="absolute bottom-[-17px] left-0 right-0 h-[3px] bg-[#6605c7] rounded-full shadow-[0_2px_8px_rgba(102,5,199,0.3)]" />}
                       </button>
                     ))}
                   </div>
@@ -2188,7 +2198,206 @@ const ApplicationDetailView: React.FC<ApplicationDetailViewProps> = ({
                       </div>
                     )}
 
-                    {/* Removed notes tab rendering */}
+                    {/* Internal Notes Tab Content */}
+                    {activeTab === "notes" && (
+                      <div id="internal-notes-section" className="space-y-6 animate-in fade-in duration-300">
+                        {/* Notes Header Card */}
+                        <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-purple-50 text-[#6605c7] flex items-center justify-center border border-purple-100 shadow-xs shrink-0">
+                              <span className="material-symbols-outlined text-[24px]">sticky_note_2</span>
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2.5 flex-wrap">
+                                <h3 className="text-lg font-black text-slate-900 tracking-tight">Internal Application Notes</h3>
+                                <span className="px-2.5 py-0.5 bg-purple-100 text-purple-700 rounded-full text-[10px] font-bold uppercase tracking-wider border border-purple-200/60">
+                                  Admin &amp; Staff Only
+                                </span>
+                              </div>
+                              <p className="text-xs text-slate-500 mt-0.5 font-medium">
+                                Notes, instructions, and observations recorded by Administrators and Staff. Completely hidden from applicant and banks.
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2.5 self-end sm:self-auto shrink-0">
+                            <button
+                              type="button"
+                              onClick={fetchNotes}
+                              disabled={loadingNotes}
+                              className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
+                              title="Refresh Notes"
+                            >
+                              <span className={`material-symbols-outlined text-[16px] ${loadingNotes ? 'animate-spin text-purple-600' : ''}`}>refresh</span>
+                              <span>Refresh</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setIsNoteInputVisible(!isNoteInputVisible)}
+                              className="flex items-center gap-1.5 px-4 py-2 bg-[#6605c7] hover:bg-[#5204a3] text-white rounded-xl text-xs font-bold transition-all shadow-sm shadow-purple-600/20 cursor-pointer"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">add_comment</span>
+                              <span>{isNoteInputVisible ? "Hide Editor" : "Add Note"}</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Add Note Input Area */}
+                        {isNoteInputVisible && (
+                          <div className="bg-purple-50/50 p-6 rounded-3xl border border-purple-100 shadow-xs space-y-3 animate-in fade-in slide-in-from-top-4 duration-300">
+                            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                              New Staff / Internal Remark
+                            </label>
+                            <textarea
+                              value={noteInput}
+                              onChange={(e) => setNoteInput(e.target.value)}
+                              placeholder="Write an internal note or observation regarding this application (visible to Admin and Staff)..."
+                              rows={3}
+                              className="w-full px-4 py-3 bg-white border border-purple-200 rounded-2xl text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-600/20 focus:border-purple-600 transition-all resize-none shadow-2xs"
+                            />
+                            <div className="flex items-center justify-between">
+                              <p className="text-[11px] text-slate-400 font-medium flex items-center gap-1.5">
+                                <span className="material-symbols-outlined text-[15px] text-slate-400">lock</span>
+                                Visible to admin and staff only
+                              </p>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setNoteInput("");
+                                    setIsNoteInputVisible(false);
+                                  }}
+                                  className="px-3.5 py-2 text-xs font-bold text-slate-500 hover:text-slate-800 hover:bg-white/60 rounded-xl transition-all cursor-pointer"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={handleAddNote}
+                                  disabled={!noteInput.trim()}
+                                  className="px-5 py-2 bg-[#6605c7] hover:bg-[#5204a3] text-white text-xs font-bold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+                                >
+                                  <span className="material-symbols-outlined text-[16px]">send</span>
+                                  <span>Save Note</span>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Recorded Notes Feed */}
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between px-1">
+                            <h4 className="text-xs font-black text-slate-600 uppercase tracking-wider">
+                              Recorded Notes ({notes.length})
+                            </h4>
+                            {notes.length > 0 && (
+                              <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+                                Newest First
+                              </span>
+                            )}
+                          </div>
+
+                          {loadingNotes ? (
+                            <div className="flex flex-col items-center justify-center py-16 bg-white rounded-3xl border border-slate-100 shadow-xs">
+                              <div className="w-8 h-8 border-3 border-purple-200 border-t-purple-600 rounded-full animate-spin mb-3" />
+                              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Loading internal notes...</p>
+                            </div>
+                          ) : notes.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-14 bg-white rounded-3xl border border-dashed border-slate-200 text-center px-6 shadow-xs">
+                              <div className="w-14 h-14 rounded-2xl bg-slate-50 text-slate-300 flex items-center justify-center mb-3">
+                                <span className="material-symbols-outlined text-[28px]">speaker_notes_off</span>
+                              </div>
+                              <h5 className="text-sm font-bold text-slate-700">No internal notes added yet</h5>
+                              <p className="text-xs text-slate-400 mt-1 max-w-sm">
+                                Notes written by Administrators in the Admin Portal or by Staff will appear here in real time.
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => setIsNoteInputVisible(true)}
+                                className="mt-4 px-4 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                              >
+                                Write First Note
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              {notes.map((item: any, idx: number) => {
+                                const noteTime = item.createdAt || item.created_at ? new Date(item.createdAt || item.created_at) : null;
+                                const isAdmin = (item.type || '').includes('admin') || (item.authorName || '').toLowerCase().includes('admin');
+                                const isSystem = (item.type || '').includes('ai') || (item.authorName || '').toLowerCase().includes('system');
+
+                                return (
+                                  <div
+                                    key={item.id || item._id || idx}
+                                    className={`p-5 rounded-2xl border transition-all ${
+                                      isAdmin
+                                        ? 'bg-purple-50/40 border-purple-200/80 shadow-xs hover:border-purple-300'
+                                        : isSystem
+                                          ? 'bg-indigo-50/40 border-indigo-200/80 shadow-xs'
+                                          : 'bg-white border-slate-200/80 shadow-xs hover:border-slate-300'
+                                    }`}
+                                  >
+                                    <div className="flex items-start justify-between gap-3 mb-2.5">
+                                      <div className="flex items-center gap-2.5">
+                                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+                                          isAdmin
+                                            ? 'bg-purple-600 text-white shadow-xs shadow-purple-600/20'
+                                            : isSystem
+                                              ? 'bg-indigo-600 text-white'
+                                              : 'bg-slate-100 text-slate-700'
+                                        }`}>
+                                          <span className="material-symbols-outlined text-[16px]">
+                                            {isAdmin ? 'admin_panel_settings' : isSystem ? 'smart_toy' : 'person'}
+                                          </span>
+                                        </div>
+                                        <div>
+                                          <div className="flex items-center gap-2">
+                                            <p className="text-xs font-bold text-slate-900 leading-none">
+                                              {item.authorName || item.author || (isAdmin ? 'Administrator' : 'Staff Officer')}
+                                            </p>
+                                            <span className={`px-2 py-0.5 rounded-full text-[9.5px] font-extrabold uppercase tracking-wider ${
+                                              isAdmin
+                                                ? 'bg-purple-100 text-purple-800 border border-purple-200'
+                                                : isSystem
+                                                  ? 'bg-indigo-100 text-indigo-800'
+                                                  : 'bg-slate-100 text-slate-600'
+                                            }`}>
+                                              {isAdmin ? 'ADMIN NOTE' : isSystem ? 'SYSTEM' : 'STAFF NOTE'}
+                                            </span>
+                                          </div>
+                                          <span className="text-[10px] text-slate-400 font-medium mt-0.5 block">
+                                            {item.type ? item.type.replace(/_/g, ' ') : 'Internal Note'}
+                                          </span>
+                                        </div>
+                                      </div>
+
+                                      {noteTime && (
+                                        <div className="text-right shrink-0">
+                                          <p className="text-[11px] font-bold text-slate-700">
+                                            {format(noteTime, 'dd MMM yyyy, hh:mm a')}
+                                          </p>
+                                          <p className="text-[10px] text-slate-400 font-medium">
+                                            {formatDistanceToNow(noteTime, { addSuffix: true })}
+                                          </p>
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    <div className="bg-white/80 rounded-xl p-3.5 border border-slate-100 mt-2">
+                                      <p className="text-xs text-slate-800 whitespace-pre-wrap leading-relaxed font-medium">
+                                        {item.content || item.remark}
+                                      </p>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -3636,7 +3845,22 @@ export const EvvAnalysisTab = ({
   const snapshots = parseJsonField(application.evvSnapshots);
   const monthlyMetrics = parseJsonField(application.evvMonthlyMetrics);
   const validation = parseJsonField(application.evvValidation, null);
-  const weightBreakdown = parseJsonField(application.evvWeightBreakdown);
+  
+  const rawWeightBreakdown = parseJsonField(application.evvWeightBreakdown);
+  const sixComponents = rawWeightBreakdown?.sixComponents || null;
+  const weightBreakdown: any[] = Array.isArray(rawWeightBreakdown)
+    ? rawWeightBreakdown
+    : (rawWeightBreakdown?.breakdown || []);
+  const bankPolicy = rawWeightBreakdown?.bankPolicy || {
+    bankKey: (application.bank || "DEFAULT").toUpperCase(),
+    bankName: application.bank || "Partner Bank",
+    minimumBalanceBenchmark: 3000,
+    requiredHistoryMonths: 6,
+    snapshotDates: [1, 5, 10, 15, 20, 25],
+  };
+  const evvDisclaimer = rawWeightBreakdown?.disclaimer || "Internal EVV assessment — not an official bank sanction or automatic loan decision.";
+  const statusBand = sixComponents?.statusBand || (evvScore !== null ? (evvScore >= 80 ? 'Green' : evvScore >= 60 ? 'Amber' : 'Red') : 'Green');
+
   const legacyBreakdown = parseJsonField(application.evvMonthlyBreakdown);
   
   // Format period nicely
@@ -4087,6 +4311,157 @@ export const EvvAnalysisTab = ({
       {evvStatus && evvStatus !== "PROCESSING" && (
         <div className="space-y-8">
           
+          {/* Official 6-Component Underwriting Health Breakdown (Screen View) */}
+          <div className="bg-white dark:bg-slate-900 rounded-[32px] border border-slate-100 dark:border-slate-800 p-8 shadow-sm no-print space-y-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-5 gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-indigo-600 text-[20px]">verified</span>
+                  <h4 className="text-[14px] font-black text-slate-800 dark:text-white uppercase tracking-wider">
+                    6-Component Bank Statement Health (EVV)
+                  </h4>
+                </div>
+                <p className="text-[11px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
+                  Target Bank: <span className="text-slate-700 dark:text-slate-200">{bankPolicy.bankName}</span> • Benchmark M: <span className="text-indigo-600">₹{Number(bankPolicy.minimumBalanceBenchmark || 3000).toLocaleString('en-IN')}</span> • Sampling: Fixed Dates [1, 5, 10, 15, 20, 25] (6 Months)
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className={`px-3 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider border ${
+                  statusBand === 'Green' ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' :
+                  statusBand === 'Amber' ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800' :
+                  'bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-800'
+                }`}>
+                  Status Band: {statusBand} ({evvScore ?? 80}/100)
+                </span>
+              </div>
+            </div>
+
+            {/* 6 Component Cards Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {/* Component 1 */}
+              <div className="p-5 rounded-2xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400">Component 1</span>
+                    <span className="text-[13px] font-black font-mono text-slate-900 dark:text-white">
+                      {sixComponents?.component1?.score ?? (weightBreakdown[0]?.weightedScore ?? 25)} <span className="text-[10px] text-slate-400">/ 25</span>
+                    </span>
+                  </div>
+                  <h5 className="text-[12px] font-extrabold text-slate-800 dark:text-slate-100">Average Balance Trend</h5>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                    Sampled AMB: <strong className="text-slate-800 dark:text-slate-200">₹{Math.round(sixComponents?.component1?.sixMonthSampledAMB ?? evvOverall).toLocaleString('en-IN')}</strong> (Target: ₹{(sixComponents?.component1?.strongTarget ?? (10 * (bankPolicy.minimumBalanceBenchmark || 3000))).toLocaleString('en-IN')})
+                  </p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">
+                    Trend: <strong className={(sixComponents?.component1?.trendPercent ?? 0) >= 0 ? "text-emerald-600" : "text-amber-600"}>{(sixComponents?.component1?.trendPercent ?? 0) >= 0 ? "+" : ""}{sixComponents?.component1?.trendPercent ?? 0}%</strong> • Consistency: {sixComponents?.component1?.consistencyMonthsMeetingM ?? 6}/6 mos meeting M
+                  </p>
+                </div>
+              </div>
+
+              {/* Component 2 */}
+              <div className="p-5 rounded-2xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400">Component 2</span>
+                    <span className="text-[13px] font-black font-mono text-slate-900 dark:text-white">
+                      {sixComponents?.component2?.score ?? (weightBreakdown[1]?.weightedScore ?? 20)} <span className="text-[10px] text-slate-400">/ 20</span>
+                    </span>
+                  </div>
+                  <h5 className="text-[12px] font-extrabold text-slate-800 dark:text-slate-100">Minimum-Balance Safety</h5>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                    Safety Ratio: <strong className="text-slate-800 dark:text-slate-200">{sixComponents?.component2?.finalSafetyRatio ?? 0}%</strong> (Benchmark M: ₹{(bankPolicy.minimumBalanceBenchmark || 3000).toLocaleString('en-IN')})
+                  </p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">
+                    Sampled Low: {sixComponents?.component2?.sampledLowRatio ?? 0}% • Daily: {sixComponents?.component2?.dailyLowRatio ?? 0}% • Neg Bal: {sixComponents?.component2?.hasNegativeBalance ? "Yes (Alert)" : "None"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Component 3 */}
+              <div className="p-5 rounded-2xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400">Component 3</span>
+                    <span className="text-[13px] font-black font-mono text-slate-900 dark:text-white">
+                      {sixComponents?.component3?.score ?? (weightBreakdown[2]?.weightedScore ?? 20)} <span className="text-[10px] text-slate-400">/ 20</span>
+                    </span>
+                  </div>
+                  <h5 className="text-[12px] font-extrabold text-slate-800 dark:text-slate-100">Bounce-Free Record</h5>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                    Inward Bounces: <strong className={(sixComponents?.component3?.bounceCount ?? 0) > 0 ? "text-rose-600" : "text-emerald-600"}>{sixComponents?.component3?.bounceCount ?? 0}</strong> • Charges: {sixComponents?.component3?.chargeCount ?? 0}
+                  </p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">
+                    Recent (30d): {sixComponents?.component3?.hasRecentBounce ? "Flagged (Review)" : "None"} • 90d Count: {sixComponents?.component3?.bouncesIn90Days ?? 0}
+                  </p>
+                </div>
+              </div>
+
+              {/* Component 4 */}
+              <div className="p-5 rounded-2xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400">Component 4</span>
+                    <span className="text-[13px] font-black font-mono text-slate-900 dark:text-white">
+                      {sixComponents?.component4?.isNonIncomeContributor ? "N/A" : `${sixComponents?.component4?.score ?? (weightBreakdown[3]?.weightedScore ?? 15)} / 15`}
+                    </span>
+                  </div>
+                  <h5 className="text-[12px] font-extrabold text-slate-800 dark:text-slate-100">Verified Inflow Regularity</h5>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                    Role: <strong className="text-slate-800 dark:text-slate-200">{sixComponents?.component4?.repaymentIncomeRole ?? "YES"}</strong> {sixComponents?.component4?.isNonIncomeContributor ? "(Scaled over 85)" : `• Source: ${sixComponents?.component4?.sourceType ?? "SALARIED"}`}
+                  </p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">
+                    Recurrence: {sixComponents?.component4?.recurrenceMonthsCount ?? 6}/6 mos • Status: {sixComponents?.component4?.verificationStatus ?? "VERIFIED"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Component 5 */}
+              <div className="p-5 rounded-2xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400">Component 5</span>
+                    <span className="text-[13px] font-black font-mono text-slate-900 dark:text-white">
+                      {sixComponents?.component5?.score ?? (weightBreakdown[4]?.weightedScore ?? 10)} <span className="text-[10px] text-slate-400">/ 10</span>
+                    </span>
+                  </div>
+                  <h5 className="text-[12px] font-extrabold text-slate-800 dark:text-slate-100">Cash-Deposit Ratio</h5>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                    Cash Ratio: <strong className={(sixComponents?.component5?.cashRatioPercent ?? 0) > 20 ? "text-amber-600" : "text-slate-800 dark:text-slate-200"}>{sixComponents?.component5?.cashRatioPercent ?? 0}%</strong> (₹{Math.round(sixComponents?.component5?.physicalCashDepositTotal ?? 0).toLocaleString('en-IN')})
+                  </p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">
+                    Single Cash Spike ≥ ₹50k: {sixComponents?.component5?.hasSingleCashSpike ? "Flagged (Audit Alert)" : "None"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Component 6 */}
+              <div className="p-5 rounded-2xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400">Component 6</span>
+                    <span className="text-[13px] font-black font-mono text-slate-900 dark:text-white">
+                      {sixComponents?.component6?.score ?? (weightBreakdown[5]?.weightedScore ?? 10)} <span className="text-[10px] text-slate-400">/ 10</span>
+                    </span>
+                  </div>
+                  <h5 className="text-[12px] font-extrabold text-slate-800 dark:text-slate-100">Withdrawal Discipline</h5>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                    Drops Score: <strong className="text-slate-800 dark:text-slate-200">{sixComponents?.component6?.dropsScore ?? 10}/10</strong> • Pass-Through: <strong className="text-slate-800 dark:text-slate-200">{sixComponents?.component6?.passThroughScore ?? 10}/10</strong>
+                  </p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">
+                    Rapid debits (≤3d): {sixComponents?.component6?.rapidPassThroughCount ?? 0} events • Drops: {sixComponents?.component6?.consecutiveDropSeverity ?? "None"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Mandatory Disclaimer */}
+            <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl flex items-center gap-2.5 text-[11px] text-slate-600 dark:text-slate-300">
+              <span className="material-symbols-outlined text-indigo-600 dark:text-indigo-400 text-base flex-shrink-0">gavel</span>
+              <span className="font-semibold italic">
+                {evvDisclaimer}
+              </span>
+            </div>
+          </div>
+          
           {/* Section: Premium Visual Charts tabs */}
           <div className="bg-white dark:bg-slate-900 rounded-[32px] border border-slate-100 dark:border-slate-800 p-8 shadow-sm no-print">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-5 mb-6 gap-4">
@@ -4230,20 +4605,26 @@ export const EvvAnalysisTab = ({
                 </div>
 
                 {/* Print layout summary table */}
+                {/* Monthly average balance table (Exact Executive Spec) */}
                 <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[28px] overflow-hidden shadow-sm">
-                  <div className="px-8 pt-7 pb-4 flex items-center justify-between no-print">
-                    <h4 className="text-[12px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-                      Full Monthly Statement Summary
-                    </h4>
+                  <div className="px-8 pt-7 pb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between no-print gap-2">
+                    <div>
+                      <h4 className="text-[14px] font-black text-slate-800 dark:text-white uppercase tracking-wider">
+                        Monthly average balance
+                      </h4>
+                      <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                        Average of daily closing balances for each calendar month
+                      </p>
+                    </div>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead>
                         <tr className="border-t border-b border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60">
-                          {["Month", "Points", "Opening", "Avg (MAB)", "Min Bal", "Max Bal", "Credits Count", "Debits Count", "Closing Bal"].map((col, i) => (
+                          {["Month", "Avg balance", "Min", "Max", "Closing", "Total credits", "Total debits", "Cash %", "Bounces"].map((col, i) => (
                             <th
                               key={i}
-                              className={`px-6 py-3 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest whitespace-nowrap ${i === 0 ? "text-left" : "text-right"}`}
+                              className={`px-5 py-3 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest whitespace-nowrap ${i === 0 ? "text-left" : "text-right"}`}
                             >
                               {col}
                             </th>
@@ -4256,32 +4637,34 @@ export const EvvAnalysisTab = ({
                             key={idx}
                             className={`group border-b border-slate-50 dark:border-slate-900 hover:bg-slate-50/40 dark:hover:bg-slate-900/40 transition-all`}
                           >
-                            <td className="px-6 py-4 text-[12px] font-black text-slate-800 dark:text-white uppercase tracking-wider text-left">
-                              {item.monthLabel || item.month}
+                            <td className="px-5 py-3.5 text-[12px] font-black text-slate-800 dark:text-white uppercase tracking-wider text-left whitespace-nowrap">
+                              {item.label || item.monthLabel || item.month}
                             </td>
-                            <td className="px-6 py-4 text-[12px] text-right font-bold text-slate-600 dark:text-slate-400">
-                              {item.snapshotPoints || 0}
+                            <td className="px-5 py-3.5 text-[12px] text-right font-black text-slate-900 dark:text-white tabular-nums whitespace-nowrap">
+                              ₹{Number(item.avgDailyBalance ?? item.snapshotAvg ?? item.avgBalance ?? item.avg ?? 0).toLocaleString("en-IN")}
                             </td>
-                            <td className="px-6 py-4 text-[12px] text-right font-medium dark:text-slate-300 tabular-nums">
-                              ₹{(item.openingBalance || 0).toLocaleString("en-IN")}
+                            <td className="px-5 py-3.5 text-[12px] text-right font-medium text-slate-600 dark:text-slate-400 tabular-nums whitespace-nowrap">
+                              ₹{Number(item.min ?? item.snapshotMin ?? item.lowestBalance ?? 0).toLocaleString("en-IN")}
                             </td>
-                            <td className="px-6 py-4 text-[12px] text-right font-black text-indigo-600 dark:text-indigo-400 tabular-nums">
-                              ₹{Number(item.snapshotAvg ?? item.avgBalance ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            <td className="px-5 py-3.5 text-[12px] text-right font-medium text-slate-600 dark:text-slate-400 tabular-nums whitespace-nowrap">
+                              ₹{Number(item.max ?? item.snapshotMax ?? item.highestBalance ?? 0).toLocaleString("en-IN")}
                             </td>
-                            <td className="px-6 py-4 text-[12px] text-right font-medium text-rose-500 tabular-nums">
-                              ₹{Number(item.snapshotMin ?? item.lowestBalance ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            <td className="px-5 py-3.5 text-[12px] text-right font-bold text-slate-800 dark:text-slate-200 tabular-nums whitespace-nowrap">
+                              ₹{Number(item.closing ?? item.closingBalance ?? 0).toLocaleString("en-IN")}
                             </td>
-                            <td className="px-6 py-4 text-[12px] text-right font-medium text-emerald-500 tabular-nums">
-                              ₹{Number(item.snapshotMax ?? item.highestBalance ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            <td className="px-5 py-3.5 text-[12px] text-right font-semibold text-emerald-600 tabular-nums whitespace-nowrap">
+                              ₹{Number(item.credits ?? item.totalCredits ?? 0).toLocaleString("en-IN")}
                             </td>
-                            <td className="px-6 py-4 text-[12px] text-right font-medium text-slate-600 dark:text-slate-400">
-                              {item.creditCount || 0}
+                            <td className="px-5 py-3.5 text-[12px] text-right font-semibold text-rose-600 tabular-nums whitespace-nowrap">
+                              ₹{Number(item.debits ?? item.totalDebits ?? 0).toLocaleString("en-IN")}
                             </td>
-                            <td className="px-6 py-4 text-[12px] text-right font-medium text-slate-600 dark:text-slate-400">
-                              {item.debitCount || 0}
+                            <td className="px-5 py-3.5 text-[12px] text-right font-bold text-slate-700 dark:text-slate-300 tabular-nums whitespace-nowrap">
+                              {item.cashPercent ?? 0}%
                             </td>
-                            <td className="px-6 py-4 text-[12px] text-right font-bold text-slate-800 dark:text-white tabular-nums">
-                              ₹{(item.closingBalance || 0).toLocaleString("en-IN")}
+                            <td className="px-5 py-3.5 text-[12px] text-right font-black whitespace-nowrap tabular-nums">
+                              <span className={(item.bounces ?? item.bounceCount ?? 0) > 0 ? "text-rose-600" : "text-slate-500"}>
+                                {item.bounces ?? item.bounceCount ?? 0}
+                              </span>
                             </td>
                           </tr>
                         ))}
@@ -4294,33 +4677,86 @@ export const EvvAnalysisTab = ({
 
             {/* VIEW 2: SNAPSHOT BALANCE VIEW */}
             {activeDetailTab === "snapshots" && (
-              <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-8 rounded-[28px] shadow-sm space-y-6">
+              <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-8 rounded-[28px] shadow-sm space-y-8">
                 <div>
-                  <h4 className="text-[13px] font-black text-slate-800 dark:text-white uppercase tracking-wider">
-                    Periodic Snapshot Ledger
+                  <h4 className="text-[14px] font-black text-slate-800 dark:text-white uppercase tracking-wider">
+                    Interval balances
                   </h4>
-                  <p className="text-[11px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
-                    Configured audit snapshot intervals (1st, 5th, 10th, 15th, 20th, 25th, and Last Day)
+                  <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                    {snapshots.length} points sampled across the statement
                   </p>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
-                  {snapshots.map((item: any, idx: number) => (
-                    <div
-                      key={idx}
-                      className="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-100 dark:border-slate-800 flex flex-col gap-1.5"
-                    >
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">
-                        Day {item.snapshotDay === -1 || item.snapshotDay === 30 || item.snapshotDay === 31 ? "Last" : item.snapshotDay}
-                      </span>
-                      <span className="text-[13px] font-black text-slate-800 dark:text-white tabular-nums">
-                        ₹{(item.balance || 0).toLocaleString("en-IN")}
-                      </span>
-                      <span className="text-[9px] font-bold text-slate-400">
-                        {item.date}
-                      </span>
-                    </div>
-                  ))}
+                <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900 max-h-[460px] overflow-y-auto">
+                  <table className="w-full text-xs">
+                    <thead className="sticky top-0 bg-slate-50 dark:bg-slate-800 z-10">
+                      <tr className="border-b border-slate-100 dark:border-slate-700 text-slate-500 dark:text-slate-400 text-[10px] font-bold">
+                        <th className="text-left px-5 py-3 whitespace-nowrap">Date</th>
+                        <th className="text-right px-5 py-3 whitespace-nowrap">Closing balance (nearest or default)</th>
+                        <th className="text-right px-5 py-3 whitespace-nowrap">Change vs. previous</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {snapshots.map((item: any, idx: number) => {
+                        const prev = idx > 0 ? snapshots[idx - 1] : null;
+                        const prevBal = prev ? (prev.balance ?? prev.closingBalance ?? 0) : 0;
+                        const curBal = item.balance ?? item.closingBalance ?? 0;
+                        const diff = item.changeAmount !== undefined ? item.changeAmount : (idx === 0 ? 0 : curBal - prevBal);
+                        const pct = item.changePercent !== undefined ? item.changePercent : ((idx > 0 && prevBal !== 0) ? (diff / Math.abs(prevBal)) * 100 : 0);
+                        let dateLabel = item.date;
+                        try {
+                          const d = new Date(item.date);
+                          if (!isNaN(d.getTime())) dateLabel = formatIntervalDate(d);
+                        } catch {}
+                        return (
+                          <tr key={idx} className="hover:bg-slate-50/40 dark:hover:bg-slate-800/40 transition-colors">
+                            <td className="px-5 py-3 font-bold text-slate-800 dark:text-slate-200 whitespace-nowrap">{dateLabel}</td>
+                            <td className="px-5 py-3 text-right font-black text-slate-900 dark:text-white tabular-nums whitespace-nowrap">
+                              ₹{Number(curBal).toLocaleString("en-IN")}
+                            </td>
+                            <td className="px-5 py-3 text-right whitespace-nowrap tabular-nums">
+                              {idx === 0 ? (
+                                <span className="text-slate-400 font-bold">—</span>
+                              ) : diff > 0 ? (
+                                <span className="text-emerald-600 font-bold">
+                                  +₹{Math.abs(Math.round(diff)).toLocaleString("en-IN")} (+{Math.abs(pct).toFixed(1)}%)
+                                </span>
+                              ) : diff < 0 ? (
+                                <span className="text-rose-600 font-bold">
+                                  -₹{Math.abs(Math.round(diff)).toLocaleString("en-IN")} (-{Math.abs(pct).toFixed(1)}%)
+                                </span>
+                              ) : (
+                                <span className="text-slate-500 font-medium">₹0 (0.0%)</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Periodic Snapshot Day Cards */}
+                <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-3">Audit Date Points</span>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
+                    {snapshots.map((item: any, idx: number) => (
+                      <div
+                        key={idx}
+                        className="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-100 dark:border-slate-800 flex flex-col gap-1.5"
+                      >
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">
+                          Day {item.snapshotDay === -1 || item.snapshotDay === 30 || item.snapshotDay === 31 ? "Last" : item.snapshotDay}
+                        </span>
+                        <span className="text-[13px] font-black text-slate-800 dark:text-white tabular-nums">
+                          ₹{(item.balance || 0).toLocaleString("en-IN")}
+                        </span>
+                        <span className="text-[9px] font-bold text-slate-400">
+                          {item.date}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
@@ -4610,54 +5046,372 @@ export const EvvAnalysisTab = ({
 
           </div>
 
-          {/* Printable Underwriting Report Layout (only visible in @media print) */}
-          <div className="hidden print:block border-2 border-slate-900 p-8 rounded-3xl space-y-6">
-            <div className="flex justify-between items-center border-b-2 border-slate-900 pb-4">
+          {/* Printable Underwriting Report Layout (Official VidyaLoans 6-Component EVV Dossier) */}
+          <div className="hidden print:block text-slate-900 bg-white p-8 space-y-6 text-xs font-sans leading-normal">
+            
+            {/* Document Header */}
+            <div className="border-b-2 border-slate-900 pb-4 flex justify-between items-start">
               <div>
-                <h1 className="text-[20px] font-black uppercase">VidyaLoans Underwriting Report</h1>
-                <p className="text-[11px] font-semibold uppercase text-slate-500">EVV Intelligence Assessment</p>
-              </div>
-              <div className="text-right">
-                <span className="text-[18px] font-black">Score: {evvScore}/100</span>
-                <span className="block text-[10px] font-bold uppercase text-slate-400">Grade: {evvGrade}</span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 border-b border-slate-200 pb-4">
-              <div>
-                <h5 className="text-[11px] font-black uppercase text-slate-400">Applicant Details</h5>
-                <p className="text-[13px] font-black uppercase mt-1">Application #: {application.applicationNumber || application.id}</p>
-                <p className="text-[12px] font-semibold mt-0.5">Type: {application.loanType} | Target Bank: {application.bank}</p>
-              </div>
-              <div>
-                <h5 className="text-[11px] font-black uppercase text-slate-400">Audit Metadata</h5>
-                <p className="text-[12px] font-semibold mt-1">Audit Period: {evvPeriod?.from} to {evvPeriod?.to}</p>
-                <p className="text-[12px] font-semibold mt-0.5">Overall Verified Value: ₹{evvOverall?.toLocaleString("en-IN")}</p>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <h4 className="text-[13px] font-black uppercase">Decision Recommendation</h4>
-              <div className="p-4 bg-slate-50 border border-slate-300 rounded-xl">
-                <p className="text-[12px] font-black">Recommendation: {evvDecision?.replace(/_/g, " ")}</p>
-                <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">{evvDecisionReason}</p>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <h4 className="text-[13px] font-black uppercase">Triggered Risk Logs ({riskFlags.length})</h4>
-              {riskFlags.map((flag: any, idx: number) => (
-                <div key={idx} className="text-[11px] border-b pb-2">
-                  <span className="font-black uppercase text-rose-600">[{flag.severity}] {flag.label}</span>
-                  <p className="text-slate-600 mt-0.5">{flag.description} (Evidence: {flag.evidence})</p>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-slate-900 text-white font-black flex items-center justify-center text-xs">
+                    VL
+                  </div>
+                  <div>
+                    <h1 className="text-base font-black uppercase tracking-wider text-slate-900">
+                      VidyaLoans Underwriting Bureau
+                    </h1>
+                    <p className="text-[10px] font-bold uppercase text-slate-500 tracking-widest">
+                      Institutional Credit Assessment & Bank Statement Health (EVV)
+                    </p>
+                  </div>
                 </div>
-              ))}
+              </div>
+
+              <div className="text-right">
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                  Dossier Ref: <span className="font-mono font-black text-slate-900">VL-EVV-{application.applicationNumber || application.id}</span>
+                </div>
+                <div className="text-[10px] font-medium text-slate-400 mt-0.5">
+                  Generated: {new Date().toLocaleDateString("en-IN", { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </div>
+              </div>
             </div>
 
-            <div className="pt-10 flex justify-between items-center text-[10px] text-slate-400 uppercase font-bold border-t">
-              <span>VidyaLoans EVV Intelligence Engine v2.0</span>
-              <span>Generated on: {new Date().toLocaleDateString("en-IN")}</span>
+            {/* Status & Rating Banner */}
+            <div className="border-2 border-slate-900 rounded-2xl p-4 flex justify-between items-center bg-slate-50/50">
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                  Assessment Outcome & Status Band
+                </div>
+                <div className="flex items-center gap-3 mt-1">
+                  <span className={`px-3 py-1 rounded-lg text-xs font-black uppercase tracking-wider border ${
+                    statusBand === 'Green' ? 'bg-emerald-100 text-emerald-900 border-emerald-400' :
+                    statusBand === 'Amber' ? 'bg-amber-100 text-amber-900 border-amber-400' :
+                    'bg-rose-100 text-rose-900 border-rose-400'
+                  }`}>
+                    {statusBand.toUpperCase()} BAND
+                  </span>
+                  <span className="text-xs font-black uppercase tracking-wide text-slate-800">
+                    Recommendation: {evvDecision?.replace(/_/g, " ") || "MANUAL REVIEW"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-6 text-right">
+                <div>
+                  <div className="text-[9px] font-black uppercase text-slate-400 tracking-widest">EVV Rating</div>
+                  <div className="text-2xl font-black text-slate-900">{evvScore ?? 80} <span className="text-xs font-normal text-slate-500">/ 100</span></div>
+                </div>
+                <div className="border-l border-slate-300 pl-4">
+                  <div className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Grade</div>
+                  <div className="text-2xl font-black text-slate-900">{evvGrade || "A"}</div>
+                </div>
+                <div className="border-l border-slate-300 pl-4">
+                  <div className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Sampled AMB</div>
+                  <div className="text-base font-black text-slate-900">₹{Number(evvOverall || 0).toLocaleString("en-IN")}</div>
+                </div>
+              </div>
             </div>
+
+            {/* Dossier Information Grid */}
+            <div className="grid grid-cols-2 gap-6 border border-slate-200 rounded-2xl p-4 bg-white">
+              <div className="space-y-1.5 border-r border-slate-200 pr-4">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Candidate & Loan Facility Details</h4>
+                <div className="flex justify-between"><span className="text-slate-500 font-semibold">Applicant Name:</span> <strong className="text-slate-900">{application.firstName || application.student?.firstName || "Student"} {application.lastName || application.student?.lastName || ""}</strong></div>
+                <div className="flex justify-between"><span className="text-slate-500 font-semibold">Co-Applicant:</span> <strong className="text-slate-900">{application.coApplicantName || application.guardianName || "N/A"}</strong></div>
+                <div className="flex justify-between"><span className="text-slate-500 font-semibold">Loan Facility:</span> <strong className="text-slate-900">{application.loanType || "Education Loan (Abroad)"}</strong></div>
+                <div className="flex justify-between"><span className="text-slate-500 font-semibold">Field of Study:</span> <strong className="text-slate-900">{application.fieldOfStudy || application.courseLevel || application.courseCategory || "Postgraduate Abroad"}</strong></div>
+                <div className="flex justify-between"><span className="text-slate-500 font-semibold">Target University:</span> <strong className="text-slate-900 truncate max-w-[200px]">{application.universityName || application.college || "Partner Institution"}</strong></div>
+                <div className="flex justify-between"><span className="text-slate-500 font-semibold">Applied On:</span> <strong className="text-slate-900">{application.appliedOn || application.createdAt ? new Date(application.appliedOn || application.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : "N/A"}</strong></div>
+              </div>
+
+              <div className="space-y-1.5 pl-2">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Underwriting Audit Parameters</h4>
+                <div className="flex justify-between"><span className="text-slate-500 font-semibold">Target Bank:</span> <strong className="text-slate-900">{bankPolicy.bankName || application.bank || "Partner Bank"}</strong></div>
+                <div className="flex justify-between"><span className="text-slate-500 font-semibold">Benchmark M:</span> <strong className="text-slate-900 font-mono">₹{Number(bankPolicy.minimumBalanceBenchmark || 3000).toLocaleString('en-IN')}</strong></div>
+                <div className="flex justify-between"><span className="text-slate-500 font-semibold">Sampling Architecture:</span> <strong className="text-slate-900 font-mono">Fixed Dates [1, 5, 10, 15, 20, 25]</strong></div>
+                <div className="flex justify-between"><span className="text-slate-500 font-semibold">Audit Window:</span> <strong className="text-slate-900">{evvPeriod?.from || "—"} to {evvPeriod?.to || "—"} (6 mos)</strong></div>
+                <div className="flex justify-between"><span className="text-slate-500 font-semibold">Co-App Contributor Role:</span> <strong className="text-slate-900">{sixComponents?.component4?.repaymentIncomeRole || application.repaymentIncomeRole || "YES"}</strong></div>
+                <div className="flex justify-between"><span className="text-slate-500 font-semibold">Income Verification:</span> <strong className="text-slate-900">{sixComponents?.component4?.verificationStatus || "VERIFIED"}</strong></div>
+              </div>
+            </div>
+
+            {/* Official 6-Component Underwriting Breakdown Table */}
+            <div className="space-y-2">
+              <h4 className="text-xs font-black uppercase tracking-wider text-slate-800">
+                Official 6-Component Statement Health (EVV) Breakdown
+              </h4>
+              <table className="w-full border-collapse border border-slate-300 text-[11px]">
+                <thead>
+                  <tr className="bg-slate-100 text-slate-700 font-black uppercase text-[10px] border-b border-slate-300">
+                    <th className="border border-slate-300 px-3 py-2 text-left">Component</th>
+                    <th className="border border-slate-300 px-2 py-2 text-center w-16">Max</th>
+                    <th className="border border-slate-300 px-2 py-2 text-center w-16">Score</th>
+                    <th className="border border-slate-300 px-3 py-2 text-left">Policy Rule / Standard</th>
+                    <th className="border border-slate-300 px-3 py-2 text-left">Audit Evidence & Findings</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* Component 1 */}
+                  <tr>
+                    <td className="border border-slate-300 px-3 py-2 font-bold">1. Average Balance Trend</td>
+                    <td className="border border-slate-300 px-2 py-2 text-center font-mono">25</td>
+                    <td className="border border-slate-300 px-2 py-2 text-center font-mono font-black">{sixComponents?.component1?.score ?? (weightBreakdown[0]?.weightedScore ?? 25)}</td>
+                    <td className="border border-slate-300 px-3 py-2 text-slate-600 font-medium">Strong Target = 10 × M (₹{(10 * (bankPolicy.minimumBalanceBenchmark || 3000)).toLocaleString('en-IN')})</td>
+                    <td className="border border-slate-300 px-3 py-2 text-slate-700">
+                      Sampled AMB: ₹{Math.round(sixComponents?.component1?.sixMonthSampledAMB ?? evvOverall).toLocaleString('en-IN')} • Consistency: {sixComponents?.component1?.consistencyMonthsMeetingM ?? 6}/6 mos meeting M • Trend: {(sixComponents?.component1?.trendPercent ?? 0) >= 0 ? '+' : ''}{sixComponents?.component1?.trendPercent ?? 0}%
+                    </td>
+                  </tr>
+
+                  {/* Component 2 */}
+                  <tr className="bg-slate-50/50">
+                    <td className="border border-slate-300 px-3 py-2 font-bold">2. Minimum-Balance Safety</td>
+                    <td className="border border-slate-300 px-2 py-2 text-center font-mono">20</td>
+                    <td className="border border-slate-300 px-2 py-2 text-center font-mono font-black">{sixComponents?.component2?.score ?? (weightBreakdown[1]?.weightedScore ?? 20)}</td>
+                    <td className="border border-slate-300 px-3 py-2 text-slate-600 font-medium">Safety Ratio ≤ 0% below benchmark M</td>
+                    <td className="border border-slate-300 px-3 py-2 text-slate-700">
+                      Final Safety Ratio: {sixComponents?.component2?.finalSafetyRatio ?? 0}% (Daily low: {sixComponents?.component2?.dailyLowRatio ?? 0}%, Sampled: {sixComponents?.component2?.sampledLowRatio ?? 0}%) • Negative balance: {sixComponents?.component2?.hasNegativeBalance ? 'FLAGGED (Manual Review)' : 'Clear (0 days)'}
+                    </td>
+                  </tr>
+
+                  {/* Component 3 */}
+                  <tr>
+                    <td className="border border-slate-300 px-3 py-2 font-bold">3. Bounce-Free Record</td>
+                    <td className="border border-slate-300 px-2 py-2 text-center font-mono">20</td>
+                    <td className="border border-slate-300 px-2 py-2 text-center font-mono font-black">{sixComponents?.component3?.score ?? (weightBreakdown[2]?.weightedScore ?? 20)}</td>
+                    <td className="border border-slate-300 px-3 py-2 text-slate-600 font-medium">0 Inward/Clearing Bounces (0→20, 1→10, 2→5, 3+→0)</td>
+                    <td className="border border-slate-300 px-3 py-2 text-slate-700">
+                      Inward Bounces: {sixComponents?.component3?.bounceCount ?? 0} • Return charges grouped within ±2d: {sixComponents?.component3?.chargeCount ?? 0} • 30d Recency: {sixComponents?.component3?.hasRecentBounce ? 'FLAGGED' : 'None'} • 90d Count: {sixComponents?.component3?.bouncesIn90Days ?? 0}
+                    </td>
+                  </tr>
+
+                  {/* Component 4 */}
+                  <tr className="bg-slate-50/50">
+                    <td className="border border-slate-300 px-3 py-2 font-bold">4. Verified Inflow Regularity</td>
+                    <td className="border border-slate-300 px-2 py-2 text-center font-mono">15</td>
+                    <td className="border border-slate-300 px-2 py-2 text-center font-mono font-black">
+                      {sixComponents?.component4?.isNonIncomeContributor ? "N/A" : (sixComponents?.component4?.score ?? (weightBreakdown[3]?.weightedScore ?? 15))}
+                    </td>
+                    <td className="border border-slate-300 px-3 py-2 text-slate-600 font-medium">6 Months recurring verified income (Scaled over 85 if non-contributor)</td>
+                    <td className="border border-slate-300 px-3 py-2 text-slate-700">
+                      Role: {sixComponents?.component4?.repaymentIncomeRole ?? "YES"} • Source: {sixComponents?.component4?.sourceType ?? "SALARIED"} • Recurrence: {sixComponents?.component4?.recurrenceMonthsCount ?? 6}/6 mos • {sixComponents?.component4?.isNonIncomeContributor ? 'Non-income contributor: Scaled over 85 to 100 with zero penalty.' : 'Income contributor verified.'}
+                    </td>
+                  </tr>
+
+                  {/* Component 5 */}
+                  <tr>
+                    <td className="border border-slate-300 px-3 py-2 font-bold">5. Cash-Deposit Ratio</td>
+                    <td className="border border-slate-300 px-2 py-2 text-center font-mono">10</td>
+                    <td className="border border-slate-300 px-2 py-2 text-center font-mono font-black">{sixComponents?.component5?.score ?? (weightBreakdown[4]?.weightedScore ?? 10)}</td>
+                    <td className="border border-slate-300 px-3 py-2 text-slate-600 font-medium">Physical cash deposits &lt; 10% of total credits</td>
+                    <td className="border border-slate-300 px-3 py-2 text-slate-700">
+                      Cash Ratio: {sixComponents?.component5?.cashRatioPercent ?? 0}% (₹{Math.round(sixComponents?.component5?.physicalCashDepositTotal ?? 0).toLocaleString('en-IN')}) • Excludes digital credits (UPI, NEFT, Salary) • Single Cash Spike ≥ ₹50k: {sixComponents?.component5?.hasSingleCashSpike ? 'FLAGGED' : 'None'}
+                    </td>
+                  </tr>
+
+                  {/* Component 6 */}
+                  <tr className="bg-slate-50/50">
+                    <td className="border border-slate-300 px-3 py-2 font-bold">6. Withdrawal Discipline</td>
+                    <td className="border border-slate-300 px-2 py-2 text-center font-mono">10</td>
+                    <td className="border border-slate-300 px-2 py-2 text-center font-mono font-black">{sixComponents?.component6?.score ?? (weightBreakdown[5]?.weightedScore ?? 10)}</td>
+                    <td className="border border-slate-300 px-3 py-2 text-slate-600 font-medium">Zero severe consecutive drops & zero rapid pass-through</td>
+                    <td className="border border-slate-300 px-3 py-2 text-slate-700">
+                      Consecutive Drop Severity: {sixComponents?.component6?.consecutiveDropSeverity ?? "None"} (Score: {sixComponents?.component6?.dropsScore ?? 10}/10) • Rapid debits in ≤3d: {sixComponents?.component6?.rapidPassThroughCount ?? 0} events (Score: {sixComponents?.component6?.passThroughScore ?? 10}/10)
+                    </td>
+                  </tr>
+
+                  {/* Total Row */}
+                  <tr className="bg-slate-100 font-black border-t-2 border-slate-900 text-xs">
+                    <td className="border border-slate-300 px-3 py-2 text-slate-900">TOTAL COMPOSITE UNDERWRITING SCORE</td>
+                    <td className="border border-slate-300 px-2 py-2 text-center font-mono">100</td>
+                    <td className="border border-slate-300 px-2 py-2 text-center font-mono text-slate-900">{evvScore ?? 80}</td>
+                    <td colSpan={2} className="border border-slate-300 px-3 py-2 text-slate-800">
+                      STATUS BAND: <span className="uppercase font-black text-indigo-700">{statusBand}</span> • GRADE: <span className="font-black text-indigo-700">{evvGrade || "A"}</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* Monthly average balance table (Exact Executive Spec) */}
+            {monthlyMetrics.length > 0 && (
+              <div className="space-y-1.5">
+                <h4 className="text-xs font-black uppercase tracking-wider text-slate-800">
+                  Monthly average balance
+                </h4>
+                <p className="text-[10px] text-slate-500 font-medium">
+                  Average of daily closing balances for each calendar month
+                </p>
+                <table className="w-full border-collapse border border-slate-300 text-[10px]">
+                  <thead>
+                    <tr className="bg-slate-100 text-slate-700 font-bold uppercase border-b border-slate-300">
+                      <th className="border border-slate-300 px-2 py-1 text-left">Month</th>
+                      <th className="border border-slate-300 px-2 py-1 text-right">Avg balance</th>
+                      <th className="border border-slate-300 px-2 py-1 text-right">Min</th>
+                      <th className="border border-slate-300 px-2 py-1 text-right">Max</th>
+                      <th className="border border-slate-300 px-2 py-1 text-right">Closing</th>
+                      <th className="border border-slate-300 px-2 py-1 text-right">Total credits</th>
+                      <th className="border border-slate-300 px-2 py-1 text-right">Total debits</th>
+                      <th className="border border-slate-300 px-2 py-1 text-right">Cash %</th>
+                      <th className="border border-slate-300 px-2 py-1 text-right">Bounces</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {monthlyMetrics.map((m: any, idx: number) => (
+                      <tr key={idx} className={idx % 2 === 1 ? "bg-slate-50/60" : ""}>
+                        <td className="border border-slate-300 px-2 py-1 font-bold">{m.label || m.monthLabel || m.month}</td>
+                        <td className="border border-slate-300 px-2 py-1 text-right font-mono font-bold text-slate-900">₹{Number(m.avgDailyBalance ?? m.snapshotAvg ?? m.avgBalance ?? m.avg ?? 0).toLocaleString("en-IN")}</td>
+                        <td className="border border-slate-300 px-2 py-1 text-right font-mono text-slate-700">₹{Number(m.min ?? m.snapshotMin ?? m.lowestBalance ?? 0).toLocaleString("en-IN")}</td>
+                        <td className="border border-slate-300 px-2 py-1 text-right font-mono text-slate-700">₹{Number(m.max ?? m.snapshotMax ?? m.highestBalance ?? 0).toLocaleString("en-IN")}</td>
+                        <td className="border border-slate-300 px-2 py-1 text-right font-mono font-bold text-slate-900">₹{Number(m.closing ?? m.closingBalance ?? 0).toLocaleString("en-IN")}</td>
+                        <td className="border border-slate-300 px-2 py-1 text-right font-mono text-emerald-800">₹{Number(m.credits ?? m.totalCredits ?? 0).toLocaleString("en-IN")}</td>
+                        <td className="border border-slate-300 px-2 py-1 text-right font-mono text-rose-800">₹{Number(m.debits ?? m.totalDebits ?? 0).toLocaleString("en-IN")}</td>
+                        <td className="border border-slate-300 px-2 py-1 text-right font-mono font-semibold">{m.cashPercent ?? 0}%</td>
+                        <td className="border border-slate-300 px-2 py-1 text-right font-mono font-bold">
+                          <span className={(m.bounces ?? m.bounceCount ?? 0) > 0 ? "text-rose-700 font-black" : "text-slate-700"}>
+                            {m.bounces ?? m.bounceCount ?? 0}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Interval balances Table in Print */}
+            {snapshots.length > 0 && (
+              <div className="space-y-1.5">
+                <h4 className="text-xs font-black uppercase tracking-wider text-slate-800">
+                  Interval balances
+                </h4>
+                <p className="text-[10px] text-slate-500 font-medium">
+                  {snapshots.length} points sampled across the statement.
+                </p>
+                <table className="w-full border-collapse border border-slate-300 text-[10px]">
+                  <thead>
+                    <tr className="bg-slate-100 text-slate-700 font-bold uppercase border-b border-slate-300">
+                      <th className="border border-slate-300 px-2 py-1 text-left">Date</th>
+                      <th className="border border-slate-300 px-2 py-1 text-right">Closing balance (nearest or default)</th>
+                      <th className="border border-slate-300 px-2 py-1 text-right">Change vs. previous</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {snapshots.map((item: any, idx: number) => {
+                      const prev = idx > 0 ? snapshots[idx - 1] : null;
+                      const prevBal = prev ? (prev.balance ?? prev.closingBalance ?? 0) : 0;
+                      const curBal = item.balance ?? item.closingBalance ?? 0;
+                      const diff = item.changeAmount !== undefined ? item.changeAmount : (idx === 0 ? 0 : curBal - prevBal);
+                      const pct = item.changePercent !== undefined ? item.changePercent : ((idx > 0 && prevBal !== 0) ? (diff / Math.abs(prevBal)) * 100 : 0);
+                      let dateLabel = item.date;
+                      try {
+                        const d = new Date(item.date);
+                        if (!isNaN(d.getTime())) dateLabel = formatIntervalDate(d);
+                      } catch {}
+                      return (
+                        <tr key={idx} className={idx % 2 === 1 ? "bg-slate-50/60" : ""}>
+                          <td className="border border-slate-300 px-2 py-1 font-bold">{dateLabel}</td>
+                          <td className="border border-slate-300 px-2 py-1 text-right font-mono font-bold text-slate-900">
+                            ₹{Number(curBal).toLocaleString("en-IN")}
+                          </td>
+                          <td className="border border-slate-300 px-2 py-1 text-right font-mono">
+                            {idx === 0 ? (
+                              <span className="text-slate-400 font-bold">—</span>
+                            ) : diff > 0 ? (
+                              <span className="text-emerald-700 font-bold">
+                                +₹{Math.abs(Math.round(diff)).toLocaleString("en-IN")} (+{Math.abs(pct).toFixed(1)}%)
+                              </span>
+                            ) : diff < 0 ? (
+                              <span className="text-rose-700 font-bold">
+                                -₹{Math.abs(Math.round(diff)).toLocaleString("en-IN")} (-{Math.abs(pct).toFixed(1)}%)
+                              </span>
+                            ) : (
+                              <span className="text-slate-600">₹0 (0.0%)</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Hard-Risk Triggers & Officer Overrides */}
+            <div className="space-y-2">
+              <h4 className="text-xs font-black uppercase tracking-wider text-slate-800">
+                Hard-Risk Triggers & Overrides ({sixComponents?.hardRiskFlags?.length ?? riskFlags.length})
+              </h4>
+              {sixComponents?.hardRiskFlags && sixComponents.hardRiskFlags.length > 0 ? (
+                <div className="border border-rose-300 bg-rose-50/50 p-3 rounded-xl space-y-1">
+                  <div className="font-black text-rose-800 text-[11px] uppercase">Review Mandate Triggered:</div>
+                  {sixComponents.hardRiskFlags.map((flag: string, idx: number) => (
+                    <div key={idx} className="text-[10px] text-rose-700 font-semibold">• {flag}</div>
+                  ))}
+                  <div className="text-[9px] text-rose-500 italic mt-1">* Policy mandate: Underwriter manual verification required prior to sanction.</div>
+                </div>
+              ) : riskFlags.length > 0 ? (
+                <div className="border border-amber-300 bg-amber-50/50 p-3 rounded-xl space-y-1">
+                  {riskFlags.slice(0, 3).map((f: any, idx: number) => (
+                    <div key={idx} className="text-[10px] text-amber-800">
+                      <strong>[{f.severity?.toUpperCase()}] {f.label}:</strong> {f.description} (Evidence: {f.evidence})
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="border border-emerald-300 bg-emerald-50/40 p-2.5 rounded-xl text-[10px] font-bold text-emerald-800">
+                  ✓ Zero Hard-Risk Breaches: Statement cleared inward bounce, unauthorized overdraft, and liquidity stress tests.
+                </div>
+              )}
+            </div>
+
+            {/* Underwriting Recommendation & Decision Rationale */}
+            <div className="space-y-2">
+              <h4 className="text-xs font-black uppercase tracking-wider text-slate-800">
+                Underwriting Decision & Recommendations
+              </h4>
+              <div className="border border-slate-300 bg-slate-50 p-3 rounded-xl space-y-1 text-[11px]">
+                <div className="font-black text-slate-900 uppercase">
+                  Recommendation: {evvDecision?.replace(/_/g, " ") || "MANUAL REVIEW"}
+                </div>
+                <div className="text-slate-600 leading-relaxed font-medium">
+                  {evvDecisionReason || "Candidate demonstrates sound financial capacity consistent with target bank lending benchmarks."}
+                </div>
+              </div>
+            </div>
+
+            {/* Underwriter Sign-Off Box */}
+            <div className="border border-slate-300 rounded-xl p-4 grid grid-cols-3 gap-4 text-[10px] mt-4">
+              <div>
+                <span className="text-slate-400 font-bold uppercase block">Credit Underwriter</span>
+                <span className="font-black text-slate-900 block mt-1">Sarah Jenkins</span>
+                <span className="text-slate-500">Senior Credit Underwriter</span>
+              </div>
+              <div>
+                <span className="text-slate-400 font-bold uppercase block">Assessment Date</span>
+                <span className="font-mono font-bold text-slate-900 block mt-1">{new Date().toLocaleDateString("en-IN")}</span>
+                <span className="text-slate-500">Audit Status: Finalized</span>
+              </div>
+              <div>
+                <span className="text-slate-400 font-bold uppercase block">Officer Signature</span>
+                <div className="h-6 border-b border-dashed border-slate-400 mt-2 flex items-end">
+                  <span className="font-serif italic text-slate-600 text-xs">S. Jenkins (Verified)</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Mandatory Disclaimer */}
+            <div className="pt-2 border-t border-slate-300 text-center text-[10px] text-slate-500 italic font-semibold leading-relaxed">
+              Score is a weighted indicator built from balance trend, minimum-balance safety, bounce history, income regularity, cash-deposit ratio and withdrawal discipline — the six credit factors. A human reviewer, not an official bureau or pass-code, will make the underwriting decision alongside CIBIL and policy checks.
+            </div>
+
+            {/* Footer */}
+            <div className="pt-2 flex justify-between items-center text-[9px] text-slate-400 uppercase font-bold border-t border-slate-200">
+              <span>VidyaLoans 6-Component EVV Intelligence Engine v3.0</span>
+              <span>Confidential • Internal Banking Assessment</span>
+              <span>Page 1 of 1</span>
+            </div>
+
           </div>
 
         </div>

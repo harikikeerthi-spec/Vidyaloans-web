@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { authApi, subscribeToTokenChange, notifyTokenChange, initializeCsrf } from "@/lib/api";
+import { trackUserLogin, syncUserSessionToDataLayer, trackUserLogout } from "@/lib/analytics";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -267,6 +268,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (storedUser && storedToken) {
             setUser(storedUser);
             setToken(storedToken);
+            if (storedUser.id) {
+                syncUserSessionToDataLayer(storedUser.id);
+            }
             if (typeof window !== "undefined") {
                 if (portal === "staff") {
                     // Session-only cookie for staff
@@ -281,6 +285,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (email) {
                 setUser({ id: userId || "", email });
                 setToken(storedToken);
+                if (userId) {
+                    syncUserSessionToDataLayer(userId);
+                }
             } else {
                 setUser(null);
                 setToken(null);
@@ -347,7 +354,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         staffId: pickVal((freshUser as any).staffId, prev?.staffId),
                     };
                     localStorage.setItem(keys.user, JSON.stringify(updated));
-                    if (updated.id) localStorage.setItem(keys.userId, updated.id);
+                    if (updated.id) {
+                        localStorage.setItem(keys.userId, updated.id);
+                        syncUserSessionToDataLayer(updated.id);
+                    }
                     return updated;
                 });
             }
@@ -394,6 +404,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             setToken(accessToken);
             setUser(newUser);
+
+            if (newUser.id) {
+                trackUserLogin(newUser.id, newUser.role);
+            }
         },
         [portal]
     );
@@ -456,6 +470,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         setUser(null);
         setToken(null);
+        trackUserLogout();
     }, [user, portal]);
 
     const isAuthenticated = user !== null && !!token;

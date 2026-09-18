@@ -111,7 +111,7 @@ export function UserDossierProvider({ userId, children }: { userId: string; chil
                 if (appRefId) {
                     const notesRes = await adminApi.getRemarks(appRefId) as any;
                     if (notesRes && notesRes.data) {
-                        const filteredNotes = notesRes.data.filter((r: any) => r.type === 'note' && r.isInternal === true);
+                        const filteredNotes = notesRes.data.filter((r: any) => r.isInternal === true || r.type === 'note' || r.type === 'admin_note' || r.type === 'staff_note');
                         setNotes(filteredNotes);
                     }
                 }

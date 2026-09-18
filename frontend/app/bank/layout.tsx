@@ -17,6 +17,7 @@ const bankLogos: Record<string, string> = {
     credila: "/banks/credila.png",
     idfc: "/banks/idfc.png",
     poonawalla: "/banks/poonawalla.jpg",
+    sbi: "/banks/sbi.png",
 };
 
 // --- Components ---
@@ -247,10 +248,11 @@ export default function BankLayout({ children }: { children: React.ReactNode }) 
             if (!currentName) {
                 const legacyMap: Record<string, string> = {
                     auxilo: "Auxilo Finserve",
-                    avanse: "Avanse Financial",
+                    avanse: "Avanse Financial Services",
                     credila: "HDFC Credila",
                     idfc: "IDFC FIRST Bank",
                     poonawalla: "Poonawalla Fincorp",
+                    sbi: "State Bank of India",
                 };
                 currentName = legacyMap[currentKey] || user?.firstName || (currentKey ? currentKey.toUpperCase() : "Partner Bank");
             }

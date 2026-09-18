@@ -9,11 +9,25 @@ import { motion, AnimatePresence } from "framer-motion";
 
 const DEFAULT_BANKS = [
     { id: "auxilo", name: "Auxilo Finserve", logo: "/banks/auxilo.png" },
-    { id: "avanse", name: "Avanse Financial", logo: "/banks/avanse.png" },
+    { id: "avanse", name: "Avanse Financial Services", logo: "/banks/avanse.png" },
     { id: "credila", name: "HDFC Credila", logo: "/banks/credila.png" },
     { id: "idfc", name: "IDFC FIRST Bank", logo: "/banks/idfc.png" },
     { id: "poonawalla", name: "Poonawalla Fincorp", logo: "/banks/poonawalla.jpg" },
+    { id: "sbi", name: "State Bank of India", logo: "/banks/sbi.png" },
 ];
+
+export function getBankLogo(idOrName?: string | null, rawLogoUrl?: string | null): string {
+    if (rawLogoUrl && rawLogoUrl.trim()) return rawLogoUrl;
+    if (!idOrName) return "/banks/idfc.png";
+    const l = idOrName.toLowerCase();
+    if (l.includes("avanse")) return "/banks/avanse.png";
+    if (l.includes("auxilo")) return "/banks/auxilo.png";
+    if (l.includes("credila") || l.includes("hdfc")) return "/banks/credila.png";
+    if (l.includes("poonawalla")) return "/banks/poonawalla.jpg";
+    if (l.includes("sbi") || l.includes("state bank")) return "/banks/sbi.png";
+    if (l.includes("idfc")) return "/banks/idfc.png";
+    return "/banks/idfc.png";
+}
 
 // ---------------------------------------------------------------------------
 // BankDropdown — opens a scrollable list below the trigger button
@@ -101,7 +115,7 @@ function BankDropdown({
                                     onClick={() => { onChange(bank.id); setOpen(false); }}
                                     className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-all"
                                     style={{
-                                        background: isSelected
+                                         background: isSelected
                                             ? "linear-gradient(90deg, rgba(102,5,199,0.07) 0%, rgba(139,36,229,0.04) 100%)"
                                             : undefined,
                                         borderBottom: i < banks.length - 1
@@ -161,6 +175,8 @@ function BankLoginContent() {
 
     const [banksList, setBanksList] = useState(DEFAULT_BANKS);
     const [selectedBank, setSelectedBank] = useState<string | null>(null);
+    const [resolvedBankName, setResolvedBankName] = useState<string | null>(null);
+    const [resolvedBankLogo, setResolvedBankLogo] = useState<string | null>(null);
     const [email, setEmail] = useState("");
     const [otp, setOtp] = useState(["", "", "", "", "", ""]);
     const [step, setStep] = useState<"form" | "otp">("form");
@@ -169,16 +185,23 @@ function BankLoginContent() {
     const [resendDisabled, setResendDisabled] = useState(false);
     const [countdown, setCountdown] = useState(0);
 
-    // Fetch dynamic banks from backend database
+    // Fetch dynamic banks from backend database and merge with partner institutions
     useEffect(() => {
         referenceApi.getBanks().then((res: any) => {
             if (res?.success && Array.isArray(res.data) && res.data.length > 0) {
                 const mapped = res.data.map((b: any) => ({
                     id: b.shortName || b.id,
                     name: b.name,
-                    logo: b.logoUrl || "/banks/idfc.png",
+                    logo: getBankLogo(b.shortName || b.name, b.logoUrl),
                 }));
-                setBanksList(mapped);
+                setBanksList((prev) => {
+                    const existingIds = new Set(prev.map((p) => p.id.toLowerCase()));
+                    const existingNames = new Set(prev.map((p) => p.name.toLowerCase()));
+                    const additions = mapped.filter(
+                        (m: any) => !existingIds.has(m.id.toLowerCase()) && !existingNames.has(m.name.toLowerCase())
+                    );
+                    return [...prev, ...additions];
+                });
             }
         }).catch(() => {});
     }, []);
@@ -200,20 +223,34 @@ function BankLoginContent() {
         if (lowerEmail.includes("credila") || lowerEmail.includes("hdfc")) return "credila";
         if (lowerEmail.includes("idfc")) return "idfc";
         if (lowerEmail.includes("poonawalla")) return "poonawalla";
+        if (lowerEmail.includes("sbi") || lowerEmail.includes("statebank")) return "sbi";
 
         // Fallbacks for seed test users
-        if (lowerEmail === "idfcbank@gmail.com") return "idfc";
-        if (lowerEmail === "credilabank@gmail.com") return "credila";
-        if (lowerEmail === "auxilobank@gmail.com") return "auxilo";
-        if (lowerEmail === "poonawallabank@gmail.com") return "poonawalla";
-        if (lowerEmail === "avansebank@gmail.com") return "avanse";
+        if (lowerEmail === "idfcbank@gmail.com" || lowerEmail === "abhimadasu4@gmail.com") return "idfc";
+        if (lowerEmail === "credilabank@gmail.com" || lowerEmail === "keerthichinnu0728@gmail.com") return "credila";
+        if (lowerEmail === "auxilobank@gmail.com" || lowerEmail === "luharika28@gmail.com") return "auxilo";
+        if (lowerEmail === "poonawallabank@gmail.com" || lowerEmail === "farmatech@gmail.com") return "poonawalla";
+        if (lowerEmail === "avansebank@gmail.com" || lowerEmail === "shannukalneedi@gmail.com" || lowerEmail === "ropayi2211@aspensif.com") return "avanse";
 
         return null;
     };
 
     useEffect(() => {
+        const bankParam = searchParams.get("bank");
+        if (bankParam) {
+            setSelectedBank(bankParam);
+        }
+    }, [searchParams]);
+
+    useEffect(() => {
         const bankId = getBankFromEmail(email);
-        if (bankId) setSelectedBank(bankId);
+        if (bankId) {
+            setSelectedBank(bankId);
+        } else if (!email.trim() && !searchParams.get("bank")) {
+            setSelectedBank(null);
+            setResolvedBankLogo(null);
+            setResolvedBankName(null);
+        }
     }, [email, banksList]);
 
     // Forgot password states
@@ -264,27 +301,31 @@ function BankLoginContent() {
             );
             return;
         }
-        const bankId = selectedBank || getBankFromEmail(email) || "idfc"; // Fallback to idfc
+        const detectedBank = selectedBank || getBankFromEmail(email);
         setLoading(true);
         setError("");
         try {
-            sessionStorage.setItem("selectedBank", bankId);
-            localStorage.setItem("selectedBank", bankId);
+            if (detectedBank) {
+                sessionStorage.setItem("selectedBank", detectedBank);
+                localStorage.setItem("selectedBank", detectedBank);
+            }
             const res = await authApi.sendOtp(email.trim(), "bank") as any;
             if (res && res.success === false) {
                 setError(res.message || "Access Denied: Bank partner officer access required.");
                 setLoading(false);
                 return;
             }
-            if (res?.bankId) {
-                setSelectedBank(res.bankId);
-                sessionStorage.setItem("selectedBank", res.bankId);
-                localStorage.setItem("selectedBank", res.bankId);
-            }
+            const finalBankId = res?.bankId || detectedBank || "idfc";
+            setSelectedBank(finalBankId);
+            sessionStorage.setItem("selectedBank", finalBankId);
+            localStorage.setItem("selectedBank", finalBankId);
+
             if (res?.bankName) {
+                setResolvedBankName(res.bankName);
                 sessionStorage.setItem("selectedBankName", res.bankName);
             }
             if (res?.bankLogo) {
+                setResolvedBankLogo(res.bankLogo);
                 sessionStorage.setItem("selectedBankLogo", res.bankLogo);
             }
             setStep("otp");
@@ -382,8 +423,19 @@ function BankLoginContent() {
     };
 
     const selectedBankObj = banksList.find((b) => b.id.toLowerCase() === selectedBank?.toLowerCase())
-        || banksList.find((b) => b.name.toLowerCase() === selectedBank?.toLowerCase());
-    const selectedBankName = selectedBankObj?.name || (typeof window !== "undefined" ? sessionStorage.getItem("selectedBankName") : null) || selectedBank;
+        || banksList.find((b) => b.name.toLowerCase() === selectedBank?.toLowerCase())
+        || (selectedBank ? banksList.find((b) => selectedBank.toLowerCase().includes(b.id.toLowerCase()) || b.id.toLowerCase().includes(selectedBank.toLowerCase())) : undefined);
+
+    const displayLogo = resolvedBankLogo
+        || (selectedBankObj?.logo && !selectedBankObj.logo.includes("idfc") ? selectedBankObj.logo : null)
+        || (selectedBank ? getBankLogo(selectedBank) : null)
+        || selectedBankObj?.logo
+        || (typeof window !== "undefined" ? sessionStorage.getItem("selectedBankLogo") : null);
+
+    const displayBankName = resolvedBankName
+        || selectedBankObj?.name
+        || (typeof window !== "undefined" ? sessionStorage.getItem("selectedBankName") : null)
+        || selectedBank;
 
     return (
         <div
@@ -416,15 +468,15 @@ function BankLoginContent() {
                                 />
                                 <span className="text-gray-300 text-xl font-light leading-none select-none">×</span>
                                 <div className="h-10 flex items-center justify-center overflow-hidden">
-                                    {selectedBankObj?.logo ? (
+                                    {displayLogo ? (
                                         <img
-                                            src={selectedBankObj.logo}
-                                            alt="Bank Logo"
+                                            src={displayLogo}
+                                            alt={displayBankName || "Bank Logo"}
                                             className="h-10 w-auto max-w-[140px] object-contain"
                                         />
                                     ) : (
                                         <div className="h-9 px-3 rounded-xl bg-purple-100 text-[#6605c7] flex items-center justify-center font-bold text-xs uppercase">
-                                            {selectedBankName || selectedBank}
+                                            {displayBankName || selectedBank}
                                         </div>
                                     )}
                                 </div>
@@ -547,7 +599,7 @@ function BankLoginContent() {
                     {step === "otp" && (
                         <div className="space-y-6">
                             {/* Bank badge */}
-                            {selectedBankName && (
+                            {displayBankName && (
                                 <div
                                     className="flex items-center gap-2 px-3 py-2 rounded-xl text-[11px] font-bold"
                                     style={{
@@ -557,7 +609,7 @@ function BankLoginContent() {
                                     }}
                                 >
                                     <span className="material-symbols-outlined text-base">account_balance</span>
-                                    {selectedBankName}
+                                    {displayBankName}
                                 </div>
                             )}
 
@@ -638,7 +690,14 @@ function BankLoginContent() {
 
                             <button
                                 type="button"
-                                onClick={() => { setStep("form"); setOtp(["", "", "", "", "", ""]); setError(""); }}
+                                onClick={() => {
+                                    setStep("form");
+                                    setOtp(["", "", "", "", "", ""]);
+                                    setError("");
+                                    setResolvedBankLogo(null);
+                                    setResolvedBankName(null);
+                                    setSelectedBank(null);
+                                }}
                                 className="w-full text-center text-[11px] text-gray-400 hover:text-[#6605c7] font-bold uppercase tracking-widest"
                             >
                                 ← Change Bank or Email
