@@ -3788,7 +3788,16 @@ export default function AdminDashboardPage() {
                                                     
                                                     {/* Applied Date */}
                                                     <td className="px-4 py-3 text-[10px] text-slate-500 whitespace-nowrap tabular-nums">
-                                                        {item.createdAt ? new Date(item.createdAt).toLocaleDateString('en-IN') : '—'}
+                                                        {(() => {
+                                                            const rawDate = item.appliedOn || item.appliedDate || item.submittedAt || item.createdAt || item.created_at || item.lanEnteredAt;
+                                                            if (!rawDate) return '—';
+                                                            try {
+                                                                const parsed = new Date(rawDate);
+                                                                return isNaN(parsed.getTime()) ? '—' : format(parsed, 'dd MMM yyyy');
+                                                            } catch {
+                                                                return '—';
+                                                            }
+                                                        })()}
                                                     </td>
                                                     
                                                     {/* Actions */}
@@ -4033,11 +4042,35 @@ export default function AdminDashboardPage() {
                                                         : 'Not Assigned'
                                                 } 
                                             />
-                                            <DetailRow label="Loan Type" value={selectedApp.loanType || '—'} />
+                                            <DetailRow 
+                                                label="Field of Study" 
+                                                value={(() => {
+                                                    const val = selectedApp.loanType || selectedApp.fieldOfStudy || selectedApp.courseType || selectedApp.programFocus || selectedApp.courseName || selectedApp.course;
+                                                    if (!val) return '—';
+                                                    const clean = String(val).trim();
+                                                    if (/^undergraduate(\s*abroad)?$/i.test(clean)) return 'Undergraduate Abroad';
+                                                    if (/^postgraduate(\s*abroad)?$/i.test(clean)) return 'Postgraduate Abroad';
+                                                    if (/^(doctoral|doctorate|phd)(\s*abroad)?$/i.test(clean) || clean.toLowerCase() === 'doctoral/phd abroad') return 'Doctoral/PhD Abroad';
+                                                    if (/^professional(\s*course)?$/i.test(clean)) return 'Professional Course';
+                                                    return clean;
+                                                })()} 
+                                            />
                                             <DetailRow label="Loan Amount" value={selectedApp.amount ? new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(selectedApp.amount) : '—'} highlight />
                                             <DetailRow label="University" value={selectedApp.universityName || selectedApp.targetUniversity || '—'} />
                                             <DetailRow label="Country" value={selectedApp.country || selectedApp.studyDestination || '—'} />
-                                            <DetailRow label="Applied On" value={selectedApp.createdAt ? format(new Date(selectedApp.createdAt), 'dd MMM yyyy') : '—'} />
+                                            <DetailRow 
+                                                label="Applied On" 
+                                                value={(() => {
+                                                    const rawDate = selectedApp.appliedOn || selectedApp.appliedDate || selectedApp.submittedAt || selectedApp.createdAt || selectedApp.created_at || selectedApp.lanEnteredAt;
+                                                    if (!rawDate) return '—';
+                                                    try {
+                                                        const parsed = new Date(rawDate);
+                                                        return isNaN(parsed.getTime()) ? '—' : format(parsed, 'dd MMM yyyy');
+                                                    } catch {
+                                                        return '—';
+                                                    }
+                                                })()} 
+                                            />
                                         </div>
                                     </div>
 
@@ -6493,7 +6526,18 @@ export default function AdminDashboardPage() {
                                                         </div>
                                                         <div className="text-[10px]">
                                                             <span className="text-slate-500 font-medium">Applied On</span>
-                                                            <p className="text-[12px] font-bold text-slate-900 mt-0.5">{loan.createdAt ? new Date(loan.createdAt).toLocaleDateString('en-IN') : '—'}</p>
+                                                            <p className="text-[12px] font-bold text-slate-900 mt-0.5">
+                                                                {(() => {
+                                                                    const rawDate = loan.appliedOn || loan.appliedDate || loan.submittedAt || loan.createdAt || loan.created_at || loan.lanEnteredAt;
+                                                                    if (!rawDate) return '—';
+                                                                    try {
+                                                                        const parsed = new Date(rawDate);
+                                                                        return isNaN(parsed.getTime()) ? '—' : format(parsed, 'dd MMM yyyy');
+                                                                    } catch {
+                                                                        return '—';
+                                                                    }
+                                                                })()}
+                                                            </p>
                                                         </div>
                                                     </div>
                                                     {loan.universityName && (

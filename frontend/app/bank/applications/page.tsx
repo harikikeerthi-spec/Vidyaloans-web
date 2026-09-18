@@ -681,6 +681,18 @@ export default function ApplicationManagement() {
                                                         type="button"
                                                         onClick={(e) => {
                                                             e.stopPropagation();
+                                                            handleOpenStudentDetail(row);
+                                                        }}
+                                                        className="px-2.5 py-1.5 bg-slate-100 hover:bg-purple-100 hover:text-purple-700 text-slate-700 text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1 cursor-pointer"
+                                                        title="Click to view complete application profile"
+                                                    >
+                                                        <span className="material-symbols-outlined text-[14px]">visibility</span>
+                                                        Profile
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
                                                             router.push(`/bank/chat?applicationId=${row.id}&applicationNumber=${row.applicationNumber || ''}&bank=${encodeURIComponent(row.bank || '')}`);
                                                         }}
                                                         className="px-3 py-1.5 bg-purple-50 hover:bg-[#6605c7] hover:text-white text-[#6605c7] text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1 cursor-pointer"
@@ -839,6 +851,36 @@ export default function ApplicationManagement() {
                                                 <div>
                                                     <span className="text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wider block mb-0.5">University</span>
                                                     <span className="text-xs font-semibold text-[#0F172A]">{selectedApp.universityName || "Heidelberg University"}</span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wider block mb-0.5">Field of Study</span>
+                                                    <span className="text-xs font-semibold text-[#0F172A]">
+                                                        {(() => {
+                                                            const val = selectedApp.loanType || selectedApp.fieldOfStudy || selectedApp.courseType || selectedApp.programFocus || selectedApp.courseName || selectedApp.course;
+                                                            if (!val) return "Undergraduate Abroad";
+                                                            const clean = String(val).trim();
+                                                            if (/^undergraduate(\s*abroad)?$/i.test(clean)) return "Undergraduate Abroad";
+                                                            if (/^postgraduate(\s*abroad)?$/i.test(clean)) return "Postgraduate Abroad";
+                                                            if (/^(doctoral|doctorate|phd)(\s*abroad)?$/i.test(clean) || clean.toLowerCase() === "doctoral/phd abroad") return "Doctoral/PhD Abroad";
+                                                            if (/^professional(\s*course)?$/i.test(clean)) return "Professional Course";
+                                                            return clean;
+                                                        })()}
+                                                    </span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wider block mb-0.5">Applied On</span>
+                                                    <span className="text-xs font-semibold text-[#0F172A]">
+                                                        {(() => {
+                                                            const rawDate = selectedApp.appliedOn || selectedApp.appliedDate || selectedApp.submittedAt || selectedApp.createdAt || selectedApp.created_at || selectedApp.lanEnteredAt;
+                                                            if (!rawDate) return "—";
+                                                            try {
+                                                                const parsed = new Date(rawDate);
+                                                                return isNaN(parsed.getTime()) ? "—" : format(parsed, "dd MMM yyyy");
+                                                            } catch {
+                                                                return "—";
+                                                            }
+                                                        })()}
+                                                    </span>
                                                 </div>
                                             </div>
                                         </div>
@@ -1405,6 +1447,7 @@ export default function ApplicationManagement() {
                                             <h2 className="text-2xl font-bold text-[#0F172A] tracking-tight uppercase">
                                                 {selectedApp.firstName} {selectedApp.lastName}
                                             </h2>
+                                            <span className="text-[10px] font-black text-[#6B21A8] bg-purple-50 px-2.5 py-0.5 rounded-md uppercase tracking-wider border border-purple-100">Application Profile</span>
                                             <StatusBadge status={selectedApp.status} />
                                         </div>
                                         <p className="text-sm text-[#64748B] font-mono mt-0.5 flex items-center gap-3">
@@ -1593,8 +1636,38 @@ export default function ApplicationManagement() {
                                                             <span className="font-bold text-[#0F172A] text-base">{selectedApp.universityName || selectedApp.university || selectedApp.targetUniversity || "Not Specified"}</span>
                                                         </div>
                                                         <div className="bg-[#F8FAFC] p-4 rounded-xl border border-[#E2E8F0]">
+                                                            <span className="text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wider block mb-1">Field of Study</span>
+                                                            <span className="text-sm font-semibold text-[#0F172A]">
+                                                                {(() => {
+                                                                    const val = selectedApp.loanType || selectedApp.fieldOfStudy || selectedApp.courseType || selectedApp.programFocus || selectedApp.courseName || selectedApp.course;
+                                                                    if (!val) return "Not Specified";
+                                                                    const clean = String(val).trim();
+                                                                    if (/^undergraduate(\s*abroad)?$/i.test(clean)) return "Undergraduate Abroad";
+                                                                    if (/^postgraduate(\s*abroad)?$/i.test(clean)) return "Postgraduate Abroad";
+                                                                    if (/^(doctoral|doctorate|phd)(\s*abroad)?$/i.test(clean) || clean.toLowerCase() === "doctoral/phd abroad") return "Doctoral/PhD Abroad";
+                                                                    if (/^professional(\s*course)?$/i.test(clean)) return "Professional Course";
+                                                                    return clean;
+                                                                })()}
+                                                            </span>
+                                                        </div>
+                                                        <div className="bg-[#F8FAFC] p-4 rounded-xl border border-[#E2E8F0]">
                                                             <span className="text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wider block mb-1">Destination Country</span>
                                                             <span className="text-sm font-semibold text-[#0F172A]">{selectedApp.country || selectedApp.countryOfStudy || selectedApp.studyDestination || "Not Specified"}</span>
+                                                        </div>
+                                                        <div className="bg-[#F8FAFC] p-4 rounded-xl border border-[#E2E8F0]">
+                                                            <span className="text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wider block mb-1">Applied On</span>
+                                                            <span className="text-sm font-semibold text-[#0F172A]">
+                                                                {(() => {
+                                                                    const rawDate = selectedApp.appliedOn || selectedApp.appliedDate || selectedApp.submittedAt || selectedApp.createdAt || selectedApp.created_at || selectedApp.lanEnteredAt;
+                                                                    if (!rawDate) return "—";
+                                                                    try {
+                                                                        const parsed = new Date(rawDate);
+                                                                        return isNaN(parsed.getTime()) ? "—" : format(parsed, "dd MMM yyyy");
+                                                                    } catch {
+                                                                        return "—";
+                                                                    }
+                                                                })()}
+                                                            </span>
                                                         </div>
                                                     </div>
                                                 </div>
