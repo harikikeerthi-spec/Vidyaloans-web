@@ -411,11 +411,17 @@ export async function apiFetch<T>(
 ): Promise<T> {
     const method = (options.method || "GET").toUpperCase();
     const isStateMutating = ["POST", "PUT", "PATCH", "DELETE"].includes(method);
+    const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
 
     const headersObj: Record<string, string> = {
         ...(authHeaders(url) as Record<string, string>),
         ...(options.headers as Record<string, string>),
     };
+
+    if (isFormData) {
+        delete headersObj["Content-Type"];
+        delete headersObj["content-type"];
+    }
 
     if (isStateMutating) {
         let token = cachedCsrfToken;
@@ -461,7 +467,7 @@ export async function apiFetch<T>(
                     headers: {
                         ...headersObj,
                         Authorization: `Bearer ${newToken}`,
-                        "Content-Type": "application/json",
+                        ...(isFormData ? {} : { "Content-Type": "application/json" }),
                     },
                 },
                 true

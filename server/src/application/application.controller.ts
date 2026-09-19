@@ -801,12 +801,12 @@ export class ApplicationController {
     @UseInterceptors(FileInterceptor('file', {
         limits: { fileSize: 25 * 1024 * 1024 }, // 25MB limit
         fileFilter: (req, file, cb) => {
-            const mimeMatch = !file.mimetype || file.mimetype.match(/\/(jpg|jpeg|png|pdf|octet-stream|x-pdf|document)$/i);
-            const extMatch = !file.originalname || file.originalname.match(/\.(jpg|jpeg|png|pdf)$/i);
+            const mimeMatch = !file.mimetype || file.mimetype.match(/\/(jpg|jpeg|png|pdf|octet-stream|x-pdf|document|csv|vnd\.ms-excel|vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet)$/i);
+            const extMatch = !file.originalname || file.originalname.match(/\.(jpg|jpeg|png|pdf|csv|xlsx|xls)$/i);
             if (mimeMatch || extMatch) {
                 cb(null, true);
             } else {
-                cb(new BadRequestException('Unsupported file type. Allowed: JPG, JPEG, PNG, PDF'), false);
+                cb(new BadRequestException('Unsupported file type. Allowed: PDF, JPG, PNG, CSV, XLSX'), false);
             }
         }
     }))

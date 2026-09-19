@@ -2974,15 +2974,16 @@ export class UsersService implements OnModuleInit {
         }
       }
 
-      const passNumber = passportExtracted.passport_number || passportExtracted.passportNumber || passportExtracted.passport_no || passportExtracted.passportNo || passportExtracted.document_number || familyObj?.passport?.number || userWithActivity?.passportNumber;
-      const passFullName = passportExtracted.full_name || passportExtracted.fullName || passportExtracted.name || (passportExtracted.given_names ? `${passportExtracted.given_names} ${passportExtracted.surname || ''}`.trim() : undefined) || familyObj?.passportOriginalName || familyObj?.passport?.fullName || userWithActivity?.passportOriginalName || userWithActivity?.nameAsInPassport;
-      const passIssueDate = passportExtracted.date_of_issue || passportExtracted.issue_date || passportExtracted.passportIssueDate || passportExtracted.issueDate || familyObj?.passport?.issueDate || userWithActivity?.passportIssueDate;
-      const passExpiryDate = passportExtracted.date_of_expiry || passportExtracted.expiry_date || passportExtracted.passportExpiry || passportExtracted.passportExpiryDate || passportExtracted.expiryDate || familyObj?.passport?.expiryDate || userWithActivity?.passportExpiryDate;
-      const passIssueCountry = passportExtracted.issue_country || passportExtracted.country_of_issue || passportExtracted.issuing_country || passportExtracted.passportIssueCountry || familyObj?.passport?.issueCountry || userWithActivity?.passportIssueCountry || 'India';
-      const passBirthCity = passportExtracted.birth_city || passportExtracted.place_of_birth || passportExtracted.birth_place || passportExtracted.passportBirthCity || familyObj?.passport?.birthCity || userWithActivity?.birthCity || userWithActivity?.passportBirthCity;
-      const passBirthCountry = passportExtracted.birth_country || passportExtracted.country_of_birth || passportExtracted.passportBirthCountry || familyObj?.passport?.birthCountry || userWithActivity?.birthCountry || userWithActivity?.passportBirthCountry || 'India';
+      const passNumber = passportExtracted.passport_number || passportExtracted.passportNumber || passportExtracted.passport_no || passportExtracted.passportNo || passportExtracted.document_number || familyObj?.passport?.number || userWithActivity?.passportNumber || null;
+      const passFullName = passportExtracted.full_name || passportExtracted.fullName || passportExtracted.name || (passportExtracted.given_names ? `${passportExtracted.given_names} ${passportExtracted.surname || ''}`.trim() : undefined) || familyObj?.passportOriginalName || familyObj?.passport?.fullName || userWithActivity?.passportOriginalName || userWithActivity?.nameAsInPassport || null;
+      const passIssueDate = passportExtracted.date_of_issue || passportExtracted.issue_date || passportExtracted.passportIssueDate || passportExtracted.issueDate || familyObj?.passport?.issueDate || userWithActivity?.passportIssueDate || null;
+      const passExpiryDate = passportExtracted.date_of_expiry || passportExtracted.expiry_date || passportExtracted.passportExpiry || passportExtracted.passportExpiryDate || passportExtracted.expiryDate || familyObj?.passport?.expiryDate || userWithActivity?.passportExpiryDate || null;
+      const passIssueCountry = passportExtracted.issue_country || passportExtracted.country_of_issue || passportExtracted.issuing_country || passportExtracted.passportIssueCountry || familyObj?.passport?.issueCountry || userWithActivity?.passportIssueCountry || null;
+      const passBirthCity = passportExtracted.birth_city || passportExtracted.place_of_birth || passportExtracted.birth_place || passportExtracted.passportBirthCity || familyObj?.passport?.birthCity || userWithActivity?.birthCity || userWithActivity?.passportBirthCity || null;
+      const passBirthCountry = passportExtracted.birth_country || passportExtracted.country_of_birth || passportExtracted.passportBirthCountry || familyObj?.passport?.birthCountry || userWithActivity?.birthCountry || userWithActivity?.passportBirthCountry || null;
 
-      const passportObj = {
+      const hasPassportData = !!(passNumber || passFullName || passIssueDate || passExpiryDate || passIssueCountry || passBirthCity || passBirthCountry);
+      const passportObj = hasPassportData ? {
         number: passNumber || null,
         passportNumber: passNumber || null,
         fullName: passFullName || null,
@@ -2991,13 +2992,13 @@ export class UsersService implements OnModuleInit {
         passportIssueDate: passIssueDate || null,
         expiryDate: passExpiryDate || null,
         passportExpiryDate: passExpiryDate || null,
-        issueCountry: passIssueCountry || 'India',
-        passportIssueCountry: passIssueCountry || 'India',
+        issueCountry: passIssueCountry || null,
+        passportIssueCountry: passIssueCountry || null,
         birthCity: passBirthCity || null,
         passportBirthCity: passBirthCity || null,
-        birthCountry: passBirthCountry || 'India',
-        passportBirthCountry: passBirthCountry || 'India',
-      };
+        birthCountry: passBirthCountry || null,
+        passportBirthCountry: passBirthCountry || null,
+      } : null;
 
       const sanitizedUser = userWithActivity ? {
         ...userWithActivity,
@@ -3011,14 +3012,14 @@ export class UsersService implements OnModuleInit {
         fatherPan: finalFatherPan,
         parents: updatedParentsList,
         passport: passportObj,
-        passportNumber: passNumber || userWithActivity?.passportNumber || null,
-        passportOriginalName: passFullName || userWithActivity?.passportOriginalName || null,
-        nameAsInPassport: passFullName || userWithActivity?.nameAsInPassport || null,
+        passportNumber: passNumber || null,
+        passportOriginalName: passFullName || null,
+        nameAsInPassport: passFullName || null,
         passportIssueDate: passIssueDate || null,
         passportExpiryDate: passExpiryDate || null,
-        passportIssueCountry: passIssueCountry || 'India',
+        passportIssueCountry: passIssueCountry || null,
         passportBirthCity: passBirthCity || null,
-        passportBirthCountry: passBirthCountry || 'India',
+        passportBirthCountry: passBirthCountry || null,
       } : null;
 
       if (sanitizedUser) {

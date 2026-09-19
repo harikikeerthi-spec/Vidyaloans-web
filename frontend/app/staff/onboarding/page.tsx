@@ -1650,7 +1650,7 @@ export default function OnboardingPage() {
             };
 
             await onboardingApi.submit(payload);
-            addActivity("update", `Synced dossier for ${newStudent.firstName}`, "sync", "text-emerald-600 bg-emerald-50");
+            addActivity("update", `Synced profile for ${newStudent.firstName}`, "sync", "text-emerald-600 bg-emerald-50");
 
             if (!silent) {
                 alert("Profile Synced: Student details have been successfully updated in the database.");

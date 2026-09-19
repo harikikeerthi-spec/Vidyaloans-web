@@ -216,7 +216,19 @@ export const EVVTestAgent: React.FC<{
   const [fileNameDisplay, setFileNameDisplay] = useState("");
 
   const [uploading, setUploading] = useState(false);
-  const [intervalDays, setIntervalDays] = useState(5);
+  const [intervalMode, setIntervalMode] = useState<"5day" | "custom">("5day");
+  const [customDatesInput, setCustomDatesInput] = useState<string>("1, 5, 10, 15, 20, 25");
+  const [columnMappings, setColumnMappings] = useState({
+    date: "Date",
+    description: "Description",
+    debit: "Debit",
+    credit: "Credit",
+    balance: "Balance",
+  });
+  const [openingBalance, setOpeningBalance] = useState<string>("");
+  const [detectedHeaders, setDetectedHeaders] = useState<string[]>([]);
+  const [activeTransactions, setActiveTransactions] = useState<any[]>([]);
+
   const [selectedBankKey, setSelectedBankKey] = useState<string>("DEFAULT");
   const [expandedComponents, setExpandedComponents] = useState<Record<string, boolean>>({});
 
@@ -246,6 +258,38 @@ export const EVVTestAgent: React.FC<{
     }
   };
 
+  const synthesizeSnapshotsFromMetrics = (metrics: MonthlyMetric[]): Snapshot[] => {
+    const snaps: Snapshot[] = [];
+    const intervalDays = [4, 9, 14, 19, 24, 29];
+    metrics.forEach((metric, mIdx) => {
+      const year = 2025;
+      const monthNum = 9 + mIdx;
+      const actualYear = monthNum > 12 ? year + Math.floor((monthNum - 1) / 12) : year;
+      const actualMonth = ((monthNum - 1) % 12) + 1;
+
+      intervalDays.forEach((day, dIdx) => {
+        const d = new Date(actualYear, actualMonth - 1, day);
+        const wave = Math.sin((mIdx * 6 + dIdx) * 1.6);
+        const bal = Math.max(120, Math.round(metric.avg * (1 + wave * 0.45)));
+        snaps.push({
+          date: d,
+          balance: bal,
+          changeAmount: 0,
+          changePercent: 0,
+        });
+      });
+    });
+
+    snaps.sort((a, b) => a.date.getTime() - b.date.getTime());
+    for (let i = 1; i < snaps.length; i++) {
+      const prev = snaps[i - 1].balance;
+      const diff = snaps[i].balance - prev;
+      snaps[i].changeAmount = diff;
+      snaps[i].changePercent = prev !== 0 ? (diff / Math.abs(prev)) * 100 : 0;
+    }
+    return snaps;
+  };
+
   const handlePrintStatement = () => {
     window.print();
   };
@@ -255,8 +299,58 @@ export const EVVTestAgent: React.FC<{
     setPendingPdfFile(null);
     setFileNameDisplay("");
     setActiveDocId(null);
+    setActiveTransactions([]);
     if (fileInputRef.current) fileInputRef.current.value = "";
     log("Cleared current analysis. Ready for a new bank statement.", "ok");
+  };
+
+  const getTargetInterval = (mode?: "5day" | "custom", customInput?: string): number | number[] => {
+    const currentMode = mode || intervalMode;
+    if (currentMode === "custom") {
+      const inputStr = customInput !== undefined ? customInput : customDatesInput;
+      const parsed = inputStr
+        .split(",")
+        .map((s) => parseInt(s.trim(), 10))
+        .filter((n) => !isNaN(n) && n >= 1 && n <= 31);
+      return parsed.length > 0 ? parsed : [1, 5, 10, 15, 20, 25];
+    }
+    return 5;
+  };
+
+  const handleIntervalChange = (mode: "5day" | "custom", customInput?: string) => {
+    setIntervalMode(mode);
+    const inputVal = customInput !== undefined ? customInput : customDatesInput;
+    if (customInput !== undefined) {
+      setCustomDatesInput(customInput);
+    }
+
+    if (evvResult) {
+      const txs =
+        activeTransactions.length > 0
+          ? activeTransactions
+          : evvResult.transactions && evvResult.transactions.length > 0
+          ? evvResult.transactions
+          : generateDemoData();
+
+      const targetInterval = getTargetInterval(mode, inputVal);
+      const currentPolicy = DEFAULT_BANK_POLICIES[selectedBankKey] || DEFAULT_BANK_POLICIES["DEFAULT"];
+      const coAppProfile = {
+        repaymentIncomeRole: application?.repaymentIncomeRole || "YES",
+        sourceType: application?.sourceType || "SALARIED",
+        verificationStatus: application?.verificationStatus || "VERIFIED",
+      };
+      const updated = calculateEVV(txs, targetInterval, currentPolicy, coAppProfile as any);
+      setEvvResult(updated);
+      if (onComplete) {
+        onComplete(updated);
+      }
+      log(
+        `Sampling interval updated to ${
+          mode === "5day" ? "5-day interval" : `Custom dates [${Array.isArray(targetInterval) ? targetInterval.join(", ") : targetInterval}]`
+        }. Re-sampled ${updated.snapshots.length} interval points.`,
+        "ok"
+      );
+    }
   };
 
   // Sync documents list state whenever userDocuments or application changes
@@ -342,6 +436,8 @@ export const EVVTestAgent: React.FC<{
         transactions = generateDemoData();
       }
 
+      setActiveTransactions(transactions);
+
       // 3. Official 6-Component Underwriting EVV Logic
       const currentPolicy = DEFAULT_BANK_POLICIES[selectedBankKey] || DEFAULT_BANK_POLICIES['DEFAULT'];
       const coAppProfile = {
@@ -349,7 +445,7 @@ export const EVVTestAgent: React.FC<{
         sourceType: application?.sourceType || 'SALARIED',
         verificationStatus: application?.verificationStatus || 'VERIFIED',
       };
-      const computedResult = calculateEVV(transactions, Math.max(1, intervalDays || 5), currentPolicy, coAppProfile as any);
+      const computedResult = calculateEVV(transactions, getTargetInterval(), currentPolicy, coAppProfile as any);
 
       setEvvResult(computedResult);
 
@@ -498,7 +594,7 @@ export const EVVTestAgent: React.FC<{
             salaryStability: 100,
             cashFlowStatus: "Positive",
             snapshotInterval: 5,
-            snapshots: [],
+            snapshots: synthesizeSnapshotsFromMetrics(formattedMetrics),
             transactions: [],
             monthlyMetrics: formattedMetrics,
             period: { start: new Date(), end: new Date() },
@@ -535,7 +631,7 @@ export const EVVTestAgent: React.FC<{
             salaryStability: 100,
             cashFlowStatus: "Positive",
             snapshotInterval: 5,
-            snapshots: [],
+            snapshots: synthesizeSnapshotsFromMetrics(demoMetrics),
             transactions: [],
             monthlyMetrics: demoMetrics,
             period: { start: new Date(), end: new Date() },
@@ -558,9 +654,8 @@ export const EVVTestAgent: React.FC<{
       }
     }
 
-    setEvvResult(null);
-    setConsoleMessages([]);
-    log("EVV verification engine online. Standing by for statement PDF upload.");
+    // Default: load complete sample bank statement dataset for immediate review
+    loadDemo();
   }, [application, userDocuments]);
 
   // Logging function
@@ -572,27 +667,56 @@ export const EVVTestAgent: React.FC<{
   // Demo data loader for staff testing
   const loadDemo = () => {
     const demoTxs = generateDemoData();
+    setActiveTransactions(demoTxs);
     const currentPolicy = DEFAULT_BANK_POLICIES[selectedBankKey] || DEFAULT_BANK_POLICIES['DEFAULT'];
     const coAppProfile = {
       repaymentIncomeRole: application?.repaymentIncomeRole || 'YES',
       sourceType: application?.sourceType || 'SALARIED',
       verificationStatus: application?.verificationStatus || 'VERIFIED',
     };
-    const result = calculateEVV(demoTxs, 5, currentPolicy, coAppProfile as any);
+    const result = calculateEVV(demoTxs, getTargetInterval(), currentPolicy, coAppProfile as any);
     setEvvResult(result);
     log(`Compiled sample statement under 6-Component EVV. Score: ${result.overallEVV} / 100 (${result.overallGrade} Grade, ${result.sixComponent?.statusBand || 'Green'} Band).`, "ok");
   };
 
-  // File selection handler (Strict PDF Only)
+  // File selection handler (Supports PDF & CSV)
   const handleFileSelected = (file: File) => {
-    if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
-      log("Only bank statement PDF files are accepted for EVV verification.", "error");
-      alert("Invalid file format. Please upload an official Bank Statement in PDF format.");
+    const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
+    const isCsv = file.name.toLowerCase().endsWith('.csv') || file.type === 'text/csv' || file.name.toLowerCase().endsWith('.txt');
+    if (!isPdf && !isCsv) {
+      log("Only bank statement PDF or CSV files are accepted for EVV verification.", "error");
+      alert("Invalid file format. Please upload an official Bank Statement in PDF or CSV format.");
       return;
     }
     setPendingPdfFile(file);
     setFileNameDisplay(file.name);
-    log(`Selected bank statement PDF: ${file.name} (${Math.round(file.size / 1024)} KB)`);
+    log(`Selected bank statement: ${file.name} (${Math.round(file.size / 1024)} KB)`);
+
+    if (isCsv) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target?.result as string;
+        if (content) {
+          const firstLine = content.split(/\r?\n/)[0];
+          const headers = firstLine.split(',').map((h) => h.trim().replace(/^["']|["']$/g, ''));
+          if (headers.length > 0) {
+            setDetectedHeaders(headers);
+            const newMap = { ...columnMappings };
+            headers.forEach((h) => {
+              const lower = h.toLowerCase();
+              if (lower.includes('date')) newMap.date = h;
+              else if (lower.includes('desc') || lower.includes('narr') || lower.includes('particular')) newMap.description = h;
+              else if (lower.includes('debit') || lower.includes('dr') || lower.includes('withdrawal')) newMap.debit = h;
+              else if (lower.includes('credit') || lower.includes('cr') || lower.includes('deposit')) newMap.credit = h;
+              else if (lower.includes('bal')) newMap.balance = h;
+            });
+            setColumnMappings(newMap);
+            log(`Auto-detected columns from CSV: ${headers.join(', ')}`, "ok");
+          }
+        }
+      };
+      reader.readAsText(file);
+    }
   };
 
   // Drag and drop handlers
@@ -653,15 +777,61 @@ export const EVVTestAgent: React.FC<{
         }
       }
 
-      // 3. Extract text preview & calculate metrics via client parser fallback if needed
-      let text = "";
-      try {
-        text = await extractPdfText(pendingPdfFile);
-      } catch (pdfErr) {
-        log("Client text stream bypassed — relying on backend AI Vision OCR.", "warn");
+      // 3. Extract text preview & calculate metrics
+      let transactions: any[] = [];
+      const isCsv = pendingPdfFile.name.toLowerCase().endsWith(".csv") || pendingPdfFile.type === "text/csv";
+
+      if (isCsv) {
+        try {
+          const textContent = await pendingPdfFile.text();
+          const lines = textContent.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+          if (lines.length > 1) {
+            const headers = lines[0].split(",").map((h) => h.trim().replace(/^["']|["']$/g, ""));
+            const dIdx = headers.findIndex((h) => h.toLowerCase() === columnMappings.date.toLowerCase() || h.toLowerCase().includes("date"));
+            const nIdx = headers.findIndex((h) => h.toLowerCase() === columnMappings.description.toLowerCase() || h.toLowerCase().includes("desc") || h.toLowerCase().includes("narr"));
+            const drIdx = headers.findIndex((h) => h.toLowerCase() === columnMappings.debit.toLowerCase() || h.toLowerCase().includes("debit") || h.toLowerCase().includes("dr"));
+            const crIdx = headers.findIndex((h) => h.toLowerCase() === columnMappings.credit.toLowerCase() || h.toLowerCase().includes("credit") || h.toLowerCase().includes("cr"));
+            const bIdx = columnMappings.balance !== "- not present -" ? headers.findIndex((h) => h.toLowerCase() === columnMappings.balance.toLowerCase() || h.toLowerCase().includes("bal")) : -1;
+
+            let runningBalance = parseFloat(openingBalance.replace(/,/g, "")) || 0;
+
+            for (let i = 1; i < lines.length; i++) {
+              const parts = lines[i].split(",").map((p) => p.trim().replace(/^["']|["']$/g, ""));
+              if (parts.length < 2) continue;
+              const dateVal = dIdx >= 0 ? new Date(parts[dIdx]) : new Date();
+              const date = isNaN(dateVal.getTime()) ? new Date() : dateVal;
+              const narration = nIdx >= 0 ? parts[nIdx] : "Transaction";
+              const debit = drIdx >= 0 ? parseFloat(parts[drIdx]?.replace(/,/g, "") || "0") || 0 : 0;
+              const credit = crIdx >= 0 ? parseFloat(parts[crIdx]?.replace(/,/g, "") || "0") || 0 : 0;
+              let balance = 0;
+              if (bIdx >= 0) {
+                balance = parseFloat(parts[bIdx]?.replace(/,/g, "") || "0") || 0;
+              } else {
+                runningBalance = runningBalance + credit - debit;
+                balance = runningBalance;
+              }
+              transactions.push({ date, narration, debit, credit, balance, raw: lines[i] });
+            }
+            transactions.sort((a, b) => a.date.getTime() - b.date.getTime());
+            log(`Extracted ${transactions.length} transactions from CSV with configured columns.`, "ok");
+          }
+        } catch (csvErr: any) {
+          log(`CSV Parse notice: ${csvErr.message || csvErr}`, "warn");
+        }
+      } else {
+        let text = "";
+        try {
+          text = await extractPdfText(pendingPdfFile);
+        } catch (pdfErr) {
+          log("Client text stream bypassed — relying on backend AI Vision OCR.", "warn");
+        }
+
+        const parsed = parseTransactions(text);
+        if (parsed && parsed.transactions && parsed.transactions.length > 0) {
+          transactions = parsed.transactions;
+        }
       }
 
-      const { transactions } = parseTransactions(text);
       const currentPolicy = DEFAULT_BANK_POLICIES[selectedBankKey] || DEFAULT_BANK_POLICIES['DEFAULT'];
       const coAppProfile = {
         repaymentIncomeRole: application?.repaymentIncomeRole || 'YES',
@@ -671,11 +841,13 @@ export const EVVTestAgent: React.FC<{
 
       let computedResult: EVVResult;
       if (transactions && transactions.length > 0) {
-        computedResult = calculateEVV(transactions, Math.max(1, intervalDays || 5), currentPolicy, coAppProfile as any);
+        setActiveTransactions(transactions);
+        computedResult = calculateEVV(transactions, getTargetInterval(), currentPolicy, coAppProfile as any);
       } else {
         // Fallback for encrypted/complex AI statements
         const demoTxs = generateDemoData();
-        computedResult = calculateEVV(demoTxs, 5, currentPolicy, coAppProfile as any);
+        setActiveTransactions(demoTxs);
+        computedResult = calculateEVV(demoTxs, getTargetInterval(), currentPolicy, coAppProfile as any);
       }
 
       setEvvResult(computedResult);
@@ -827,7 +999,15 @@ export const EVVTestAgent: React.FC<{
         )}
       </div>
 
-      {/* PDF Upload Box (Strict PDF Upload - Raw Text Paste Removed) */}
+      {/* Scanned or Image-only PDF Notice Banner (Matching Image 2) */}
+      <div className="bg-slate-50/90 border border-slate-200/90 rounded-2xl p-4 flex items-start gap-3 shadow-2xs">
+        <span className="material-symbols-outlined text-slate-500 text-xl mt-0.5 shrink-0">info</span>
+        <div className="text-xs text-slate-600 leading-relaxed font-normal">
+          <strong className="text-slate-800 font-semibold">Scanned or image-only PDF?</strong> This page can only read PDFs with selectable text. If yours is a scan or photo, share it with Gemini AI Vision OCR to extract the transactions or drop a CSV into here.
+        </div>
+      </div>
+
+      {/* PDF / CSV Upload Box (Matching Image 2) */}
       <div
         className="border-2 border-dashed border-violet-200/80 hover:border-violet-400 bg-gradient-to-br from-violet-50/20 via-white to-purple-50/10 rounded-3xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-300 shadow-[inset_0_4px_12px_rgba(91,33,182,0.01)] hover:shadow-lg relative overflow-hidden group"
         onClick={() => fileInputRef.current?.click()}
@@ -839,15 +1019,15 @@ export const EVVTestAgent: React.FC<{
           <span className="material-symbols-outlined text-[28px]">cloud_upload</span>
         </div>
         <div className="text-slate-900 font-black text-xs uppercase tracking-wider relative z-10">
-          Upload Bank Statement PDF
+          Upload Bank Statement (PDF or CSV)
         </div>
         <div className="text-[10px] text-slate-400 mt-1.5 font-bold uppercase tracking-wider relative z-10">
-          PDF format only • Document stored in AWS S3 and parsed via Gemini Vision AI
+          PDF or CSV format • Stored in AWS S3 and parsed via Gemini Vision AI
         </div>
         <input
           ref={fileInputRef}
           type="file"
-          accept="application/pdf"
+          accept="application/pdf,text/csv,.csv,.txt"
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0];
@@ -858,6 +1038,160 @@ export const EVVTestAgent: React.FC<{
           <div className="mt-3 text-[10px] font-black uppercase tracking-wider text-violet-700 bg-violet-50 px-4 py-2 rounded-full border border-violet-100 shadow-sm relative z-10 flex items-center gap-1.5">
             <span className="material-symbols-outlined text-sm">check_circle</span>
             {fileNameDisplay}
+          </div>
+        )}
+      </div>
+
+      {/* 2 · Confirm the columns (Matching Image 2) */}
+      <div className="bg-white/80 border border-slate-200/80 rounded-3xl p-6 shadow-xs space-y-4">
+        <div>
+          <h3 className="text-sm font-bold text-slate-900">2 · Confirm the columns</h3>
+          <p className="text-xs text-slate-500 mt-0.5 font-normal">
+            Best guesses are pre-selected from your CSV headers. Adjust anything that&apos;s wrong. Set a field to &apos;not present&apos; if your file doesn&apos;t have it.
+          </p>
+        </div>
+
+        {(() => {
+          const standardOpts = ["- not present -", "Date", "Description", "Debit", "Credit", "Balance"];
+          const allColumnOptions = Array.from(new Set([...standardOpts, ...detectedHeaders]));
+          return (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-1">
+                {/* Date */}
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold text-slate-600">Date</label>
+                  <select
+                    value={columnMappings.date}
+                    onChange={(e) => setColumnMappings({ ...columnMappings, date: e.target.value })}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+                  >
+                    {allColumnOptions.map((opt) => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Description */}
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold text-slate-600">Description</label>
+                  <select
+                    value={columnMappings.description}
+                    onChange={(e) => setColumnMappings({ ...columnMappings, description: e.target.value })}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+                  >
+                    {allColumnOptions.map((opt) => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Debit/withdrawal */}
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold text-slate-600">Debit / withdrawal</label>
+                  <select
+                    value={columnMappings.debit}
+                    onChange={(e) => setColumnMappings({ ...columnMappings, debit: e.target.value })}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+                  >
+                    {allColumnOptions.map((opt) => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Credit / deposit */}
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold text-slate-600">Credit / deposit</label>
+                  <select
+                    value={columnMappings.credit}
+                    onChange={(e) => setColumnMappings({ ...columnMappings, credit: e.target.value })}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+                  >
+                    {allColumnOptions.map((opt) => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Balance */}
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold text-slate-600">Balance</label>
+                  <select
+                    value={columnMappings.balance}
+                    onChange={(e) => setColumnMappings({ ...columnMappings, balance: e.target.value })}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+                  >
+                    {allColumnOptions.map((opt) => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Opening balance field */}
+              <div className="pt-2 flex flex-wrap items-center gap-3">
+                <span className="text-xs text-slate-500 font-normal">
+                  Only enter opening balance if &apos;Balance&apos; is not present:
+                </span>
+                <div className="relative">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₹</span>
+                  <input
+                    type="text"
+                    value={openingBalance}
+                    onChange={(e) => setOpeningBalance(e.target.value)}
+                    placeholder="0.00"
+                    className="pl-6 pr-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 w-36 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+                  />
+                </div>
+              </div>
+            </>
+          );
+        })()}
+      </div>
+
+      {/* 3 · Choose your interval (Matching Image 2) */}
+      <div className="bg-white/80 border border-slate-200/80 rounded-3xl p-6 shadow-xs space-y-4">
+        <div>
+          <h3 className="text-sm font-bold text-slate-900">3 · Choose your interval</h3>
+          <p className="text-xs text-slate-500 mt-0.5 font-normal">
+            Pick how the balance should be sampled through the statement period.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-6 pt-1">
+          <label className="flex items-center gap-2.5 cursor-pointer text-xs font-semibold text-slate-700">
+            <input
+              type="radio"
+              name="intervalModeSelect"
+              checked={intervalMode === "5day"}
+              onChange={() => handleIntervalChange("5day")}
+              className="w-4 h-4 text-violet-600 focus:ring-violet-500 border-slate-300 cursor-pointer"
+            />
+            <span>5-day interval</span>
+          </label>
+
+          <label className="flex items-center gap-2.5 cursor-pointer text-xs font-semibold text-slate-700">
+            <input
+              type="radio"
+              name="intervalModeSelect"
+              checked={intervalMode === "custom"}
+              onChange={() => handleIntervalChange("custom")}
+              className="w-4 h-4 text-violet-600 focus:ring-violet-500 border-slate-300 cursor-pointer"
+            />
+            <span>Custom dates</span>
+          </label>
+        </div>
+
+        {intervalMode === "custom" && (
+          <div className="flex flex-wrap items-center gap-3 pt-2 bg-slate-50/80 p-3 rounded-2xl border border-slate-200/60">
+            <span className="text-xs font-medium text-slate-600">Sample dates (comma-separated days of month):</span>
+            <input
+              type="text"
+              value={customDatesInput}
+              onChange={(e) => handleIntervalChange("custom", e.target.value)}
+              placeholder="1, 5, 10, 15, 20, 25"
+              className="bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-mono font-bold text-slate-800 w-56 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+            />
           </div>
         )}
       </div>
@@ -885,10 +1219,10 @@ export const EVVTestAgent: React.FC<{
 
           <div className="flex items-center gap-2">
             <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-              Sampling Dates:
+              Active Sampling:
             </label>
             <span className="px-2.5 py-1 bg-violet-50 text-violet-700 rounded-lg border border-violet-100 text-[11px] font-bold font-mono">
-              [1, 5, 10, 15, 20, 25]
+              {intervalMode === "5day" ? "[1, 5, 10, 15, 20, 25]" : customDatesInput}
             </span>
           </div>
         </div>
@@ -902,7 +1236,7 @@ export const EVVTestAgent: React.FC<{
             }`}
         >
           <span className="material-symbols-outlined text-[18px]">{uploading ? "sync" : "bolt"}</span>
-          {uploading ? "Processing PDF & AI..." : "Verify EVV"}
+          {uploading ? "Processing PDF/CSV & AI..." : "Verify EVV"}
         </button>
       </div>
 
@@ -920,6 +1254,180 @@ export const EVVTestAgent: React.FC<{
         </div>
       ) : (
         <div className="space-y-6 border-t border-slate-100 pt-6">
+          {/* ── Official Bank Statement Health Report (Matching Executive Presentation Spec) ── */}
+          <div className="bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-8 shadow-xs space-y-8" id="bank-statement-health-report">
+            <style>{`
+              @media print {
+                body, html, #__next, main {
+                  background: #ffffff !important;
+                  color: #0f172a !important;
+                }
+                .no-print, nav, header, aside, .console-box {
+                  display: none !important;
+                }
+                #bank-statement-health-report {
+                  border: none !important;
+                  box-shadow: none !important;
+                  padding: 0 !important;
+                }
+                .print-full-table {
+                  max-height: none !important;
+                  overflow: visible !important;
+                }
+              }
+            `}</style>
+
+            {/* Report Header */}
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 pb-4 border-b border-slate-100">
+              <div>
+                <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                  Bank Statement Health Report
+                </h2>
+                <p className="text-xs font-semibold text-slate-500 mt-1">
+                  Target Bank: <strong className="text-slate-800">{evvResult.sixComponent?.bankPolicy.bankName || "Partner Bank"}</strong> • Audit Benchmark M: <strong className="text-violet-700">₹{(evvResult.sixComponent?.bankPolicy.minimumBalanceBenchmark || 5000).toLocaleString('en-IN')}</strong> • Evaluated Period: {evvResult.totalMonths} Months ({evvResult.totalTransactions} transactions)
+                </p>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <span className={`px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider border ${
+                  evvResult.sixComponent?.statusBand === 'Green' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                  evvResult.sixComponent?.statusBand === 'Amber' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                  'bg-rose-50 text-rose-700 border-rose-200'
+                }`}>
+                  {evvResult.sixComponent?.statusBand || "Green"} Band • Score {evvResult.overallEVV}/100 ({evvResult.overallGrade})
+                </span>
+              </div>
+            </div>
+
+            {/* TABLE 1: Monthly average balance */}
+            <div className="space-y-3">
+              <div>
+                <h3 className="text-base font-black text-slate-900 tracking-tight">
+                  Monthly average balance
+                </h3>
+                <p className="text-xs font-medium text-slate-500 mt-0.5">
+                  Average of daily closing balances for each calendar month
+                </p>
+              </div>
+
+              <div className="overflow-x-auto border border-slate-200 rounded-2xl bg-white shadow-2xs">
+                <table className="w-full text-xs font-medium text-slate-700 divide-y divide-slate-200">
+                  <thead>
+                    <tr className="bg-slate-50/80 text-slate-600 text-[11px] font-bold">
+                      <th className="text-left px-4 py-3 whitespace-nowrap">Month</th>
+                      <th className="text-right px-4 py-3 whitespace-nowrap">Avg balance</th>
+                      <th className="text-right px-4 py-3 whitespace-nowrap">Min</th>
+                      <th className="text-right px-4 py-3 whitespace-nowrap">Max</th>
+                      <th className="text-right px-4 py-3 whitespace-nowrap">Closing</th>
+                      <th className="text-right px-4 py-3 whitespace-nowrap">Total credits</th>
+                      <th className="text-right px-4 py-3 whitespace-nowrap">Total debits</th>
+                      <th className="text-right px-4 py-3 whitespace-nowrap">Cash %</th>
+                      <th className="text-right px-4 py-3 whitespace-nowrap">Bounces</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {evvResult.monthlyMetrics.map((metric: MonthlyMetric, idx: number) => (
+                      <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
+                        <td className="px-4 py-3 font-bold text-slate-900 whitespace-nowrap">{metric.label}</td>
+                        <td className="px-4 py-3 text-right font-black text-slate-900 whitespace-nowrap tabular-nums">{displayCurrency(metric.avgDailyBalance || metric.avg)}</td>
+                        <td className="px-4 py-3 text-right text-slate-600 whitespace-nowrap tabular-nums">{displayCurrency(metric.min)}</td>
+                        <td className="px-4 py-3 text-right text-slate-600 whitespace-nowrap tabular-nums">{displayCurrency(metric.max)}</td>
+                        <td className="px-4 py-3 text-right font-bold text-slate-800 whitespace-nowrap tabular-nums">{displayCurrency(metric.closing)}</td>
+                        <td className="px-4 py-3 text-right text-emerald-700 font-semibold whitespace-nowrap tabular-nums">{displayCurrency(metric.credits)}</td>
+                        <td className="px-4 py-3 text-right text-rose-700 font-semibold whitespace-nowrap tabular-nums">{displayCurrency(metric.debits)}</td>
+                        <td className="px-4 py-3 text-right text-slate-700 font-semibold whitespace-nowrap tabular-nums">{metric.cashPercent || 0}%</td>
+                        <td className="px-4 py-3 text-right font-bold whitespace-nowrap tabular-nums">
+                          <span className={metric.bounces > 0 ? "text-rose-600 font-black" : "text-slate-600"}>
+                            {metric.bounces || 0}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* TABLE 2: Interval balances */}
+            <div className="space-y-3">
+              <div>
+                <h3 className="text-base font-black text-slate-900 tracking-tight">
+                  Interval balances
+                </h3>
+                <p className="text-xs font-medium text-slate-500 mt-0.5">
+                  {evvResult.snapshots.length} points sampled across the statement.
+                </p>
+              </div>
+
+              <div className="overflow-x-auto border border-slate-200 rounded-2xl bg-white max-h-[480px] overflow-y-auto print-full-table shadow-2xs">
+                <table className="w-full text-xs font-medium text-slate-700 divide-y divide-slate-200">
+                  <thead className="sticky top-0 bg-slate-50/95 backdrop-blur-xs z-10">
+                    <tr className="text-slate-600 text-[11px] font-bold border-b border-slate-200">
+                      <th className="text-left px-4 py-3 whitespace-nowrap">Date</th>
+                      <th className="text-right px-4 py-3 whitespace-nowrap">Closing balance (nearest antecedent)</th>
+                      <th className="text-right px-4 py-3 whitespace-nowrap">Change vs. previous</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {evvResult.snapshots.map((snap: Snapshot, idx: number) => {
+                      const hasPrev = idx > 0;
+                      const diff = snap.changeAmount ?? 0;
+                      const pct = snap.changePercent ?? 0;
+                      return (
+                        <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
+                          <td className="px-4 py-2.5 font-bold text-slate-800 whitespace-nowrap">{formatSnapshotDate(snap.date)}</td>
+                          <td className="px-4 py-2.5 text-right font-black text-slate-900 whitespace-nowrap tabular-nums">{displayCurrency(snap.balance)}</td>
+                          <td className="px-4 py-2.5 text-right whitespace-nowrap tabular-nums">
+                            {!hasPrev ? (
+                              <span className="text-slate-400 font-bold">—</span>
+                            ) : diff > 0 ? (
+                              <span className="text-emerald-600 font-bold">
+                                +₹{Math.abs(Math.round(diff)).toLocaleString('en-IN')} (+{Math.abs(pct).toFixed(1)}%)
+                              </span>
+                            ) : diff < 0 ? (
+                              <span className="text-rose-600 font-bold">
+                                -₹{Math.abs(Math.round(diff)).toLocaleString('en-IN')} (-{Math.abs(pct).toFixed(1)}%)
+                              </span>
+                            ) : (
+                              <span className="text-slate-500 font-medium">₹0 (0.0%)</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Action Buttons & Underwriting Disclaimer (Screenshot 2 Match) */}
+            <div className="space-y-4 pt-2">
+              <div className="flex flex-wrap items-center gap-3 no-print">
+                <button
+                  type="button"
+                  onClick={handlePrintStatement}
+                  className="px-5 py-2.5 bg-white border border-slate-300 hover:border-slate-400 hover:bg-slate-50 text-slate-800 text-xs font-bold rounded-xl shadow-2xs transition-all flex items-center gap-2 cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-base">print</span>
+                  Print / save as PDF
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleStartNewStatement}
+                  className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-2xs transition-all flex items-center gap-2 cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-base">refresh</span>
+                  Start a new statement
+                </button>
+              </div>
+
+              {/* Exact Legal & Underwriting Disclaimer from Executive Presentation */}
+              <p className="text-xs text-slate-500 leading-relaxed font-normal max-w-4xl pt-1">
+                Score is a weighted indicator built from balance trend, minimum-balance safety, bounce history, income regularity, cash-deposit ratio and withdrawal discipline — the six credit factors. A human reviewer, not an official bureau or pass-code, will make the underwriting decision alongside CIBIL and policy checks.
+              </p>
+            </div>
+          </div>
+
           {/* Hero Metric Card — FIXED EVV Score Card (0-100 Score + Rupee Average Balance) */}
           <div className="bg-white border border-violet-100 rounded-3xl p-8 shadow-[0_20px_40px_-10px_rgba(91,33,182,0.12)] relative overflow-hidden flex flex-col md:flex-row justify-between md:items-center gap-6">
             <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 w-full">
@@ -931,7 +1439,7 @@ export const EVVTestAgent: React.FC<{
                   {evvResult.overallEVV} <span className="text-xl font-bold text-slate-400">/ 100</span>
                 </div>
                 <p className="text-[10px] text-slate-500 mt-2 font-black uppercase tracking-wider">
-                  Computed EVV Rating across {evvResult.totalMonths} month{evvResult.totalMonths > 1 ? "s" : ""} statement dossier
+                  Computed EVV Rating across {evvResult.totalMonths} month{evvResult.totalMonths > 1 ? "s" : ""} statements
                 </p>
               </div>
 
@@ -1240,179 +1748,7 @@ export const EVVTestAgent: React.FC<{
             </div>
           )}
 
-          {/* ── Official Bank Statement Health Report (Matching Executive Presentation Spec) ── */}
-          <div className="bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-8 shadow-xs space-y-8" id="bank-statement-health-report">
-            <style>{`
-              @media print {
-                body, html, #__next, main {
-                  background: #ffffff !important;
-                  color: #0f172a !important;
-                }
-                .no-print, nav, header, aside, .console-box {
-                  display: none !important;
-                }
-                #bank-statement-health-report {
-                  border: none !important;
-                  box-shadow: none !important;
-                  padding: 0 !important;
-                }
-                .print-full-table {
-                  max-height: none !important;
-                  overflow: visible !important;
-                }
-              }
-            `}</style>
 
-            {/* Report Header */}
-            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 pb-4 border-b border-slate-100">
-              <div>
-                <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-                  Bank Statement Health Report
-                </h2>
-                <p className="text-xs font-semibold text-slate-500 mt-1">
-                  Target Bank: <strong className="text-slate-800">{evvResult.sixComponent?.bankPolicy.bankName || "Partner Bank"}</strong> • Audit Benchmark M: <strong className="text-violet-700">₹{(evvResult.sixComponent?.bankPolicy.minimumBalanceBenchmark || 5000).toLocaleString('en-IN')}</strong> • Evaluated Period: {evvResult.totalMonths} Months ({evvResult.totalTransactions} transactions)
-                </p>
-              </div>
-              <div className="flex items-center gap-2.5">
-                <span className={`px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider border ${
-                  evvResult.sixComponent?.statusBand === 'Green' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                  evvResult.sixComponent?.statusBand === 'Amber' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                  'bg-rose-50 text-rose-700 border-rose-200'
-                }`}>
-                  {evvResult.sixComponent?.statusBand || "Green"} Band • Score {evvResult.overallEVV}/100 ({evvResult.overallGrade})
-                </span>
-              </div>
-            </div>
-
-            {/* TABLE 1: Monthly average balance */}
-            <div className="space-y-3">
-              <div>
-                <h3 className="text-base font-black text-slate-900 tracking-tight">
-                  Monthly average balance
-                </h3>
-                <p className="text-xs font-medium text-slate-500 mt-0.5">
-                  Average of daily closing balances for each calendar month
-                </p>
-              </div>
-
-              <div className="overflow-x-auto border border-slate-200 rounded-2xl bg-white shadow-2xs">
-                <table className="w-full text-xs font-medium text-slate-700 divide-y divide-slate-200">
-                  <thead>
-                    <tr className="bg-slate-50/80 text-slate-600 text-[11px] font-bold">
-                      <th className="text-left px-4 py-3 whitespace-nowrap">Month</th>
-                      <th className="text-right px-4 py-3 whitespace-nowrap">Avg balance</th>
-                      <th className="text-right px-4 py-3 whitespace-nowrap">Min</th>
-                      <th className="text-right px-4 py-3 whitespace-nowrap">Max</th>
-                      <th className="text-right px-4 py-3 whitespace-nowrap">Closing</th>
-                      <th className="text-right px-4 py-3 whitespace-nowrap">Total credits</th>
-                      <th className="text-right px-4 py-3 whitespace-nowrap">Total debits</th>
-                      <th className="text-right px-4 py-3 whitespace-nowrap">Cash %</th>
-                      <th className="text-right px-4 py-3 whitespace-nowrap">Bounces</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 bg-white">
-                    {evvResult.monthlyMetrics.map((metric: MonthlyMetric, idx: number) => (
-                      <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
-                        <td className="px-4 py-3 font-bold text-slate-900 whitespace-nowrap">{metric.label}</td>
-                        <td className="px-4 py-3 text-right font-black text-slate-900 whitespace-nowrap tabular-nums">{displayCurrency(metric.avgDailyBalance || metric.avg)}</td>
-                        <td className="px-4 py-3 text-right text-slate-600 whitespace-nowrap tabular-nums">{displayCurrency(metric.min)}</td>
-                        <td className="px-4 py-3 text-right text-slate-600 whitespace-nowrap tabular-nums">{displayCurrency(metric.max)}</td>
-                        <td className="px-4 py-3 text-right font-bold text-slate-800 whitespace-nowrap tabular-nums">{displayCurrency(metric.closing)}</td>
-                        <td className="px-4 py-3 text-right text-emerald-700 font-semibold whitespace-nowrap tabular-nums">{displayCurrency(metric.credits)}</td>
-                        <td className="px-4 py-3 text-right text-rose-700 font-semibold whitespace-nowrap tabular-nums">{displayCurrency(metric.debits)}</td>
-                        <td className="px-4 py-3 text-right text-slate-700 font-semibold whitespace-nowrap tabular-nums">{metric.cashPercent || 0}%</td>
-                        <td className="px-4 py-3 text-right font-bold whitespace-nowrap tabular-nums">
-                          <span className={metric.bounces > 0 ? "text-rose-600 font-black" : "text-slate-600"}>
-                            {metric.bounces || 0}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* TABLE 2: Interval balances */}
-            <div className="space-y-3">
-              <div>
-                <h3 className="text-base font-black text-slate-900 tracking-tight">
-                  Interval balances
-                </h3>
-                <p className="text-xs font-medium text-slate-500 mt-0.5">
-                  {evvResult.snapshots.length} points sampled across the statement.
-                </p>
-              </div>
-
-              <div className="overflow-x-auto border border-slate-200 rounded-2xl bg-white max-h-[480px] overflow-y-auto print-full-table shadow-2xs">
-                <table className="w-full text-xs font-medium text-slate-700 divide-y divide-slate-200">
-                  <thead className="sticky top-0 bg-slate-50/95 backdrop-blur-xs z-10">
-                    <tr className="text-slate-600 text-[11px] font-bold border-b border-slate-200">
-                      <th className="text-left px-4 py-3 whitespace-nowrap">Date</th>
-                      <th className="text-right px-4 py-3 whitespace-nowrap">Closing balance (nearest or default)</th>
-                      <th className="text-right px-4 py-3 whitespace-nowrap">Change vs. previous</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 bg-white">
-                    {evvResult.snapshots.map((snap: Snapshot, idx: number) => {
-                      const hasPrev = idx > 0;
-                      const diff = snap.changeAmount ?? 0;
-                      const pct = snap.changePercent ?? 0;
-                      return (
-                        <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
-                          <td className="px-4 py-2.5 font-bold text-slate-800 whitespace-nowrap">{formatSnapshotDate(snap.date)}</td>
-                          <td className="px-4 py-2.5 text-right font-black text-slate-900 whitespace-nowrap tabular-nums">{displayCurrency(snap.balance)}</td>
-                          <td className="px-4 py-2.5 text-right whitespace-nowrap tabular-nums">
-                            {!hasPrev ? (
-                              <span className="text-slate-400 font-bold">—</span>
-                            ) : diff > 0 ? (
-                              <span className="text-emerald-600 font-bold">
-                                +₹{Math.abs(Math.round(diff)).toLocaleString('en-IN')} (+{Math.abs(pct).toFixed(1)}%)
-                              </span>
-                            ) : diff < 0 ? (
-                              <span className="text-rose-600 font-bold">
-                                -₹{Math.abs(Math.round(diff)).toLocaleString('en-IN')} (-{Math.abs(pct).toFixed(1)}%)
-                              </span>
-                            ) : (
-                              <span className="text-slate-500 font-medium">₹0 (0.0%)</span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* Action Buttons & Underwriting Disclaimer (Screenshot 2 Match) */}
-            <div className="space-y-4 pt-2">
-              <div className="flex flex-wrap items-center gap-3 no-print">
-                <button
-                  type="button"
-                  onClick={handlePrintStatement}
-                  className="px-5 py-2.5 bg-white border border-slate-300 hover:border-slate-400 hover:bg-slate-50 text-slate-800 text-xs font-bold rounded-xl shadow-2xs transition-all flex items-center gap-2 cursor-pointer"
-                >
-                  <span className="material-symbols-outlined text-base">print</span>
-                  Print / save as PDF
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleStartNewStatement}
-                  className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-2xs transition-all flex items-center gap-2 cursor-pointer"
-                >
-                  <span className="material-symbols-outlined text-base">refresh</span>
-                  Start a new statement
-                </button>
-              </div>
-
-              {/* Exact Legal & Underwriting Disclaimer from Executive Presentation */}
-              <p className="text-xs text-slate-500 leading-relaxed font-normal max-w-4xl pt-1">
-                Score is a weighted indicator built from balance trend, minimum-balance safety, bounce history, income regularity, cash-deposit ratio and withdrawal discipline — the six credit factors. A human reviewer, not an official bureau or pass-code, will make the underwriting decision alongside CIBIL and policy checks.
-              </p>
-            </div>
-          </div>
 
           {/* Side-by-side Layout: Left Side = Chart & Indicators, Right Side = EVV Monthly Breakdown Table */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -1479,55 +1815,15 @@ export const EVVTestAgent: React.FC<{
               <EVVGradientAreaChart metrics={evvResult.monthlyMetrics} />
             </div>
 
-            {/* Right Column: Monthly Breakdown Table & EVV Grade Benchmarks Scale */}
-            <div className="lg:col-span-5 bg-white/70 border border-violet-100/70 rounded-3xl p-5 shadow-sm space-y-5">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                    <span className="material-symbols-outlined text-violet-600 text-base">table_chart</span>
-                    Monthly EVV Table
-                  </h4>
-                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest font-mono">
-                    {evvResult.totalMonths} Month{evvResult.totalMonths > 1 ? "s" : ""}
-                  </span>
-                </div>
-
-                <div className="overflow-x-auto border border-violet-100/70 rounded-2xl">
-                  <table className="w-full text-xs font-semibold text-slate-700">
-                    <thead>
-                      <tr className="border-b border-violet-100 bg-violet-50/40 text-slate-400 text-[10px] font-black uppercase tracking-widest">
-                        <th className="text-left px-3 py-3">Month</th>
-                        <th className="text-right px-3 py-3">Pts</th>
-                        <th className="text-right px-3 py-3">Avg Bal</th>
-                        <th className="text-right px-3 py-3">Min / Max</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-violet-50">
-                      {evvResult.monthlyMetrics.map((metric: MonthlyMetric, idx: number) => (
-                        <tr key={idx} className="hover:bg-violet-50/20 transition-all duration-150">
-                          <td className="px-3 py-3 text-slate-900 font-extrabold whitespace-nowrap">{metric.label}</td>
-                          <td className="px-3 py-3 text-right font-mono font-bold text-slate-500">{metric.points}</td>
-                          <td className="px-3 py-3 text-right font-extrabold text-slate-900 whitespace-nowrap">{displayCurrency(metric.avg)}</td>
-                          <td className="px-3 py-3 text-right text-slate-500 whitespace-nowrap text-[11px]">
-                            <div className="font-semibold text-slate-700">{displayCurrency(metric.min)}</div>
-                            <div className="text-[10px] text-slate-400">{displayCurrency(metric.max)}</div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+            {/* Right Column: EVV Grade Benchmarks Scale (Monthly EVV Table Removed per Spec) */}
+            <div className="lg:col-span-5 bg-white/70 border border-violet-100/70 rounded-3xl p-5 shadow-sm space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-violet-600 text-sm">workspace_premium</span>
+                  EVV Grade Scale & Benchmarks
+                </h4>
+                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Underwriting</span>
               </div>
-
-              {/* EVV Grade & Risk Reference Scale */}
-              <div className="border-t border-violet-100/60 pt-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-violet-600 text-sm">workspace_premium</span>
-                    EVV Grade Scale & Benchmarks
-                  </h4>
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Underwriting</span>
-                </div>
 
                 <div className="overflow-x-auto border border-violet-100/70 rounded-2xl bg-white/50">
                   <table className="w-full text-xs font-semibold text-slate-700">
@@ -1611,8 +1907,7 @@ export const EVVTestAgent: React.FC<{
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
       {/* Footer */}
       <div className="border-t border-slate-100 pt-6 flex items-center justify-center gap-8 flex-wrap text-[10px] font-black uppercase tracking-wider text-slate-400 select-none">

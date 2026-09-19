@@ -145,10 +145,10 @@ function getDocScope(docType: string): { label: string; color: string; icon: str
 function statusConfig(status: string, isUploaded: boolean) {
     if (!isUploaded) {
         return {
-            label: "Not Uploaded",
-            className: "bg-slate-100 text-slate-600 border-slate-200",
-            icon: "upload_file",
-            iconColor: "text-slate-400",
+            label: "Required",
+            className: "bg-red-50 text-red-600 border-red-100",
+            icon: "priority_high",
+            iconColor: "text-red-500",
         };
     }
     const s = (status || "").toLowerCase();
@@ -171,7 +171,7 @@ function statusConfig(status: string, isUploaded: boolean) {
             label: "Pending Review",
             className: "bg-amber-50 text-amber-700 border-amber-200",
             icon: "schedule",
-            iconColor: "text-amber-500",
+            iconColor: "text-amber-600",
         };
     }
 }
@@ -182,6 +182,9 @@ export default function DocumentsTab() {
     const [filterStatus, setFilterStatus] = useState<"all" | "pending" | "approved" | "rejected">("all");
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [previewName, setPreviewName] = useState<string>("");
+    const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+    const [directUploadingDocId, setDirectUploadingDocId] = useState<string | null>(null);
+    const [draggingDocType, setDraggingDocType] = useState<string | null>(null);
 
     // Upload modal state
     const [isUploadOpen, setIsUploadOpen] = useState(false);
@@ -197,6 +200,21 @@ export default function DocumentsTab() {
     const [rejectDoc, setRejectDoc] = useState<any | null>(null);
     const [rejectReason, setRejectReason] = useState("");
     const [actionLoading, setActionLoading] = useState<string | null>(null); // docId being actioned
+
+    // Direct upload handler for interactive dropzones
+    const handleDirectUpload = async (docType: string, file: File, docName?: string) => {
+        if (!file) return;
+        setDirectUploadingDocId(docType);
+        try {
+            await documentApi.upload(userId, docType, file);
+            await refreshData();
+        } catch (err: any) {
+            console.error("Direct upload error:", err);
+            alert(err?.response?.data?.message || err?.message || "Failed to upload document");
+        } finally {
+            setDirectUploadingDocId(null);
+        }
+    };
 
     // Combine standard requirements (student + parents + coapplicant) with uploaded documents
     const allDocuments = useMemo(() => {
@@ -490,87 +508,118 @@ export default function DocumentsTab() {
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <h2 className="text-xl font-black text-slate-900 tracking-tight" style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>
-                        Documents Dossier
+                    <h2 className="text-xl font-bold text-slate-900 tracking-tight">
+                        Documents
                     </h2>
-                    <p className="text-xs text-slate-500 mt-1 font-semibold">
-                        Student, Parents & Co-Applicant required documents for loan processing
+                    <p className="text-xs text-slate-500 mt-1 font-normal">
+                        Student, Parents &amp; Co-Applicant required documents for loan verification
                     </p>
                 </div>
                 <button
                     onClick={() => openUploadModal()}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-[#6605c7] to-[#8b24e5] hover:opacity-90 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md hover:shadow-purple-500/20 active:scale-95 cursor-pointer border-0"
+                    className="flex items-center gap-2 px-4 py-2.5 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-semibold transition-all shadow-sm cursor-pointer border-0"
                 >
                     <span className="material-symbols-outlined text-[16px]">upload_file</span>
-                    Upload Document
+                    <span>Upload Document</span>
                 </button>
             </div>
 
             {/* Stats Row */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 {[
-                    { label: "Total Documents", value: stats.total, icon: "folder", color: "from-indigo-500/10 to-indigo-500/5", text: "text-indigo-600" },
-                    { label: "Verified", value: stats.verified, icon: "verified", color: "from-emerald-500/10 to-emerald-500/5", text: "text-emerald-600" },
-                    { label: "Pending / Required", value: stats.pending, icon: "schedule", color: "from-amber-500/10 to-amber-500/5", text: "text-amber-600" },
-                    { label: "Rejected", value: stats.rejected, icon: "block", color: "from-rose-500/10 to-rose-500/5", text: "text-rose-600" },
+                    { label: "Total Documents", value: stats.total, icon: "folder", bg: "bg-slate-100 text-slate-600" },
+                    { label: "Verified", value: stats.verified, icon: "verified", bg: "bg-emerald-50 text-emerald-600" },
+                    { label: "Required / Pending", value: stats.pending, icon: "schedule", bg: "bg-amber-50 text-amber-600" },
+                    { label: "Rejected", value: stats.rejected, icon: "block", bg: "bg-rose-50 text-rose-600" },
                 ].map((stat, i) => (
-                    <div key={i} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex items-center gap-4">
-                        <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${stat.color} flex items-center justify-center flex-shrink-0`}>
-                            <span className={`material-symbols-outlined text-[22px] ${stat.text}`}>{stat.icon}</span>
+                    <div key={i} className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex items-center gap-3.5">
+                        <div className={`w-10 h-10 rounded-lg ${stat.bg} flex items-center justify-center shrink-0`}>
+                            <span className="material-symbols-outlined text-[20px]">{stat.icon}</span>
                         </div>
                         <div>
-                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">{stat.label}</p>
-                            <p className="text-2xl font-extrabold text-slate-900">{stat.value}</p>
+                            <p className="text-[11px] font-medium text-slate-500">{stat.label}</p>
+                            <p className="text-xl font-bold text-slate-900 mt-0.5">{stat.value}</p>
                         </div>
                     </div>
                 ))}
             </div>
 
-            {/* Search & Status Filters */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                <div className="relative flex-1 max-w-xs">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-[18px] text-slate-400">search</span>
-                    <input
-                        type="text"
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Search document name..."
-                        className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#6605c7]/20 focus:border-[#6605c7] transition-all placeholder:text-slate-400"
-                    />
+            {/* Search, Status Filters & View Switcher */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
+                    <div className="relative flex-1 max-w-xs">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-[18px] text-slate-400">search</span>
+                        <input
+                            type="text"
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder="Search document name..."
+                            className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600 transition-all placeholder:text-slate-400"
+                        />
+                    </div>
+
+                    <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/60">
+                        {(["all", "pending", "approved", "rejected"] as const).map((f) => (
+                            <button
+                                key={f}
+                                onClick={() => setFilterStatus(f)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border-0 ${
+                                    filterStatus === f
+                                        ? "bg-white text-purple-700 shadow-xs font-bold"
+                                        : "text-slate-500 hover:text-slate-800 hover:bg-white/50"
+                                }`}
+                            >
+                                {f === "all" ? "All" : f === "approved" ? "Verified" : f === "pending" ? "Required / Pending" : "Rejected"}
+                            </button>
+                        ))}
+                    </div>
                 </div>
 
-                <div className="flex items-center gap-1.5 bg-slate-100/70 p-1 rounded-xl border border-slate-200/60">
-                    {(["all", "pending", "approved", "rejected"] as const).map((f) => (
-                        <button
-                            key={f}
-                            onClick={() => setFilterStatus(f)}
-                            className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer border-0 ${
-                                filterStatus === f
-                                    ? "bg-white text-[#6605c7] shadow-sm font-black"
-                                    : "text-slate-500 hover:text-slate-800 hover:bg-white/50 font-bold"
-                            }`}
-                        >
-                            {f === "all" ? "All Status" : f === "approved" ? "Verified" : f === "pending" ? "Pending" : "Rejected"}
-                        </button>
-                    ))}
+                {/* Grid / List View Switcher */}
+                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/60 shrink-0">
+                    <button
+                        onClick={() => setViewMode("grid")}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer border-0 ${
+                            viewMode === "grid"
+                                ? "bg-white text-purple-700 shadow-xs font-bold"
+                                : "text-slate-500 hover:text-slate-800"
+                        }`}
+                        title="Interactive Card Grid"
+                    >
+                        <span className="material-symbols-outlined text-[16px]">grid_view</span>
+                        <span>Grid</span>
+                    </button>
+                    <button
+                        onClick={() => setViewMode("list")}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer border-0 ${
+                            viewMode === "list"
+                                ? "bg-white text-purple-700 shadow-xs font-bold"
+                                : "text-slate-500 hover:text-slate-800"
+                        }`}
+                        title="Compact Administrative List"
+                    >
+                        <span className="material-symbols-outlined text-[16px]">view_list</span>
+                        <span>List</span>
+                    </button>
                 </div>
             </div>
 
-            {/* Documents Grid */}
+            {/* Documents Container */}
             {filtered.length === 0 ? (
-                <div className="bg-white/60 border border-white/80 rounded-2xl p-12 flex flex-col items-center justify-center text-center shadow-sm">
-                    <div className="w-16 h-16 rounded-2xl bg-[#6605c7]/5 border border-[#6605c7]/10 flex items-center justify-center mb-4">
-                        <span className="material-symbols-outlined text-[32px] text-[#6605c7]/40">folder_off</span>
+                <div className="bg-white border border-slate-200 rounded-xl p-12 flex flex-col items-center justify-center text-center shadow-sm">
+                    <div className="w-14 h-14 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center mb-3 text-slate-400">
+                        <span className="material-symbols-outlined text-[28px]">folder_off</span>
                     </div>
-                    <h3 className="text-sm font-black text-slate-700 uppercase tracking-wide">
+                    <h3 className="text-sm font-bold text-slate-800">
                         No Documents Found
                     </h3>
-                    <p className="text-xs text-slate-400 font-semibold mt-2 max-w-xs">
-                        No documents match your current filter criteria.
+                    <p className="text-xs text-slate-500 font-normal mt-1 max-w-xs">
+                        No documents match your current search or filter criteria.
                     </p>
                 </div>
-            ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            ) : viewMode === "grid" ? (
+                /* ── 1. The 'Interactive Dropzone' Card Grid Model ── */
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {filtered.map((doc: any, idx: number) => {
                         const isUploaded = Boolean(doc.uploaded || doc.filePath);
                         const status = (doc.status || "pending").toLowerCase();
@@ -583,150 +632,336 @@ export default function DocumentsTab() {
                         const uploadDate = doc.createdAt || doc.uploadedAt || doc.created_at;
                         const docId = doc.id || doc._id || doc.docType;
                         const isActioning = actionLoading === docId;
+                        const isUploadingThis = directUploadingDocId === doc.docType;
+                        const isDraggingThis = draggingDocType === doc.docType;
 
                         return (
                             <motion.div
                                 key={docId || idx}
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: idx * 0.03 }}
-                                className={`bg-white border rounded-2xl shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden group flex flex-col justify-between ${
-                                    !isUploaded ? "border-dashed border-slate-200 bg-slate-50/40" : "border-slate-100"
-                                }`}
+                                transition={{ delay: idx * 0.02 }}
+                                className="bg-white border border-slate-200 shadow-sm rounded-xl p-5 hover:border-slate-300 transition-all duration-200 flex flex-col justify-between group"
                             >
                                 <div>
-                                    {/* Document preview thumbnail area */}
-                                    <div className="relative h-36 bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center border-b border-slate-100">
-                                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 p-4 text-center">
-                                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                                                isUploaded ? 'bg-[#6605c7]/10 text-[#6605c7]' : 'bg-slate-200/60 text-slate-400'
-                                            }`}>
-                                                <span className="material-symbols-outlined text-[28px]">
-                                                    {isUploaded ? 'description' : 'upload_file'}
+                                    {/* Header (Top) */}
+                                    <div className="flex items-start justify-between gap-3 mb-3">
+                                        <div className="space-y-1.5 flex-1 min-w-0">
+                                            {/* Document Name at top left in strong, dark gray font */}
+                                            <h4 className="text-slate-800 font-semibold text-sm leading-snug line-clamp-1" title={docLabel}>
+                                                {docLabel}
+                                            </h4>
+                                            {/* Single Status Badge below document name */}
+                                            <div>
+                                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold border ${className}`}>
+                                                    <span className={`material-symbols-outlined text-[13px] ${iconColor}`}>{icon}</span>
+                                                    {label}
                                                 </span>
                                             </div>
-                                            <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 truncate max-w-full">
-                                                {isUploaded ? 'Click view to preview' : 'Not Uploaded'}
-                                            </span>
                                         </div>
 
-                                        {/* Hover overlay for uploaded items */}
-                                        {isUploaded && (
-                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                        {/* Category Tag (Top Right): Subtle text label with small icon */}
+                                        <div className="text-slate-400 text-xs font-medium flex items-center gap-1 shrink-0 pt-0.5" title={scopeInfo.label}>
+                                            <span className="material-symbols-outlined text-[15px]">{scopeInfo.icon}</span>
+                                            <span>{scopeInfo.label}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Action Area (Middle) */}
+                                    {!isUploaded ? (
+                                        /* Unuploaded: Interactive Dashed Dropzone */
+                                        <label
+                                            onDragOver={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                setDraggingDocType(doc.docType);
+                                            }}
+                                            onDragLeave={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                setDraggingDocType(null);
+                                            }}
+                                            onDrop={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                setDraggingDocType(null);
+                                                const file = e.dataTransfer.files?.[0];
+                                                if (file) handleDirectUpload(doc.docType, file, docLabel);
+                                            }}
+                                            className={`border-dashed border-2 rounded-lg p-6 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 block ${
+                                                isDraggingThis
+                                                    ? "border-purple-500 bg-purple-50"
+                                                    : "border-slate-300 bg-slate-50 hover:border-purple-500 hover:bg-purple-50/40"
+                                            }`}
+                                        >
+                                            <input
+                                                type="file"
+                                                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                                                className="hidden"
+                                                onChange={(e) => {
+                                                    const file = e.target.files?.[0];
+                                                    if (file) handleDirectUpload(doc.docType, file, docLabel);
+                                                }}
+                                            />
+
+                                            {isUploadingThis ? (
+                                                <div className="flex flex-col items-center justify-center py-2">
+                                                    <span className="w-6 h-6 border-2 border-purple-600 border-t-transparent rounded-full animate-spin mb-2" />
+                                                    <span className="text-xs font-medium text-slate-700">Uploading {docLabel}...</span>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <span className="material-symbols-outlined text-[32px] text-purple-500 mb-1.5 transition-transform group-hover:scale-105">
+                                                        cloud_upload
+                                                    </span>
+                                                    <p className="text-xs font-medium text-slate-700">Drag &amp; drop file here</p>
+                                                    <span className="text-[11px] font-semibold text-purple-600 hover:text-purple-700 hover:underline mt-0.5">
+                                                        or click to browse
+                                                    </span>
+                                                </>
+                                            )}
+                                        </label>
+                                    ) : (
+                                        /* Uploaded Document Info Card */
+                                        <div className="space-y-2.5">
+                                            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 flex items-center justify-between gap-3">
+                                                <div className="flex items-center gap-2.5 min-w-0">
+                                                    <div className="w-8 h-8 rounded-lg bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-600 shrink-0">
+                                                        <span className="material-symbols-outlined text-[18px]">description</span>
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <p className="text-xs font-semibold text-slate-800 truncate" title={doc.fileName || docLabel}>
+                                                            {doc.fileName || doc.originalName || `${docLabel}.pdf`}
+                                                        </p>
+                                                        {uploadDate && (
+                                                            <p className="text-[10px] text-slate-500">
+                                                                Uploaded {new Date(uploadDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </div>
+
                                                 <button
                                                     onClick={() => handleView(doc)}
-                                                    className="px-4 py-2 bg-white text-slate-800 rounded-xl text-[10px] font-black uppercase tracking-wider shadow-lg hover:bg-[#6605c7] hover:text-white transition-all cursor-pointer border-0 flex items-center gap-1.5"
+                                                    className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-medium flex items-center gap-1 transition-colors cursor-pointer shrink-0"
+                                                    title="Preview Document"
                                                 >
                                                     <span className="material-symbols-outlined text-[14px]">visibility</span>
-                                                    View
+                                                    <span>View</span>
+                                                </button>
+                                            </div>
+
+                                            {/* Rejection reason callout if rejected */}
+                                            {isRejected && doc.rejectionReason && (
+                                                <div className="p-2.5 bg-rose-50 rounded-lg border border-rose-100">
+                                                    <p className="text-[10px] font-bold text-rose-600 uppercase tracking-wider mb-0.5">Rejection Reason</p>
+                                                    <p className="text-xs font-medium text-rose-700">{doc.rejectionReason}</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Actions Footer (for Uploaded Documents) */}
+                                {isUploaded && (
+                                    <div className="pt-3 mt-3 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+                                        <div className="flex items-center gap-2">
+                                            <a
+                                                href={`/api/documents/view/${userId}/${doc.docType}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800 transition-colors"
+                                                title="Open in new tab"
+                                            >
+                                                <span className="material-symbols-outlined text-[14px]">open_in_new</span>
+                                                <span>Tab</span>
+                                            </a>
+
+                                            <label className="inline-flex items-center gap-1 text-xs text-purple-600 hover:text-purple-800 transition-colors cursor-pointer">
+                                                <span className="material-symbols-outlined text-[14px]">swap_horiz</span>
+                                                <span>Replace</span>
+                                                <input
+                                                    type="file"
+                                                    accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                                                    className="hidden"
+                                                    onChange={(e) => {
+                                                        const file = e.target.files?.[0];
+                                                        if (file) handleDirectUpload(doc.docType, file, docLabel);
+                                                    }}
+                                                />
+                                            </label>
+                                        </div>
+
+                                        {/* Verification buttons */}
+                                        {!isVerified && !isRejected && (
+                                            <div className="flex items-center gap-1.5">
+                                                <button
+                                                    onClick={() => handleApprove(doc)}
+                                                    disabled={isActioning}
+                                                    className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-700 border border-emerald-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50"
+                                                >
+                                                    {isActioning ? (
+                                                        <span className="w-3 h-3 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+                                                    ) : (
+                                                        <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                                                    )}
+                                                    Accept
+                                                </button>
+                                                <button
+                                                    onClick={() => { setRejectDoc(doc); setRejectReason(""); }}
+                                                    disabled={isActioning}
+                                                    className="px-2.5 py-1 bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-700 border border-rose-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50"
+                                                >
+                                                    <span className="material-symbols-outlined text-[14px]">block</span>
+                                                    Reject
                                                 </button>
                                             </div>
                                         )}
                                     </div>
+                                )}
+                            </motion.div>
+                        );
+                    })}
+                </div>
+            ) : (
+                /* ── 2. The Compact Administrative List View ── */
+                <div className="space-y-2">
+                    {filtered.map((doc: any, idx: number) => {
+                        const isUploaded = Boolean(doc.uploaded || doc.filePath);
+                        const status = (doc.status || "pending").toLowerCase();
+                        const isVerified = (status === "approved" || status === "verified") && isUploaded;
+                        const isRejected = status === "rejected";
+                        const { label, className, icon, iconColor } = statusConfig(doc.status, isUploaded);
+                        const docLabel = getDocLabel(doc, userData);
+                        const scopeInfo = getDocScope(doc.docType);
+                        const uploadDate = doc.createdAt || doc.uploadedAt || doc.created_at;
+                        const docId = doc.id || doc._id || doc.docType;
+                        const isActioning = actionLoading === docId;
+                        const isUploadingThis = directUploadingDocId === doc.docType;
 
-                                    {/* Card body */}
-                                    <div className="p-4">
-                                        {/* Scope Badge */}
-                                        <div className="flex items-center justify-between gap-2 mb-2">
-                                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-wider border ${scopeInfo.color}`}>
-                                                <span className="material-symbols-outlined text-[11px]">{scopeInfo.icon}</span>
-                                                {scopeInfo.label}
-                                            </span>
-                                            <span className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-wider border ${className} flex-shrink-0`}>
-                                                <span className={`material-symbols-outlined text-[11px] ${iconColor}`}>{icon}</span>
-                                                {label}
-                                            </span>
-                                        </div>
-
-                                        <div className="mb-2">
-                                            <p className="text-[12px] font-black text-slate-800 line-clamp-2" title={docLabel}>
+                        return (
+                            <div
+                                key={docId || idx}
+                                className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs hover:border-slate-300 transition-all flex flex-col md:flex-row md:items-center justify-between gap-3 group"
+                            >
+                                {/* Left: Document Name and Category Tag */}
+                                <div className="flex items-center gap-3 min-w-0 flex-1">
+                                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                                        isUploaded ? "bg-purple-50 text-purple-600 border border-purple-100" : "bg-slate-100 text-slate-400 border border-slate-200"
+                                    }`}>
+                                        <span className="material-symbols-outlined text-[18px]">
+                                            {isUploaded ? "description" : "upload_file"}
+                                        </span>
+                                    </div>
+                                    <div className="min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <h4 className="text-slate-800 font-semibold text-sm truncate" title={docLabel}>
                                                 {docLabel}
-                                            </p>
-                                            {uploadDate && isUploaded && (
-                                                <p className="text-[9px] font-bold text-slate-400 mt-1 font-mono">
-                                                    Uploaded: {new Date(uploadDate).toLocaleDateString("en-IN", {
-                                                        day: "2-digit",
-                                                        month: "short",
-                                                        year: "numeric",
-                                                    })}
-                                                </p>
-                                            )}
-                                        </div>
-
-                                        {/* Rejection reason */}
-                                        {isRejected && doc.rejectionReason && (
-                                            <div className="mt-2 p-2 bg-rose-50 rounded-lg border border-rose-100">
-                                                <p className="text-[8px] font-black text-rose-600 uppercase tracking-wider mb-0.5">Rejection Reason</p>
-                                                <p className="text-[10px] font-semibold text-rose-700">{doc.rejectionReason}</p>
+                                            </h4>
+                                            <div className="text-slate-400 text-xs font-medium flex items-center gap-1">
+                                                <span>•</span>
+                                                <span className="material-symbols-outlined text-[13px]">{scopeInfo.icon}</span>
+                                                <span>{scopeInfo.label}</span>
                                             </div>
+                                        </div>
+                                        {isUploaded && uploadDate && (
+                                            <p className="text-[11px] text-slate-500 mt-0.5">
+                                                Uploaded {new Date(uploadDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                                                {doc.fileName && <span className="font-mono ml-1 text-slate-400">({doc.fileName})</span>}
+                                            </p>
+                                        )}
+                                        {isRejected && doc.rejectionReason && (
+                                            <p className="text-[11px] text-rose-600 font-medium mt-0.5">
+                                                Reason: {doc.rejectionReason}
+                                            </p>
                                         )}
                                     </div>
                                 </div>
 
-                                {/* Actions area */}
-                                <div className="p-4 pt-0">
+                                {/* Middle: Status Badge */}
+                                <div className="flex items-center gap-2 shrink-0 md:w-36">
+                                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold border ${className}`}>
+                                        <span className={`material-symbols-outlined text-[14px] ${iconColor}`}>{icon}</span>
+                                        {label}
+                                    </span>
+                                </div>
+
+                                {/* Right: Outlined Upload or Actions */}
+                                <div className="flex items-center gap-2 shrink-0 justify-end">
                                     {isUploaded ? (
                                         <>
-                                            {/* View / Open row */}
-                                            <div className="flex gap-2 mb-2">
-                                                <button
-                                                    onClick={() => handleView(doc)}
-                                                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-50 hover:bg-[#6605c7] hover:text-white text-slate-700 border border-slate-200 hover:border-[#6605c7] rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer border-0"
-                                                >
-                                                    <span className="material-symbols-outlined text-[13px]">visibility</span>
-                                                    View
-                                                </button>
-                                                <a
-                                                    href={`/api/documents/view/${userId}/${doc.docType}`}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-50 hover:bg-slate-700 hover:text-white text-slate-700 border border-slate-200 hover:border-slate-700 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer text-decoration-none"
-                                                    title="Open in new tab"
-                                                >
-                                                    <span className="material-symbols-outlined text-[13px]">open_in_new</span>
-                                                </a>
-                                            </div>
-
-                                            {/* Accept / Reject actions */}
-                                            <div className="flex gap-2">
-                                                {!isVerified && !isRejected && (
+                                            <button
+                                                onClick={() => handleView(doc)}
+                                                className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+                                            >
+                                                <span className="material-symbols-outlined text-[14px]">visibility</span>
+                                                <span>View</span>
+                                            </button>
+                                            <a
+                                                href={`/api/documents/view/${userId}/${doc.docType}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="p-1.5 bg-white hover:bg-slate-50 text-slate-500 hover:text-slate-800 border border-slate-200 rounded-lg text-xs transition-colors"
+                                                title="Open in new tab"
+                                            >
+                                                <span className="material-symbols-outlined text-[14px]">open_in_new</span>
+                                            </a>
+                                            <label className="px-2.5 py-1.5 bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 rounded-lg text-xs font-medium flex items-center gap-1 transition-colors cursor-pointer">
+                                                <span className="material-symbols-outlined text-[14px]">swap_horiz</span>
+                                                <span>Replace</span>
+                                                <input
+                                                    type="file"
+                                                    accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                                                    className="hidden"
+                                                    onChange={(e) => {
+                                                        const file = e.target.files?.[0];
+                                                        if (file) handleDirectUpload(doc.docType, file, docLabel);
+                                                    }}
+                                                />
+                                            </label>
+                                            {!isVerified && !isRejected && (
+                                                <>
                                                     <button
                                                         onClick={() => handleApprove(doc)}
                                                         disabled={isActioning}
-                                                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-700 border border-emerald-200 hover:border-emerald-600 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed border-0"
+                                                        className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-700 border border-emerald-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50"
                                                     >
-                                                        {isActioning ? (
-                                                            <span className="w-3 h-3 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
-                                                        ) : (
-                                                            <span className="material-symbols-outlined text-[13px]">check_circle</span>
-                                                        )}
-                                                        Accept
+                                                        <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                                                        <span>Accept</span>
                                                     </button>
-                                                )}
-                                                {!isVerified && !isRejected && (
                                                     <button
                                                         onClick={() => { setRejectDoc(doc); setRejectReason(""); }}
                                                         disabled={isActioning}
-                                                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-700 border border-rose-200 hover:border-rose-600 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed border-0"
+                                                        className="px-3 py-1.5 bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-700 border border-rose-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50"
                                                     >
-                                                        <span className="material-symbols-outlined text-[13px]">block</span>
-                                                        Reject
+                                                        <span className="material-symbols-outlined text-[14px]">block</span>
+                                                        <span>Reject</span>
                                                     </button>
-                                                )}
-                                            </div>
+                                                </>
+                                            )}
                                         </>
                                     ) : (
-                                        /* Unuploaded requirement action: Quick Upload */
-                                        <button
-                                            onClick={() => openUploadModal(doc.docType)}
-                                            className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 bg-gradient-to-r from-[#6605c7] to-[#8b24e5] hover:opacity-95 text-white rounded-xl text-[9px] font-black uppercase tracking-wider shadow-sm transition-all cursor-pointer border-0"
-                                        >
-                                            <span className="material-symbols-outlined text-[14px]">cloud_upload</span>
-                                            Upload Document
-                                        </button>
+                                        /* Clean, outlined "Upload" button (transparent background, purple border, purple text) */
+                                        <label className="inline-flex items-center gap-1.5 px-3.5 py-1.5 border border-purple-600 text-purple-700 hover:bg-purple-50 rounded-lg text-xs font-semibold cursor-pointer transition-colors">
+                                            {isUploadingThis ? (
+                                                <span className="w-3.5 h-3.5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
+                                            ) : (
+                                                <span className="material-symbols-outlined text-[16px] text-purple-600">cloud_upload</span>
+                                            )}
+                                            <span>{isUploadingThis ? "Uploading..." : "Upload"}</span>
+                                            <input
+                                                type="file"
+                                                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                                                className="hidden"
+                                                onChange={(e) => {
+                                                    const file = e.target.files?.[0];
+                                                    if (file) handleDirectUpload(doc.docType, file, docLabel);
+                                                }}
+                                            />
+                                        </label>
                                     )}
                                 </div>
-                            </motion.div>
+                            </div>
                         );
                     })}
                 </div>

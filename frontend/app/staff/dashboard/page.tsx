@@ -674,7 +674,7 @@ export default function StaffDashboardPage() {
                             {[
                                 { key: "all", label: "ALL EVENTS", icon: "select_all", color: "bg-slate-100 text-slate-700" },
                                 { key: "new", label: "REGISTRATIONS", icon: "person_add", color: "bg-emerald-50 text-emerald-700 border-emerald-100" },
-                                { key: "update", label: "DOSSIER SYNCS", icon: "sync", color: "bg-blue-50 text-blue-700 border-blue-100" },
+                                { key: "update", label: "PROFILE SYNCS", icon: "sync", color: "bg-blue-50 text-blue-700 border-blue-100" },
                                 { key: "upload", label: "UPLOADS", icon: "upload_file", color: "bg-purple-50 text-purple-700 border-purple-100" },
                                 { key: "share", label: "DISTRIBUTION", icon: "send", color: "bg-indigo-50 text-indigo-700 border-indigo-100" },
                                 { key: "approved", label: "APPROVALS", icon: "task_alt", color: "bg-emerald-50 text-emerald-700 border-emerald-100" },

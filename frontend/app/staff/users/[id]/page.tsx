@@ -129,9 +129,9 @@ export default function ProfileTab() {
         passportFullName: "",
         passportIssueDate: "",
         passportExpiryDate: "",
-        passportIssueCountry: "India",
+        passportIssueCountry: "",
         passportBirthCity: "",
-        passportBirthCountry: "India",
+        passportBirthCountry: "",
         fatherName: "",
         fatherAadhar: "",
         fatherPan: "",
@@ -465,10 +465,10 @@ export default function ProfileTab() {
     const passportNumber = parsedPassportObj.number || parsedPassportObj.passportNumber || parsedPassportObj.passport_number || parsedPassportObj.passportNo || userData?.passportNumber || userData?.passportNo || getExtractedField(passportDoc, ['passport_number', 'passportNumber', 'passport_no', 'passportNo', 'document_number']);
     const passportIssueDate = parsedPassportObj.issueDate || parsedPassportObj.passportIssueDate || parsedPassportObj.issue_date || userData?.passportIssueDate || getExtractedField(passportDoc, ['issue_date', 'date_of_issue', 'passport_issue_date']);
     const passportExpiryDate = parsedPassportObj.expiryDate || parsedPassportObj.passportExpiry || parsedPassportObj.expiry_date || parsedPassportObj.dateOfExpiry || userData?.passportExpiry || getExtractedField(passportDoc, ['date_of_expiry', 'expiry_date', 'expiration_date', 'passport_expiry']);
-    const passportIssueCountry = parsedPassportObj.issueCountry || parsedPassportObj.passportIssueCountry || parsedPassportObj.issue_country || userData?.passportIssueCountry || getExtractedField(passportDoc, ['issue_country', 'country_of_issue', 'issuing_country']) || "India";
-    const passportBirthCity = parsedPassportObj.birthCity || parsedPassportObj.placeOfBirth || parsedPassportObj.birth_city || userData?.birthCity || getExtractedField(passportDoc, ['place_of_birth', 'birth_place', 'birth_city']);
-    const passportBirthCountry = parsedPassportObj.birthCountry || parsedPassportObj.passportBirthCountry || parsedPassportObj.birth_country || parsedPassportObj.countryOfBirth || userData?.passportBirthCountry || userData?.birthCountry || getExtractedField(passportDoc, ['birth_country', 'country_of_birth']) || "India";
-    const passportFullName = parsedPassportObj.fullName || parsedPassportObj.full_name || userData?.passportOriginalName || userData?.nameAsInPassport || getExtractedField(passportDoc, ['full_name', 'fullName', 'name', 'printed_name', 'holder_name']);
+    const passportIssueCountry = parsedPassportObj.issueCountry || parsedPassportObj.passportIssueCountry || parsedPassportObj.issue_country || userData?.passportIssueCountry || getExtractedField(passportDoc, ['issue_country', 'country_of_issue', 'issuing_country']) || null;
+    const passportBirthCity = parsedPassportObj.birthCity || parsedPassportObj.placeOfBirth || parsedPassportObj.birth_city || userData?.birthCity || getExtractedField(passportDoc, ['place_of_birth', 'birth_place', 'birth_city']) || null;
+    const passportBirthCountry = parsedPassportObj.birthCountry || parsedPassportObj.passportBirthCountry || parsedPassportObj.birth_country || parsedPassportObj.countryOfBirth || userData?.passportBirthCountry || userData?.birthCountry || getExtractedField(passportDoc, ['birth_country', 'country_of_birth']) || null;
+    const passportFullName = parsedPassportObj.fullName || parsedPassportObj.full_name || userData?.passportOriginalName || userData?.nameAsInPassport || getExtractedField(passportDoc, ['full_name', 'fullName', 'name', 'printed_name', 'holder_name']) || null;
 
     const activeApp = userApplications && userApplications.length > 0 ? userApplications[0] : null;
 
@@ -612,12 +612,12 @@ export default function ProfileTab() {
             panNumber: userData?.panNumber || userData?.pan || userData?.panCardNumber || extPan || "",
             aadhaarNumber: userData?.aadhaarNumber || userData?.aadharNumber || userData?.aadhaar || userData?.aadhar || extAadhaar || "",
             passportNumber: passportNumber || "",
-            passportFullName: passportFullName || (userData?.firstName ? `${userData.firstName} ${userData.lastName || ''}`.trim() : ""),
+            passportFullName: passportFullName || "",
             passportIssueDate: passportIssueDate || "",
             passportExpiryDate: passportExpiryDate || "",
-            passportIssueCountry: passportIssueCountry || "India",
+            passportIssueCountry: passportIssueCountry || "",
             passportBirthCity: passportBirthCity || "",
-            passportBirthCountry: passportBirthCountry || "India",
+            passportBirthCountry: passportBirthCountry || "",
 
             fatherName: fatherData?.name || parsedFamily?.fatherName || userData?.fatherName || "",
             fatherAadhar: fatherData?.aadharNumber || parsedFamily?.fatherAadhar || "",
@@ -1046,7 +1046,7 @@ export default function ProfileTab() {
                         </div>
                         <div>
                             <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-widest block mb-1.5">Name as in Passport</span>
-                            <span className="text-sm font-semibold text-slate-800">{getDisplayValue(passportFullName || (userData.firstName ? `${userData.firstName} ${userData.lastName || ''}`.trim() : null))}</span>
+                            <span className="text-sm font-semibold text-slate-800">{getDisplayValue(passportFullName)}</span>
                         </div>
                         <div>
                             <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-widest block mb-1.5">Date of Issue</span>
@@ -1062,7 +1062,7 @@ export default function ProfileTab() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 pt-4 border-t border-slate-100">
                         <div>
                             <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-widest block mb-1.5">Country of Issue</span>
-                            <span className="text-sm font-semibold text-slate-800">{getDisplayValue(passportIssueCountry, "India")}</span>
+                            <span className="text-sm font-semibold text-slate-800">{getDisplayValue(passportIssueCountry)}</span>
                         </div>
                         <div>
                             <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-widest block mb-1.5">Place of Birth</span>
@@ -1070,7 +1070,7 @@ export default function ProfileTab() {
                         </div>
                         <div>
                             <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-widest block mb-1.5">Country of Birth</span>
-                            <span className="text-sm font-semibold text-slate-800">{getDisplayValue(passportBirthCountry, "India")}</span>
+                            <span className="text-sm font-semibold text-slate-800">{getDisplayValue(passportBirthCountry)}</span>
                         </div>
                         <div>
                             <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-widest block mb-1.5">Passport Vault</span>
