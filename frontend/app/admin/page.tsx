@@ -2778,10 +2778,10 @@ export default function AdminDashboardPage() {
                                                 router.push("/admin/users/agents/create");
                                             } else if (activeSection === "users_staff") {
                                                 router.push("/admin/users/staff/create");
+                                            } else if (activeSection === "users_banks") {
+                                                router.push("/admin/users/banks/create");
                                             } else {
-                                                openCreateUserModal(
-                                                    activeSection === "users_banks" ? "bank" : "user"
-                                                );
+                                                openCreateUserModal("user");
                                             }
                                         }} 
                                         className="px-3.5 py-2 bg-indigo-600 text-white rounded-lg text-xs font-semibold hover:bg-indigo-700 transition-colors shadow-sm flex items-center gap-1.5 cursor-pointer"

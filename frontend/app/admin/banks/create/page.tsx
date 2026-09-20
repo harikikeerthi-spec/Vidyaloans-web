@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { adminApi } from "@/lib/api";
+import { formatPhone, isPhoneValid } from "@/lib/validation";
 
 const sections = [
     { id: "section-identity", label: "Institution Identity", icon: "domain", num: "1" },
@@ -41,6 +42,72 @@ export default function CreateBankPage() {
     const [activeSection, setActiveSection] = useState("section-identity");
     const [featureInput, setFeatureInput] = useState("");
     const [logoUploadMode, setLogoUploadMode] = useState<"file" | "url">("file");
+
+    // Validation state
+    const [errors, setErrors] = useState<{ email?: string; contactNumber?: string }>({});
+    const [touched, setTouched] = useState<{ email?: boolean; contactNumber?: boolean }>({});
+
+    // Validation helpers
+    const isValidEmail = (email: string) => {
+        const re = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+        return re.test(email.trim()) && email.trim().length <= 100;
+    };
+
+    const validateEmailField = (email: string): string => {
+        const trimmed = email.trim();
+        if (!trimmed) return "";
+        if (/\s/.test(trimmed)) return "Official email cannot contain spaces.";
+        if (!isValidEmail(trimmed)) return "Please enter a valid email address (e.g. underwriting@bankpartner.com).";
+        return "";
+    };
+
+    const validatePhoneField = (phone: string): string => {
+        const clean = phone.replace(/\D/g, "");
+        if (!clean) return "";
+        if (clean.length > 0 && clean[0] < "6") {
+            return "Indian mobile numbers must start with 6, 7, 8, or 9.";
+        }
+        if (clean.length !== 10) {
+            return `Helpline number must be 10 digits (${clean.length}/10 entered).`;
+        }
+        if (!isPhoneValid(clean)) {
+            return "Please enter a valid, realistic Indian phone number.";
+        }
+        return "";
+    };
+
+    const handlePhoneChange = (raw: string) => {
+        let val = raw;
+        if (val.startsWith("+91")) {
+            val = val.slice(3);
+        } else if (val.startsWith("+")) {
+            val = val.slice(1);
+        }
+        let digits = val.replace(/\D/g, "");
+        if (digits.length === 12 && digits.startsWith("91")) {
+            digits = digits.slice(2);
+        } else if (digits.length === 11 && digits.startsWith("0")) {
+            digits = digits.slice(1);
+        }
+        digits = formatPhone(digits);
+
+        setForm(prev => ({ ...prev, contactNumber: digits }));
+
+        if (touched.contactNumber || digits.length === 10) {
+            setErrors(prev => ({ ...prev, contactNumber: validatePhoneField(digits) }));
+        } else if (errors.contactNumber) {
+            setErrors(prev => ({ ...prev, contactNumber: undefined }));
+        }
+    };
+
+    const handleEmailChange = (val: string) => {
+        setForm(prev => ({ ...prev, email: val }));
+        if (touched.email) {
+            setErrors(prev => ({ ...prev, email: validateEmailField(val) }));
+        } else if (errors.email) {
+            setErrors(prev => ({ ...prev, email: undefined }));
+        }
+    };
 
     const [form, setForm] = useState({
         name: "",
@@ -241,6 +308,19 @@ export default function CreateBankPage() {
             }
         }
 
+        const emailErr = form.email ? validateEmailField(form.email) : "";
+        const phoneErr = form.contactNumber ? validatePhoneField(form.contactNumber) : "";
+        if (emailErr || phoneErr) {
+            setErrors({ email: emailErr, contactNumber: phoneErr });
+            setTouched({ email: true, contactNumber: true });
+            alert(emailErr || phoneErr);
+            scrollToSection("section-uploads");
+            return;
+        }
+
+        const cleanContactDigits = form.contactNumber.replace(/\D/g, "");
+        const formattedContact = cleanContactDigits ? (cleanContactDigits.length === 10 ? `+91 ${cleanContactDigits}` : form.contactNumber.trim()) : "";
+
         const payload = {
             name: form.name.trim(),
             shortName: form.shortName.trim().toLowerCase().replace(/[^a-z0-9_-]/g, ""),
@@ -257,8 +337,8 @@ export default function CreateBankPage() {
             processingTime: form.processingTime.trim(),
             features: dynamicFeatures,
             website: form.website.trim(),
-            contactNumber: form.contactNumber.trim(),
-            email: form.email.trim(),
+            contactNumber: formattedContact,
+            email: form.email.trim().toLowerCase(),
             logoUrl: form.logoUrl.trim(),
             isPopular: form.isPopular,
             // Extended Collateral & Non-Collateral properties
@@ -1128,29 +1208,101 @@ export default function CreateBankPage() {
                                     </div>
 
                                     <div>
-                                        <label className="text-[12px] font-semibold uppercase tracking-wider text-[#64748B] block mb-1.5">
+                                        <label htmlFor="bank-underwriting-email" className="text-[12px] font-semibold uppercase tracking-wider text-[#64748B] block mb-1.5">
                                             Official Underwriting Email
                                         </label>
-                                        <input
-                                            type="email"
-                                            value={form.email}
-                                            onChange={e => setForm({ ...form, email: e.target.value })}
-                                            placeholder="underwriting@bankpartner.com"
-                                            className="w-full px-3 py-2 bg-white border border-[#E2E8F0] rounded-md text-xs font-medium text-slate-900 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 transition-all"
-                                        />
+                                        <div className="relative">
+                                            <input
+                                                id="bank-underwriting-email"
+                                                type="email"
+                                                value={form.email}
+                                                onChange={e => handleEmailChange(e.target.value)}
+                                                onBlur={() => {
+                                                    if (form.email) {
+                                                        setTouched(prev => ({ ...prev, email: true }));
+                                                        setErrors(prev => ({ ...prev, email: validateEmailField(form.email) }));
+                                                    }
+                                                }}
+                                                placeholder="underwriting@bankpartner.com"
+                                                className={`w-full px-3 py-2 bg-white border rounded-md text-xs font-medium text-slate-900 focus:outline-none transition-all ${
+                                                    errors.email
+                                                        ? "border-rose-400 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 pr-9"
+                                                        : form.email && isValidEmail(form.email)
+                                                        ? "border-emerald-400 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 pr-9"
+                                                        : "border-[#E2E8F0] focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20"
+                                                }`}
+                                            />
+                                            {form.email && (
+                                                <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none flex items-center">
+                                                    {errors.email ? (
+                                                        <span className="material-symbols-outlined text-rose-500 text-base">error</span>
+                                                    ) : isValidEmail(form.email) ? (
+                                                        <span className="material-symbols-outlined text-emerald-600 text-base">check_circle</span>
+                                                    ) : null}
+                                                </div>
+                                            )}
+                                        </div>
+                                        {errors.email && (
+                                            <p className="text-[11px] font-medium text-rose-600 mt-1.5 flex items-center gap-1">
+                                                <span className="material-symbols-outlined text-[14px]">error</span>
+                                                {errors.email}
+                                            </p>
+                                        )}
                                     </div>
 
                                     <div className="md:col-span-2">
-                                        <label className="text-[12px] font-semibold uppercase tracking-wider text-[#64748B] block mb-1.5">
-                                            Lender Helpline / Contact Number
+                                        <label htmlFor="bank-helpline-contact" className="text-[12px] font-semibold uppercase tracking-wider text-[#64748B] block mb-1.5">
+                                            Lender Helpline / Contact Number (India)
                                         </label>
-                                        <input
-                                            type="tel"
-                                            value={form.contactNumber}
-                                            onChange={e => setForm({ ...form, contactNumber: e.target.value })}
-                                            placeholder="+91 1800-XXX-XXXX"
-                                            className="w-full px-3 py-2 bg-white border border-[#E2E8F0] rounded-md text-xs font-medium text-slate-900 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 transition-all"
-                                        />
+                                        <div className="relative flex rounded-md shadow-xs">
+                                            <div className="inline-flex items-center gap-1 px-2.5 py-2 bg-slate-50 border border-r-0 border-[#E2E8F0] rounded-l-md text-slate-700 text-xs font-bold select-none shrink-0">
+                                                <span className="text-sm leading-none">🇮🇳</span>
+                                                <span>+91</span>
+                                            </div>
+                                            <input
+                                                id="bank-helpline-contact"
+                                                type="tel"
+                                                maxLength={10}
+                                                value={form.contactNumber}
+                                                onChange={e => handlePhoneChange(e.target.value)}
+                                                onBlur={() => {
+                                                    if (form.contactNumber) {
+                                                        setTouched(prev => ({ ...prev, contactNumber: true }));
+                                                        setErrors(prev => ({ ...prev, contactNumber: validatePhoneField(form.contactNumber) }));
+                                                    }
+                                                }}
+                                                placeholder="98765 43210"
+                                                className={`flex-1 min-w-0 px-3 py-2 bg-white border rounded-r-md text-xs font-semibold tracking-wide text-slate-900 focus:outline-none transition-all placeholder:text-slate-400 ${
+                                                    errors.contactNumber
+                                                        ? "border-rose-400 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 pr-9"
+                                                        : form.contactNumber && isPhoneValid(form.contactNumber)
+                                                        ? "border-emerald-400 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 pr-9"
+                                                        : "border-[#E2E8F0] focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20"
+                                                }`}
+                                            />
+                                            {form.contactNumber && (
+                                                <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none flex items-center">
+                                                    {errors.contactNumber ? (
+                                                        <span className="material-symbols-outlined text-rose-500 text-base">error</span>
+                                                    ) : isPhoneValid(form.contactNumber) ? (
+                                                        <span className="material-symbols-outlined text-emerald-600 text-base">check_circle</span>
+                                                    ) : null}
+                                                </div>
+                                            )}
+                                        </div>
+                                        {errors.contactNumber ? (
+                                            <p className="text-[11px] font-medium text-rose-600 mt-1.5 flex items-center gap-1">
+                                                <span className="material-symbols-outlined text-[14px]">error</span>
+                                                {errors.contactNumber}
+                                            </p>
+                                        ) : form.contactNumber && isPhoneValid(form.contactNumber) ? (
+                                            <p className="text-[11px] font-medium text-emerald-600 mt-1.5 flex items-center gap-1">
+                                                <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                                                Valid Indian helpline number (+91 {form.contactNumber.slice(0, 5)} {form.contactNumber.slice(5)})
+                                            </p>
+                                        ) : (
+                                            <p className="text-[11px] text-slate-400 mt-1">10-digit Indian phone number for operational escalations.</p>
+                                        )}
                                     </div>
                                 </div>
 

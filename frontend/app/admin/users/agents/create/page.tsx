@@ -4,11 +4,27 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { adminApi } from "@/lib/api";
+import { formatPhone, isPhoneValid } from "@/lib/validation";
 
 export default function CreateAgentPage() {
     const router = useRouter();
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState<"general" | "partnership" | "documents">("general");
+
+    // Validation state matching staff creation
+    const [errors, setErrors] = useState<{
+        firstName?: string;
+        lastName?: string;
+        email?: string;
+        mobile?: string;
+        panNumber?: string;
+    }>({});
+    const [touched, setTouched] = useState<{
+        firstName?: boolean;
+        lastName?: boolean;
+        email?: boolean;
+        mobile?: boolean;
+    }>({});
 
     const [formData, setFormData] = useState({
         // Identity & Contact
@@ -28,11 +44,75 @@ export default function CreateAgentPage() {
         documents: [] as { name: string; type: string; url?: string; uploadedAt?: string }[]
     });
 
+    // Validation helpers
+    const isValidEmail = (email: string) => {
+        const re = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+        return re.test(email.trim()) && email.trim().length <= 100;
+    };
+
+    const validateEmailField = (email: string): string => {
+        const trimmed = email.trim();
+        if (!trimmed) return "Email address is required.";
+        if (/\s/.test(trimmed)) return "Email address cannot contain spaces.";
+        if (!isValidEmail(trimmed)) return "Please enter a valid email address (e.g. name@example.com).";
+        return "";
+    };
+
+    const validatePhoneField = (phone: string): string => {
+        const clean = phone.replace(/\D/g, "");
+        if (!clean) return "Mobile number is required.";
+        if (clean.length > 0 && clean[0] < "6") {
+            return "Indian mobile numbers must start with 6, 7, 8, or 9.";
+        }
+        if (clean.length !== 10) {
+            return `Mobile number must be exactly 10 digits (${clean.length}/10 entered).`;
+        }
+        if (!isPhoneValid(clean)) {
+            return "Please enter a valid, realistic Indian mobile number.";
+        }
+        return "";
+    };
+
+    const handlePhoneChange = (raw: string) => {
+        let val = raw;
+        if (val.startsWith("+91")) {
+            val = val.slice(3);
+        } else if (val.startsWith("+")) {
+            val = val.slice(1);
+        }
+        let digits = val.replace(/\D/g, "");
+        if (digits.length === 12 && digits.startsWith("91")) {
+            digits = digits.slice(2);
+        } else if (digits.length === 11 && digits.startsWith("0")) {
+            digits = digits.slice(1);
+        }
+        digits = formatPhone(digits);
+
+        setFormData(prev => ({ ...prev, mobile: digits }));
+
+        if (touched.mobile || digits.length === 10) {
+            setErrors(prev => ({ ...prev, mobile: validatePhoneField(digits) }));
+        } else if (errors.mobile) {
+            setErrors(prev => ({ ...prev, mobile: undefined }));
+        }
+    };
+
+    const handleEmailChange = (val: string) => {
+        setFormData(prev => ({ ...prev, email: val }));
+        if (touched.email) {
+            setErrors(prev => ({ ...prev, email: validateEmailField(val) }));
+        } else if (errors.email) {
+            setErrors(prev => ({ ...prev, email: undefined }));
+        }
+    };
+
     const isStep1Complete = Boolean(
         formData.firstName.trim() &&
         formData.lastName.trim() &&
         formData.email.trim() &&
-        formData.mobile.trim()
+        !validateEmailField(formData.email) &&
+        formData.mobile.trim() &&
+        !validatePhoneField(formData.mobile)
     );
 
     const isStep2Complete = Boolean(
@@ -75,26 +155,67 @@ export default function CreateAgentPage() {
     };
 
     const handleSubmit = async (isDraft = false) => {
-        if (!formData.email || !formData.firstName) {
-            alert("Please enter at least First Name and Email Address.");
-            setActiveTab("general");
-            return;
+        const newErrors: typeof errors = {};
+
+        if (!formData.firstName.trim()) {
+            newErrors.firstName = "First name is required.";
         }
 
-        if (!isDraft && !formData.panNumber) {
-            alert("Please enter the PAN Number before submitting and activating the Agent profile. Otherwise, you can click 'Save as Draft'.");
-            setActiveTab("documents");
+        if (!isDraft && !formData.lastName.trim()) {
+            newErrors.lastName = "Last name is required.";
+        }
+
+        const emailErr = validateEmailField(formData.email);
+        if (emailErr) {
+            newErrors.email = emailErr;
+        }
+
+        if (!isDraft || formData.mobile.trim()) {
+            const phoneErr = validatePhoneField(formData.mobile);
+            if (phoneErr) {
+                newErrors.mobile = phoneErr;
+            }
+        }
+
+        if (!isDraft && !formData.panNumber.trim()) {
+            newErrors.panNumber = "Please enter the PAN Number before submitting and activating the Agent profile. Otherwise, you can click 'Save as Draft'.";
+        }
+
+        setErrors(newErrors);
+        setTouched({
+            firstName: true,
+            lastName: true,
+            email: true,
+            mobile: true,
+        });
+
+        if (Object.keys(newErrors).length > 0) {
+            if (newErrors.firstName || newErrors.lastName || newErrors.email || newErrors.mobile) {
+                setActiveTab("general");
+                const firstKey = Object.keys(newErrors)[0];
+                const targetId =
+                    firstKey === "firstName" ? "agent-first-name" :
+                    firstKey === "lastName" ? "agent-last-name" :
+                    firstKey === "email" ? "agent-email" : "agent-mobile";
+                setTimeout(() => document.getElementById(targetId)?.focus(), 50);
+            } else if (newErrors.panNumber) {
+                alert(newErrors.panNumber);
+                setActiveTab("documents");
+            }
             return;
         }
 
         setLoading(true);
         try {
+            const cleanDigits = formData.mobile.replace(/\D/g, "");
+            const formattedMobile = cleanDigits ? `+91 ${cleanDigits}` : "";
+
             const payload = {
                 role: "agent",
-                email: formData.email.trim(),
+                email: formData.email.trim().toLowerCase(),
                 firstName: formData.firstName.trim(),
                 lastName: formData.lastName.trim(),
-                mobile: formData.mobile.trim(),
+                mobile: formattedMobile,
                 partnership: formData.partnership,
                 percentage: formData.percentage,
                 businessName: formData.businessName.trim() || `${formData.firstName} Agency`,
@@ -324,66 +445,157 @@ export default function CreateAgentPage() {
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                             <div>
-                                <label className="text-[12px] font-semibold uppercase tracking-wider text-[#64748B] block mb-1.5">
+                                <label htmlFor="agent-first-name" className="text-[12px] font-semibold uppercase tracking-wider text-[#64748B] block mb-1.5">
                                     First Name <span className="text-rose-500">*</span>
                                 </label>
                                 <input
+                                    id="agent-first-name"
                                     type="text"
                                     required
                                     value={formData.firstName}
-                                    onChange={e => setFormData({ ...formData, firstName: e.target.value })}
+                                    onChange={e => {
+                                        setFormData({ ...formData, firstName: e.target.value });
+                                        if (errors.firstName) setErrors(prev => ({ ...prev, firstName: undefined }));
+                                    }}
                                     placeholder="E.g. Rajesh"
-                                    className="w-full px-3 py-2 bg-white border border-[#E2E8F0] rounded-md text-xs font-semibold text-slate-900 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                                    className={`w-full px-3 py-2 bg-white border rounded-md text-xs font-semibold text-slate-900 focus:outline-none transition-all placeholder:text-slate-400 ${
+                                        errors.firstName
+                                            ? "border-rose-400 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                                            : "border-[#E2E8F0] focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20"
+                                    }`}
                                 />
+                                {errors.firstName && (
+                                    <p className="text-[11px] font-medium text-rose-600 mt-1.5 flex items-center gap-1">
+                                        <span className="material-symbols-outlined text-[14px]">error</span>
+                                        {errors.firstName}
+                                    </p>
+                                )}
                             </div>
 
                             <div>
-                                <label className="text-[12px] font-semibold uppercase tracking-wider text-[#64748B] block mb-1.5">
+                                <label htmlFor="agent-last-name" className="text-[12px] font-semibold uppercase tracking-wider text-[#64748B] block mb-1.5">
                                     Last Name <span className="text-rose-500">*</span>
                                 </label>
                                 <input
+                                    id="agent-last-name"
                                     type="text"
                                     required
                                     value={formData.lastName}
-                                    onChange={e => setFormData({ ...formData, lastName: e.target.value })}
+                                    onChange={e => {
+                                        setFormData({ ...formData, lastName: e.target.value });
+                                        if (errors.lastName) setErrors(prev => ({ ...prev, lastName: undefined }));
+                                    }}
                                     placeholder="E.g. Sharma"
-                                    className="w-full px-3 py-2 bg-white border border-[#E2E8F0] rounded-md text-xs font-semibold text-slate-900 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                                    className={`w-full px-3 py-2 bg-white border rounded-md text-xs font-semibold text-slate-900 focus:outline-none transition-all placeholder:text-slate-400 ${
+                                        errors.lastName
+                                            ? "border-rose-400 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                                            : "border-[#E2E8F0] focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20"
+                                    }`}
                                 />
+                                {errors.lastName && (
+                                    <p className="text-[11px] font-medium text-rose-600 mt-1.5 flex items-center gap-1">
+                                        <span className="material-symbols-outlined text-[14px]">error</span>
+                                        {errors.lastName}
+                                    </p>
+                                )}
                             </div>
 
                             <div>
-                                <label className="text-[12px] font-semibold uppercase tracking-wider text-[#64748B] block mb-1.5">
+                                <label htmlFor="agent-email" className="text-[12px] font-semibold uppercase tracking-wider text-[#64748B] block mb-1.5">
                                     Email Address <span className="text-rose-500">*</span>
                                 </label>
                                 <div className="relative">
                                     <input
+                                        id="agent-email"
                                         type="email"
                                         required
                                         value={formData.email}
-                                        onChange={e => setFormData({ ...formData, email: e.target.value })}
+                                        onChange={e => handleEmailChange(e.target.value)}
+                                        onBlur={() => {
+                                            setTouched(prev => ({ ...prev, email: true }));
+                                            setErrors(prev => ({ ...prev, email: validateEmailField(formData.email) }));
+                                        }}
                                         placeholder="partner.email@consultancy.com"
-                                        className="w-full pl-9 pr-3 py-2 bg-white border border-[#E2E8F0] rounded-md text-xs font-semibold text-slate-900 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                                        className={`w-full pl-9 pr-9 py-2 bg-white border rounded-md text-xs font-semibold text-slate-900 focus:outline-none transition-all placeholder:text-slate-400 ${
+                                            errors.email
+                                                ? "border-rose-400 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                                                : formData.email && isValidEmail(formData.email)
+                                                ? "border-emerald-400 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                                                : "border-[#E2E8F0] focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20"
+                                        }`}
                                     />
                                     <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-base pointer-events-none">mail</span>
+                                    {formData.email && (
+                                        <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none flex items-center">
+                                            {errors.email ? (
+                                                <span className="material-symbols-outlined text-rose-500 text-base">error</span>
+                                            ) : isValidEmail(formData.email) ? (
+                                                <span className="material-symbols-outlined text-emerald-600 text-base">check_circle</span>
+                                            ) : null}
+                                        </div>
+                                    )}
                                 </div>
-                                <p className="text-[11px] text-slate-400 mt-1">Credentials & welcome portal link will be sent to this address.</p>
+                                {errors.email ? (
+                                    <p className="text-[11px] font-medium text-rose-600 mt-1.5 flex items-center gap-1">
+                                        <span className="material-symbols-outlined text-[14px]">error</span>
+                                        {errors.email}
+                                    </p>
+                                ) : (
+                                    <p className="text-[11px] text-slate-400 mt-1">Credentials & welcome portal link will be sent to this address.</p>
+                                )}
                             </div>
 
                             <div>
-                                <label className="text-[12px] font-semibold uppercase tracking-wider text-[#64748B] block mb-1.5">
-                                    Mobile Number <span className="text-rose-500">*</span>
+                                <label htmlFor="agent-mobile" className="text-[12px] font-semibold uppercase tracking-wider text-[#64748B] block mb-1.5">
+                                    Mobile Number (India) <span className="text-rose-500">*</span>
                                 </label>
-                                <div className="relative">
+                                <div className="relative flex rounded-md shadow-xs">
+                                    <div className="inline-flex items-center gap-1 px-2.5 py-2 bg-slate-50 border border-r-0 border-[#E2E8F0] rounded-l-md text-slate-700 text-xs font-bold select-none shrink-0">
+                                        <span className="text-sm leading-none">🇮🇳</span>
+                                        <span>+91</span>
+                                    </div>
                                     <input
+                                        id="agent-mobile"
                                         type="tel"
-                                        required
+                                        maxLength={10}
                                         value={formData.mobile}
-                                        onChange={e => setFormData({ ...formData, mobile: e.target.value })}
-                                        placeholder="+91 98765 43210"
-                                        className="w-full pl-9 pr-3 py-2 bg-white border border-[#E2E8F0] rounded-md text-xs font-semibold text-slate-900 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                                        onChange={e => handlePhoneChange(e.target.value)}
+                                        onBlur={() => {
+                                            setTouched(prev => ({ ...prev, mobile: true }));
+                                            setErrors(prev => ({ ...prev, mobile: validatePhoneField(formData.mobile) }));
+                                        }}
+                                        placeholder="98765 43210"
+                                        className={`flex-1 min-w-0 px-3 py-2 bg-white border rounded-r-md text-xs font-semibold tracking-wide text-slate-900 focus:outline-none transition-all placeholder:text-slate-400 ${
+                                            errors.mobile
+                                                ? "border-rose-400 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 pr-9"
+                                                : formData.mobile && isPhoneValid(formData.mobile)
+                                                ? "border-emerald-400 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 pr-9"
+                                                : "border-[#E2E8F0] focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20"
+                                        }`}
                                     />
-                                    <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-base pointer-events-none">call</span>
+                                    {formData.mobile && (
+                                        <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none flex items-center">
+                                            {errors.mobile ? (
+                                                <span className="material-symbols-outlined text-rose-500 text-base">error</span>
+                                            ) : isPhoneValid(formData.mobile) ? (
+                                                <span className="material-symbols-outlined text-emerald-600 text-base">check_circle</span>
+                                            ) : null}
+                                        </div>
+                                    )}
                                 </div>
+                                {errors.mobile ? (
+                                    <p className="text-[11px] font-medium text-rose-600 mt-1.5 flex items-center gap-1">
+                                        <span className="material-symbols-outlined text-[14px]">error</span>
+                                        {errors.mobile}
+                                    </p>
+                                ) : formData.mobile && isPhoneValid(formData.mobile) ? (
+                                    <p className="text-[11px] font-medium text-emerald-600 mt-1.5 flex items-center gap-1">
+                                        <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                                        Valid Indian mobile number (+91 {formData.mobile.slice(0, 5)} {formData.mobile.slice(5)})
+                                    </p>
+                                ) : (
+                                    <p className="text-[11px] text-slate-400 mt-1">10-digit Indian mobile number for OTP and portal access.</p>
+                                )}
                             </div>
                         </div>
 
