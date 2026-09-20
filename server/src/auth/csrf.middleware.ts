@@ -19,6 +19,7 @@ export class CsrfMiddleware implements NestMiddleware {
       cleanUrl.includes('/auth/send-otp/') ||
       cleanUrl.includes('/auth/verify-otp') ||
       cleanUrl.includes('/auth/request-otp') ||
+      cleanUrl.includes('/auth/check-bank-officer') ||
       cleanUrl.includes('/auth/firebase') ||
       cleanUrl.includes('/auth/landing-page-submit') ||
       cleanUrl.includes('/auth/refresh') ||

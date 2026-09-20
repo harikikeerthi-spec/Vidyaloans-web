@@ -499,15 +499,15 @@ export class BankDashboardController {
     if (req.user?.bank) return req.user.bank;
     if (req.user?.bankName) return req.user.bankName;
 
-    // Check email domain/address mapping first
+    // Check email corporate domain mapping (if applicable)
     const email = req.user?.email;
     if (email) {
       const lowerEmail = email.toLowerCase().trim();
-      if (lowerEmail.includes("auxilo") || lowerEmail === "luharika28@gmail.com") return "auxilo";
-      if (lowerEmail.includes("avanse") || lowerEmail === "ropayi2211@aspensif.com") return "avanse";
-      if (lowerEmail.includes("credila") || lowerEmail.includes("hdfc") || lowerEmail === "keerthichinnu0728@gmail.com") return "credila";
-      if (lowerEmail.includes("idfc") || lowerEmail === "abhimadasu4@gmail.com") return "idfc";
-      if (lowerEmail.includes("poonawalla") || lowerEmail === "farmatech@gmail.com") return "poonawalla";
+      if (lowerEmail.includes("auxilo.com")) return "auxilo";
+      if (lowerEmail.includes("avanse.com")) return "avanse";
+      if (lowerEmail.includes("credila.com") || lowerEmail.includes("hdfccredila.com")) return "credila";
+      if (lowerEmail.includes("idfcfirstbank.com") || lowerEmail.includes("idfcbank.com")) return "idfc";
+      if (lowerEmail.includes("poonawallafincorp.com")) return "poonawalla";
     }
 
     if (req.user?.firstName) {

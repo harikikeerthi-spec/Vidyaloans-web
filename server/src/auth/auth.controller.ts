@@ -62,6 +62,69 @@ export class AuthController {
     return this.authService.sendOtpUnified(body.email, portal);
   }
 
+  /**
+   * Verify bank partner officer status and resolve their assigned bank dynamically.
+   * POST /auth/check-bank-officer
+   * @body email: string
+   */
+  @Post('check-bank-officer')
+  async checkBankOfficer(@Body() body: { email: string }) {
+    if (!body || !body.email || !body.email.trim()) {
+      return {
+        success: false,
+        message: 'Email address is required',
+      };
+    }
+
+    const cleanEmail = body.email.trim().toLowerCase();
+    const user = await this.usersService.findOne(cleanEmail);
+
+    if (!user) {
+      return {
+        success: false,
+        message: 'No bank officer account found with this email address. Please contact your administrator.',
+      };
+    }
+
+    const userRole = (user.role || '').toLowerCase();
+    if (userRole === 'admin' || userRole === 'super_admin') {
+      return {
+        success: false,
+        message: 'Administrator accounts must log in via the Admin Login Page.',
+      };
+    }
+
+    if (!['bank', 'partner_bank'].includes(userRole)) {
+      return {
+        success: false,
+        message: 'Access Denied: This account does not have bank partner officer privileges.',
+      };
+    }
+
+    if (!user.bank || !user.bank.trim()) {
+      return {
+        success: false,
+        message: 'Access Denied: Your account has not been assigned to a bank partner. Please contact your administrator.',
+      };
+    }
+
+    const bankInfo = await this.usersService.resolveBankInfo(user.bank);
+    if (!bankInfo || !bankInfo.bankId) {
+      return {
+        success: false,
+        message: `Access Denied: Could not resolve assigned bank partner "${user.bank}". Please contact your administrator.`,
+      };
+    }
+
+    return {
+      success: true,
+      bankId: bankInfo.bankId,
+      bankName: bankInfo.bankName,
+      bankLogo: bankInfo.bankLogo,
+      assignedBank: user.bank,
+    };
+  }
+
   @Post('request-otp')
   async requestOtp(@Body() body: { email: string; portal?: string }) {
     if (!body || !body.email) {

@@ -497,6 +497,7 @@ export class UsersService implements OnModuleInit {
         if (user && user.bank) {
           return await this.resolveBankInfo(user.bank);
         }
+        return { bankId: null, bankName: null, bankLogo: null };
       }
 
       // 2. Query Bank table by shortName, id, or name
@@ -540,12 +541,12 @@ export class UsersService implements OnModuleInit {
       console.warn('[UsersService.resolveBankInfo] Error querying Bank table:', err);
     }
 
-    // 4. Backward-compatible fallbacks for seed test users
-    if (lower.includes('auxilo') || lower === 'luharika28@gmail.com') return { bankId: 'auxilo', bankName: 'Auxilo Finserve', bankLogo: '/banks/auxilo.png' };
-    if (lower.includes('avanse') || lower === 'ropayi2211@aspensif.com' || lower === 'shannukalneedi@gmail.com') return { bankId: 'avanse', bankName: 'Avanse Financial Services', bankLogo: '/banks/avanse.png' };
-    if (lower.includes('credila') || lower.includes('hdfc') || lower === 'keerthichinnu0728@gmail.com') return { bankId: 'credila', bankName: 'HDFC Credila', bankLogo: '/banks/credila.png' };
-    if (lower.includes('idfc') || lower === 'abhimadasu4@gmail.com') return { bankId: 'idfc', bankName: 'IDFC FIRST Bank', bankLogo: '/banks/idfc.png' };
-    if (lower.includes('poonawalla') || lower === 'farmatech@gmail.com') return { bankId: 'poonawalla', bankName: 'Poonawalla Fincorp', bankLogo: '/banks/poonawalla.jpg' };
+    // 4. Fallbacks for standard bank keywords (NO hardcoded personal emails)
+    if (lower.includes('auxilo')) return { bankId: 'auxilo', bankName: 'Auxilo Finserve', bankLogo: '/banks/auxilo.png' };
+    if (lower.includes('avanse')) return { bankId: 'avanse', bankName: 'Avanse Financial Services', bankLogo: '/banks/avanse.png' };
+    if (lower.includes('credila') || lower.includes('hdfc')) return { bankId: 'credila', bankName: 'HDFC Credila', bankLogo: '/banks/credila.png' };
+    if (lower.includes('idfc')) return { bankId: 'idfc', bankName: 'IDFC FIRST Bank', bankLogo: '/banks/idfc.png' };
+    if (lower.includes('poonawalla')) return { bankId: 'poonawalla', bankName: 'Poonawalla Fincorp', bankLogo: '/banks/poonawalla.jpg' };
     if (lower.includes('sbi') || lower.includes('state bank')) return { bankId: 'sbi', bankName: 'State Bank of India', bankLogo: '/banks/sbi.png' };
 
     return { bankId: null, bankName: null, bankLogo: null };

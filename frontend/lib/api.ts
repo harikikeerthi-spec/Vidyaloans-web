@@ -592,6 +592,12 @@ export const authApi = {
             body: JSON.stringify({ email, portal }),
         }),
 
+    checkBankOfficer: (email: string) =>
+        apiFetch<any>(`${API_URL}/auth/check-bank-officer`, {
+            method: "POST",
+            body: JSON.stringify({ email }),
+        }),
+
     requestOtp: (email: string, portal?: string) =>
         apiFetch(`${API_URL}/auth/request-otp`, {
             method: "POST",

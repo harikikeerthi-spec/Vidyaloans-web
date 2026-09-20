@@ -51,6 +51,7 @@ async function bootstrap() {
       url.includes('/auth/send-otp') ||
       url.includes('/auth/verify-otp') ||
       url.includes('/auth/request-otp') ||
+      url.includes('/auth/check-bank-officer') ||
       url.includes('/auth/firebase') ||
       url.includes('/auth/landing-page-submit') ||
       url.includes('/auth/refresh') ||

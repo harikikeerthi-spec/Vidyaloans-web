@@ -206,31 +206,24 @@ function BankLoginContent() {
         }).catch(() => {});
     }, []);
 
-    // Dynamic bank resolver based on email input
+    // Optional domain-based bank hint resolver for corporate emails
     const getBankFromEmail = (emailStr: string): string | null => {
         const lowerEmail = emailStr.toLowerCase().trim();
         if (!lowerEmail) return null;
         for (const b of banksList) {
             const bId = (b.id || "").toLowerCase();
             const bName = (b.name || "").toLowerCase();
-            if ((bId && lowerEmail.includes(bId)) || (bName && lowerEmail.includes(bName))) {
+            if ((bId && lowerEmail.includes(`@${bId}.`)) || (bName && lowerEmail.includes(bName))) {
                 return b.id;
             }
         }
 
-        if (lowerEmail.includes("auxilo")) return "auxilo";
-        if (lowerEmail.includes("avanse")) return "avanse";
-        if (lowerEmail.includes("credila") || lowerEmail.includes("hdfc")) return "credila";
-        if (lowerEmail.includes("idfc")) return "idfc";
-        if (lowerEmail.includes("poonawalla")) return "poonawalla";
-        if (lowerEmail.includes("sbi") || lowerEmail.includes("statebank")) return "sbi";
-
-        // Fallbacks for seed test users
-        if (lowerEmail === "idfcbank@gmail.com" || lowerEmail === "abhimadasu4@gmail.com") return "idfc";
-        if (lowerEmail === "credilabank@gmail.com" || lowerEmail === "keerthichinnu0728@gmail.com") return "credila";
-        if (lowerEmail === "auxilobank@gmail.com" || lowerEmail === "luharika28@gmail.com") return "auxilo";
-        if (lowerEmail === "poonawallabank@gmail.com" || lowerEmail === "farmatech@gmail.com") return "poonawalla";
-        if (lowerEmail === "avansebank@gmail.com" || lowerEmail === "shannukalneedi@gmail.com" || lowerEmail === "ropayi2211@aspensif.com") return "avanse";
+        if (lowerEmail.includes("@auxilo.")) return "auxilo";
+        if (lowerEmail.includes("@avanse.")) return "avanse";
+        if (lowerEmail.includes("@hdfccredila.") || lowerEmail.includes("@credila.")) return "credila";
+        if (lowerEmail.includes("@idfcbank.") || lowerEmail.includes("@idfcfirstbank.")) return "idfc";
+        if (lowerEmail.includes("@poonawalla.")) return "poonawalla";
+        if (lowerEmail.includes("@sbi.")) return "sbi";
 
         return null;
     };
@@ -242,16 +235,46 @@ function BankLoginContent() {
         }
     }, [searchParams]);
 
+    // Dynamic bank lookup from backend database based on admin-assigned access
     useEffect(() => {
-        const bankId = getBankFromEmail(email);
-        if (bankId) {
-            setSelectedBank(bankId);
-        } else if (!email.trim() && !searchParams.get("bank")) {
-            setSelectedBank(null);
-            setResolvedBankLogo(null);
-            setResolvedBankName(null);
+        const trimmedEmail = email.trim().toLowerCase();
+        if (!trimmedEmail) {
+            if (!searchParams.get("bank")) {
+                setSelectedBank(null);
+                setResolvedBankLogo(null);
+                setResolvedBankName(null);
+            }
+            return;
         }
-    }, [email, banksList]);
+
+        // Only query when email has a valid structure with @ and .
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(trimmedEmail)) return;
+
+        let isMounted = true;
+        const timer = setTimeout(async () => {
+            try {
+                const res = await authApi.checkBankOfficer(trimmedEmail) as any;
+                if (!isMounted) return;
+                if (res?.success && res.bankId) {
+                    setSelectedBank(res.bankId);
+                    setResolvedBankName(res.bankName || null);
+                    setResolvedBankLogo(res.bankLogo || null);
+                    sessionStorage.setItem("selectedBank", res.bankId);
+                    if (res.bankName) sessionStorage.setItem("selectedBankName", res.bankName);
+                    if (res.bankLogo) sessionStorage.setItem("selectedBankLogo", res.bankLogo);
+                    setError("");
+                }
+            } catch {
+                // Ignore background check network errs; full validation occurs on sendOtp
+            }
+        }, 400);
+
+        return () => {
+            isMounted = false;
+            clearTimeout(timer);
+        };
+    }, [email, searchParams]);
 
     // Forgot password states
     const [showForgotModal, setShowForgotModal] = useState(false);
@@ -315,7 +338,12 @@ function BankLoginContent() {
                 setLoading(false);
                 return;
             }
-            const finalBankId = res?.bankId || detectedBank || "idfc";
+            const finalBankId = res?.bankId || detectedBank || selectedBank;
+            if (!finalBankId) {
+                setError("Access Denied: No bank partner is assigned to this account. Please contact administrator.");
+                setLoading(false);
+                return;
+            }
             setSelectedBank(finalBankId);
             sessionStorage.setItem("selectedBank", finalBankId);
             localStorage.setItem("selectedBank", finalBankId);
@@ -393,7 +421,10 @@ function BankLoginContent() {
 
             if (data.refresh_token) localStorage.setItem("refreshToken", data.refresh_token);
 
-            const finalBankId = data.bankId || data.bank || selectedBank || getBankFromEmail(email.trim()) || "idfc";
+            const finalBankId = data.bankId || data.bank || selectedBank;
+            if (!finalBankId) {
+                throw new Error("No bank partner assigned to your account. Please contact administrator.");
+            }
             sessionStorage.setItem("selectedBank", finalBankId);
             localStorage.setItem("selectedBank", finalBankId);
             if (data.bankName) {

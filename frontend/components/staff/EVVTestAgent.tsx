@@ -10,10 +10,14 @@ import {
   formatDate,
   formatIntervalDate,
   DEFAULT_BANK_POLICIES,
+  MANDATORY_EVV_DISCLAIMER,
   type BankPolicy,
   type EVVResult,
   type MonthlyMetric,
   type Snapshot,
+  type BounceClassification,
+  type CashClassification,
+  type PassThroughClassification,
 } from "@/lib/evv-parser";
 import { applicationApi, documentApi } from "@/lib/api";
 
@@ -241,6 +245,35 @@ export const EVVTestAgent: React.FC<{
   const [calculatingDocId, setCalculatingDocId] = useState<string | null>(null);
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
 
+  // States for Interval Balances calculation explanation and interactive inspection
+  const [isExplainingIntervals, setIsExplainingIntervals] = useState<boolean>(false);
+  const [showIntervalInspector, setShowIntervalInspector] = useState<boolean>(false);
+  const [selectedIntervalMonth, setSelectedIntervalMonth] = useState<string>("ALL");
+
+  // Underwriting Financial Profile states
+  const [profileType, setProfileType] = useState<string>(application?.sourceType || "SALARIED");
+  const [isRepaymentIncomeContributor, setIsRepaymentIncomeContributor] = useState<"YES" | "NO" | "UNKNOWN">(
+    application?.repaymentIncomeRole || "YES"
+  );
+  const [declaredMonthlyIncome, setDeclaredMonthlyIncome] = useState<string>(
+    application?.declaredMonthlyIncome ? String(application.declaredMonthlyIncome) : ""
+  );
+  const [declaredEmployerOrBusiness, setDeclaredEmployerOrBusiness] = useState<string>(
+    application?.declaredEmployerOrBusiness || ""
+  );
+
+  // Candidate Classification Overrides & Review UI
+  const [candidateClassifications, setCandidateClassifications] = useState<{
+    bounces: Record<string, BounceClassification>;
+    cash: Record<string, CashClassification>;
+    passThrough: Record<string, PassThroughClassification>;
+  }>({
+    bounces: {},
+    cash: {},
+    passThrough: {},
+  });
+  const [activeCandidateTab, setActiveCandidateTab] = useState<"bounces" | "cash" | "passThrough">("bounces");
+
   const toggleComponentExpand = (key: string) => {
     setExpandedComponents((prev) => ({ ...prev, [key]: !prev[key] }));
   };
@@ -260,17 +293,49 @@ export const EVVTestAgent: React.FC<{
 
   const synthesizeSnapshotsFromMetrics = (metrics: MonthlyMetric[]): Snapshot[] => {
     const snaps: Snapshot[] = [];
-    const intervalDays = [4, 9, 14, 19, 24, 29];
+    const intervalDays = [1, 5, 10, 15, 20, 25];
+    const monthNames = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+
     metrics.forEach((metric, mIdx) => {
-      const year = 2025;
-      const monthNum = 9 + mIdx;
-      const actualYear = monthNum > 12 ? year + Math.floor((monthNum - 1) / 12) : year;
-      const actualMonth = ((monthNum - 1) % 12) + 1;
+      let year = 2025;
+      let monthIndex = mIdx % 12;
+
+      if (metric.month && metric.month.includes("-")) {
+        const parts = metric.month.split("-");
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10);
+        if (!isNaN(y)) year = y;
+        if (!isNaN(m)) monthIndex = m - 1;
+      } else if (metric.label) {
+        const parts = metric.label.trim().split(/[\s-]+/);
+        for (const p of parts) {
+          const y = parseInt(p, 10);
+          if (!isNaN(y) && y >= 2000 && y <= 2100) {
+            year = y;
+          }
+          const mIdxFound = monthNames.findIndex((mn) => p.toLowerCase().startsWith(mn));
+          if (mIdxFound !== -1) {
+            monthIndex = mIdxFound;
+          }
+        }
+      }
+
+      const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+      const avgBal = metric.avg || metric.avgDailyBalance || 10000;
+      const minBal = metric.min || Math.round(avgBal * 0.8);
+      const maxBal = metric.max || Math.round(avgBal * 1.2);
+      const closeBal = metric.closing || Math.round(avgBal * 0.95);
 
       intervalDays.forEach((day, dIdx) => {
-        const d = new Date(actualYear, actualMonth - 1, day);
+        const actualDay = Math.min(day, daysInMonth);
+        const d = new Date(year, monthIndex, actualDay);
+        // Calibrate variance across the month
         const wave = Math.sin((mIdx * 6 + dIdx) * 1.6);
-        const bal = Math.max(120, Math.round(metric.avg * (1 + wave * 0.45)));
+        const spread = (maxBal - minBal) / 2;
+        const bal = dIdx === intervalDays.length - 1 && closeBal > 0
+          ? closeBal
+          : Math.max(100, Math.round(avgBal + wave * (spread > 0 ? spread * 0.7 : avgBal * 0.15)));
+
         snaps.push({
           date: d,
           balance: bal,
@@ -317,39 +382,99 @@ export const EVVTestAgent: React.FC<{
     return 5;
   };
 
+  const runRecalculation = (
+    overrides = candidateClassifications,
+    contributorRole: "YES" | "NO" | "UNKNOWN" = isRepaymentIncomeContributor,
+    profType: string = profileType,
+    bankKey: string = selectedBankKey,
+    intMode: "5day" | "custom" = intervalMode,
+    customDates: string = customDatesInput
+  ) => {
+    const txs =
+      activeTransactions.length > 0
+        ? activeTransactions
+        : evvResult?.transactions && evvResult.transactions.length > 0
+        ? evvResult.transactions
+        : [];
+    if (txs.length === 0) return;
+
+    const currentPolicy = DEFAULT_BANK_POLICIES[bankKey] || DEFAULT_BANK_POLICIES["DEFAULT"];
+    const targetInterval = getTargetInterval(intMode, customDates);
+    const coApp = {
+      isRepaymentIncomeContributor: contributorRole,
+      declaredIncomeType: profType,
+      declaredMonthlyIncome: declaredMonthlyIncome ? parseFloat(declaredMonthlyIncome) : undefined,
+      verificationStatus: "FULLY_VERIFIED" as const,
+    };
+    const updated = calculateEVV(txs, targetInterval, currentPolicy, coApp, overrides);
+    setEvvResult(updated);
+    if (onComplete) onComplete(updated);
+    log(`EVV Recalculated with updated underwriting profile & candidate overrides. Score: ${updated.overallEVV}/100`, "ok");
+  };
+
+  const handleDownloadAuditSnapshot = () => {
+    const snapshot = evvResult?.auditSnapshot || evvResult?.deterministicEngineResult?.auditSnapshot;
+    if (!snapshot) {
+      alert("Audit snapshot is not available for this statement.");
+      return;
+    }
+    const jsonStr = JSON.stringify(snapshot, (_, v) => (typeof v === "bigint" ? v.toString() : v), 2);
+    const blob = new Blob([jsonStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const startDate = evvResult?.deterministicEngineResult?.statementPeriod?.start || "statement";
+    a.download = `EVV_Audit_Snapshot_${startDate}_${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleBounceOverride = (candidateId: string, classification: BounceClassification) => {
+    const updated = {
+      ...candidateClassifications,
+      bounces: {
+        ...candidateClassifications.bounces,
+        [candidateId]: classification,
+      },
+    };
+    setCandidateClassifications(updated);
+    runRecalculation(updated);
+  };
+
+  const handleCashOverride = (candidateId: string, classification: CashClassification) => {
+    const updated = {
+      ...candidateClassifications,
+      cash: {
+        ...candidateClassifications.cash,
+        [candidateId]: classification,
+      },
+    };
+    setCandidateClassifications(updated);
+    runRecalculation(updated);
+  };
+
+  const handlePassThroughOverride = (candidateId: string, classification: PassThroughClassification) => {
+    const updated = {
+      ...candidateClassifications,
+      passThrough: {
+        ...candidateClassifications.passThrough,
+        [candidateId]: classification,
+      },
+    };
+    setCandidateClassifications(updated);
+    runRecalculation(updated);
+  };
+
   const handleIntervalChange = (mode: "5day" | "custom", customInput?: string) => {
     setIntervalMode(mode);
     const inputVal = customInput !== undefined ? customInput : customDatesInput;
     if (customInput !== undefined) {
       setCustomDatesInput(customInput);
     }
-
     if (evvResult) {
-      const txs =
-        activeTransactions.length > 0
-          ? activeTransactions
-          : evvResult.transactions && evvResult.transactions.length > 0
-          ? evvResult.transactions
-          : generateDemoData();
-
-      const targetInterval = getTargetInterval(mode, inputVal);
-      const currentPolicy = DEFAULT_BANK_POLICIES[selectedBankKey] || DEFAULT_BANK_POLICIES["DEFAULT"];
-      const coAppProfile = {
-        repaymentIncomeRole: application?.repaymentIncomeRole || "YES",
-        sourceType: application?.sourceType || "SALARIED",
-        verificationStatus: application?.verificationStatus || "VERIFIED",
-      };
-      const updated = calculateEVV(txs, targetInterval, currentPolicy, coAppProfile as any);
-      setEvvResult(updated);
-      if (onComplete) {
-        onComplete(updated);
-      }
-      log(
-        `Sampling interval updated to ${
-          mode === "5day" ? "5-day interval" : `Custom dates [${Array.isArray(targetInterval) ? targetInterval.join(", ") : targetInterval}]`
-        }. Re-sampled ${updated.snapshots.length} interval points.`,
-        "ok"
-      );
+      runRecalculation(candidateClassifications, isRepaymentIncomeContributor, profileType, selectedBankKey, mode, inputVal);
     }
   };
 
@@ -432,8 +557,9 @@ export const EVVTestAgent: React.FC<{
       }
 
       if (!transactions || transactions.length === 0) {
-        // High-fidelity statement model calibrated to customer profile
-        transactions = generateDemoData();
+        log(`No readable transactions found in "${docName}".`, "warn");
+        alert(`Could not extract transaction data from "${docName}". Please upload a clear PDF with selectable text or a CSV.`);
+        return;
       }
 
       setActiveTransactions(transactions);
@@ -441,11 +567,12 @@ export const EVVTestAgent: React.FC<{
       // 3. Official 6-Component Underwriting EVV Logic
       const currentPolicy = DEFAULT_BANK_POLICIES[selectedBankKey] || DEFAULT_BANK_POLICIES['DEFAULT'];
       const coAppProfile = {
-        repaymentIncomeRole: application?.repaymentIncomeRole || 'YES',
-        sourceType: application?.sourceType || 'SALARIED',
-        verificationStatus: application?.verificationStatus || 'VERIFIED',
+        isRepaymentIncomeContributor,
+        declaredIncomeType: profileType,
+        declaredMonthlyIncome: declaredMonthlyIncome ? parseFloat(declaredMonthlyIncome) : undefined,
+        verificationStatus: "FULLY_VERIFIED" as const,
       };
-      const computedResult = calculateEVV(transactions, getTargetInterval(), currentPolicy, coAppProfile as any);
+      const computedResult = calculateEVV(transactions, getTargetInterval(), currentPolicy, coAppProfile as any, candidateClassifications);
 
       setEvvResult(computedResult);
 
@@ -455,7 +582,7 @@ export const EVVTestAgent: React.FC<{
       log(`6-Component EVV complete! Score: ${computedResult.overallEVV} / 100 (${computedResult.overallGrade} Grade, ${computedResult.sixComponent?.statusBand || 'Green'} Band, ${computedResult.overallRisk} Risk)`, "ok");
     } catch (err: any) {
       log(`Execution note for "${docName}": ${err.message || err}`, "warn");
-      loadDemo();
+      alert(`Could not calculate EVV for "${docName}": ${err.message || err}`);
     } finally {
       setCalculatingDocId(null);
     }
@@ -517,9 +644,8 @@ export const EVVTestAgent: React.FC<{
     }
   };
 
-  // Initialize and format EVV result metrics from application DB record
+  // Locate latest uploaded statement document (Do not auto-load predefined results)
   useEffect(() => {
-    // 1. Locate latest uploaded statement document
     if (userDocuments && Array.isArray(userDocuments)) {
       const stmtDoc = userDocuments.find((d: any) => {
         const type = (d.docType || d.type || '').toLowerCase();
@@ -529,134 +655,157 @@ export const EVVTestAgent: React.FC<{
         setLatestDoc(stmtDoc);
       }
     }
+  }, [userDocuments]);
 
-    // 2. Format EVV result metrics from application DB record
-    if (application && (application.evvOverall || application.evvMonthlyBreakdown || application.evvScore)) {
-      try {
-        let monthly = application.evvMonthlyBreakdown;
-        if (typeof monthly === 'string') {
-          try { monthly = JSON.parse(monthly); } catch { monthly = []; }
-        }
+  const hasSavedEvv = Boolean(
+    application && (application.evvOverall || application.evvMonthlyBreakdown || application.evvScore)
+  );
 
-        // FIX score vs rupee balance bug:
-        // evvScore = 0-100 Underwriting Score Card Rating (e.g. 85)
-        // evvOverall = Rupee Average Monthly Balance (e.g. 250000) or score
-        const rawScore = Number(application.evvScore);
-        const rawOverall = Number(application.evvOverall);
-
-        let calculatedScore = 82;
-        if (!isNaN(rawScore) && rawScore > 0 && rawScore <= 100) {
-          calculatedScore = rawScore;
-        } else if (!isNaN(rawOverall) && rawOverall > 0 && rawOverall <= 100) {
-          calculatedScore = rawOverall;
-        }
-
-        const calculatedBalance = (!isNaN(rawOverall) && rawOverall > 100) ? rawOverall : 245000;
-
-        const risk: "Low" | "Medium" | "High" = calculatedScore >= 75 ? "Low" : calculatedScore < 50 ? "High" : "Medium";
-        const grade = application.evvGrade || (calculatedScore >= 85 ? "A+" : calculatedScore >= 75 ? "A" : calculatedScore >= 60 ? "B" : "C");
-
-        if (Array.isArray(monthly) && monthly.length > 0) {
-          const formattedMetrics: MonthlyMetric[] = monthly.map((m: any, i: number) => {
-            const avgVal = m.averageBalance ?? m.avg ?? m.evv ?? calculatedBalance;
-            return {
-              label: m.label || `Month ${i + 1}`,
-              month: m.month || `2026-0${i + 1}`,
-              points: m.points ?? 8,
-              avg: avgVal,
-              min: m.min ?? Math.round(avgVal * 0.85),
-              max: m.max ?? Math.round(avgVal * 1.15),
-              closing: m.closing ?? Math.round(avgVal * 0.9),
-              median: avgVal,
-              stdDev: Math.round(avgVal * 0.05),
-              credits: m.credits ?? Math.round(avgVal * 0.5),
-              debits: m.debits ?? Math.round(avgVal * 0.4),
-              cashPercent: m.cashPercent ?? 0,
-              bounces: m.bounces ?? 0,
-              netCashFlow: Math.round(avgVal * 0.1),
-              avgDailyBalance: avgVal,
-              transactions: 14,
-              lowBalanceDays: m.lowBalanceDays ?? 0,
-              riskGrade: grade,
-            };
-          });
-
-          setEvvResult({
-            overallEVV: calculatedScore,
-            overallEVVValue: calculatedBalance,
-            overallGrade: grade,
-            overallRisk: risk,
-            totalMonths: formattedMetrics.length,
-            totalTransactions: formattedMetrics.length * 14,
-            overallAverageBalance: calculatedBalance,
-            overallAverageCredits: calculatedBalance * 0.5,
-            overallAverageDebits: calculatedBalance * 0.4,
-            salaryStability: 100,
-            cashFlowStatus: "Positive",
-            snapshotInterval: 5,
-            snapshots: synthesizeSnapshotsFromMetrics(formattedMetrics),
-            transactions: [],
-            monthlyMetrics: formattedMetrics,
-            period: { start: new Date(), end: new Date() },
-            riskAnalysis: {
-              lowBalanceDays: 0,
-              negativeBalanceDays: 0,
-              largeDepositsCount: 0,
-              inflationEventsCount: 0,
-              bounceCount: 0,
-              salaryConsistencyScore: 100,
-              emiPaymentsCount: 0,
-              emiTransactions: [],
-            },
-          });
-          log("Loaded AI verified EVV dossier parameters from active application.", "ok");
-          return;
-        } else {
-          // Synthetic month structure fallback when overall score exists
-          const demoMetrics: MonthlyMetric[] = [
-            { label: "Month 1", month: "2026-01", points: 8, avg: calculatedBalance * 0.95, min: calculatedBalance * 0.8, max: calculatedBalance * 1.1, closing: Math.round(calculatedBalance * 0.92), credits: 120000, debits: 90000, cashPercent: 0, bounces: 0, median: calculatedBalance * 0.95, stdDev: 5000, netCashFlow: 30000, avgDailyBalance: calculatedBalance * 0.95, transactions: 15, lowBalanceDays: 0, riskGrade: grade },
-            { label: "Month 2", month: "2026-02", points: 9, avg: calculatedBalance * 1.05, min: calculatedBalance * 0.85, max: calculatedBalance * 1.2, closing: Math.round(calculatedBalance * 1.02), credits: 135000, debits: 95000, cashPercent: 0, bounces: 0, median: calculatedBalance * 1.05, stdDev: 6000, netCashFlow: 40000, avgDailyBalance: calculatedBalance * 1.05, transactions: 18, lowBalanceDays: 0, riskGrade: grade },
-            { label: "Month 3", month: "2026-03", points: 8, avg: calculatedBalance, min: calculatedBalance * 0.82, max: calculatedBalance * 1.15, closing: Math.round(calculatedBalance * 0.98), credits: 128000, debits: 92000, cashPercent: 0, bounces: 0, median: calculatedBalance, stdDev: 5500, netCashFlow: 36000, avgDailyBalance: calculatedBalance, transactions: 16, lowBalanceDays: 0, riskGrade: grade },
-          ];
-          setEvvResult({
-            overallEVV: calculatedScore,
-            overallEVVValue: calculatedBalance,
-            overallGrade: grade,
-            overallRisk: risk,
-            totalMonths: 3,
-            totalTransactions: 49,
-            overallAverageBalance: calculatedBalance,
-            overallAverageCredits: 127000,
-            overallAverageDebits: 92333,
-            salaryStability: 100,
-            cashFlowStatus: "Positive",
-            snapshotInterval: 5,
-            snapshots: synthesizeSnapshotsFromMetrics(demoMetrics),
-            transactions: [],
-            monthlyMetrics: demoMetrics,
-            period: { start: new Date(), end: new Date() },
-            riskAnalysis: {
-              lowBalanceDays: 0,
-              negativeBalanceDays: 0,
-              largeDepositsCount: 0,
-              inflationEventsCount: 0,
-              bounceCount: 0,
-              salaryConsistencyScore: 100,
-              emiPaymentsCount: 0,
-              emiTransactions: [],
-            },
-          });
-          log("Compiled AI score card rating from verified application parameters.", "ok");
-          return;
-        }
-      } catch (e) {
-        console.error("Failed to parse application EVV metrics:", e);
+  // Optional manual loader for previously verified application EVV
+  const handleLoadSavedEVV = () => {
+    if (!application || !(application.evvOverall || application.evvMonthlyBreakdown || application.evvScore)) return;
+    try {
+      let monthly = application.evvMonthlyBreakdown;
+      if (typeof monthly === 'string') {
+        try { monthly = JSON.parse(monthly); } catch { monthly = []; }
       }
-    }
 
-    // Default: load complete sample bank statement dataset for immediate review
-    loadDemo();
-  }, [application, userDocuments]);
+      const rawScore = Number(application.evvScore);
+      const rawOverall = Number(application.evvOverall);
+
+      let calculatedScore = 82;
+      if (!isNaN(rawScore) && rawScore > 0 && rawScore <= 100) {
+        calculatedScore = rawScore;
+      } else if (!isNaN(rawOverall) && rawOverall > 0 && rawOverall <= 100) {
+        calculatedScore = rawOverall;
+      }
+
+      const risk: "Low" | "Medium" | "High" = calculatedScore >= 75 ? "Low" : calculatedScore < 50 ? "High" : "Medium";
+      const grade = application.evvGrade || (calculatedScore >= 85 ? "A+" : calculatedScore >= 75 ? "A" : calculatedScore >= 60 ? "B" : calculatedScore >= 40 ? "C" : "D");
+
+      if (Array.isArray(monthly) && monthly.length > 0) {
+        const formattedMetrics: MonthlyMetric[] = monthly.map((m: any, i: number) => {
+          const rawAvg = Number(m.averageBalance ?? m.avg ?? m.evv ?? (m.closing ? m.closing * 1.05 : 0)) || 0;
+          const rawCredits = Number(m.credits ?? m.totalCredits ?? (rawAvg > 0 ? Math.round(rawAvg * 0.75) : 0));
+          const rawDebits = Number(m.debits ?? m.totalDebits ?? (rawAvg > 0 ? Math.round(rawAvg * 0.65) : 0));
+          const rawClosing = Number(m.closing ?? m.closingBalance ?? (rawAvg > 0 ? Math.round(rawAvg * 0.95) : 0));
+          const rawMin = Number(m.min ?? m.snapshotMin ?? (rawAvg > 0 ? Math.round(rawAvg * 0.8) : 0));
+          const rawMax = Number(m.max ?? m.snapshotMax ?? (rawAvg > 0 ? Math.round(rawAvg * 1.2) : 0));
+          const rawNetCF = m.netCashFlow !== undefined ? Number(m.netCashFlow) : (rawCredits - rawDebits);
+          const txCount = Number(m.transactions ?? m.transactionCount ?? (m.debitCount ? (Number(m.debitCount || 0) + Number(m.creditCount || 0)) : 14));
+          const bounceCount = Number(m.bounces ?? m.bounceCount ?? 0);
+
+          return {
+            label: m.label || m.monthLabel || m.month || `Month ${i + 1}`,
+            month: m.month || `2026-0${i + 1}`,
+            points: m.points ?? 6,
+            avg: rawAvg,
+            min: rawMin,
+            max: rawMax,
+            closing: rawClosing,
+            median: rawAvg,
+            stdDev: Math.round(rawAvg * 0.05),
+            credits: rawCredits,
+            debits: rawDebits,
+            cashPercent: m.cashPercent ?? 0,
+            bounces: bounceCount,
+            netCashFlow: rawNetCF,
+            avgDailyBalance: rawAvg,
+            transactions: txCount,
+            lowBalanceDays: m.lowBalanceDays ?? 0,
+            riskGrade: grade,
+          };
+        });
+
+        const totalMonthsCount = formattedMetrics.length;
+        const sumMonthlyAvg = formattedMetrics.reduce((s, m) => s + m.avg, 0);
+        const computedMeanAMB = totalMonthsCount > 0 ? Math.round(sumMonthlyAvg / totalMonthsCount) : 0;
+
+        let calculatedBalance = (!isNaN(rawOverall) && rawOverall > 100)
+          ? rawOverall
+          : (computedMeanAMB > 0 ? computedMeanAMB : 35000);
+
+        const totalCreditsSum = formattedMetrics.reduce((s, m) => s + m.credits, 0);
+        const totalDebitsSum = formattedMetrics.reduce((s, m) => s + m.debits, 0);
+        const dynamicAvgCredits = totalMonthsCount > 0 ? Math.round(totalCreditsSum / totalMonthsCount) : Math.round(calculatedBalance * 0.5);
+        const dynamicAvgDebits = totalMonthsCount > 0 ? Math.round(totalDebitsSum / totalMonthsCount) : Math.round(calculatedBalance * 0.4);
+        const totalNetCF = totalCreditsSum - totalDebitsSum;
+        const dynamicCashFlowStatus: "Positive" | "Negative" = totalNetCF >= 0 ? "Positive" : "Negative";
+
+        const activeCreditMonths = formattedMetrics.filter((m) => m.credits > 0 || (m.transactions > 0 && m.bounces === 0)).length;
+        const dynamicSalaryStability = totalMonthsCount > 0
+          ? Math.min(100, Math.max(0, Math.round((activeCreditMonths / totalMonthsCount) * 100)))
+          : 100;
+
+        const dynamicTotalTxs = application.evvTotalTransactions
+          ? Number(application.evvTotalTransactions)
+          : (formattedMetrics.reduce((s, m) => s + m.transactions, 0) || totalMonthsCount * 14);
+
+        let dynamicSnapshots: Snapshot[] = [];
+        if (application.evvSnapshots) {
+          try {
+            const rawSnaps = typeof application.evvSnapshots === 'string'
+              ? JSON.parse(application.evvSnapshots)
+              : application.evvSnapshots;
+            if (Array.isArray(rawSnaps) && rawSnaps.length > 0) {
+              dynamicSnapshots = rawSnaps.map((s: any) => ({
+                date: new Date(s.date),
+                balance: Number(s.balance ?? s.closingBalance ?? 0),
+                changeAmount: s.changeAmount,
+                changePercent: s.changePercent,
+              }));
+            }
+          } catch {}
+        }
+        if (dynamicSnapshots.length === 0) {
+          dynamicSnapshots = synthesizeSnapshotsFromMetrics(formattedMetrics);
+        }
+
+        let sixComponentData: any = null;
+        if (application.evvWeightBreakdown) {
+          try {
+            const wb = typeof application.evvWeightBreakdown === 'string'
+              ? JSON.parse(application.evvWeightBreakdown)
+              : application.evvWeightBreakdown;
+            sixComponentData = wb?.sixComponents || null;
+          } catch {}
+        }
+
+        setEvvResult({
+          overallEVV: calculatedScore,
+          overallEVVValue: calculatedBalance,
+          overallGrade: grade,
+          overallRisk: risk,
+          totalMonths: formattedMetrics.length,
+          totalTransactions: dynamicTotalTxs,
+          overallAverageBalance: calculatedBalance,
+          overallAverageCredits: dynamicAvgCredits,
+          overallAverageDebits: dynamicAvgDebits,
+          salaryStability: dynamicSalaryStability,
+          cashFlowStatus: dynamicCashFlowStatus,
+          snapshotInterval: 5,
+          snapshots: dynamicSnapshots,
+          transactions: [],
+          monthlyMetrics: formattedMetrics,
+          period: { start: new Date(), end: new Date() },
+          sixComponent: sixComponentData,
+          riskAnalysis: {
+            lowBalanceDays: 0,
+            negativeBalanceDays: 0,
+            largeDepositsCount: 0,
+            inflationEventsCount: 0,
+            bounceCount: 0,
+            salaryConsistencyScore: dynamicSalaryStability,
+            emiPaymentsCount: 0,
+            emiTransactions: [],
+          },
+        });
+        log("Loaded saved EVV report from database.", "ok");
+      }
+    } catch (e) {
+      console.error("Failed to parse saved EVV metrics:", e);
+    }
+  };
 
   // Logging function
   const log = (message: string, kind?: "ok" | "warn" | "error") => {
@@ -664,20 +813,6 @@ export const EVVTestAgent: React.FC<{
     setConsoleMessages((prev) => [...prev, { time, message, kind }]);
   };
 
-  // Demo data loader for staff testing
-  const loadDemo = () => {
-    const demoTxs = generateDemoData();
-    setActiveTransactions(demoTxs);
-    const currentPolicy = DEFAULT_BANK_POLICIES[selectedBankKey] || DEFAULT_BANK_POLICIES['DEFAULT'];
-    const coAppProfile = {
-      repaymentIncomeRole: application?.repaymentIncomeRole || 'YES',
-      sourceType: application?.sourceType || 'SALARIED',
-      verificationStatus: application?.verificationStatus || 'VERIFIED',
-    };
-    const result = calculateEVV(demoTxs, getTargetInterval(), currentPolicy, coAppProfile as any);
-    setEvvResult(result);
-    log(`Compiled sample statement under 6-Component EVV. Score: ${result.overallEVV} / 100 (${result.overallGrade} Grade, ${result.sixComponent?.statusBand || 'Green'} Band).`, "ok");
-  };
 
   // File selection handler (Supports PDF & CSV)
   const handleFileSelected = (file: File) => {
@@ -834,22 +969,20 @@ export const EVVTestAgent: React.FC<{
 
       const currentPolicy = DEFAULT_BANK_POLICIES[selectedBankKey] || DEFAULT_BANK_POLICIES['DEFAULT'];
       const coAppProfile = {
-        repaymentIncomeRole: application?.repaymentIncomeRole || 'YES',
-        sourceType: application?.sourceType || 'SALARIED',
-        verificationStatus: application?.verificationStatus || 'VERIFIED',
+        isRepaymentIncomeContributor,
+        declaredIncomeType: profileType,
+        declaredMonthlyIncome: declaredMonthlyIncome ? parseFloat(declaredMonthlyIncome) : undefined,
+        verificationStatus: "FULLY_VERIFIED" as const,
       };
 
-      let computedResult: EVVResult;
-      if (transactions && transactions.length > 0) {
-        setActiveTransactions(transactions);
-        computedResult = calculateEVV(transactions, getTargetInterval(), currentPolicy, coAppProfile as any);
-      } else {
-        // Fallback for encrypted/complex AI statements
-        const demoTxs = generateDemoData();
-        setActiveTransactions(demoTxs);
-        computedResult = calculateEVV(demoTxs, getTargetInterval(), currentPolicy, coAppProfile as any);
+      if (!transactions || transactions.length === 0) {
+        log("Could not extract readable transactions from the uploaded file.", "warn");
+        alert("Could not extract transactions from the uploaded file. Please ensure the document is a valid bank statement with selectable text or in CSV format.");
+        return;
       }
 
+      setActiveTransactions(transactions);
+      const computedResult = calculateEVV(transactions, getTargetInterval(), currentPolicy, coAppProfile as any, candidateClassifications);
       setEvvResult(computedResult);
 
       if (onComplete) {
@@ -858,8 +991,8 @@ export const EVVTestAgent: React.FC<{
 
       log(`EVV Analysis complete! 6-Component Underwriting Score: ${computedResult.overallEVV} / 100 (${computedResult.sixComponent?.statusBand || 'Green'} Band)`, "ok");
     } catch (err: any) {
-      log(`Execution note: ${err.message}`, "warn");
-      loadDemo();
+      log(`Execution error: ${err.message || err}`, "error");
+      alert(`EVV verification failed: ${err.message || err}`);
     } finally {
       setUploading(false);
     }
@@ -884,7 +1017,9 @@ export const EVVTestAgent: React.FC<{
         </div>
       </div>
 
-      {/* Uploaded Bank Statements List Section */}
+      {!evvResult ? (
+        <div className="space-y-6">
+          {/* Uploaded Bank Statements List Section */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
@@ -1042,8 +1177,9 @@ export const EVVTestAgent: React.FC<{
         )}
       </div>
 
-      {/* 2 · Confirm the columns (Matching Image 2) */}
-      <div className="bg-white/80 border border-slate-200/80 rounded-3xl p-6 shadow-xs space-y-4">
+      {/* 2 · Confirm the columns (Matching Image 2 - CSV Only) */}
+      {pendingPdfFile && (pendingPdfFile.name.toLowerCase().endsWith('.csv') || pendingPdfFile.type === 'text/csv') && (
+        <div className="bg-white/80 border border-slate-200/80 rounded-3xl p-6 shadow-xs space-y-4">
         <div>
           <h3 className="text-sm font-bold text-slate-900">2 · Confirm the columns</h3>
           <p className="text-xs text-slate-500 mt-0.5 font-normal">
@@ -1148,6 +1284,7 @@ export const EVVTestAgent: React.FC<{
           );
         })()}
       </div>
+      )}
 
       {/* 3 · Choose your interval (Matching Image 2) */}
       <div className="bg-white/80 border border-slate-200/80 rounded-3xl p-6 shadow-xs space-y-4">
@@ -1239,23 +1376,58 @@ export const EVVTestAgent: React.FC<{
           {uploading ? "Processing PDF/CSV & AI..." : "Verify EVV"}
         </button>
       </div>
-
-      {/* Results Section */}
-      {!evvResult ? (
-        <div className="border-t border-slate-100 pt-8 pb-4 text-center">
-          <div className="bg-slate-50/60 border border-dashed border-slate-200 rounded-3xl p-10 max-w-xl mx-auto space-y-3">
-            <span className="material-symbols-outlined text-4xl text-slate-300">receipt_long</span>
-            <h4 className="text-xs font-black text-slate-700 uppercase tracking-widest">No Statement Analyzed Yet</h4>
-            <p className="text-[11px] text-slate-400 font-medium leading-relaxed">
-              Upload a customer bank statement PDF above and click <span className="font-bold text-slate-600">Verify EVV</span> to calculate the Estimated Verified Value score and store the document in AWS S3.
+    </div>
+  ) : (
+    <div className="space-y-6">
+      {/* Verified Statement Top Bar */}
+      <div className="bg-gradient-to-r from-emerald-50 via-teal-50/50 to-white border border-emerald-200/80 rounded-2xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center shadow-xs shrink-0">
+            <span className="material-symbols-outlined text-xl">verified</span>
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="text-sm font-black text-slate-900">Bank Statement Verified</h3>
+              <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase tracking-wider rounded-md border border-emerald-200">
+                {evvResult.sixComponent?.statusBand || 'Green'} Band
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 font-medium mt-0.5">
+              {fileNameDisplay || (activeDocId ? `Document: ${activeDocId}` : "Customer Bank Statement")} • EVV Score: <strong className="text-emerald-700 font-black">{evvResult.overallEVV}/100</strong> ({evvResult.overallGrade} Grade)
             </p>
-
           </div>
         </div>
-      ) : (
-        <div className="space-y-6 border-t border-slate-100 pt-6">
-          {/* ── Official Bank Statement Health Report (Matching Executive Presentation Spec) ── */}
-          <div className="bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-8 shadow-xs space-y-8" id="bank-statement-health-report">
+        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+          <button
+            type="button"
+            onClick={handleDownloadAuditSnapshot}
+            className="px-3.5 py-2 bg-white hover:bg-slate-50 text-violet-700 border border-violet-200 hover:border-violet-300 text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+            title="Download complete JSON audit snapshot (ledger, sample dates, intermediate deductions, and legal disclaimer)"
+          >
+            <span className="material-symbols-outlined text-base text-violet-600">data_object</span>
+            Download Audit Snapshot (JSON)
+          </button>
+          <button
+            type="button"
+            onClick={handleStartNewStatement}
+            className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 hover:border-slate-300 text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-base text-violet-600">upload_file</span>
+            Upload Another Statement
+          </button>
+          <button
+            type="button"
+            onClick={handlePrintStatement}
+            className="px-3.5 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-base">print</span>
+            Print Report
+          </button>
+        </div>
+      </div>
+
+      {/* ── Official Bank Statement Health Report (Matching Executive Presentation Spec) ── */}
+      <div className="bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-8 shadow-xs space-y-8" id="bank-statement-health-report">
             <style>{`
               @media print {
                 body, html, #__next, main {
@@ -1298,14 +1470,169 @@ export const EVVTestAgent: React.FC<{
               </div>
             </div>
 
+            {/* MANDATORY COMPLIANCE DISCLAIMER BANNER */}
+            <div className="p-4 bg-amber-50/90 border border-amber-200/90 rounded-2xl flex items-start gap-3 shadow-2xs">
+              <span className="material-symbols-outlined text-amber-700 text-xl shrink-0 mt-0.5">verified_user</span>
+              <div className="text-xs text-amber-900 leading-relaxed">
+                <span className="font-black uppercase tracking-wider block text-[10px] text-amber-800 mb-0.5">
+                  Internal Assessment Compliance Notice
+                </span>
+                {MANDATORY_EVV_DISCLAIMER}
+              </div>
+            </div>
+
+            {/* SECTION A: Account & Window Summary */}
+            <div className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-4 sm:p-5 space-y-3">
+              <div className="flex items-center justify-between flex-wrap gap-2 border-b border-slate-200/60 pb-2.5">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-sm text-violet-600">date_range</span>
+                  Section A: Account & Window Summary
+                </span>
+                <span className="text-[10px] font-mono font-bold text-slate-500">
+                  Engine: Deterministic Causal Ledger v2.1
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 text-xs">
+                <div>
+                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block">Statement Span</span>
+                  <span className="font-black text-slate-800 text-xs mt-0.5 block font-mono">
+                    {evvResult.deterministicEngineResult?.statementPeriod?.start || formatDate(evvResult.period.start)} to {evvResult.deterministicEngineResult?.statementPeriod?.end || formatDate(evvResult.period.end)}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block">Complete Months Analyzed</span>
+                  <span className="font-black text-emerald-700 text-xs mt-0.5 block font-mono">
+                    {evvResult.deterministicEngineResult?.completedCalendarMonths.length || evvResult.totalMonths} Calendar Months
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block">Benchmark M / Target T</span>
+                  <span className="font-black text-violet-700 text-xs mt-0.5 block font-mono">
+                    M: ₹{(evvResult.sixComponent?.bankPolicy.minimumBalanceBenchmark || 5000).toLocaleString('en-IN')} | T: ₹{(evvResult.sixComponent?.bankPolicy.strongBalanceTarget || 50000).toLocaleString('en-IN')}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block">Date Sampling Mode</span>
+                  <span className="font-black text-slate-800 text-xs mt-0.5 block">
+                    {intervalMode === "5day" ? "Mode A: Fixed [1, 5, 10, 15, 20, 25]" : `Mode B: Custom [${customDatesInput}]`}
+                  </span>
+                </div>
+              </div>
+
+              {/* Period Warning (if any) */}
+              {evvResult.deterministicEngineResult?.periodWarning && (
+                <div className="pt-2 border-t border-slate-200/60 flex items-center gap-2 flex-wrap text-[11px] text-amber-800">
+                  <span className="material-symbols-outlined text-xs text-amber-600">warning</span>
+                  <span className="font-bold">Period Window Notice:</span>
+                  <span className="text-[10px] font-mono">
+                    {evvResult.deterministicEngineResult.periodWarning}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* SECTION E: Applicant Underwriting Profile & Benchmark Overrides */}
+            <div className="bg-slate-50/80 border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs space-y-3 no-print">
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 border-b border-slate-200/60 pb-2.5">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-violet-600 text-lg">tune</span>
+                  <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">
+                    Applicant Underwriting Profile & Policy Controls
+                  </h3>
+                </div>
+                <span className="text-[10px] text-slate-500 font-medium italic">
+                  Changes causally re-score statement instantly
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3.5">
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">
+                    Repayment Income Contributor:
+                  </label>
+                  <select
+                    value={isRepaymentIncomeContributor}
+                    onChange={(e) => {
+                      const val = e.target.value as "YES" | "NO" | "UNKNOWN";
+                      setIsRepaymentIncomeContributor(val);
+                      runRecalculation(candidateClassifications, val, profileType, selectedBankKey);
+                    }}
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500/20 cursor-pointer"
+                  >
+                    <option value="YES">YES — Income Contributor</option>
+                    <option value="NO">NO — Non-Income Contributor (C4 = N/A)</option>
+                    <option value="UNKNOWN">UNKNOWN — Unconfirmed Role (C4 = 0)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">
+                    Income Profile Type:
+                  </label>
+                  <select
+                    value={profileType}
+                    onChange={(e) => {
+                      setProfileType(e.target.value);
+                      runRecalculation(candidateClassifications, isRepaymentIncomeContributor, e.target.value, selectedBankKey);
+                    }}
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500/20 cursor-pointer"
+                  >
+                    <option value="SALARIED">Salaried (Payroll / Direct Credit)</option>
+                    <option value="SELF_EMPLOYED">Self-Employed / Business Owner</option>
+                    <option value="PENSIONER">Pensioner</option>
+                    <option value="RENTAL_INCOME">Rental Income</option>
+                    <option value="AGRICULTURAL">Agricultural / Rural Inflow</option>
+                    <option value="FREELANCER_PROFESSIONAL">Freelancer / Consultant</option>
+                    <option value="FAMILY_SUPPORTED">Family Supported</option>
+                    <option value="HOMEMAKER_NON_INCOME_CONTRIBUTOR">Homemaker (Non-Contributor)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">
+                    Declared Monthly Income (₹):
+                  </label>
+                  <input
+                    type="number"
+                    value={declaredMonthlyIncome}
+                    onChange={(e) => setDeclaredMonthlyIncome(e.target.value)}
+                    onBlur={() => runRecalculation(candidateClassifications, isRepaymentIncomeContributor, profileType, selectedBankKey)}
+                    placeholder="e.g. 55000"
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500/20 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">
+                    Lending Partner Benchmark:
+                  </label>
+                  <select
+                    value={selectedBankKey}
+                    onChange={(e) => {
+                      setSelectedBankKey(e.target.value);
+                      runRecalculation(candidateClassifications, isRepaymentIncomeContributor, profileType, e.target.value);
+                    }}
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500/20 cursor-pointer"
+                  >
+                    {Object.entries(DEFAULT_BANK_POLICIES).map(([k, p]) => (
+                      <option key={k} value={k}>
+                        {p.bankName} (M: ₹{p.minimumBalanceBenchmark.toLocaleString('en-IN')})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
             {/* TABLE 1: Monthly average balance */}
             <div className="space-y-3">
               <div>
                 <h3 className="text-base font-black text-slate-900 tracking-tight">
-                  Monthly average balance
+                  Monthly Internal Sampled AMB & Financial Metrics
                 </h3>
                 <p className="text-xs font-medium text-slate-500 mt-0.5">
-                  Average of daily closing balances for each calendar month
+                  Arithmetic mean of antecedent closing ledger balances sampled across complete calendar months (not an official bank AMB).
                 </p>
               </div>
 
@@ -1314,10 +1641,11 @@ export const EVVTestAgent: React.FC<{
                   <thead>
                     <tr className="bg-slate-50/80 text-slate-600 text-[11px] font-bold">
                       <th className="text-left px-4 py-3 whitespace-nowrap">Month</th>
-                      <th className="text-right px-4 py-3 whitespace-nowrap">Avg balance</th>
+                      <th className="text-right px-4 py-3 whitespace-nowrap">Internal Sampled AMB</th>
+                      <th className="text-right px-4 py-3 whitespace-nowrap">Daily AMB</th>
                       <th className="text-right px-4 py-3 whitespace-nowrap">Min</th>
                       <th className="text-right px-4 py-3 whitespace-nowrap">Max</th>
-                      <th className="text-right px-4 py-3 whitespace-nowrap">Closing</th>
+                      <th className="text-right px-4 py-3 whitespace-nowrap">Month-End Closing</th>
                       <th className="text-right px-4 py-3 whitespace-nowrap">Total credits</th>
                       <th className="text-right px-4 py-3 whitespace-nowrap">Total debits</th>
                       <th className="text-right px-4 py-3 whitespace-nowrap">Cash %</th>
@@ -1328,7 +1656,8 @@ export const EVVTestAgent: React.FC<{
                     {evvResult.monthlyMetrics.map((metric: MonthlyMetric, idx: number) => (
                       <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
                         <td className="px-4 py-3 font-bold text-slate-900 whitespace-nowrap">{metric.label}</td>
-                        <td className="px-4 py-3 text-right font-black text-slate-900 whitespace-nowrap tabular-nums">{displayCurrency(metric.avgDailyBalance || metric.avg)}</td>
+                        <td className="px-4 py-3 text-right font-black text-violet-700 whitespace-nowrap tabular-nums">{displayCurrency(metric.median || metric.avg)}</td>
+                        <td className="px-4 py-3 text-right font-semibold text-slate-700 whitespace-nowrap tabular-nums">{displayCurrency(metric.avgDailyBalance || metric.avg)}</td>
                         <td className="px-4 py-3 text-right text-slate-600 whitespace-nowrap tabular-nums">{displayCurrency(metric.min)}</td>
                         <td className="px-4 py-3 text-right text-slate-600 whitespace-nowrap tabular-nums">{displayCurrency(metric.max)}</td>
                         <td className="px-4 py-3 text-right font-bold text-slate-800 whitespace-nowrap tabular-nums">{displayCurrency(metric.closing)}</td>
@@ -1351,10 +1680,10 @@ export const EVVTestAgent: React.FC<{
             <div className="space-y-3">
               <div>
                 <h3 className="text-base font-black text-slate-900 tracking-tight">
-                  Interval balances
+                  Internal Sampled Date Balances (Antecedent EOD Ledger Balances)
                 </h3>
                 <p className="text-xs font-medium text-slate-500 mt-0.5">
-                  {evvResult.snapshots.length} points sampled across the statement.
+                  {evvResult.snapshots.length} antecedent closing ledger balances sampled across the statement (carry-forward accounting).
                 </p>
               </div>
 
@@ -1363,7 +1692,7 @@ export const EVVTestAgent: React.FC<{
                   <thead className="sticky top-0 bg-slate-50/95 backdrop-blur-xs z-10">
                     <tr className="text-slate-600 text-[11px] font-bold border-b border-slate-200">
                       <th className="text-left px-4 py-3 whitespace-nowrap">Date</th>
-                      <th className="text-right px-4 py-3 whitespace-nowrap">Closing balance (nearest antecedent)</th>
+                      <th className="text-right px-4 py-3 whitespace-nowrap">Closing Balance (Antecedent EOD)</th>
                       <th className="text-right px-4 py-3 whitespace-nowrap">Change vs. previous</th>
                     </tr>
                   </thead>
@@ -1742,74 +2071,363 @@ export const EVVTestAgent: React.FC<{
               <div className="p-3.5 bg-slate-100/70 border border-slate-200/80 rounded-2xl flex items-center gap-2.5 text-[11px] text-slate-600">
                 <span className="material-symbols-outlined text-violet-600 text-base flex-shrink-0">gavel</span>
                 <span className="font-semibold italic">
-                  {evvResult.sixComponent.mandatoryDisclaimer || "Internal EVV assessment — not an official bank sanction or automatic loan decision."}
+                  {evvResult.sixComponent.mandatoryDisclaimer || MANDATORY_EVV_DISCLAIMER}
                 </span>
               </div>
+            </div>
+          )}
+
+          {/* SECTION D: Transaction Classification & Candidate Confirmation */}
+          {evvResult.deterministicEngineResult && (
+            <div className="bg-white border border-violet-100 rounded-3xl p-6 shadow-xs space-y-4 no-print">
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 border-b border-violet-50 pb-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-violet-600 text-lg">rate_review</span>
+                    <h4 className="text-sm font-black text-slate-900 uppercase tracking-wider">
+                      Section D: Transaction Classification & Candidate Confirmation
+                    </h4>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Review algorithmic candidates. Overrides immediately re-score statement and are saved to the audit trail.
+                  </p>
+                </div>
+
+                {/* Tabs for Candidates */}
+                <div className="flex items-center gap-1.5 bg-slate-100/80 p-1 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setActiveCandidateTab("bounces")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      activeCandidateTab === "bounces"
+                        ? "bg-white text-violet-700 shadow-xs font-black"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    Bounces ({evvResult.deterministicEngineResult.component3.candidates.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveCandidateTab("cash")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      activeCandidateTab === "cash"
+                        ? "bg-white text-violet-700 shadow-xs font-black"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    Cash Deposits ({evvResult.deterministicEngineResult.component5.candidates.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveCandidateTab("passThrough")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      activeCandidateTab === "passThrough"
+                        ? "bg-white text-violet-700 shadow-xs font-black"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    Pass-Through ({evvResult.deterministicEngineResult.component6.passThroughCandidates.length})
+                  </button>
+                </div>
+              </div>
+
+              {/* Candidate Tab Contents */}
+              {activeCandidateTab === "bounces" && (
+                <div className="space-y-3">
+                  {(!evvResult.deterministicEngineResult.component3.candidates || evvResult.deterministicEngineResult.component3.candidates.length === 0) ? (
+                    <div className="p-4 bg-emerald-50/50 border border-emerald-100 rounded-2xl text-xs text-emerald-800 flex items-center gap-2">
+                      <span className="material-symbols-outlined text-emerald-600 text-base">check_circle</span>
+                      <span>No bounce candidates detected. Flawless mandate and clearing history across all completed months.</span>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto border border-slate-200 rounded-2xl">
+                      <table className="w-full text-xs divide-y divide-slate-200">
+                        <thead className="bg-slate-50 text-[10px] font-bold uppercase text-slate-500">
+                          <tr>
+                            <th className="px-3 py-2.5 text-left">Date</th>
+                            <th className="px-3 py-2.5 text-left">Narration</th>
+                            <th className="px-3 py-2.5 text-right">Amount</th>
+                            <th className="px-3 py-2.5 text-left">Keywords</th>
+                            <th className="px-3 py-2.5 text-left">Staff Classification</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {evvResult.deterministicEngineResult.component3.candidates.map((cand) => (
+                            <tr key={cand.id} className="hover:bg-slate-50/50">
+                              <td className="px-3 py-2.5 font-mono text-slate-700 whitespace-nowrap">{cand.date}</td>
+                              <td className="px-3 py-2.5 font-medium text-slate-900 max-w-xs truncate" title={cand.narration}>{cand.narration}</td>
+                              <td className="px-3 py-2.5 text-right font-bold text-slate-900 tabular-nums">₹{cand.amountRupees.toLocaleString('en-IN')}</td>
+                              <td className="px-3 py-2.5 text-[10px] text-slate-500 font-mono">{cand.matchedKeywords.join(", ")}</td>
+                              <td className="px-3 py-2.5">
+                                <select
+                                  value={candidateClassifications.bounces[cand.id] || cand.classification}
+                                  onChange={(e) => handleBounceOverride(cand.id, e.target.value as BounceClassification)}
+                                  className="px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 focus:ring-1 focus:ring-violet-500 cursor-pointer"
+                                >
+                                  <option value="CONFIRMED_BOUNCE">Confirmed Bounce (-10/ea)</option>
+                                  <option value="REVIEW_REQUIRED">Review Required</option>
+                                  <option value="NOT_A_BOUNCE">Not a Bounce (Technical Reversal)</option>
+                                </select>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeCandidateTab === "cash" && (
+                <div className="space-y-3">
+                  {(!evvResult.deterministicEngineResult.component5.candidates || evvResult.deterministicEngineResult.component5.candidates.length === 0) ? (
+                    <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-2xl text-xs text-slate-600 flex items-center gap-2">
+                      <span className="material-symbols-outlined text-violet-600 text-base">info</span>
+                      <span>No physical cash deposit candidates detected. All credits came from digital/electronic sources.</span>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto border border-slate-200 rounded-2xl">
+                      <table className="w-full text-xs divide-y divide-slate-200">
+                        <thead className="bg-slate-50 text-[10px] font-bold uppercase text-slate-500">
+                          <tr>
+                            <th className="px-3 py-2.5 text-left">Date</th>
+                            <th className="px-3 py-2.5 text-left">Narration</th>
+                            <th className="px-3 py-2.5 text-right">Amount</th>
+                            <th className="px-3 py-2.5 text-center">Audit Alert (≥₹50k)</th>
+                            <th className="px-3 py-2.5 text-left">Staff Classification</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {evvResult.deterministicEngineResult.component5.candidates.map((cand) => (
+                            <tr key={cand.id} className="hover:bg-slate-50/50">
+                              <td className="px-3 py-2.5 font-mono text-slate-700 whitespace-nowrap">{cand.date}</td>
+                              <td className="px-3 py-2.5 font-medium text-slate-900 max-w-xs truncate" title={cand.narration}>{cand.narration}</td>
+                              <td className="px-3 py-2.5 text-right font-bold text-slate-900 tabular-nums">₹{cand.amountRupees.toLocaleString('en-IN')}</td>
+                              <td className="px-3 py-2.5 text-center">
+                                {cand.isLargeDepositAlert ? (
+                                  <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase bg-amber-50 text-amber-700 border border-amber-200">
+                                    Audit Alert
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-400">—</span>
+                                )}
+                              </td>
+                              <td className="px-3 py-2.5">
+                                <select
+                                  value={candidateClassifications.cash[cand.id] || cand.classification}
+                                  onChange={(e) => handleCashOverride(cand.id, e.target.value as CashClassification)}
+                                  className="px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 focus:ring-1 focus:ring-violet-500 cursor-pointer"
+                                >
+                                  <option value="CONFIRMED_CASH_DEPOSIT">Confirmed Cash Deposit</option>
+                                  <option value="REVIEW_REQUIRED">Review Required</option>
+                                  <option value="NOT_CASH_DEPOSIT">Not Cash (Digital / Mapping Error)</option>
+                                </select>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeCandidateTab === "passThrough" && (
+                <div className="space-y-3">
+                  {(!evvResult.deterministicEngineResult.component6.passThroughCandidates || evvResult.deterministicEngineResult.component6.passThroughCandidates.length === 0) ? (
+                    <div className="p-4 bg-emerald-50/50 border border-emerald-100 rounded-2xl text-xs text-emerald-800 flex items-center gap-2">
+                      <span className="material-symbols-outlined text-emerald-600 text-base">check_circle</span>
+                      <span>No rapid pass-through outflows detected. Account shows genuine balance retention.</span>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto border border-slate-200 rounded-2xl">
+                      <table className="w-full text-xs divide-y divide-slate-200">
+                        <thead className="bg-slate-50 text-[10px] font-bold uppercase text-slate-500">
+                          <tr>
+                            <th className="px-3 py-2.5 text-left">Credit Date</th>
+                            <th className="px-3 py-2.5 text-right">Credit Amount</th>
+                            <th className="px-3 py-2.5 text-right">3d Debit Sum</th>
+                            <th className="px-3 py-2.5 text-right">Outflow Ratio</th>
+                            <th className="px-3 py-2.5 text-left">Narration</th>
+                            <th className="px-3 py-2.5 text-left">Staff Classification</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {evvResult.deterministicEngineResult.component6.passThroughCandidates.map((cand) => (
+                            <tr key={cand.id} className="hover:bg-slate-50/50">
+                              <td className="px-3 py-2.5 font-mono text-slate-700 whitespace-nowrap">{cand.creditDate}</td>
+                              <td className="px-3 py-2.5 text-right font-bold text-slate-900 tabular-nums">₹{cand.creditAmountRupees.toLocaleString('en-IN')}</td>
+                              <td className="px-3 py-2.5 text-right font-bold text-rose-700 tabular-nums">₹{cand.debitWindowSumRupees.toLocaleString('en-IN')}</td>
+                              <td className="px-3 py-2.5 text-right font-mono font-bold text-rose-600 tabular-nums">{cand.outflowRatio}%</td>
+                              <td className="px-3 py-2.5 font-medium text-slate-900 max-w-xs truncate" title={cand.narration}>{cand.narration}</td>
+                              <td className="px-3 py-2.5">
+                                <select
+                                  value={candidateClassifications.passThrough[cand.id] || cand.classification}
+                                  onChange={(e) => handlePassThroughOverride(cand.id, e.target.value as PassThroughClassification)}
+                                  className="px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 focus:ring-1 focus:ring-violet-500 cursor-pointer"
+                                >
+                                  <option value="UNEXPLAINED">Unexplained Adverse Outflow</option>
+                                  <option value="SUSPECTED_TEMPORARY_FUNDING">Suspected Temporary Funding</option>
+                                  <option value="EXPLAINED_ELIGIBLE">Explained Eligible</option>
+                                  <option value="DOCUMENTED_TUITION_OR_HOUSEHOLD_EXPENSE">Documented Tuition / Household Expense</option>
+                                  <option value="DOCUMENTED_BUSINESS_EXPENSE">Documented Business Expense</option>
+                                  <option value="OWN_ACCOUNT_TRANSFER">Own Account Transfer</option>
+                                  <option value="MEDICAL_OR_EXCEPTIONAL">Medical / Exceptional</option>
+                                </select>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
 
 
           {/* Side-by-side Layout: Left Side = Chart & Indicators, Right Side = EVV Monthly Breakdown Table */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            {/* Left Column: Underwriting Indicators & SVG Trend Line Chart */}
-            <div className="lg:col-span-7 space-y-6">
-              {/* Underwriting Indicators Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
-                <div className="bg-white/70 border border-violet-100/70 rounded-2xl p-4 shadow-sm">
-                  <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
-                    Average Monthly Balance
-                  </div>
-                  <div className="text-base font-black text-slate-900">
-                    {displayCurrency(evvResult.overallAverageBalance)}
-                  </div>
-                </div>
+          {(() => {
+            const totalSnapshotsCount = evvResult.snapshots?.length || (evvResult.totalMonths * 6);
+            const snapshotSum = evvResult.snapshots?.reduce((s, snap) => s + snap.balance, 0) || 0;
+            const snapshotAMB = totalSnapshotsCount > 0 ? Math.round(snapshotSum / totalSnapshotsCount) : (evvResult.overallAverageBalance || 0);
 
-                <div className="bg-white/70 border border-violet-100/70 rounded-2xl p-4 shadow-sm">
-                  <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
-                    Salary & Income Stability
-                  </div>
-                  <div className="text-base font-black text-slate-900">
-                    {evvResult.salaryStability}%
-                  </div>
-                </div>
+            const displayAMB = (evvResult.overallAverageBalance && evvResult.overallAverageBalance > 100)
+              ? evvResult.overallAverageBalance
+              : (snapshotAMB > 0 ? snapshotAMB : (evvResult.overallEVVValue && evvResult.overallEVVValue > 100 ? evvResult.overallEVVValue : 0));
 
-                <div className="bg-white/70 border border-violet-100/70 rounded-2xl p-4 shadow-sm">
-                  <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
-                    Net Cash Flow
-                  </div>
-                  <div className={`text-base font-black ${evvResult.cashFlowStatus === "Positive" ? "text-emerald-600" : "text-rose-600"}`}>
-                    {evvResult.cashFlowStatus}
-                  </div>
-                </div>
+            const totalCreditsVal = evvResult.monthlyMetrics?.reduce((s, m) => s + (m.credits || 0), 0) || 0;
+            const totalDebitsVal = evvResult.monthlyMetrics?.reduce((s, m) => s + (m.debits || 0), 0) || 0;
+            const dynamicNetDiff = (evvResult.overallAverageCredits || (totalCreditsVal / (evvResult.totalMonths || 1))) -
+                                   (evvResult.overallAverageDebits || (totalDebitsVal / (evvResult.totalMonths || 1)));
 
-                <div className="bg-white/70 border border-violet-100/70 rounded-2xl p-4 shadow-sm">
-                  <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
-                    Snapshot Interval
-                  </div>
-                  <div className="text-base font-black text-slate-900">
-                    {evvResult.snapshotInterval} Days
-                  </div>
-                </div>
+            const actualTxCount = application?.evvTotalTransactions || evvResult.totalTransactions || evvResult.transactions.length || (evvResult.monthlyMetrics.reduce((s, m) => s + (m.transactions || 0), 0)) || (evvResult.totalMonths * 14);
 
-                <div className="bg-white/70 border border-violet-100/70 rounded-2xl p-4 shadow-sm">
-                  <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
-                    Analysis Period
-                  </div>
-                  <div className="text-xs font-bold text-slate-700 leading-tight">
-                    {evvResult.totalMonths} Month{evvResult.totalMonths > 1 ? "s" : ""} ({evvResult.totalTransactions} txs)
-                  </div>
-                </div>
+            const periodSpanLabel = evvResult.monthlyMetrics && evvResult.monthlyMetrics.length > 0
+              ? `${evvResult.monthlyMetrics[0]?.label} – ${evvResult.monthlyMetrics[evvResult.monthlyMetrics.length - 1]?.label}`
+              : `${evvResult.totalMonths} Months`;
 
-                <div className="bg-white/70 border border-violet-100/70 rounded-2xl p-4 shadow-sm">
-                  <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
-                    Document Storage
+            return (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                {/* Left Column: Underwriting Indicators & SVG Trend Line Chart */}
+                <div className="lg:col-span-7 space-y-6">
+                  {/* Underwriting Indicators Grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
+                    {/* Box 1: Dynamic Average Monthly Balance (AMB) */}
+                    <div className="bg-white/80 border border-violet-100/90 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all group relative">
+                      <div className="flex items-center justify-between gap-1 mb-1.5">
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                          Average Monthly Balance
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setIsExplainingIntervals(true)}
+                          className="text-violet-600 hover:text-violet-800 transition-colors flex items-center gap-0.5 text-[9px] font-bold cursor-pointer"
+                          title="Click to learn how Interval Balances & AMB are calculated"
+                        >
+                          <span className="material-symbols-outlined text-[13px]">help</span>
+                          <span className="hidden sm:inline">Formula</span>
+                        </button>
+                      </div>
+                      <div className="text-base font-black text-slate-900 tracking-tight">
+                        {displayCurrency(displayAMB)}
+                      </div>
+                      <div className="text-[10px] font-medium text-slate-500 mt-1 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-violet-500 shrink-0"></span>
+                        <span className="truncate">Mean of {totalSnapshotsCount} interval points</span>
+                      </div>
+                    </div>
+
+                    {/* Box 2: Dynamic Salary & Income Stability */}
+                    <div className="bg-white/80 border border-violet-100/90 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all">
+                      <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                        Salary & Income Stability
+                      </div>
+                      <div className="text-base font-black text-slate-900 flex items-center gap-1.5">
+                        <span>{evvResult.salaryStability}%</span>
+                        <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider ${
+                          evvResult.salaryStability >= 80
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                            : evvResult.salaryStability >= 50
+                            ? "bg-amber-50 text-amber-700 border border-amber-200"
+                            : "bg-rose-50 text-rose-700 border border-rose-200"
+                        }`}>
+                          {evvResult.salaryStability >= 80 ? "Consistent" : evvResult.salaryStability >= 50 ? "Moderate" : "Irregular"}
+                        </span>
+                      </div>
+                      <div className="text-[10px] font-medium text-slate-500 mt-1 truncate">
+                        {Math.round((evvResult.salaryStability / 100) * evvResult.totalMonths)} of {evvResult.totalMonths} mos with inflows
+                      </div>
+                    </div>
+
+                    {/* Box 3: Dynamic Net Cash Flow */}
+                    <div className="bg-white/80 border border-violet-100/90 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all">
+                      <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                        Net Cash Flow
+                      </div>
+                      <div className={`text-base font-black flex items-center gap-1.5 ${evvResult.cashFlowStatus === "Positive" ? "text-emerald-600" : "text-rose-600"}`}>
+                        <span className="material-symbols-outlined text-base font-bold">
+                          {evvResult.cashFlowStatus === "Positive" ? "trending_up" : "trending_down"}
+                        </span>
+                        <span>{evvResult.cashFlowStatus}</span>
+                      </div>
+                      <div className="text-[10px] font-medium text-slate-500 mt-1 truncate">
+                        {dynamicNetDiff >= 0 ? "+" : ""}{displayCurrency(Math.round(dynamicNetDiff))}/mo net
+                      </div>
+                    </div>
+
+                    {/* Box 4: Dynamic Snapshot Interval */}
+                    <div className="bg-white/80 border border-violet-100/90 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                          Snapshot Interval
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setIsExplainingIntervals(true)}
+                          className="text-violet-600 hover:text-violet-800 text-[9px] font-bold flex items-center cursor-pointer"
+                          title="See how 5-day interval balances are sampled"
+                        >
+                          <span className="material-symbols-outlined text-[13px]">info</span>
+                        </button>
+                      </div>
+                      <div className="text-base font-black text-slate-900">
+                        {intervalMode === "5day" ? "5 Days" : "Custom Dates"}
+                      </div>
+                      <div className="text-[10px] font-medium text-slate-500 mt-1 truncate">
+                        {intervalMode === "5day" ? "Days 1, 5, 10, 15, 20, 25" : customDatesInput}
+                      </div>
+                    </div>
+
+                    {/* Box 5: Dynamic Analysis Period */}
+                    <div className="bg-white/80 border border-violet-100/90 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all">
+                      <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                        Analysis Period
+                      </div>
+                      <div className="text-xs font-bold text-slate-700 leading-tight">
+                        {evvResult.totalMonths} Month{evvResult.totalMonths > 1 ? "s" : ""} ({actualTxCount} txs)
+                      </div>
+                      <div className="text-[10px] font-medium text-slate-500 mt-1 truncate" title={periodSpanLabel}>
+                        {periodSpanLabel}
+                      </div>
+                    </div>
+
+                    {/* Box 6: Dynamic Document Storage */}
+                    <div className="bg-white/80 border border-violet-100/90 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all">
+                      <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                        Document Storage
+                      </div>
+                      <div className="text-xs font-black text-indigo-600 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[14px]">lock</span>
+                        <span>AWS S3 Vault</span>
+                      </div>
+                      <div className="text-[10px] font-medium text-slate-500 mt-1 truncate" title={latestDoc?.docName || "Bank Statement.pdf"}>
+                        {latestDoc?.docName || latestDoc?.fileName || "Bank Statement"} • Encrypted
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-xs font-black text-indigo-600">
-                    AWS S3 Vault
-                  </div>
-                </div>
-              </div>
 
               {/* SVG Trend Line Chart */}
               <EVVGradientAreaChart metrics={evvResult.monthlyMetrics} />
@@ -1906,8 +2524,323 @@ export const EVVTestAgent: React.FC<{
                 </div>
               </div>
             </div>
+          );
+        })()}
+
+          {/* Sampled Interval Balances & Audit Points Breakdown */}
+          <div className="bg-white/90 border border-violet-100/90 rounded-3xl p-6 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-violet-50 pb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-violet-600 text-lg">calendar_month</span>
+                  <h4 className="text-sm font-black text-slate-900 uppercase tracking-wider">
+                    Sampled Interval Balances & Audit Points
+                  </h4>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-violet-50 text-violet-700 border border-violet-200">
+                    {evvResult.snapshots.length} Points
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Reconstructed closing ledger balances sampled at 5-day intervals across each calendar month to eliminate window dressing.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsExplainingIntervals(true)}
+                  className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200 flex items-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-sm">psychology_alt</span>
+                  <span>How it's calculated</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowIntervalInspector(!showIntervalInspector)}
+                  className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                >
+                  <span className="material-symbols-outlined text-sm">{showIntervalInspector ? "visibility_off" : "table_rows"}</span>
+                  <span>{showIntervalInspector ? "Hide Table" : "Inspect Interval Balances"}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Summary Strip */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-violet-50/40 border border-violet-100/60 rounded-2xl p-3.5 text-xs">
+              <div>
+                <span className="text-[9px] font-black uppercase text-slate-400 block tracking-wider">Sampling Interval</span>
+                <span className="font-black text-slate-800 text-sm mt-0.5 block">5-Day Cycle</span>
+                <span className="text-[10px] text-slate-500">Days 1, 5, 10, 15, 20, 25</span>
+              </div>
+              <div>
+                <span className="text-[9px] font-black uppercase text-slate-400 block tracking-wider">Total Interval Points</span>
+                <span className="font-black text-slate-800 text-sm mt-0.5 block">{evvResult.snapshots.length} Points</span>
+                <span className="text-[10px] text-slate-500">Across {evvResult.totalMonths} months</span>
+              </div>
+              <div>
+                <span className="text-[9px] font-black uppercase text-slate-400 block tracking-wider">Computed AMB</span>
+                <span className="font-black text-violet-700 text-sm mt-0.5 block">
+                  ₹{Math.round(evvResult.snapshots.reduce((s, snap) => s + snap.balance, 0) / (evvResult.snapshots.length || 1)).toLocaleString('en-IN')}
+                </span>
+                <span className="text-[10px] text-slate-500">Arithmetic Mean</span>
+              </div>
+              <div>
+                <span className="text-[9px] font-black uppercase text-slate-400 block tracking-wider">Benchmark Safety</span>
+                <span className={`font-black text-sm mt-0.5 block ${evvResult.snapshots.every(s => s.balance >= 3000) ? "text-emerald-600" : "text-amber-600"}`}>
+                  {evvResult.snapshots.filter(s => s.balance >= 3000).length} / {evvResult.snapshots.length} Met
+                </span>
+                <span className="text-[10px] text-slate-500">Benchmark M (₹3,000)</span>
+              </div>
+            </div>
+
+            {/* Expandable Table */}
+            {showIntervalInspector && (
+              <div className="space-y-3 pt-2">
+                {/* Month Filter Selector */}
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedIntervalMonth("ALL")}
+                      className={`px-3 py-1 rounded-lg font-bold text-[11px] transition-all cursor-pointer ${
+                        selectedIntervalMonth === "ALL"
+                          ? "bg-violet-600 text-white shadow-xs"
+                          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      }`}
+                    >
+                      All Months ({evvResult.snapshots.length})
+                    </button>
+                    {evvResult.monthlyMetrics.map((m, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setSelectedIntervalMonth(m.month || m.label)}
+                        className={`px-3 py-1 rounded-lg font-bold text-[11px] whitespace-nowrap transition-all cursor-pointer ${
+                          selectedIntervalMonth === (m.month || m.label)
+                            ? "bg-violet-600 text-white shadow-xs"
+                            : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                        }`}
+                      >
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Table */}
+                <div className="overflow-x-auto border border-slate-200 rounded-2xl bg-white max-h-[420px] overflow-y-auto shadow-2xs">
+                  <table className="w-full text-xs font-medium text-slate-700 divide-y divide-slate-200">
+                    <thead className="sticky top-0 bg-slate-50/95 backdrop-blur-xs z-10">
+                      <tr className="text-slate-600 text-[10px] font-bold uppercase tracking-wider border-b border-slate-200">
+                        <th className="text-left px-4 py-2.5 whitespace-nowrap">#</th>
+                        <th className="text-left px-4 py-2.5 whitespace-nowrap">Interval Date</th>
+                        <th className="text-right px-4 py-2.5 whitespace-nowrap">Closing Balance (Nearest EOD)</th>
+                        <th className="text-right px-4 py-2.5 whitespace-nowrap">Change vs Previous (Δ / %)</th>
+                        <th className="text-center px-4 py-2.5 whitespace-nowrap">Benchmark Status</th>
+                        <th className="text-right px-4 py-2.5 whitespace-nowrap">Progressive AMB</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                      {(() => {
+                        let runningSum = 0;
+                        return evvResult.snapshots.map((snap, idx) => {
+                          runningSum += snap.balance;
+                          const runningMean = Math.round(runningSum / (idx + 1));
+
+                          // Check if visible in filter
+                          const d = snap.date instanceof Date ? snap.date : new Date(snap.date);
+                          const mKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+                          const mLabel = d.toLocaleString("en-US", { month: "short", year: "numeric" });
+                          const isVisible = selectedIntervalMonth === "ALL" || selectedIntervalMonth === mKey || selectedIntervalMonth.toLowerCase() === mLabel.toLowerCase();
+                          if (!isVisible) return null;
+
+                          const hasPrev = idx > 0;
+                          const diff = snap.changeAmount ?? 0;
+                          const pct = snap.changePercent ?? 0;
+
+                          return (
+                            <tr key={idx} className="hover:bg-violet-50/30 transition-colors">
+                              <td className="px-4 py-2 text-slate-400 font-mono text-[10px]">{idx + 1}</td>
+                              <td className="px-4 py-2 font-bold text-slate-800 whitespace-nowrap">
+                                {formatSnapshotDate(snap.date)}
+                              </td>
+                              <td className="px-4 py-2 text-right font-black text-slate-900 whitespace-nowrap tabular-nums">
+                                {displayCurrency(snap.balance)}
+                              </td>
+                              <td className="px-4 py-2 text-right whitespace-nowrap tabular-nums">
+                                {!hasPrev ? (
+                                  <span className="text-slate-400 font-bold">—</span>
+                                ) : diff > 0 ? (
+                                  <span className="text-emerald-600 font-bold">
+                                    +₹{Math.abs(Math.round(diff)).toLocaleString('en-IN')} (+{Math.abs(pct).toFixed(1)}%)
+                                  </span>
+                                ) : diff < 0 ? (
+                                  <span className="text-rose-600 font-bold">
+                                    -₹{Math.abs(Math.round(diff)).toLocaleString('en-IN')} (-{Math.abs(pct).toFixed(1)}%)
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-500 font-medium">₹0 (0.0%)</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-2 text-center whitespace-nowrap">
+                                <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${
+                                  snap.balance >= 5000
+                                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                    : snap.balance >= 2000
+                                    ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                    : "bg-rose-50 text-rose-700 border border-rose-200"
+                                }`}>
+                                  {snap.balance >= 5000 ? "Safe" : snap.balance >= 2000 ? "Low" : "Critical Low"}
+                                </span>
+                              </td>
+                              <td className="px-4 py-2 text-right font-mono font-bold text-slate-600 whitespace-nowrap tabular-nums">
+                                ₹{runningMean.toLocaleString('en-IN')}
+                              </td>
+                            </tr>
+                          );
+                        });
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
-        )}
+
+          {/* Modal: How Interval Balances & AMB Are Calculated */}
+          {isExplainingIntervals && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
+              <div className="bg-white rounded-3xl border border-violet-100 shadow-2xl max-w-2xl w-full p-6 sm:p-8 space-y-6 max-h-[90vh] overflow-y-auto">
+                {/* Modal Header */}
+                <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-violet-100 flex items-center justify-center text-violet-700">
+                      <span className="material-symbols-outlined text-2xl">functions</span>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-black text-slate-900 tracking-tight">
+                        How Interval Balances & AMB Are Calculated
+                      </h3>
+                      <p className="text-xs font-semibold text-slate-500">
+                        Authoritative Indian Banking Underwriting & EVV Intelligence Engine
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsExplainingIntervals(false)}
+                    className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 cursor-pointer transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-lg">close</span>
+                  </button>
+                </div>
+
+                {/* 4-Step Methodology */}
+                <div className="space-y-4 text-xs text-slate-700 leading-relaxed">
+                  {/* Step 1 */}
+                  <div className="p-4 rounded-2xl bg-violet-50/50 border border-violet-100 space-y-1.5">
+                    <div className="flex items-center gap-2 text-violet-900 font-black text-xs uppercase tracking-wider">
+                      <span className="w-5 h-5 rounded-full bg-violet-600 text-white flex items-center justify-center text-[10px]">1</span>
+                      5-Day Interval Sampling (Days 1, 5, 10, 15, 20, 25)
+                    </div>
+                    <p className="text-slate-600 pl-7">
+                      Standard bank underwriting algorithms do not rely on a single end-of-month figure. Instead, closing balances are sampled at fixed 5-day intervals across each calendar month.
+                    </p>
+                    <div className="pl-7 text-[11px] text-violet-700 font-semibold italic">
+                      Why? Prevents "window dressing" where borrowers temporarily borrow funds from family on month-end to inflate statement balances right before loan filing.
+                    </div>
+                  </div>
+
+                  {/* Step 2 */}
+                  <div className="p-4 rounded-2xl bg-violet-50/50 border border-violet-100 space-y-1.5">
+                    <div className="flex items-center gap-2 text-violet-900 font-black text-xs uppercase tracking-wider">
+                      <span className="w-5 h-5 rounded-full bg-violet-600 text-white flex items-center justify-center text-[10px]">2</span>
+                      Antecedent EOD Closing Balance (Carry-Forward Accounting)
+                    </div>
+                    <p className="text-slate-600 pl-7">
+                      On each snapshot day <strong className="text-slate-900">D</strong>, the engine identifies the last posted transaction on or prior to date <strong className="text-slate-900">D</strong>:
+                    </p>
+                    <div className="ml-7 p-2.5 bg-white border border-violet-200 rounded-xl font-mono text-[11px] text-violet-950 font-bold">
+                      Balance(D) = Closing Ledger Balance of latest transaction ≤ D
+                    </div>
+                    <p className="text-slate-500 pl-7 text-[11px]">
+                      If no banking transaction took place on date D, the ledger balance is carried forward from the previous active ledger state.
+                    </p>
+                  </div>
+
+                  {/* Step 3 */}
+                  <div className="p-4 rounded-2xl bg-violet-50/50 border border-violet-100 space-y-1.5">
+                    <div className="flex items-center gap-2 text-violet-900 font-black text-xs uppercase tracking-wider">
+                      <span className="w-5 h-5 rounded-full bg-violet-600 text-white flex items-center justify-center text-[10px]">3</span>
+                      Change vs. Previous Interval (Volatility & Outflow Tracking)
+                    </div>
+                    <p className="text-slate-600 pl-7">
+                      For each interval point <strong className="text-slate-900">t</strong>, the engine calculates the absolute shift (Δ) and percentage shift (%):
+                    </p>
+                    <div className="ml-7 p-2.5 bg-white border border-violet-200 rounded-xl font-mono text-[11px] text-violet-950 font-bold space-y-1">
+                      <div>Δ Balance = Balance(t) − Balance(t − 1)</div>
+                      <div>% Change = (Δ Balance / |Balance(t − 1)|) × 100%</div>
+                    </div>
+                    <p className="text-slate-500 pl-7 text-[11px]">
+                      Flags rapid outflow behavior (e.g. ≥70% of credited funds debited within 3 days).
+                    </p>
+                  </div>
+
+                  {/* Step 4 */}
+                  <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200 space-y-2">
+                    <div className="flex items-center gap-2 text-emerald-900 font-black text-xs uppercase tracking-wider">
+                      <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px]">4</span>
+                      Average Monthly Balance (AMB) Computation
+                    </div>
+                    <p className="text-slate-700 pl-7">
+                      The authoritative Average Monthly Balance is computed as the arithmetic mean of all interval snapshot balances across the statement period:
+                    </p>
+                    <div className="ml-7 p-3 bg-white border border-emerald-300 rounded-xl font-mono text-[11px] text-emerald-950 font-bold">
+                      AMB = (1 / N) × Σ [IntervalBalance(i)] from i = 1 to N
+                    </div>
+
+                    {/* Live Statement Calculation */}
+                    <div className="ml-7 pt-2 border-t border-emerald-200/80 space-y-1">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 block">
+                        Live Statement Calculation for this Application:
+                      </span>
+                      <div className="bg-emerald-100/60 p-2.5 rounded-lg text-emerald-950 font-mono text-[11px]">
+                        <div>• Total Sampled Points (N): <strong className="font-black">{evvResult.snapshots.length}</strong></div>
+                        <div>• Sum of All Interval Balances: <strong className="font-black">₹{evvResult.snapshots.reduce((s, snap) => s + snap.balance, 0).toLocaleString('en-IN')}</strong></div>
+                        <div className="pt-1 text-xs font-black text-emerald-900">
+                          • AMB = ₹{evvResult.snapshots.reduce((s, snap) => s + snap.balance, 0).toLocaleString('en-IN')} / {evvResult.snapshots.length} = <span className="underline">{displayCurrency(Math.round(evvResult.snapshots.reduce((s, snap) => s + snap.balance, 0) / (evvResult.snapshots.length || 1)))}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Modal Footer */}
+                <div className="pt-2 flex items-center justify-between border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsExplainingIntervals(false);
+                      setShowIntervalInspector(true);
+                    }}
+                    className="text-xs font-bold text-violet-600 hover:text-violet-800 flex items-center gap-1 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-sm">table_rows</span>
+                    <span>View all {evvResult.snapshots.length} interval balance points</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsExplainingIntervals(false)}
+                    className="px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-black text-xs uppercase tracking-wider cursor-pointer shadow-sm transition-all"
+                  >
+                    Got it
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Footer */}
       <div className="border-t border-slate-100 pt-6 flex items-center justify-center gap-8 flex-wrap text-[10px] font-black uppercase tracking-wider text-slate-400 select-none">

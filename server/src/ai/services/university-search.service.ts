@@ -184,7 +184,7 @@ Return detailed information as a JSON object with this structure:
   "notableAlumni": ["Alumni1", "Alumni2"]
 }
 
-CRITICAL: "website" MUST be the actual original official university domain (e.g. mit.edu, cam.ac.uk).
+CRITICAL: "website" MUST be the actual original official university domain (e.g. official .edu or .ac.uk domain).
 Return ONLY valid JSON.`;
 
     try {

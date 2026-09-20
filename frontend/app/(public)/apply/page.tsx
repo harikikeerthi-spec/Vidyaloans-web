@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { authApi } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSiteSettings } from "@/contexts/SiteSettingsContext";
+import FastAiUniversityInput from "@/components/FastAiUniversityInput";
 
 const FIELD_LIMITS = {
     universityName: 100,
@@ -380,22 +381,14 @@ export default function ApplyLandingPage() {
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                                     {/* University Name */}
                                     <div className="sm:col-span-2">
-                                        <div className="flex justify-between items-center mb-1.5">
-                                            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                                                Target College / University Name <span className="text-rose-500">*</span>
-                                            </label>
-                                            <span className="text-[10px] font-bold text-slate-400">
-                                                {universityName.length}/{FIELD_LIMITS.universityName}
-                                            </span>
-                                        </div>
-                                        <input
-                                            type="text"
-                                            required
-                                            maxLength={FIELD_LIMITS.universityName}
+                                        <FastAiUniversityInput
                                             value={universityName}
-                                            onChange={(e) => setUniversityName(e.target.value)}
-                                            placeholder="e.g. Northeastern University, Harvard, Oxford, etc."
-                                            className="w-full px-4 py-3 text-sm rounded-xl border border-slate-200 focus:border-[#6605c7] focus:ring-2 focus:ring-purple-100 outline-none transition-all font-medium"
+                                            onChange={(v) => setUniversityName(v)}
+                                            country={country}
+                                            onCountryChange={(detectedCountry) => setCountry(detectedCountry)}
+                                            label="Target College / University Name"
+                                            placeholder="e.g. Harvard, MIT, Oxford, University of Toronto..."
+                                            required
                                         />
                                     </div>
 

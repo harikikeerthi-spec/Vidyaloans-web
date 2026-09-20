@@ -103,25 +103,10 @@ export class AuthService {
   /**
    * Generate both access and refresh tokens for a user
    */
-  /**
-   * Derive the canonical bank key (e.g. "idfc") and display name from a bank user's email.
-   * This is the same mapping used by BankController.resolveBankName().
-   */
-  private resolveBankIdFromEmail(email: string): { bankId: string | null; bankName: string | null } {
-    if (!email) return { bankId: null, bankName: null };
-    const lower = email.toLowerCase().trim();
-    if (lower.includes('auxilo') || lower === 'luharika28@gmail.com') return { bankId: 'auxilo', bankName: 'Auxilo Finserve' };
-    if (lower.includes('avanse') || lower === 'ropayi2211@aspensif.com') return { bankId: 'avanse', bankName: 'Avanse Financial' };
-    if (lower.includes('credila') || lower.includes('hdfc') || lower === 'keerthichinnu0728@gmail.com') return { bankId: 'credila', bankName: 'HDFC Credila' };
-    if (lower.includes('idfc') || lower === 'abhimadasu4@gmail.com') return { bankId: 'idfc', bankName: 'IDFC FIRST Bank' };
-    if (lower.includes('poonawalla') || lower === 'farmatech@gmail.com') return { bankId: 'poonawalla', bankName: 'Poonawalla Fincorp' };
-    return { bankId: null, bankName: null };
-  }
-
   private async generateTokens(user: any, originalLoginAt?: number) {
     const isBank = user.role === 'bank' || user.role === 'partner_bank';
     const bankInfo = isBank
-      ? await this.usersService.resolveBankInfo(user.bank || user.email)
+      ? await this.usersService.resolveBankInfo(user.bank)
       : { bankId: null, bankName: null, bankLogo: null };
 
     const loginAt = originalLoginAt || Date.now();
@@ -528,6 +513,13 @@ export class AuthService {
               userExists: true
             };
           }
+          if (!existingUser.bank || !existingUser.bank.trim()) {
+            return {
+              success: false,
+              message: 'Access Denied: Your account has not been assigned to a bank partner. Please contact your administrator.',
+              userExists: true
+            };
+          }
         } else if (targetPortal === 'agent') {
           if (!['agent', 'partner_agent', 'admin', 'super_admin'].includes(userRole)) {
             return {
@@ -591,7 +583,14 @@ export class AuthService {
 
       let bankInfo: any = null;
       if (targetPortal === 'bank' || existingUser?.role === 'bank' || existingUser?.role === 'partner_bank') {
-        bankInfo = await this.usersService.resolveBankInfo(existingUser?.bank || email);
+        bankInfo = await this.usersService.resolveBankInfo(existingUser?.bank);
+        if (targetPortal === 'bank' && (!bankInfo || !bankInfo.bankId)) {
+          return {
+            success: false,
+            message: `Access Denied: Could not resolve assigned bank partner "${existingUser?.bank}". Please contact administrator.`,
+            userExists: true
+          };
+        }
       }
 
       return {
@@ -705,7 +704,7 @@ export class AuthService {
 
       const isBank = user.role === 'bank' || user.role === 'partner_bank';
       const bankInfo = isBank
-        ? await this.usersService.resolveBankInfo(user.bank || user.email)
+        ? await this.usersService.resolveBankInfo(user.bank)
         : { bankId: null, bankName: null, bankLogo: null };
 
       return {

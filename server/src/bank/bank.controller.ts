@@ -56,15 +56,15 @@ export class BankController {
       return headerBank.toString();
     }
 
-    // Try user email mapping
+    // Try user email corporate domain mapping (if applicable)
     const email = req.user?.email;
     if (email) {
       const lowerEmail = email.toLowerCase().trim();
-      if (lowerEmail.includes("auxilo") || lowerEmail === "luharika28@gmail.com") return "Auxilo Finserve";
-      if (lowerEmail.includes("avanse") || lowerEmail === "ropayi2211@aspensif.com") return "Avanse Financial";
-      if (lowerEmail.includes("credila") || lowerEmail.includes("hdfc") || lowerEmail === "keerthichinnu0728@gmail.com") return "HDFC Credila";
-      if (lowerEmail.includes("idfc") || lowerEmail === "abhimadasu4@gmail.com") return "IDFC FIRST Bank";
-      if (lowerEmail.includes("poonawalla") || lowerEmail === "farmatech@gmail.com") return "Poonawalla Fincorp";
+      if (lowerEmail.includes("auxilo.com")) return "Auxilo Finserve";
+      if (lowerEmail.includes("avanse.com")) return "Avanse Financial";
+      if (lowerEmail.includes("credila.com") || lowerEmail.includes("hdfccredila.com")) return "HDFC Credila";
+      if (lowerEmail.includes("idfcfirstbank.com") || lowerEmail.includes("idfcbank.com")) return "IDFC FIRST Bank";
+      if (lowerEmail.includes("poonawallafincorp.com")) return "Poonawalla Fincorp";
     }
 
     // Fallback: extract from user profile (firstName carries bank mapping)

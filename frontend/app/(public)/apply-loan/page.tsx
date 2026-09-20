@@ -8,6 +8,7 @@ import DatePicker from "@/components/DatePicker";
 import { getAllCountries } from "@/lib/countriesData";
 import { applicationApi, authApi, aiApi, referenceApi } from "@/lib/api";
 import { isPhoneValid } from "@/lib/validation";
+import FastAiUniversityInput from "@/components/FastAiUniversityInput";
 
 const banks = [
     { id: "idfc", name: "IDFC First Bank", rate: "10.5 - 12.5%" },
@@ -116,12 +117,7 @@ export default function ApplyLoanPage() {
     const [stepErrors, setStepErrors] = useState<Record<string, string>>({});
     const [profileLoaded, setProfileLoaded] = useState(false);
     const [validatingUniversity, setValidatingUniversity] = useState(false);
-    const [suggestedUniversities, setSuggestedUniversities] = useState<any[]>([]);
-    const [loadingUniversities, setLoadingUniversities] = useState(false);
-    const [showUniversitySuggestions, setShowUniversitySuggestions] = useState(false);
     const [countryOptions, setCountryOptions] = useState<string[]>(popularCountries);
-    const [countryAiLoaded, setCountryAiLoaded] = useState<string>(""); // tracks which country AI has been fetched for
-    const countryUniversitiesCache = useRef<Record<string, any[]>>({});
 
     const [existingApp, setExistingApp] = useState<any>(null);
     const [checkingExisting, setCheckingExisting] = useState<boolean>(true);
@@ -255,94 +251,6 @@ export default function ApplyLoanPage() {
             });
         }
     };
-
-    // Fetch live AI universities for the selected country (pure AI, no predefined fallback lists)
-    useEffect(() => {
-        const selectedCountry = (formData.country === "Other" ? formData.otherCountry : formData.country || "").trim();
-        const queryText = (formData.university || "").trim();
-
-        if (!selectedCountry) {
-            setSuggestedUniversities([]);
-            setLoadingUniversities(false);
-            return;
-        }
-
-        // If query is empty and we already have cached AI universities for this exact country, use them instantly!
-        if (!queryText && countryUniversitiesCache.current[selectedCountry]?.length > 0) {
-            setSuggestedUniversities(countryUniversitiesCache.current[selectedCountry]);
-            setCountryAiLoaded(selectedCountry);
-            setLoadingUniversities(false);
-            return;
-        }
-
-        let active = true;
-        const delay = queryText.length === 0 ? 0 : 350;
-
-        const delayDebounceFn = setTimeout(async () => {
-            setLoadingUniversities(true);
-            try {
-                const res = await aiApi.aiSearch({
-                    type: "university",
-                    query: queryText,
-                    country: selectedCountry
-                }) as any;
-
-                if (!active) return;
-
-                const aiUnis = res?.universities || res?.results || [];
-                const formatted: any[] = [];
-
-                aiUnis.forEach((u: any) => {
-                    let uniName = "";
-                    let uniLoc = "";
-                    let uniCountry = "";
-                    if (typeof u === "string") {
-                        uniName = u;
-                    } else if (u && typeof u === "object") {
-                        uniName = u.name || u.university || "";
-                        uniLoc = u.loc || u.location || "";
-                        uniCountry = u.country || "";
-                    }
-
-                    if (uniName && !formatted.some(m => m.name.toLowerCase() === uniName.toLowerCase())) {
-                        formatted.push({
-                            name: uniName,
-                            loc: uniLoc || uniCountry || selectedCountry,
-                            country: uniCountry || selectedCountry,
-                            slug: uniName.toLowerCase().replace(/[^a-z0-9]+/g, '-')
-                        });
-                    }
-                });
-
-                if (formatted.length > 0) {
-                    setSuggestedUniversities(formatted);
-                    if (!queryText) {
-                        countryUniversitiesCache.current[selectedCountry] = formatted;
-                        setCountryAiLoaded(selectedCountry);
-                    }
-                } else if (!queryText && countryUniversitiesCache.current[selectedCountry]) {
-                    setSuggestedUniversities(countryUniversitiesCache.current[selectedCountry]);
-                }
-            } catch (err) {
-                console.error("AI university dynamic search failed:", err);
-            } finally {
-                if (active) setLoadingUniversities(false);
-            }
-        }, delay);
-
-        return () => {
-            active = false;
-            clearTimeout(delayDebounceFn);
-        };
-    }, [formData.university, formData.country, formData.otherCountry]);
-
-    // When destination country changes, auto-open the university suggestions dropdown
-    useEffect(() => {
-        const selectedCountry = formData.country === "Other" ? formData.otherCountry : formData.country;
-        if (selectedCountry && !formData.university) {
-            setShowUniversitySuggestions(true);
-        }
-    }, [formData.country, formData.otherCountry]);
 
     const amountLakhs = (() => {
         if (!formData.amount) return 40;
@@ -818,22 +726,14 @@ export default function ApplyLoanPage() {
                                         if (v !== "Other") {
                                             update("otherCountry", "");
                                         }
-                                        // Clear previous university and auto-show suggestions for new country
                                         update("university", "");
-                                        setCountryAiLoaded("");
-                                        setSuggestedUniversities([]);
-                                        setShowUniversitySuggestions(true);
                                     }}
                                         options={countryOptions.map((c) => ({ value: c, label: c }))} error={stepErrors.country} />
                                     {formData.country === "Other" && (
                                         <div className="md:col-span-2">
                                             <SearchableSelectField label="Specify Destination Country" icon="public" value={formData.otherCountry} onChange={(v) => {
                                                 update("otherCountry", v);
-                                                // Clear previous university and auto-show suggestions for new country
                                                 update("university", "");
-                                                setCountryAiLoaded("");
-                                                setSuggestedUniversities([]);
-                                                setShowUniversitySuggestions(true);
                                             }}
                                                 options={allCountries.map((c) => ({ value: c, label: c }))} error={stepErrors.otherCountry} placeholder="Search countries..." />
                                         </div>
@@ -841,118 +741,23 @@ export default function ApplyLoanPage() {
                                 </div>
 
                                 <div className="space-y-8">
-                                    <div className="relative">
-                                        <InputField
-                                            label="Full University Name"
-                                            icon="domain"
-                                            value={formData.university}
-                                            onChange={(v) => update("university", v.replace(/\d/g, ""))}
-                                            placeholder="e.g. University of Toronto"
-                                            error={stepErrors.university}
-                                            onFocus={() => setShowUniversitySuggestions(true)}
-                                            onBlur={() => {
-                                                // Delay hiding suggestions so that click events on the suggestion items can register
-                                                setTimeout(() => setShowUniversitySuggestions(false), 200);
-                                            }}
-                                        />
-
-                                        {/* Loading Indicator */}
-                                        {loadingUniversities && (
-                                            <div className="absolute right-4 top-[50px] flex items-center gap-1.5 text-xs text-[#6605c7] font-bold select-none">
-                                                <div className="w-3.5 h-3.5 border-2 border-[#6605c7] border-t-transparent rounded-full animate-spin" />
-
-                                            </div>
-                                        )}
-
-                                        {/* Suggestions Dropdown */}
-                                        {showUniversitySuggestions && (
-                                            (() => {
-                                                const queryText = (formData.university || "").trim().toLowerCase();
-                                                const selectedCountry = formData.country === "Other" ? formData.otherCountry : formData.country;
-
-                                                // Filter suggestedUniversities by typed query
-                                                let filtered = suggestedUniversities.filter(uni =>
-                                                    !queryText ||
-                                                    uni.name.toLowerCase().includes(queryText) ||
-                                                    (uni.loc && uni.loc.toLowerCase().includes(queryText))
-                                                );
-
-                                                // If user typed something and it's not an exact match, prepend the user's typed name as top option
-                                                if (queryText.length >= 2) {
-                                                    const exactMatch = filtered.some(u => u.name.toLowerCase() === queryText);
-                                                    if (!exactMatch) {
-                                                        filtered = [
-                                                            { name: formData.university.trim(), loc: selectedCountry || "Target University" },
-                                                            ...filtered
-                                                        ];
-                                                    }
-                                                }
-
-                                                if (filtered.length === 0 && !loadingUniversities) return null;
-
-                                                return (
-                                                    <div className="absolute z-40 left-0 right-0 mt-2 bg-white/95 backdrop-blur-md border border-purple-100 rounded-2xl shadow-xl max-h-72 overflow-y-auto divide-y divide-gray-100/50 animate-fade-in">
-                                                        {/* AI-Powered Header */}
-                                                        <div className="px-5 py-3 flex items-center justify-between bg-gradient-to-r from-purple-50/80 to-indigo-50/50 rounded-t-2xl border-b border-purple-100/50">
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="material-symbols-outlined text-[#6605c7] text-sm">auto_awesome</span>
-                                                                <span className="text-[10px] font-black uppercase tracking-widest text-[#6605c7]">AI-Powered Suggestions</span>
-                                                                {selectedCountry && <span className="text-[10px] font-bold text-gray-400">for {selectedCountry}</span>}
-                                                            </div>
-                                                            {loadingUniversities && (
-                                                                <div className="flex items-center gap-1.5">
-                                                                    <div className="w-3 h-3 border-2 border-[#6605c7] border-t-transparent rounded-full animate-spin" />
-                                                                    <span className="text-[9px] text-[#6605c7] font-black uppercase">Loading</span>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                        {filtered.map((uni, idx) => (
-                                                            <button
-                                                                key={`${uni.name}-${idx}`}
-                                                                type="button"
-                                                                onMouseDown={(e) => e.preventDefault()}
-                                                                onClick={() => {
-                                                                    update("university", uni.name);
-                                                                    setShowUniversitySuggestions(false);
-                                                                }}
-                                                                className="w-full px-5 py-3.5 text-left text-xs font-bold text-gray-700 hover:text-[#6605c7] hover:bg-purple-50/50 transition-all flex items-center justify-between group"
-                                                            >
-                                                                <div className="flex items-center gap-3">
-                                                                    <div className="w-7 h-7 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center shrink-0">
-                                                                        <span className="material-symbols-outlined text-[#6605c7] text-sm">school</span>
-                                                                    </div>
-                                                                    <div className="flex flex-col gap-0.5">
-                                                                        <span className="text-[13px] font-black text-gray-900 group-hover:text-[#6605c7]">{uni.name}</span>
-                                                                        <span className="text-[10px] text-gray-400 font-medium">{uni.loc || uni.country || "Target University"}</span>
-                                                                    </div>
-                                                                </div>
-
-                                                                <span className="material-symbols-outlined text-[#6605c7] text-sm opacity-0 group-hover:opacity-100 transition-opacity">chevron_right</span>
-                                                            </button>
-                                                        ))}
-                                                        {filtered.length === 0 && loadingUniversities && (
-                                                            <div className="px-5 py-4 space-y-3">
-                                                                {[1, 2, 3, 4, 5].map(i => (
-                                                                    <div key={i} className="flex items-center gap-3 animate-pulse">
-                                                                        <div className="w-7 h-7 rounded-xl bg-purple-100/70 shrink-0" />
-                                                                        <div className="flex-1 space-y-1.5">
-                                                                            <div className="h-3 bg-gray-200/80 rounded-full" style={{ width: `${60 + i * 8}%` }} />
-                                                                            <div className="h-2 bg-gray-100/80 rounded-full w-1/3" />
-                                                                        </div>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        )}
-                                                        {filtered.length === 0 && !loadingUniversities && (
-                                                            <div className="px-5 py-6 text-center text-gray-400 text-xs font-bold">
-                                                                No matching universities found. Please try another name or check your spelling.
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                );
-                                            })()
-                                        )}
-                                    </div>
+                                    <FastAiUniversityInput
+                                        value={formData.university}
+                                        onChange={(v) => update("university", v.replace(/\d/g, ""))}
+                                        country={formData.country}
+                                        otherCountry={formData.otherCountry}
+                                        onCountryChange={(detectedCountry) => {
+                                            const isPredefined = ["USA", "UK", "Canada", "Australia", "Germany", "Ireland", "New Zealand"].includes(detectedCountry);
+                                            if (isPredefined) {
+                                                update("country", detectedCountry);
+                                            } else {
+                                                update("country", "Other");
+                                                update("otherCountry", detectedCountry);
+                                            }
+                                        }}
+                                        error={stepErrors.university}
+                                        required
+                                    />
 
                                     {/* Loan Amount Slider (0 - 1.5 Cr) */}
                                     <div className="bg-white/50 backdrop-blur-xl border border-gray-100 rounded-[2.5rem] p-6 md:p-8 shadow-sm space-y-5">

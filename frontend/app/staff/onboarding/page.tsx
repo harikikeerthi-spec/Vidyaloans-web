@@ -1779,10 +1779,12 @@ export default function OnboardingPage() {
 
         // 1. Dynamic check in loaded bankUsers
         const matched = bankUsers.find((u: any) => {
+            const userBank = (u.bank || "").toLowerCase().trim();
             const firstName = (u.firstName || "").toLowerCase().trim();
             const lastName = (u.lastName || "").toLowerCase().trim();
             const email = (u.email || "").toLowerCase().trim();
             return (
+                (userBank && (lowercaseSelected.includes(userBank) || userBank.includes(lowercaseSelected))) ||
                 (firstName && (lowercaseSelected.includes(firstName) || firstName.includes(lowercaseSelected))) ||
                 (lastName && (lowercaseSelected.includes(lastName) || lastName.includes(lowercaseSelected))) ||
                 (email && email.includes(lowercaseSelected))
@@ -1794,30 +1796,7 @@ export default function OnboardingPage() {
             return;
         }
 
-        // 2. Predefined fallback mapping for test users in DB
-        const bankRepMap: Record<string, string> = {
-            "hdfc credila": "keerthichinnu0728@gmail.com",
-            "auxilo finserve": "pkfc0406@gmail.com",
-            "idfc first bank": "pkfc0406@gmail.com",
-            "avanse financial": "keerthichinnu0728@gmail.com",
-            "poonawalla fincorp": "keerthichinnu0728@gmail.com",
-        };
-
-        const fallbackEmail = bankRepMap[lowercaseSelected];
-        if (fallbackEmail) {
-            const exists = bankUsers.some((u: any) => u.email.toLowerCase().trim() === fallbackEmail.toLowerCase().trim());
-            if (exists) {
-                setShareEmail(fallbackEmail);
-                return;
-            }
-        }
-
-        // 3. Absolute fallback
-        if (bankUsers.length > 0) {
-            setShareEmail(bankUsers[0].email);
-        } else {
-            setShareEmail("");
-        }
+        setShareEmail("");
     };
 
     const handleDistributionShare = async () => {

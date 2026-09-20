@@ -1858,15 +1858,26 @@ export class ApplicationService {
       const isBank = (user?.role === 'bank' || user?.role === 'partner_bank');
       let bankName: string | null = null;
       if (isBank) {
-        // Try email first
-        const email = user?.email;
-        if (email) {
-          const lowerEmail = email.toLowerCase().trim();
-          if (lowerEmail.includes("auxilo") || lowerEmail === "luharika28@gmail.com") bankName = 'Auxilo';
-          else if (lowerEmail.includes("avanse") || lowerEmail === "ropayi2211@aspensif.com") bankName = 'Avanse';
-          else if (lowerEmail.includes("credila") || lowerEmail.includes("hdfc") || lowerEmail === "keerthichinnu0728@gmail.com") bankName = 'HDFC Credila';
-          else if (lowerEmail.includes("idfc") || lowerEmail === "abhimadasu4@gmail.com") bankName = 'IDFC';
-          else if (lowerEmail.includes("poonawalla") || lowerEmail === "farmatech@gmail.com") bankName = 'Poonawalla';
+        if (user?.bankName) {
+          bankName = user.bankName;
+        } else if (user?.bank) {
+          const lowerB = user.bank.toLowerCase();
+          if (lowerB.includes('credila') || lowerB.includes('hdfc')) bankName = 'HDFC Credila';
+          else if (lowerB.includes('poonawalla')) bankName = 'Poonawalla';
+          else if (lowerB.includes('idfc')) bankName = 'IDFC';
+          else if (lowerB.includes('avanse')) bankName = 'Avanse';
+          else if (lowerB.includes('auxilo')) bankName = 'Auxilo';
+          else bankName = user.bank;
+        }
+
+        // Try email corporate domain next
+        if (!bankName && user?.email) {
+          const lowerEmail = user.email.toLowerCase().trim();
+          if (lowerEmail.includes("auxilo.com")) bankName = 'Auxilo';
+          else if (lowerEmail.includes("avanse.com")) bankName = 'Avanse';
+          else if (lowerEmail.includes("credila.com") || lowerEmail.includes("hdfccredila.com")) bankName = 'HDFC Credila';
+          else if (lowerEmail.includes("idfcfirstbank.com") || lowerEmail.includes("idfcbank.com")) bankName = 'IDFC';
+          else if (lowerEmail.includes("poonawallafincorp.com")) bankName = 'Poonawalla';
         }
 
         if (!bankName) {
