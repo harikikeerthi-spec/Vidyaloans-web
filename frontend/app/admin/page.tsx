@@ -347,6 +347,7 @@ export default function AdminDashboardPage() {
     const [appPage, setAppPage] = useState(1);
     const [staffMembers, setStaffMembers] = useState<any[]>([]);
     const [reassigningAppId, setReassigningAppId] = useState<string | null>(null);
+    const [reassigningRowId, setReassigningRowId] = useState<string | null>(null);
     const [reassigningCounselorAppId, setReassigningCounselorAppId] = useState<string | null>(null);
     const [selectedAppIds, setSelectedAppIds] = useState<string[]>([]);
     const [bulkTargetStaffId, setBulkTargetStaffId] = useState<string>("");
@@ -641,7 +642,10 @@ export default function AdminDashboardPage() {
     // Resolve assigned bank partner helper with authoritative metadata
     const getAssignedBank = useCallback((userObj: any) => {
         if (!userObj) return null;
-        const rawBank = (userObj.bank || userObj.partnerBank || userObj.bankId || '').toString().trim();
+        const loanBank = Array.isArray(userObj.loanApplications) && userObj.loanApplications[0]?.bank
+            ? userObj.loanApplications[0].bank
+            : (Array.isArray(userObj.loans) && userObj.loans[0]?.bank ? userObj.loans[0].bank : '');
+        const rawBank = (userObj.bank || userObj.partnerBank || userObj.bankId || userObj.loanBank || userObj.bankName || loanBank || '').toString().trim();
         const cleanBank = rawBank.toLowerCase().replace(/[^a-z0-9]/g, '');
         
         if (cleanBank && Array.isArray(bankPartners) && bankPartners.length > 0) {
@@ -1035,25 +1039,166 @@ export default function AdminDashboardPage() {
     const handleViewUserProfile = useCallback(async (applicant: any, defaultTab?: 'credentials' | 'applications' | 'bank_compare') => {
         setUserProfileLoading(true);
         try {
+            const applicantEmail = (applicant?.email || applicant?.user?.email || '').trim();
+
             // Fetch user details specifically for this applicant
-            const userRes: any = await adminApi.getUsers(1, 0, applicant.email).catch(() => ({ data: [] }));
-            const selectedUser = (userRes.data || []).find((u: any) => u.email === applicant.email);
-            const currentUser = selectedUser || applicant;
-            
+            const userRes: any = applicantEmail
+                ? await adminApi.getUsers(10, 0, applicantEmail).catch(() => ({ data: [] }))
+                : { data: [] };
+            const usersList = userRes.data || [];
+            const selectedUser = usersList.find((u: any) => u.email?.toLowerCase() === applicantEmail.toLowerCase()) || usersList[0] || null;
+
             // Fetch all applications for this user
-            const appsRes: any = await adminApi.getApplications({ search: applicant.email }).catch(() => ({ data: [] }));
-            
-            setSelectedUserProfile(currentUser);
-            setUserCredentials(selectedUser);
-            setUserLoans(appsRes.data || []);
+            const appsRes: any = applicantEmail
+                ? await adminApi.getApplications({ search: applicantEmail }).catch(() => ({ data: [] }))
+                : { data: [] };
+            const rawLoans: any[] = (appsRes?.data && Array.isArray(appsRes.data)) ? appsRes.data : [];
+            const loans = rawLoans.length > 0 ? rawLoans : (applicant?.id ? [applicant] : []);
+
+            // Locate the most relevant loan application (the clicked one or first from history)
+            const targetApp = loans.find((l: any) => l.id === applicant?.id) || applicant || loans[0] || {};
+
+            // Resolve authoritative values across user, applicant application, and loan history
+            const resolvedBank = (
+                applicant?.bank ||
+                targetApp?.bank ||
+                selectedUser?.bank ||
+                applicant?.partnerBank ||
+                targetApp?.partnerBank ||
+                loans.find((l: any) => l.bank)?.bank ||
+                ''
+            ).toString().trim();
+
+            const rawDob = (
+                selectedUser?.dateOfBirth ||
+                selectedUser?.dob ||
+                targetApp?.dateOfBirth ||
+                targetApp?.dob ||
+                applicant?.dateOfBirth ||
+                applicant?.dob ||
+                targetApp?.user?.dateOfBirth ||
+                applicant?.user?.dateOfBirth ||
+                loans.find((l: any) => l.dateOfBirth || l.dob)?.dateOfBirth ||
+                loans.find((l: any) => l.dateOfBirth || l.dob)?.dob ||
+                ''
+            );
+
+            const resolvedGender = (
+                targetApp?.gender ||
+                applicant?.gender ||
+                selectedUser?.gender ||
+                targetApp?.user?.gender ||
+                applicant?.user?.gender ||
+                loans.find((l: any) => l.gender)?.gender ||
+                ''
+            ).toString().trim();
+
+            const resolvedPhone = (
+                selectedUser?.mobile ||
+                selectedUser?.phoneNumber ||
+                applicant?.phone ||
+                applicant?.mobile ||
+                targetApp?.phone ||
+                targetApp?.mobile ||
+                ''
+            ).toString().trim();
+
+            const resolvedEmail = (
+                selectedUser?.email ||
+                applicant?.email ||
+                targetApp?.email ||
+                applicantEmail
+            ).toString().trim();
+
+            const resolvedFirstName = (
+                selectedUser?.firstName ||
+                applicant?.firstName ||
+                targetApp?.firstName ||
+                ''
+            ).toString().trim();
+
+            const resolvedLastName = (
+                selectedUser?.lastName ||
+                applicant?.lastName ||
+                targetApp?.lastName ||
+                ''
+            ).toString().trim();
+
+            const resolvedRole = (
+                selectedUser?.role ||
+                applicant?.role ||
+                targetApp?.role ||
+                'user'
+            ).toString().trim();
+
+            const resolvedCreatedAt = (
+                selectedUser?.createdAt ||
+                targetApp?.createdAt ||
+                targetApp?.date ||
+                applicant?.createdAt ||
+                applicant?.date ||
+                ''
+            );
+
+            const mergedProfile = {
+                ...targetApp,
+                ...applicant,
+                ...(selectedUser || {}),
+                id: selectedUser?.id || applicant?.userId || applicant?.id || targetApp?.userId || targetApp?.id,
+                bank: resolvedBank,
+                dateOfBirth: rawDob,
+                dob: rawDob,
+                gender: resolvedGender,
+                mobile: resolvedPhone,
+                phone: resolvedPhone,
+                phoneNumber: resolvedPhone,
+                role: resolvedRole,
+                firstName: resolvedFirstName,
+                lastName: resolvedLastName,
+                email: resolvedEmail,
+                createdAt: resolvedCreatedAt,
+            };
+
+            const enrichedCredentials = {
+                ...(selectedUser || {}),
+                id: selectedUser?.id || applicant?.userId || applicant?.id || targetApp?.userId || targetApp?.id,
+                bank: resolvedBank,
+                dateOfBirth: rawDob,
+                dob: rawDob,
+                gender: resolvedGender,
+                mobile: resolvedPhone,
+                phoneNumber: resolvedPhone,
+                role: resolvedRole,
+                firstName: resolvedFirstName,
+                lastName: resolvedLastName,
+                email: resolvedEmail,
+                createdAt: resolvedCreatedAt,
+            };
+
+            setSelectedUserProfile(mergedProfile);
+            setUserCredentials(enrichedCredentials);
+            setUserLoans(loans);
 
             // Auto-detect matching bank partner
-            const userBankKey = (currentUser?.bank || currentUser?.bankId || currentUser?.partnerBank || currentUser?.firstName || '').toLowerCase().trim();
-            let matchedPartner = bankPartners.find((b: any) => 
-                b.shortName?.toLowerCase() === userBankKey ||
-                b.name?.toLowerCase().includes(userBankKey) ||
-                (userBankKey && userBankKey.includes(b.shortName?.toLowerCase()))
-            );
+            const userBankKey = (resolvedBank || mergedProfile?.bankId || mergedProfile?.partnerBank || '').toLowerCase().trim();
+            const cleanKey = userBankKey.replace(/[^a-z0-9]/g, '');
+
+            let matchedPartner = bankPartners.find((b: any) => {
+                const bShort = (b.shortName || '').toLowerCase().trim();
+                const bName = (b.name || '').toLowerCase().trim();
+                return (bShort && (bShort === userBankKey || userBankKey.includes(bShort) || bShort.includes(userBankKey))) ||
+                       (bName && (bName === userBankKey || userBankKey.includes(bName) || bName.includes(userBankKey)));
+            });
+
+            if (!matchedPartner && cleanKey && bankPartners.length > 0) {
+                matchedPartner = bankPartners.find((b: any) => {
+                    const bShort = (b.shortName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                    const bName = (b.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                    return (bShort && (bShort.includes(cleanKey) || cleanKey.includes(bShort))) ||
+                           (bName && (bName.includes(cleanKey) || cleanKey.includes(bName)));
+                });
+            }
+
             if (!matchedPartner && bankPartners.length > 0) {
                 matchedPartner = bankPartners[0];
             }
@@ -1061,7 +1206,7 @@ export default function AdminDashboardPage() {
 
             if (defaultTab) {
                 setUserProfileTab(defaultTab);
-            } else if (currentUser?.role === 'bank' || currentUser?.role === 'partner_bank') {
+            } else if (mergedProfile?.role === 'bank' || mergedProfile?.role === 'partner_bank') {
                 setUserProfileTab('bank_compare');
             } else {
                 setUserProfileTab('credentials');
@@ -3286,73 +3431,97 @@ export default function AdminDashboardPage() {
 
                     {/* ─── APPLICATIONS DASHBOARD ──────────────────────────────────────── */}
                     {activeSection === "applications" && (
-                        <div className="space-y-6 animate-fade-in max-w-[1400px] mx-auto">
-                            {/* Header with Title and Actions */}
-                            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+                        <div className="space-y-5 animate-fade-in max-w-[1400px] mx-auto">
+                            {/* ─── Top Header & Global Actions ─── */}
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                                 <div>
-                                    <h2 className="text-xl font-semibold text-slate-900 tracking-tight">Applications & Staff Operations Control</h2>
-                                    <p className="text-slate-500 text-[11px] mt-1 font-medium flex items-center gap-1.5">
-                                        <span className="material-symbols-outlined text-[14px]">receipt_long</span>
-                                        Unified tracking of all applications, staff assignments, progress stages & overall details
-                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-bold ${autoRefreshEnabled ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
-                                            <span className={`w-1.5 h-1.5 rounded-full ${autoRefreshEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}></span>
-                                            {autoRefreshEnabled ? 'LIVE SYNC' : 'PAUSED'}
-                                        </span>
+                                    <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Applications</h1>
+                                    <p className="text-xs text-slate-500 mt-0.5 font-normal">
+                                        Loan pipeline management, staff allocation & lifecycle progression
                                     </p>
                                 </div>
-                                <div className="flex gap-2 flex-wrap">
+                                <div className="flex items-center gap-2.5 self-stretch sm:self-auto justify-end flex-wrap">
+                                    {/* Auto-Assign Unassigned (Solid Primary Button) */}
                                     <button 
                                         onClick={handleAutoAssignAll}
-                                        className="px-3 py-1.5 rounded font-semibold text-[10px] bg-indigo-600 text-white hover:bg-indigo-700 transition-colors flex items-center gap-1.5 shadow-sm"
-                                        title="Assign all unassigned applications to staff via round-robin"
+                                        className="inline-flex items-center gap-2 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold text-xs rounded-lg shadow-xs transition-colors cursor-pointer"
+                                        title="Distribute all unassigned applications across active staff members via round-robin"
                                     >
-                                        <span className="material-symbols-outlined text-[14px]">autorenew</span>
+                                        <span className="material-symbols-outlined text-[16px]">autorenew</span>
                                         Auto-Assign Unassigned
                                     </button>
+
+                                    {/* Live Sync Subtle Toggle */}
                                     <button 
                                         onClick={() => setAutoRefreshEnabled(!autoRefreshEnabled)}
-                                        className={`px-3 py-1.5 rounded font-semibold text-[10px] transition-colors flex items-center gap-1.5 shadow-sm border ${autoRefreshEnabled ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'}`}
+                                        className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
+                                            autoRefreshEnabled 
+                                                ? 'bg-emerald-50/80 text-emerald-700 border-emerald-200/80 hover:bg-emerald-100/70' 
+                                                : 'bg-white text-slate-600 border-slate-200/80 hover:bg-slate-50'
+                                        }`}
+                                        title={autoRefreshEnabled ? "Live auto-sync enabled (click to pause)" : "Auto-sync paused (click to enable)"}
                                     >
-                                        <span className="material-symbols-outlined text-[14px]">{autoRefreshEnabled ? 'sync' : 'sync_disabled'}</span>
-                                        {autoRefreshEnabled ? 'Live' : 'Paused'}
+                                        <span className={`w-2 h-2 rounded-full ${autoRefreshEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}></span>
+                                        <span>{autoRefreshEnabled ? 'Live' : 'Paused'}</span>
                                     </button>
-                                    <button onClick={() => loadData()} className="px-3 py-1.5 bg-slate-100 text-slate-700 rounded font-semibold text-[10px] hover:bg-slate-200 transition-colors flex items-center gap-1.5 shadow-sm">
-                                        <span className="material-symbols-outlined text-[14px]">refresh</span>Now
+
+                                    {/* Refresh Icon Button */}
+                                    <button 
+                                        onClick={() => loadData()} 
+                                        className="p-2 bg-white hover:bg-slate-50 text-slate-600 hover:text-slate-900 border border-slate-200/80 rounded-lg shadow-2xs transition-colors cursor-pointer"
+                                        title="Refresh applications now"
+                                    >
+                                        <span className="material-symbols-outlined text-[18px] block">refresh</span>
                                     </button>
                                 </div>
                             </div>
 
-                            {/* Staff Workload Overview & Assignment Matrix */}
-                            <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm space-y-3">
-                                <div className="flex items-center justify-between">
+                            {/* ─── Staff Workload Overview (Compact Horizontal Chips) ─── */}
+                            <div className="bg-white p-3.5 rounded-xl border border-slate-200/70 shadow-xs">
+                                <div className="flex items-center justify-between mb-2.5">
                                     <div className="flex items-center gap-2">
-                                        <span className="material-symbols-outlined text-indigo-600 text-[18px]">badge</span>
-                                        <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Staff Assignment & Workload Overview</h3>
+                                        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Staff Workload</span>
+                                        <span className="text-[11px] text-slate-400 font-normal">
+                                            · {data.length} Applications across {staffMembers.length} Staff
+                                        </span>
                                     </div>
-                                    <span className="text-[10px] text-slate-500 font-medium">
-                                        Total: <strong className="text-slate-900">{data.length}</strong> applications across <strong className="text-indigo-600">{staffMembers.length}</strong> active staff
-                                    </span>
+                                    {filterStaff !== 'all' && (
+                                        <button
+                                            onClick={() => setFilterStaff('all')}
+                                            className="text-[11px] text-indigo-600 hover:text-indigo-700 font-medium cursor-pointer"
+                                        >
+                                            Reset staff filter
+                                        </button>
+                                    )}
                                 </div>
-                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5 pt-1">
-                                    {/* Unassigned Card */}
+                                <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+                                    {/* Unassigned Chip - Highlighted in Light Red */}
                                     {(() => {
                                         const unassignedCount = data.filter((a: any) => !a.assignedStaffId || a.assignedStaffId === 'unassigned' || a.assignedStaffId === 'null').length;
+                                        const isUnassignedSelected = filterStaff === 'unassigned';
                                         return (
                                             <button
-                                                onClick={() => setFilterStaff(filterStaff === 'unassigned' ? 'all' : 'unassigned')}
-                                                className={`p-2.5 rounded border text-left transition-all ${filterStaff === 'unassigned' ? 'bg-amber-100 border-amber-300 ring-2 ring-amber-400' : 'bg-amber-50/60 border-amber-200 hover:bg-amber-100/60'}`}
+                                                onClick={() => setFilterStaff(isUnassignedSelected ? 'all' : 'unassigned')}
+                                                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all shrink-0 cursor-pointer border ${
+                                                    isUnassignedSelected
+                                                        ? 'bg-rose-100 text-rose-800 border-rose-300 ring-2 ring-rose-400/30'
+                                                        : unassignedCount > 0
+                                                            ? 'bg-rose-50/90 text-rose-700 border-rose-200/80 hover:bg-rose-100/70'
+                                                            : 'bg-slate-50 text-slate-600 border-slate-200/80 hover:bg-slate-100'
+                                                }`}
                                             >
-                                                <div className="flex items-center justify-between">
-                                                    <span className="text-[9px] font-bold uppercase tracking-wider text-amber-700">Unassigned</span>
-                                                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
-                                                </div>
-                                                <div className="text-base font-extrabold text-amber-900 mt-1">{unassignedCount}</div>
-                                                <p className="text-[9px] text-amber-600 mt-0.5 truncate">Needs allocation</p>
+                                                <span className={`w-2 h-2 rounded-full ${unassignedCount > 0 ? 'bg-rose-500 animate-pulse' : 'bg-slate-400'}`}></span>
+                                                <span>Unassigned</span>
+                                                <span className={`font-bold text-[11px] px-1.5 py-0.2 rounded ${
+                                                    unassignedCount > 0 ? 'bg-rose-200/70 text-rose-900' : 'bg-slate-200 text-slate-700'
+                                                }`}>
+                                                    {unassignedCount}
+                                                </span>
                                             </button>
                                         );
                                     })()}
 
-                                    {/* Staff Cards */}
+                                    {/* Staff Workload Chips */}
                                     {staffMembers.map((staff: any) => {
                                         const staffName = `${staff.firstName || ''} ${staff.lastName || ''}`.trim() || staff.email;
                                         const assignedCount = data.filter((a: any) =>
@@ -3367,135 +3536,187 @@ export default function AdminDashboardPage() {
                                             <button
                                                 key={staff.id}
                                                 onClick={() => setFilterStaff(isActive ? 'all' : staff.id)}
-                                                className={`p-2.5 rounded border text-left transition-all group ${isActive ? 'bg-indigo-100 border-indigo-300 ring-2 ring-indigo-500' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'}`}
+                                                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-all shrink-0 cursor-pointer border ${
+                                                    isActive
+                                                        ? 'bg-indigo-50 text-indigo-900 border-indigo-300 ring-2 ring-indigo-500/20 font-semibold'
+                                                        : 'bg-white text-slate-700 border-slate-200/80 hover:border-slate-300 hover:bg-slate-50'
+                                                }`}
                                             >
-                                                <div className="flex items-center gap-1.5 mb-1">
-                                                    <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${staff.email}`} alt="" className="w-5 h-5 rounded-full border border-slate-300 flex-shrink-0" />
-                                                    <span className="text-[10px] font-bold text-slate-800 truncate group-hover:text-indigo-600" title={staffName}>{staffName}</span>
-                                                </div>
-                                                <div className="text-base font-extrabold text-slate-900 leading-tight">{assignedCount}</div>
-                                                <p className="text-[9px] text-slate-400 truncate mt-0.5">{staff.email}</p>
+                                                <img
+                                                    src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${staff.email}`}
+                                                    alt=""
+                                                    className="w-5 h-5 rounded-full bg-slate-100 shrink-0"
+                                                />
+                                                <span className="truncate max-w-[120px]" title={staffName}>{staffName}</span>
+                                                <span className={`font-bold text-[11px] px-1.5 py-0.2 rounded ${
+                                                    isActive ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'
+                                                }`}>
+                                                    {assignedCount}
+                                                </span>
                                             </button>
                                         );
                                     })}
                                 </div>
                             </div>
 
-                            {/* Pipeline Status Metric Overview */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                                <div className="bg-white p-4 rounded border border-slate-200 hover:border-amber-300 transition-colors group shadow-sm">
-                                    <div className="flex items-start justify-between mb-3">
-                                        <div className="w-8 h-8 bg-amber-50 rounded flex items-center justify-center group-hover:bg-amber-100 transition-colors">
-                                            <span className="material-symbols-outlined text-[16px] text-amber-600">pending_actions</span>
+                            {/* ─── Pipeline Status Summary Cards (4 Uniform Metric Cards) ─── */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                                {/* Card 1: Pending Review */}
+                                <div className="bg-white p-4 rounded-xl border border-slate-200/70 shadow-xs hover:border-amber-200/80 transition-colors">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+                                            <span className="material-symbols-outlined text-[18px]">pending_actions</span>
                                         </div>
-                                        <span className="text-[9px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-100">Pending Review</span>
+                                        <span className="text-[10px] font-semibold text-amber-700 bg-amber-50/80 px-2 py-0.5 rounded border border-amber-100 uppercase tracking-wider">
+                                            Pending Review
+                                        </span>
                                     </div>
-                                    <p className="text-xl font-bold text-slate-900">{data.filter((a: any) => a.status === 'pending').length}</p>
-                                    <p className="text-[10px] text-slate-500 mt-1">Initial submission stage</p>
+                                    <div>
+                                        <div className="text-2xl font-bold text-slate-900 tracking-tight">
+                                            {data.filter((a: any) => a.status === 'pending').length}
+                                        </div>
+                                        <p className="text-xs text-slate-400 mt-0.5 font-normal">Initial submission queue</p>
+                                    </div>
                                 </div>
 
-                                <div className="bg-white p-4 rounded border border-slate-200 hover:border-blue-300 transition-colors group shadow-sm">
-                                    <div className="flex items-start justify-between mb-3">
-                                        <div className="w-8 h-8 bg-blue-50 rounded flex items-center justify-center group-hover:bg-blue-100 transition-colors">
-                                            <span className="material-symbols-outlined text-[16px] text-blue-600">hourglass_bottom</span>
+                                {/* Card 2: Processing */}
+                                <div className="bg-white p-4 rounded-xl border border-slate-200/70 shadow-xs hover:border-blue-200/80 transition-colors">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                                            <span className="material-symbols-outlined text-[18px]">hourglass_bottom</span>
                                         </div>
-                                        <span className="text-[9px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">Processing</span>
+                                        <span className="text-[10px] font-semibold text-blue-700 bg-blue-50/80 px-2 py-0.5 rounded border border-blue-100 uppercase tracking-wider">
+                                            Processing
+                                        </span>
                                     </div>
-                                    <p className="text-xl font-bold text-slate-900">{data.filter((a: any) => a.status === 'processing').length}</p>
-                                    <p className="text-[10px] text-slate-500 mt-1">Under active processing</p>
+                                    <div>
+                                        <div className="text-2xl font-bold text-slate-900 tracking-tight">
+                                            {data.filter((a: any) => a.status === 'processing').length}
+                                        </div>
+                                        <p className="text-xs text-slate-400 mt-0.5 font-normal">Under active review</p>
+                                    </div>
                                 </div>
 
-                                <div className="bg-white p-4 rounded border border-slate-200 hover:border-emerald-300 transition-colors group shadow-sm">
-                                    <div className="flex items-start justify-between mb-3">
-                                        <div className="w-8 h-8 bg-emerald-50 rounded flex items-center justify-center group-hover:bg-emerald-100 transition-colors">
-                                            <span className="material-symbols-outlined text-[16px] text-emerald-600">check_circle</span>
+                                {/* Card 3: Sanctioned */}
+                                <div className="bg-white p-4 rounded-xl border border-slate-200/70 shadow-xs hover:border-emerald-200/80 transition-colors">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                                            <span className="material-symbols-outlined text-[18px]">check_circle</span>
                                         </div>
-                                        <span className="text-[9px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">Sanctioned / Approved</span>
+                                        <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50/80 px-2 py-0.5 rounded border border-emerald-100 uppercase tracking-wider">
+                                            Sanctioned
+                                        </span>
                                     </div>
-                                    <p className="text-xl font-bold text-slate-900">{data.filter((a: any) => a.status === 'approved').length}</p>
-                                    <p className="text-[10px] text-slate-500 mt-1">Ready for disbursement</p>
+                                    <div>
+                                        <div className="text-2xl font-bold text-slate-900 tracking-tight">
+                                            {data.filter((a: any) => a.status === 'approved' || a.status === 'sanctioned').length}
+                                        </div>
+                                        <p className="text-xs text-slate-400 mt-0.5 font-normal">Approved by lenders</p>
+                                    </div>
                                 </div>
 
-                                <div className="bg-white p-4 rounded border border-slate-200 hover:border-indigo-300 transition-colors group shadow-sm">
-                                    <div className="flex items-start justify-between mb-3">
-                                        <div className="w-8 h-8 bg-indigo-50 rounded flex items-center justify-center group-hover:bg-indigo-100 transition-colors">
-                                            <span className="material-symbols-outlined text-[16px] text-indigo-600">account_balance_wallet</span>
+                                {/* Card 4: Disbursed */}
+                                <div className="bg-white p-4 rounded-xl border border-slate-200/70 shadow-xs hover:border-indigo-200/80 transition-colors">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                                            <span className="material-symbols-outlined text-[18px]">account_balance_wallet</span>
                                         </div>
-                                        <span className="text-[9px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">Disbursed</span>
+                                        <span className="text-[10px] font-semibold text-indigo-700 bg-indigo-50/80 px-2 py-0.5 rounded border border-indigo-100 uppercase tracking-wider">
+                                            Disbursed
+                                        </span>
                                     </div>
-                                    <p className="text-xl font-bold text-slate-900">{data.filter((a: any) => a.status === 'disbursed').length}</p>
-                                    <p className="text-[10px] text-slate-500 mt-1">Fully completed loans</p>
+                                    <div>
+                                        <div className="text-2xl font-bold text-slate-900 tracking-tight">
+                                            {data.filter((a: any) => a.status === 'disbursed').length}
+                                        </div>
+                                        <p className="text-xs text-slate-400 mt-0.5 font-normal">Fully settled loans</p>
+                                    </div>
                                 </div>
                             </div>
 
-                            {/* Search and Filters Bar */}
-                            <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
-                                <div className="flex flex-col md:flex-row gap-4 items-end">
-                                    {/* Search */}
-                                    <div className="flex-1 w-full">
-                                        <label className="block text-[10px] font-medium text-slate-500 uppercase tracking-wider mb-1.5">Quick Search</label>
-                                        <div className="relative">
-                                            <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[16px]">search</span>
-                                            <input
-                                                type="text"
-                                                value={searchQuery}
-                                                onChange={e => setSearchQuery(e.target.value)}
-                                                placeholder="Search by name, email, app ID, staff..."
-                                                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs focus:outline-none focus:border-slate-400 transition-colors"
-                                            />
-                                        </div>
+                            {/* ─── Filter Bar (Single Horizontal Row) ─── */}
+                            <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-slate-200/70 shadow-xs">
+                                <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2.5">
+                                    {/* Quick Search with embedded magnifying glass */}
+                                    <div className="relative flex-1 min-w-[220px]">
+                                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px] pointer-events-none">
+                                            search
+                                        </span>
+                                        <input
+                                            type="text"
+                                            value={searchQuery}
+                                            onChange={e => setSearchQuery(e.target.value)}
+                                            placeholder="Quick search by applicant, email, app ID, staff..."
+                                            className="w-full pl-9 pr-8 py-2 bg-slate-50/70 hover:bg-slate-50 focus:bg-white border border-slate-200/80 hover:border-slate-300 focus:border-indigo-500 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 transition-all"
+                                        />
+                                        {searchQuery && (
+                                            <button
+                                                onClick={() => setSearchQuery("")}
+                                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                                            >
+                                                <span className="material-symbols-outlined text-[15px]">close</span>
+                                            </button>
+                                        )}
                                     </div>
 
-                                    {/* Filters */}
-                                    <div className="grid grid-cols-2 md:grid-cols-6 gap-2.5 w-full md:w-auto">
-                                        <div>
-                                            <label className="block text-[10px] font-medium text-slate-500 uppercase tracking-wider mb-1.5">Assigned Staff</label>
-                                            <select value={filterStaff} onChange={e => setFilterStaff(e.target.value)} className="w-full px-2 py-1.5 border border-slate-200 rounded text-xs bg-slate-50 focus:outline-none focus:border-slate-400 transition-colors">
-                                                <option value="all">All Staff</option>
-                                                <option value="unassigned">⚠️ Unassigned Only</option>
-                                                {staffMembers.map((s: any) => (
-                                                    <option key={s.id} value={s.id}>
-                                                        {s.firstName || s.email} {s.lastName || ''}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </div>
+                                    {/* Lightly bordered dropdowns */}
+                                    <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                                        {/* Staff Filter */}
+                                        <select
+                                            value={filterStaff}
+                                            onChange={e => setFilterStaff(e.target.value)}
+                                            className="px-2.5 py-2 border border-slate-200/80 hover:border-slate-300 rounded-lg text-xs bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 transition-colors cursor-pointer"
+                                        >
+                                            <option value="all">All Staff</option>
+                                            <option value="unassigned">⚠️ Unassigned Only</option>
+                                            {staffMembers.map((s: any) => (
+                                                <option key={s.id} value={s.id}>
+                                                    {s.firstName || s.email} {s.lastName || ''}
+                                                </option>
+                                            ))}
+                                        </select>
 
-                                        <div>
-                                            <label className="block text-[10px] font-medium text-slate-500 uppercase tracking-wider mb-1.5">Status</label>
-                                            <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="w-full px-2 py-1.5 border border-slate-200 rounded text-xs bg-slate-50 focus:outline-none focus:border-slate-400 transition-colors">
-                                                <option value="all">All Statuses</option>
-                                                <option value="pending">Pending</option>
-                                                <option value="processing">Processing</option>
-                                                <option value="approved">Approved</option>
-                                                <option value="disbursed">Disbursed</option>
-                                                <option value="rejected">Rejected</option>
-                                            </select>
-                                        </div>
+                                        {/* Status Filter */}
+                                        <select
+                                            value={filterStatus}
+                                            onChange={e => setFilterStatus(e.target.value)}
+                                            className="px-2.5 py-2 border border-slate-200/80 hover:border-slate-300 rounded-lg text-xs bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 transition-colors cursor-pointer"
+                                        >
+                                            <option value="all">All Statuses</option>
+                                            <option value="pending">Pending</option>
+                                            <option value="processing">Processing</option>
+                                            <option value="approved">Approved</option>
+                                            <option value="disbursed">Disbursed</option>
+                                            <option value="rejected">Rejected</option>
+                                        </select>
 
-                                        <div>
-                                            <label className="block text-[10px] font-medium text-slate-500 uppercase tracking-wider mb-1.5">Bank Partner</label>
-                                            <select value={filterBank} onChange={e => setFilterBank(e.target.value)} className="w-full px-2 py-1.5 border border-slate-200 rounded text-xs bg-slate-50 focus:outline-none focus:border-slate-400 transition-colors">
-                                                <option value="all">All Banks</option>
-                                                <option value="credila">HDFC Credila</option>
-                                                <option value="idfc">IDFC First Bank</option>
-                                                <option value="avanse">Avanse</option>
-                                                <option value="auxilo">Auxilo</option>
-                                                <option value="poonawalla">Poonawalla</option>
-                                            </select>
-                                        </div>
+                                        {/* Bank Filter */}
+                                        <select
+                                            value={filterBank}
+                                            onChange={e => setFilterBank(e.target.value)}
+                                            className="px-2.5 py-2 border border-slate-200/80 hover:border-slate-300 rounded-lg text-xs bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 transition-colors cursor-pointer"
+                                        >
+                                            <option value="all">All Banks</option>
+                                            <option value="credila">HDFC Credila</option>
+                                            <option value="idfc">IDFC First Bank</option>
+                                            <option value="avanse">Avanse</option>
+                                            <option value="auxilo">Auxilo</option>
+                                            <option value="poonawalla">Poonawalla</option>
+                                        </select>
 
-                                        <div>
-                                            <label className="block text-[10px] font-medium text-slate-500 uppercase tracking-wider mb-1.5">Loan Type</label>
-                                            <select value={filterLoanType} onChange={e => setFilterLoanType(e.target.value)} className="w-full px-2 py-1.5 border border-slate-200 rounded text-xs bg-slate-50 focus:outline-none focus:border-slate-400 transition-colors">
-                                                <option value="all">All Types</option>
-                                                <option value="unsecured">Unsecured</option>
-                                                <option value="secured">Secured</option>
-                                            </select>
-                                        </div>
+                                        {/* Loan Type Filter */}
+                                        <select
+                                            value={filterLoanType}
+                                            onChange={e => setFilterLoanType(e.target.value)}
+                                            className="px-2.5 py-2 border border-slate-200/80 hover:border-slate-300 rounded-lg text-xs bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 transition-colors cursor-pointer"
+                                        >
+                                            <option value="all">All Types</option>
+                                            <option value="unsecured">Unsecured</option>
+                                            <option value="secured">Secured</option>
+                                        </select>
 
-                                        <div>
-                                            <label className="block opacity-0 text-[10px] mb-1.5">Action</label>
+                                        {/* Reset Filter Button */}
+                                        {(filterStatus !== 'all' || filterBank !== 'all' || filterLoanType !== 'all' || filterStaff !== 'all' || searchQuery) && (
                                             <button
                                                 onClick={() => {
                                                     setFilterStatus("all");
@@ -3504,43 +3725,32 @@ export default function AdminDashboardPage() {
                                                     setFilterStaff("all");
                                                     setSearchQuery("");
                                                 }}
-                                                className="w-full px-3 py-1.5 bg-slate-100 border border-slate-200 rounded text-[10px] font-semibold text-slate-600 hover:bg-slate-200 transition-colors uppercase tracking-wider"
+                                                className="px-2.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 rounded-lg text-xs font-medium transition-colors shrink-0 cursor-pointer"
+                                                title="Reset all filters"
                                             >
-                                                Clear
+                                                Reset
                                             </button>
-                                        </div>
-
-                                        <div>
-                                            <label className="block opacity-0 text-[10px] mb-1.5">Auto-Assign</label>
-                                            <button
-                                                onClick={handleAutoAssignUnassigned}
-                                                className="w-full px-2 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded text-[10px] transition-colors uppercase tracking-wider flex items-center justify-center gap-1 shadow-xs cursor-pointer whitespace-nowrap"
-                                                title="Distribute all unassigned applications evenly across active staff members"
-                                            >
-                                                <span className="material-symbols-outlined text-[13px]">published_with_changes</span>
-                                                Auto-Assign
-                                            </button>
-                                        </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Bulk Action Toolbar */}
+                            {/* ─── Bulk Action Toolbar (When Rows Selected) ─── */}
                             {selectedAppIds.length > 0 && (
-                                <div className="mb-3 p-3 bg-slate-900 text-white rounded-lg shadow-lg flex flex-wrap items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
-                                    <div className="flex items-center gap-2">
-                                        <span className="bg-indigo-600 text-white px-2.5 py-1 rounded-full text-xs font-bold font-mono">
+                                <div className="p-3 bg-slate-900 text-white rounded-xl shadow-md flex flex-wrap items-center justify-between gap-3 animate-in fade-in duration-200">
+                                    <div className="flex items-center gap-2.5">
+                                        <span className="bg-indigo-600 text-white px-2.5 py-0.5 rounded-full text-xs font-bold font-mono">
                                             {selectedAppIds.length} Selected
                                         </span>
-                                        <span className="text-xs font-medium text-slate-200">
-                                            Bulk reassign selected applications
+                                        <span className="text-xs font-medium text-slate-300">
+                                            Bulk reassign applications to staff
                                         </span>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <select
                                             value={bulkTargetStaffId}
                                             onChange={(e) => setBulkTargetStaffId(e.target.value)}
-                                            className="px-3 py-1.5 text-xs font-semibold bg-white text-slate-800 border border-indigo-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer shadow-sm"
+                                            className="px-3 py-1.5 text-xs font-medium bg-slate-800 text-white border border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                                         >
                                             <option value="" disabled>-- Select Target Staff --</option>
                                             <option value="auto">⚡ Auto Round-Robin (Distribute Evenly)</option>
@@ -3553,273 +3763,329 @@ export default function AdminDashboardPage() {
                                         <button
                                             onClick={handleBulkReassign}
                                             disabled={bulkReassigning || !bulkTargetStaffId}
-                                            className="px-4 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-md shadow transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer"
+                                            className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-semibold text-xs rounded-lg shadow-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 cursor-pointer"
                                         >
                                             {bulkReassigning ? (
                                                 <>
-                                                    <div className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                                                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                                                     Reassigning...
                                                 </>
                                             ) : (
                                                 <>
-                                                    <span className="material-symbols-outlined text-[16px]">swap_horiz</span>
+                                                    <span className="material-symbols-outlined text-[15px]">swap_horiz</span>
                                                     Bulk Reassign
                                                 </>
                                             )}
                                         </button>
                                         <button
                                             onClick={() => setSelectedAppIds([])}
-                                            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs rounded-md transition-colors cursor-pointer"
+                                            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium text-xs rounded-lg transition-colors cursor-pointer"
                                         >
-                                            Deselect All
+                                            Deselect
                                         </button>
                                     </div>
                                 </div>
                             )}
 
-                            {/* Comprehensive Applications Table */}
-                            <div className="rounded-lg border border-slate-200 shadow-sm bg-white overflow-hidden">
+                            {/* ─── Main Data Table (Pure White, Horizontal Dividers Only) ─── */}
+                            <div className="rounded-xl border border-slate-200/70 shadow-xs bg-white overflow-hidden">
                                 <div className="overflow-x-auto">
-                                    <table className="w-full text-left text-xs">
-                                        <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
+                                    <table className="w-full text-left text-xs border-collapse">
+                                        <thead className="bg-slate-50/75 border-b border-slate-200/80">
                                             <tr>
-                                                <th className="px-4 py-2.5 font-bold text-slate-600 text-[9px] uppercase tracking-wider">
+                                                <th className="px-4 py-3 font-semibold text-slate-500 text-[10px] uppercase tracking-wider w-10">
                                                     <input
                                                         type="checkbox"
                                                         className="rounded cursor-pointer accent-indigo-600 w-3.5 h-3.5"
                                                         checked={pagedApplications.length > 0 && pagedApplications.every((item: any) => selectedAppIds.includes(item.id))}
                                                         onChange={() => toggleSelectAll(pagedApplications)}
-                                                        title="Select / Deselect All"
+                                                        title="Select / Deselect All on this page"
                                                     />
                                                 </th>
-                                                <th className="px-4 py-2.5 font-bold text-slate-600 text-[9px] uppercase tracking-wider">Application Ref</th>
-                                                <th className="px-4 py-2.5 font-bold text-slate-600 text-[9px] uppercase tracking-wider min-w-[210px] max-w-[280px]">Applicant & Target</th>
-                                                <th className="px-4 py-2.5 font-bold text-slate-600 text-[9px] uppercase tracking-wider">Assigned Staff</th>
-                                                <th className="px-4 py-2.5 font-bold text-slate-600 text-[9px] uppercase tracking-wider">Lender & Loan</th>
-                                                <th className="px-4 py-2.5 font-bold text-slate-600 text-[9px] uppercase tracking-wider">Progress & Stage</th>
-                                                <th className="px-4 py-2.5 font-bold text-slate-600 text-[9px] uppercase tracking-wider">Priority</th>
-                                                <th className="px-4 py-2.5 font-bold text-slate-600 text-[9px] uppercase tracking-wider">Applied</th>
-                                                <th className="px-4 py-2.5 font-bold text-slate-600 text-[9px] uppercase tracking-wider text-right">Actions</th>
+                                                <th className="px-4 py-3 font-semibold text-slate-500 text-[10px] uppercase tracking-wider min-w-[220px]">
+                                                    Applicant & Target
+                                                </th>
+                                                <th className="px-4 py-3 font-semibold text-slate-500 text-[10px] uppercase tracking-wider min-w-[130px]">
+                                                    Application Ref
+                                                </th>
+                                                <th className="px-4 py-3 font-semibold text-slate-500 text-[10px] uppercase tracking-wider min-w-[170px]">
+                                                    Assigned Staff
+                                                </th>
+                                                <th className="px-4 py-3 font-semibold text-slate-500 text-[10px] uppercase tracking-wider min-w-[140px]">
+                                                    Lender & Loan
+                                                </th>
+                                                <th className="px-4 py-3 font-semibold text-slate-500 text-[10px] uppercase tracking-wider min-w-[180px]">
+                                                    Progress & Stage
+                                                </th>
+                                                <th className="px-4 py-3 font-semibold text-slate-500 text-[10px] uppercase tracking-wider min-w-[100px]">
+                                                    Applied
+                                                </th>
+                                                <th className="px-4 py-3 font-semibold text-slate-500 text-[10px] uppercase tracking-wider text-right w-20">
+                                                    Action
+                                                </th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
                                             {loading ? (
-                                                <tr><td colSpan={9} className="px-6 py-12 text-center">
-                                                    <div className="flex flex-col items-center">
-                                                        <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-3" />
-                                                        <p className="text-[12px] font-bold text-slate-500">Loading applications database...</p>
-                                                    </div>
-                                                </td></tr>
-                                            ) : pagedApplications.length > 0 ? pagedApplications.map((item: any, idx: number) => {
-                                                const progress = getApplicationDisplayProgress(item);
-                                                const stageLabel = getApplicationStageLabel(item, progress);
-                                                const priorityLevel = item.priority || 'normal';
-                                                
-                                                // Resolve assigned staff member info
-                                                const assignedStaffId = (item.assignedStaffId || '').trim();
-                                                const assignedStaffEmail = (item.assignedStaffEmail || '').trim().toLowerCase();
-                                                const targetName = (item.assignedStaffName || item.staffName || item.processingStaff || '').trim().toLowerCase();
-
-                                                const matchedStaff = staffMembers.find((s: any) => {
-                                                    if (!s) return false;
-                                                    const sId = String(s.id || '').toLowerCase();
-                                                    const sLink = String(s.linkedUserId || '').toLowerCase();
-                                                    const sEmail = String(s.email || '').toLowerCase();
-                                                    const sName = `${s.firstName || ''} ${s.lastName || ''}`.trim().toLowerCase();
-                                                    const targetId = assignedStaffId.toLowerCase();
-
-                                                    return (
-                                                        (targetId && (sId === targetId || sLink === targetId || sEmail === targetId)) ||
-                                                        (assignedStaffEmail && sEmail === assignedStaffEmail) ||
-                                                        (targetName && (sName === targetName || sEmail === targetName))
-                                                    );
-                                                });
-                                                const staffDisplayName = matchedStaff
-                                                    ? `${matchedStaff.firstName || ''} ${matchedStaff.lastName || ''}`.trim() || matchedStaff.email
-                                                    : (item.assignedStaffName || item.staffName || item.processingStaff || 'Unassigned');
-                                                const isUnassigned = (!assignedStaffId || assignedStaffId === 'unassigned' || assignedStaffId === 'null') && !matchedStaff && !item.assignedStaffName && !item.staffName;
-
-                                                return (
-                                                <tr key={idx} className={`hover:bg-slate-50/70 transition-colors group ${selectedAppIds.includes(item.id) ? 'bg-indigo-50/60' : (isUnassigned ? 'bg-amber-50/20' : '')}`}>
-                                                    <td className="px-4 py-3">
-                                                        <input
-                                                            type="checkbox"
-                                                            className="rounded cursor-pointer accent-indigo-600 w-3.5 h-3.5"
-                                                            checked={selectedAppIds.includes(item.id)}
-                                                            onChange={() => toggleSelectApp(item.id)}
-                                                        />
-                                                    </td>
-                                                    
-                                                    {/* App ID & Ref */}
-                                                    <td className="px-4 py-3">
-                                                        <div className="flex flex-col gap-0.5">
-                                                            {(item.applicationNumber && (item.status === 'submitted_to_bank' || item.bankWorkflowStatus || item.status === 'under_bank_review' || item.status === 'approved' || item.status === 'disbursed')) ? (
-                                                                <span className="inline-flex items-center gap-1">
-                                                                    <code className="text-[11px] font-bold text-indigo-700 font-mono bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">{item.applicationNumber}</code>
-                                                                </span>
-                                                            ) : (
-                                                                <>
-                                                                    <code className="text-[11px] font-semibold text-slate-600 font-mono">{item.id?.substring(0, 8)}</code>
-                                                                    <span className="text-[9px] text-amber-600 font-medium truncate" title="Application has not been submitted to bank yet. VL-APP ID generates on bank submission.">Pre-bank submission</span>
-                                                                </>
-                                                            )}
-                                                            {item.referenceId && <span className="text-[9px] text-slate-400 font-medium truncate max-w-[90px]" title={item.referenceId}>Ref: {item.referenceId}</span>}
-                                                        </div>
-                                                    </td>
-                                                    
-                                                    {/* Applicant & Target Details */}
-                                                    <td className="px-4 py-3 min-w-[210px] max-w-[280px]">
-                                                        <button
-                                                            onClick={() => handleViewUserProfile(item)}
-                                                            className="flex flex-col cursor-pointer hover:bg-indigo-50/80 p-1.5 rounded -m-1.5 transition-all group w-full text-left"
-                                                            title="Click to view applicant credentials & full profile"
-                                                        >
-                                                            <p className="font-bold text-slate-900 text-xs truncate group-hover:text-indigo-700 transition-colors flex items-center gap-1">
-                                                                {item.firstName} {item.lastName}
-                                                                <span className="material-symbols-outlined text-[11px] opacity-0 group-hover:opacity-100 transition-opacity">open_in_new</span>
-                                                            </p>
-                                                            <p className="text-[10px] text-slate-500 truncate" title={item.email}>{item.email}</p>
-                                                            {(() => {
-                                                                const uni = (item.targetUniversity || item.universityName || '').trim();
-                                                                const destination = (item.studyDestination || item.country || '').trim();
-                                                                if (!uni && !destination) return null;
-                                                                const fullTarget = uni ? (destination && destination.toLowerCase() !== 'global' ? `${uni} (${destination})` : uni) : destination;
-
-                                                                return (
-                                                                    <div
-                                                                        className="mt-1.5 inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-slate-100/90 hover:bg-slate-200/70 border border-slate-200/80 text-slate-700 max-w-full transition-colors"
-                                                                        title={fullTarget}
-                                                                    >
-                                                                        <span className="material-symbols-outlined text-[13px] text-indigo-600 flex-shrink-0">school</span>
-                                                                        <span className="text-[10px] font-semibold truncate tracking-tight">
-                                                                            {uni || destination}
-                                                                            {uni && destination && destination.toLowerCase() !== 'global' && (
-                                                                                <span className="text-slate-500 font-normal ml-1">({destination})</span>
-                                                                            )}
-                                                                        </span>
-                                                                    </div>
-                                                                );
-                                                            })()}
-                                                        </button>
-                                                    </td>
-                                                    
-                                                    {/* Assigned Staff Member & Inline Reassignment */}
-                                                    <td className="px-4 py-3">
-                                                        <div className="flex flex-col gap-1 min-w-[140px]">
-                                                            <div className="flex items-center gap-1.5">
-                                                                <img
-                                                                    src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${matchedStaff?.email || staffDisplayName}`}
-                                                                    alt=""
-                                                                    className="w-5 h-5 rounded-full border border-slate-200 flex-shrink-0"
-                                                                />
-                                                                <span className={`text-[11px] font-bold truncate ${isUnassigned ? 'text-amber-700' : 'text-slate-800'}`}>
-                                                                    {staffDisplayName}
-                                                                </span>
-                                                            </div>
-                                                            {['sanctioned', 'conditional_sanction', 'partial_sanction', 'disbursed', 'partially_disbursed', 'approved'].includes((item.status || '').toLowerCase()) ? (
-                                                                <span className="text-[9px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 inline-flex items-center gap-1 w-fit" title="Sanctioned application — staff assignment is permanently locked">
-                                                                    🔒 Locked (Sanctioned)
-                                                                </span>
-                                                            ) : (
-                                                                <select
-                                                                    value={matchedStaff ? matchedStaff.id : (assignedStaffId || '')}
-                                                                    disabled={reassigningAppId === item.id}
-                                                                    onChange={(e) => handleReassignStaff(item.id, e.target.value)}
-                                                                    className="px-2 py-0.5 text-[9px] font-semibold bg-white border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-600 cursor-pointer shadow-xs"
-                                                                >
-                                                                    <option value="" disabled>-- Reassign Staff --</option>
-                                                                    {staffMembers.map((s: any) => {
-                                                                        const isResigned = s.isResigned || s.status === 'resigned' || s.status === 'inactive' || s.status === 'invalid';
-                                                                        const name = `${s.firstName || s.email} ${s.lastName || ''}`.trim();
-                                                                        const label = isResigned && !name.includes('(Invalid)') ? `${name} (Invalid)` : name;
-                                                                        return (
-                                                                            <option key={s.id} value={s.id}>
-                                                                                {label}
-                                                                            </option>
-                                                                        );
-                                                                    })}
-                                                                </select>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                    
-                                                    {/* Lender & Amount */}
-                                                    <td className="px-4 py-3">
-                                                        <div className="flex flex-col text-[10px]">
-                                                            <div className="flex items-center gap-1 mb-0.5">
-                                                                {renderBankLogo(item.bank)}
-                                                                <span className="font-bold text-slate-900 text-xs">{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(item.amount || 0)}</span>
-                                                            </div>
-                                                            <span className="text-[9px] text-slate-500 font-medium capitalize">{item.loanType || 'unsecured'} loan</span>
-                                                        </div>
-                                                    </td>
-                                                    
-                                                    {/* Progress & Stage */}
-                                                    <td className="px-4 py-3 min-w-[150px]">
-                                                        <div className="space-y-1">
-                                                            <div className="flex justify-between items-center text-[10px]">
-                                                                <span className="font-bold text-slate-800">{stageLabel}</span>
-                                                                <span className="font-bold text-indigo-600 tabular-nums">{progress}%</span>
-                                                            </div>
-                                                            <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                                <div
-                                                                    className={`h-full rounded-full transition-all duration-500 ${
-                                                                        progress >= 100 ? 'bg-emerald-500' :
-                                                                        progress >= 75 ? 'bg-indigo-600' :
-                                                                        progress >= 40 ? 'bg-blue-500' :
-                                                                        'bg-amber-500'
-                                                                    }`}
-                                                                    style={{ width: `${progress}%` }}
-                                                                />
-                                                            </div>
-                                                        </div>
-                                                    </td>
-
-                                                    {/* Priority */}
-                                                    <td className="px-4 py-3">
-                                                        <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider border ${
-                                                            priorityLevel === 'high' ? 'bg-rose-50 text-rose-700 border-rose-200' :
-                                                            priorityLevel === 'medium' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                                                            'bg-slate-50 text-slate-600 border-slate-200'
-                                                        }`}>
-                                                            {priorityLevel}
-                                                        </span>
-                                                    </td>
-                                                    
-                                                    {/* Applied Date */}
-                                                    <td className="px-4 py-3 text-[10px] text-slate-500 whitespace-nowrap tabular-nums">
-                                                        {(() => {
-                                                            const rawDate = item.appliedOn || item.appliedDate || item.submittedAt || item.createdAt || item.created_at || item.lanEnteredAt;
-                                                            if (!rawDate) return '—';
-                                                            try {
-                                                                const parsed = new Date(rawDate);
-                                                                return isNaN(parsed.getTime()) ? '—' : format(parsed, 'dd MMM yyyy');
-                                                            } catch {
-                                                                return '—';
-                                                            }
-                                                        })()}
-                                                    </td>
-                                                    
-                                                    {/* Actions */}
-                                                    <td className="px-4 py-3 text-right">
-                                                        <div className="flex gap-1 justify-end">
-                                                            <button
-                                                                onClick={() => { setSelectedApp(item); }}
-                                                                className="px-2 py-1 bg-slate-900 text-white rounded text-[10px] font-semibold hover:bg-slate-800 transition-colors flex items-center gap-1"
-                                                                title="View Profile"
-                                                            >
-                                                                <span className="material-symbols-outlined text-[13px]">visibility</span>
-                                                                Profile
-                                                            </button>
+                                                <tr>
+                                                    <td colSpan={8} className="px-6 py-16 text-center">
+                                                        <div className="flex flex-col items-center">
+                                                            <div className="w-8 h-8 border-3 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-3" />
+                                                            <p className="text-xs font-semibold text-slate-600">Loading applications...</p>
                                                         </div>
                                                     </td>
                                                 </tr>
-                                                );
-                                            }) : (
+                                            ) : pagedApplications.length > 0 ? (
+                                                pagedApplications.map((item: any) => {
+                                                    const progress = getApplicationDisplayProgress(item);
+                                                    const stageLabel = getApplicationStageLabel(item, progress);
+                                                    
+                                                    // Resolve assigned staff member info
+                                                    const assignedStaffId = (item.assignedStaffId || '').trim();
+                                                    const assignedStaffEmail = (item.assignedStaffEmail || '').trim().toLowerCase();
+                                                    const targetName = (item.assignedStaffName || item.staffName || item.processingStaff || '').trim().toLowerCase();
+
+                                                    const matchedStaff = staffMembers.find((s: any) => {
+                                                        if (!s) return false;
+                                                        const sId = String(s.id || '').toLowerCase();
+                                                        const sLink = String(s.linkedUserId || '').toLowerCase();
+                                                        const sEmail = String(s.email || '').toLowerCase();
+                                                        const sName = `${s.firstName || ''} ${s.lastName || ''}`.trim().toLowerCase();
+                                                        const targetId = assignedStaffId.toLowerCase();
+
+                                                        return (
+                                                            (targetId && (sId === targetId || sLink === targetId || sEmail === targetId)) ||
+                                                            (assignedStaffEmail && sEmail === assignedStaffEmail) ||
+                                                            (targetName && (sName === targetName || sEmail === targetName))
+                                                        );
+                                                    });
+                                                    const staffDisplayName = matchedStaff
+                                                        ? `${matchedStaff.firstName || ''} ${matchedStaff.lastName || ''}`.trim() || matchedStaff.email
+                                                        : (item.assignedStaffName || item.staffName || item.processingStaff || 'Unassigned');
+                                                    const isUnassigned = (!assignedStaffId || assignedStaffId === 'unassigned' || assignedStaffId === 'null') && !matchedStaff && !item.assignedStaffName && !item.staffName;
+                                                    const isSanctionLocked = ['sanctioned', 'conditional_sanction', 'partial_sanction', 'disbursed', 'partially_disbursed', 'approved'].includes((item.status || '').toLowerCase());
+                                                    const isRowSelected = selectedAppIds.includes(item.id);
+
+                                                    const uni = (item.targetUniversity || item.universityName || '').trim();
+                                                    const destination = (item.studyDestination || item.country || '').trim();
+                                                    const fullTarget = uni ? (destination && destination.toLowerCase() !== 'global' ? `${uni} (${destination})` : uni) : destination;
+
+                                                    return (
+                                                        <tr 
+                                                            key={item.id} 
+                                                            className={`transition-colors group hover:bg-slate-50/70 ${
+                                                                isRowSelected ? 'bg-indigo-50/50' : (isUnassigned ? 'bg-rose-50/20' : '')
+                                                            }`}
+                                                        >
+                                                            {/* Checkbox */}
+                                                            <td className="px-4 py-3">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    className="rounded cursor-pointer accent-indigo-600 w-3.5 h-3.5"
+                                                                    checked={isRowSelected}
+                                                                    onChange={() => toggleSelectApp(item.id)}
+                                                                />
+                                                            </td>
+
+                                                            {/* 1. Applicant & Target (Clean Two-Line Stack with Avatar) */}
+                                                            <td className="px-4 py-3">
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center shrink-0 border border-slate-200/60 font-semibold text-slate-700 text-xs">
+                                                                        {(item.firstName?.[0] || 'U')}{(item.lastName?.[0] || '')}
+                                                                    </div>
+                                                                    <div className="min-w-0 flex-1">
+                                                                        <button
+                                                                            onClick={() => handleViewUserProfile(item)}
+                                                                            className="text-left font-semibold text-slate-900 text-xs hover:text-indigo-600 transition-colors inline-flex items-center gap-1 group/btn cursor-pointer"
+                                                                            title="View applicant credentials & profile"
+                                                                        >
+                                                                            <span className="truncate">{item.firstName} {item.lastName}</span>
+                                                                            <span className="material-symbols-outlined text-[13px] text-slate-400 opacity-0 group-hover/btn:opacity-100 transition-opacity">
+                                                                                open_in_new
+                                                                            </span>
+                                                                        </button>
+                                                                        <div className="text-[11px] text-slate-500 truncate" title={item.email}>
+                                                                            {item.email}
+                                                                        </div>
+                                                                        {fullTarget && (
+                                                                            <div className="text-[10px] text-slate-500 flex items-center gap-1 mt-0.5 truncate" title={fullTarget}>
+                                                                                <span className="material-symbols-outlined text-[12px] text-indigo-500 shrink-0">school</span>
+                                                                                <span className="truncate">{fullTarget}</span>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+
+                                                            {/* 2. Application Ref */}
+                                                            <td className="px-4 py-3">
+                                                                <div className="flex flex-col gap-0.5">
+                                                                    {item.applicationNumber ? (
+                                                                        <code className="text-[11px] font-semibold text-slate-800 font-mono bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/60 w-fit">
+                                                                            {item.applicationNumber}
+                                                                        </code>
+                                                                    ) : (
+                                                                        <>
+                                                                            <code className="text-[11px] font-mono text-slate-600">
+                                                                                {item.id?.substring(0, 8)}
+                                                                            </code>
+                                                                            <span className="text-[10px] text-slate-400 font-normal">
+                                                                                Pre-bank
+                                                                            </span>
+                                                                        </>
+                                                                    )}
+                                                                    {item.referenceId && (
+                                                                        <span className="text-[10px] text-slate-400 truncate max-w-[100px]" title={item.referenceId}>
+                                                                            Ref: {item.referenceId}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </td>
+
+                                                            {/* 3. Assigned Staff (Plain Text + Inline Reassignment Toggle) */}
+                                                            <td className="px-4 py-3">
+                                                                {reassigningRowId === item.id ? (
+                                                                    <div className="flex items-center gap-1.5 animate-in fade-in duration-150">
+                                                                        <select
+                                                                            defaultValue={matchedStaff ? matchedStaff.id : (assignedStaffId || '')}
+                                                                            disabled={reassigningAppId === item.id}
+                                                                            onChange={async (e) => {
+                                                                                await handleReassignStaff(item.id, e.target.value);
+                                                                                setReassigningRowId(null);
+                                                                            }}
+                                                                            className="px-2 py-1 text-xs bg-white border border-indigo-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-slate-800 cursor-pointer shadow-xs"
+                                                                            autoFocus
+                                                                        >
+                                                                            <option value="" disabled>-- Select Staff --</option>
+                                                                            {staffMembers.map((s: any) => {
+                                                                                const isResigned = s.isResigned || s.status === 'resigned' || s.status === 'inactive' || s.status === 'invalid';
+                                                                                const name = `${s.firstName || s.email} ${s.lastName || ''}`.trim();
+                                                                                const label = isResigned && !name.includes('(Invalid)') ? `${name} (Invalid)` : name;
+                                                                                return (
+                                                                                    <option key={s.id} value={s.id}>
+                                                                                        {label}
+                                                                                    </option>
+                                                                                );
+                                                                            })}
+                                                                        </select>
+                                                                        <button
+                                                                            onClick={() => setReassigningRowId(null)}
+                                                                            className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-600 cursor-pointer"
+                                                                            title="Cancel reassignment"
+                                                                        >
+                                                                            <span className="material-symbols-outlined text-[15px]">close</span>
+                                                                        </button>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="flex items-center gap-1.5 group/staff">
+                                                                        <img
+                                                                            src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${matchedStaff?.email || staffDisplayName}`}
+                                                                            alt=""
+                                                                            className="w-5 h-5 rounded-full bg-slate-100 shrink-0"
+                                                                        />
+                                                                        <span className={`text-xs font-medium truncate max-w-[110px] ${
+                                                                            isUnassigned ? 'text-rose-600 font-semibold' : 'text-slate-800'
+                                                                        }`} title={staffDisplayName}>
+                                                                            {staffDisplayName}
+                                                                        </span>
+                                                                        {isSanctionLocked ? (
+                                                                            <span className="text-[12px] text-amber-500 cursor-default" title="Locked (Sanctioned application)">
+                                                                                🔒
+                                                                            </span>
+                                                                        ) : (
+                                                                            <button
+                                                                                onClick={() => setReassigningRowId(item.id)}
+                                                                                className="p-1 rounded text-slate-300 group-hover/staff:text-slate-500 hover:text-indigo-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                                                                                title="Click to reassign staff"
+                                                                            >
+                                                                                <span className="material-symbols-outlined text-[14px] block">edit</span>
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                )}
+                                                            </td>
+
+                                                            {/* 4. Lender & Loan (Clean Currency Stacking) */}
+                                                            <td className="px-4 py-3">
+                                                                <div className="flex flex-col">
+                                                                    <span className="font-semibold text-slate-900 text-xs">
+                                                                        {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(item.amount || 0)}
+                                                                    </span>
+                                                                    <span className="text-[11px] text-slate-500 font-normal capitalize flex items-center gap-1 mt-0.5">
+                                                                        {renderBankLogo(item.bank)}
+                                                                        <span>{item.loanType || 'unsecured'}</span>
+                                                                    </span>
+                                                                </div>
+                                                            </td>
+
+                                                            {/* 5. Progress & Stage (Sleek 4px Progress Bar + Status Pill) */}
+                                                            <td className="px-4 py-3">
+                                                                <div className="space-y-1.5 min-w-[150px]">
+                                                                    <div className="flex items-center justify-between gap-2">
+                                                                        <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium border ${
+                                                                            progress >= 100 
+                                                                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80' 
+                                                                                : progress >= 75 
+                                                                                    ? 'bg-indigo-50 text-indigo-700 border-indigo-200/80' 
+                                                                                    : progress >= 40 
+                                                                                        ? 'bg-blue-50 text-blue-700 border-blue-200/80' 
+                                                                                        : 'bg-amber-50 text-amber-700 border-amber-200/80'
+                                                                        }`}>
+                                                                            {stageLabel}
+                                                                        </span>
+                                                                        <span className="text-[11px] font-semibold text-slate-600 tabular-nums">
+                                                                            {progress}%
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden">
+                                                                        <div
+                                                                            className={`h-full rounded-full transition-all duration-500 ${
+                                                                                progress >= 100 ? 'bg-emerald-500' :
+                                                                                progress >= 75 ? 'bg-indigo-600' :
+                                                                                progress >= 40 ? 'bg-blue-500' :
+                                                                                'bg-amber-500'
+                                                                            }`}
+                                                                            style={{ width: `${progress}%` }}
+                                                                        />
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+
+                                                            {/* 6. Applied Date */}
+                                                            <td className="px-4 py-3 text-xs text-slate-500 whitespace-nowrap tabular-nums font-normal">
+                                                                {(() => {
+                                                                    const rawDate = item.appliedOn || item.appliedDate || item.submittedAt || item.createdAt || item.created_at || item.lanEnteredAt;
+                                                                    if (!rawDate) return '—';
+                                                                    try {
+                                                                        const parsed = new Date(rawDate);
+                                                                        return isNaN(parsed.getTime()) ? '—' : format(parsed, 'dd MMM yyyy');
+                                                                    } catch {
+                                                                        return '—';
+                                                                    }
+                                                                })()}
+                                                            </td>
+
+                                                            {/* 7. Action Button (Clean Subtle View Button) */}
+                                                            <td className="px-4 py-3 text-right">
+                                                                <button
+                                                                    onClick={() => setSelectedApp(item)}
+                                                                    className="px-2.5 py-1 text-xs font-medium text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200/80 hover:border-slate-300 rounded-md shadow-2xs transition-all cursor-pointer inline-flex items-center gap-1 group-hover:border-slate-300"
+                                                                    title="View application details"
+                                                                >
+                                                                    <span>View</span>
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })
+                                            ) : (
                                                 <tr>
-                                                    <td colSpan={9} className="px-6 py-16 text-center">
-                                                        <span className="material-symbols-outlined text-4xl mb-3 opacity-20 block">folder_off</span>
-                                                        <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">No matching applications found</p>
+                                                    <td colSpan={8} className="px-6 py-16 text-center">
+                                                        <span className="material-symbols-outlined text-4xl mb-2 text-slate-300 block">
+                                                            folder_off
+                                                        </span>
+                                                        <p className="text-xs font-semibold text-slate-600">No applications match your filter</p>
+                                                        <p className="text-[11px] text-slate-400 mt-0.5">Try resetting search or adjusting status and staff filters</p>
                                                     </td>
                                                 </tr>
                                             )}
@@ -4020,9 +4286,23 @@ export default function AdminDashboardPage() {
                                         <div className="grid grid-cols-2 gap-y-4 gap-x-6 bg-purple-50/30 p-6 rounded-lg border border-purple-100">
                                             <DetailRow label="Full Name" value={`${selectedApp.firstName || ''} ${selectedApp.lastName || ''}`.trim() || '—'} />
                                             <DetailRow label="Email Address" value={selectedApp.email || '—'} />
-                                            <DetailRow label="Phone Number" value={selectedApp.phone || '—'} />
-                                            <DetailRow label="Date of Birth" value={selectedApp.dateOfBirth ? format(new Date(selectedApp.dateOfBirth), 'dd MMM yyyy') : '—'} />
-                                            <div className="col-span-2">
+                                            <DetailRow label="Phone Number" value={selectedApp.phone || selectedApp.mobile || '—'} />
+                                            <DetailRow label="Date of Birth" value={(() => {
+                                                const rawDob = selectedApp.dateOfBirth || selectedApp.dob || selectedApp.user?.dateOfBirth || selectedApp.user?.dob;
+                                                if (!rawDob) return '—';
+                                                try {
+                                                    const p = new Date(rawDob);
+                                                    return isNaN(p.getTime()) ? String(rawDob) : format(p, 'dd MMM yyyy');
+                                                } catch {
+                                                    return String(rawDob);
+                                                }
+                                            })()} />
+                                            <DetailRow label="Gender" value={(() => {
+                                                const g = selectedApp.gender || selectedApp.user?.gender;
+                                                if (!g) return '—';
+                                                return g.charAt(0).toUpperCase() + g.slice(1).toLowerCase();
+                                            })()} />
+                                            <div>
                                                 <DetailRow label="Address" value={selectedApp.address || '—'} />
                                             </div>
                                         </div>
@@ -4036,11 +4316,14 @@ export default function AdminDashboardPage() {
                                         <div className="grid grid-cols-2 gap-y-4 gap-x-6 bg-purple-50/30 p-6 rounded-lg border border-purple-100">
                                             <DetailRow 
                                                 label="Bank Partner" 
-                                                value={
-                                                    selectedApp.bank && !['any bank', 'any', '-', 'pending partner', 'n/a', 'not assigned', 'unassigned'].includes(selectedApp.bank.toLowerCase().trim())
-                                                        ? selectedApp.bank
-                                                        : 'Not Assigned'
-                                                } 
+                                                value={(() => {
+                                                    const raw = selectedApp.bank || selectedApp.partnerBank || selectedApp.user?.bank;
+                                                    if (raw && !['any bank', 'any', '-', 'pending partner', 'n/a', 'not assigned', 'unassigned'].includes(raw.toLowerCase().trim())) {
+                                                        const b = getAssignedBank(selectedApp);
+                                                        return b ? `${b.name} (${b.shortName})` : raw;
+                                                    }
+                                                    return 'Not Assigned';
+                                                })()} 
                                             />
                                             <DetailRow 
                                                 label="Field of Study" 
@@ -6222,7 +6505,7 @@ export default function AdminDashboardPage() {
                                             <div className="flex items-center gap-2 flex-wrap mt-0.5">
                                                 <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">{selectedUserProfile.email}</p>
                                                 {(() => {
-                                                    const assignedBank = getAssignedBank(selectedUserProfile);
+                                                    const assignedBank = getAssignedBank(selectedUserProfile) || (userLoans?.[0] ? getAssignedBank(userLoans[0]) : null);
                                                     return assignedBank ? (
                                                         <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded text-[10px] font-bold shadow-2xs">
                                                             {assignedBank.logoUrl ? (
@@ -6355,7 +6638,12 @@ export default function AdminDashboardPage() {
                                                         <div className="flex items-center gap-1.5 mt-0.5">
                                                             <span className="material-symbols-outlined text-[15px] text-indigo-500">account_balance</span>
                                                             <span className="font-black text-indigo-900 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded text-[10px]">
-                                                                {selectedUserProfile.bank ? selectedUserProfile.bank.toUpperCase() : 'Default / Not Assigned'}
+                                                                {(() => {
+                                                                    const b = getAssignedBank(selectedUserProfile) || (userLoans?.[0] ? getAssignedBank(userLoans[0]) : null);
+                                                                    if (b) return `${b.name} (${b.shortName})`.toUpperCase();
+                                                                    const rawB = selectedUserProfile.bank || userLoans?.[0]?.bank || userLoans?.[0]?.partnerBank;
+                                                                    return rawB ? rawB.toUpperCase() : 'Default / Not Assigned';
+                                                                })()}
                                                             </span>
                                                         </div>
                                                     </div>
@@ -6596,119 +6884,58 @@ export default function AdminDashboardPage() {
                             ) : (
                                 /* ─── Credentials Tab ─── */
                                 <div className="space-y-6">
-                                    {/* If Bank Officer or has Assigned Bank, show rich Assigned Lending Partner Institution Card */}
-                                    {(() => {
-                                        const assignedBank = getAssignedBank(selectedUserProfile);
-                                        if (!assignedBank && selectedUserProfile?.role !== 'bank') return null;
-                                        const bankObj = assignedBank || {
-                                            name: (selectedUserProfile?.bank || 'Lending Partner').toUpperCase(),
-                                            shortName: (selectedUserProfile?.bank || 'BANK').toUpperCase(),
-                                            type: 'Lending Partner Institution',
-                                            interestRateMin: 8.5,
-                                            interestRateMax: 14.5,
-                                            maxLoanAmount: '₹1.50 Cr',
-                                            collateralFreeLimit: '₹50 Lakhs',
-                                            processingTime: '3-5 Days',
-                                            processingFee: '0.5% - 1%',
-                                            features: ['Direct Sanction Line', 'Pre-Visa Disbursal', 'Competitive ROI']
-                                        };
-                                        return (
-                                            <div className="p-5 bg-gradient-to-br from-emerald-50/90 via-teal-50/40 to-white rounded-2xl border-2 border-emerald-200 shadow-sm space-y-4">
-                                                <div className="flex items-center justify-between border-b border-emerald-200/80 pb-3 flex-wrap gap-3">
-                                                    <div className="flex items-center gap-3">
-                                                        {bankObj.logoUrl ? (
-                                                            <img src={bankObj.logoUrl} alt="" className="w-12 h-12 object-contain bg-white rounded-xl p-1.5 border border-emerald-200 shadow-xs" />
-                                                        ) : (
-                                                            <div className="w-12 h-12 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black text-base shadow-xs">
-                                                                <span className="material-symbols-outlined text-[24px]">account_balance</span>
-                                                            </div>
-                                                        )}
-                                                        <div>
-                                                            <div className="flex items-center gap-2 flex-wrap">
-                                                                <h4 className="text-[15px] font-black text-slate-900">{bankObj.name}</h4>
-                                                                <span className="px-2 py-0.5 bg-emerald-600 text-white rounded text-[9px] font-black uppercase tracking-wider shadow-xs">
-                                                                    {bankObj.shortName}
-                                                                </span>
-                                                            </div>
-                                                            <p className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider mt-0.5 flex items-center gap-1.5">
-                                                                <span>{bankObj.type || 'Lending Partner Institution'}</span>
-                                                                <span>•</span>
-                                                                <span className="text-emerald-700">Assigned Bank Representative</span>
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setUserProfileTab('bank_compare')}
-                                                            className="px-2.5 py-1.5 bg-white text-emerald-800 border border-emerald-300 hover:bg-emerald-50 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors cursor-pointer"
-                                                        >
-                                                            Switch Bank
-                                                        </button>
-                                                    </div>
-                                                </div>
-
-                                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px]">
-                                                    <div className="p-3 bg-white rounded-xl border border-emerald-100 shadow-xs">
-                                                        <span className="text-[9px] font-black uppercase tracking-wider text-emerald-800 block">Interest Rate (ROI)</span>
-                                                        <span className="text-sm font-black text-emerald-950 mt-0.5 block">{bankObj.interestRateMin || 8.5}% - {bankObj.interestRateMax || 14.5}%</span>
-                                                        <span className="text-[9px] text-slate-500 font-medium">p.a. floating / fixed</span>
-                                                    </div>
-                                                    <div className="p-3 bg-white rounded-xl border border-emerald-100 shadow-xs">
-                                                        <span className="text-[9px] font-black uppercase tracking-wider text-emerald-800 block">Max Sanction Limit</span>
-                                                        <span className="text-sm font-black text-slate-900 mt-0.5 block">{bankObj.maxLoanAmount || '₹1.50 Cr'}</span>
-                                                        <span className="text-[9px] text-slate-500 font-medium">Sanction Cap</span>
-                                                    </div>
-                                                    <div className="p-3 bg-white rounded-xl border border-emerald-100 shadow-xs">
-                                                        <span className="text-[9px] font-black uppercase tracking-wider text-emerald-800 block">Collateral-Free Limit</span>
-                                                        <span className="text-sm font-black text-slate-900 mt-0.5 block">{bankObj.collateralFreeLimit || '₹50 Lakhs'}</span>
-                                                        <span className="text-[9px] text-slate-500 font-medium">Unsecured threshold</span>
-                                                    </div>
-                                                    <div className="p-3 bg-white rounded-xl border border-emerald-100 shadow-xs">
-                                                        <span className="text-[9px] font-black uppercase tracking-wider text-emerald-800 block">Processing SLA</span>
-                                                        <span className="text-sm font-black text-slate-900 mt-0.5 block">{bankObj.processingTime || '3-5 Days'}</span>
-                                                        <span className="text-[9px] text-slate-500 font-medium">Fee: {bankObj.processingFee || '0.5% - 1%'}</span>
-                                                    </div>
-                                                </div>
-
-                                                {Array.isArray(bankObj.features) && bankObj.features.length > 0 && (
-                                                    <div className="pt-1">
-                                                        <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider block mb-1.5">Approved Lending Products & Schemes</span>
-                                                        <div className="flex flex-wrap gap-1.5">
-                                                            {bankObj.features.map((f: string, idx: number) => (
-                                                                <span key={idx} className="px-2 py-0.5 bg-white border border-emerald-200 text-emerald-900 rounded-md text-[9px] font-bold shadow-2xs">
-                                                                    ✓ {f}
-                                                                </span>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })()}
-
                                     <div className="flex items-center gap-3 mb-4">
                                         <span className="material-symbols-outlined text-indigo-600 text-[20px]">security</span>
                                         <h3 className="text-[13px] font-bold text-slate-900 uppercase tracking-wide">Personal Information</h3>
                                     </div>
                                     <div className="grid grid-cols-2 gap-4 bg-indigo-50 p-6 rounded-lg border border-indigo-100">
-                                        <DetailRow label="Full Name" value={`${userCredentials?.firstName || selectedUserProfile.firstName} ${userCredentials?.lastName || selectedUserProfile.lastName}`} highlight />
-                                        <DetailRow label="Email" value={userCredentials?.email || selectedUserProfile.email} />
-                                        <DetailRow label="Phone" value={userCredentials?.mobile || userCredentials?.phoneNumber || '—'} />
-                                        <DetailRow label="Role" value={userCredentials?.role?.toUpperCase() || '—'} />
+                                        <DetailRow label="Full Name" value={`${userCredentials?.firstName || selectedUserProfile.firstName || ''} ${userCredentials?.lastName || selectedUserProfile.lastName || ''}`.trim() || '—'} highlight />
+                                        <DetailRow label="Email" value={userCredentials?.email || selectedUserProfile.email || '—'} />
+                                        <DetailRow label="Phone" value={userCredentials?.mobile || userCredentials?.phoneNumber || selectedUserProfile?.mobile || selectedUserProfile?.phone || '—'} />
+                                        <DetailRow label="Role" value={(userCredentials?.role || selectedUserProfile?.role || 'USER').toUpperCase()} />
                                         <DetailRow 
                                             label="Assigned Bank" 
                                             value={(() => {
-                                                const b = getAssignedBank(selectedUserProfile);
-                                                return b ? `${b.name} (${b.shortName})` : (selectedUserProfile.bank ? selectedUserProfile.bank.toUpperCase() : '—');
+                                                const b = getAssignedBank(selectedUserProfile) || (userLoans?.[0] ? getAssignedBank(userLoans[0]) : null);
+                                                if (b) return `${b.name} (${b.shortName})`;
+                                                const bName = selectedUserProfile?.bank || userLoans?.[0]?.bank || userLoans?.[0]?.partnerBank;
+                                                return bName ? bName.toUpperCase() : '—';
                                             })()} 
-                                            highlight={!!selectedUserProfile.bank} 
+                                            highlight={!!(selectedUserProfile?.bank || userLoans?.[0]?.bank)} 
                                         />
-                                        <DetailRow label="Date of Birth" value={userCredentials?.dob ? format(new Date(userCredentials.dob), 'dd MMM yyyy') : '—'} />
-                                        <DetailRow label="Gender" value={userCredentials?.gender || '—'} />
-                                        {userCredentials?.createdAt && (
-                                            <DetailRow label="Member Since" value={format(new Date(userCredentials.createdAt), 'dd MMM yyyy')} />
-                                        )}
+                                        <DetailRow 
+                                            label="Date of Birth" 
+                                            value={(() => {
+                                                const rawDob = userCredentials?.dob || userCredentials?.dateOfBirth || selectedUserProfile?.dateOfBirth || selectedUserProfile?.dob || userLoans?.[0]?.dateOfBirth || userLoans?.[0]?.dob;
+                                                if (!rawDob) return '—';
+                                                try {
+                                                    const parsed = new Date(rawDob);
+                                                    return isNaN(parsed.getTime()) ? String(rawDob) : format(parsed, 'dd MMM yyyy');
+                                                } catch {
+                                                    return String(rawDob);
+                                                }
+                                            })()} 
+                                        />
+                                        <DetailRow 
+                                            label="Gender" 
+                                            value={(() => {
+                                                const rawGender = userCredentials?.gender || selectedUserProfile?.gender || userLoans?.[0]?.gender;
+                                                if (!rawGender) return '—';
+                                                return rawGender.charAt(0).toUpperCase() + rawGender.slice(1).toLowerCase();
+                                            })()} 
+                                        />
+                                        {(() => {
+                                            const memSince = userCredentials?.createdAt || selectedUserProfile?.createdAt || userLoans?.[0]?.createdAt || userLoans?.[0]?.date;
+                                            if (!memSince) return null;
+                                            try {
+                                                const parsed = new Date(memSince);
+                                                return isNaN(parsed.getTime()) ? null : (
+                                                    <DetailRow label="Member Since" value={format(parsed, 'dd MMM yyyy')} />
+                                                );
+                                            } catch {
+                                                return null;
+                                            }
+                                        })()}
                                     </div>
                                 </div>
                             )}
