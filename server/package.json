@@ -54,6 +54,7 @@
     "jsforce": "^3.10.15",
     "mailparser": "^3.9.23",
     "nodemailer": "^7.0.12",
+    "pdfjs-dist": "^3.11.174",
     "pdfkit": "^0.19.1",
     "pg": "^8.20.0",
     "reflect-metadata": "^0.2.2",

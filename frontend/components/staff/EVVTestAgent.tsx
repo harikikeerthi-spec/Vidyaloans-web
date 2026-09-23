@@ -28,6 +28,7 @@ import {
   EVVClassificationDonutChart,
 } from "./evv-charts";
 import { applicationApi, documentApi } from "@/lib/api";
+import { SecureStatementUploadFlow } from "./SecureStatementUploadFlow";
 
 interface ConsoleMessage {
   time: string;
@@ -252,6 +253,7 @@ export const EVVTestAgent: React.FC<{
   const [activeDocId, setActiveDocId] = useState<string | null>(null);
   const [calculatingDocId, setCalculatingDocId] = useState<string | null>(null);
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
+  const [showSecureFlow, setShowSecureFlow] = useState<boolean>(false);
 
   // States for Interval Balances calculation explanation and interactive inspection
   const [isExplainingIntervals, setIsExplainingIntervals] = useState<boolean>(false);
@@ -1169,11 +1171,57 @@ export const EVVTestAgent: React.FC<{
         )}
       </div>
 
+      {/* Password-Protected / OCR Secure Pipeline Launch Banner */}
+      <div className="bg-gradient-to-r from-violet-900 via-indigo-900 to-purple-950 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="relative z-10 space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-amber-400 text-xl">shield_lock</span>
+            <span className="text-xs font-black uppercase tracking-widest text-amber-300">
+              Zero-Persistence Decryption Pipeline
+            </span>
+          </div>
+          <h3 className="text-sm font-bold text-white tracking-tight">
+            Password-Protected e-Statement or Scanned PDF?
+          </h3>
+          <p className="text-xs text-slate-300 max-w-xl font-normal leading-relaxed">
+            Upload password-protected statements from SBI, HDFC, ICICI, Axis, PNB, or scans. Passwords are decrypted purely in transient memory, never stored, and purged immediately.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowSecureFlow(!showSecureFlow)}
+          className="relative z-10 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-300 hover:to-yellow-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-lg shadow-amber-500/20 transition-all flex items-center gap-2 shrink-0 cursor-pointer"
+        >
+          <span className="material-symbols-outlined text-base">lock_open</span>
+          {showSecureFlow ? "Hide Secure Pipeline" : "Launch Secure Pipeline"}
+        </button>
+      </div>
+
+      {/* Secure Ephemeral Upload & Unlock Flow Component */}
+      {showSecureFlow && (
+        <div className="my-4">
+          <SecureStatementUploadFlow
+            applicationId={applicationId}
+            userId={userId}
+            onEvvComplete={(result, transactions) => {
+              setEvvResult(result);
+              if (transactions && transactions.length > 0) {
+                setActiveTransactions(transactions);
+              }
+              if (onComplete) onComplete(result);
+              log(`Authoritative EVV Verification Complete via Secure Ephemeral Pipeline! Score: ${result.overallEVV ?? result.score ?? 85}/100`, "ok");
+              setShowSecureFlow(false);
+            }}
+            onClose={() => setShowSecureFlow(false)}
+          />
+        </div>
+      )}
+
       {/* Scanned or Image-only PDF Notice Banner (Matching Image 2) */}
       <div className="bg-slate-50/90 border border-slate-200/90 rounded-2xl p-4 flex items-start gap-3 shadow-2xs">
         <span className="material-symbols-outlined text-slate-500 text-xl mt-0.5 shrink-0">info</span>
         <div className="text-xs text-slate-600 leading-relaxed font-normal">
-          <strong className="text-slate-800 font-semibold">Scanned or image-only PDF?</strong> This page can only read PDFs with selectable text. If yours is a scan or photo, share it with Gemini AI Vision OCR to extract the transactions or drop a CSV into here.
+          <strong className="text-slate-800 font-semibold">Standard selectable-text PDF:</strong> You may also drag and drop standard unlocked PDFs or CSV files directly below.
         </div>
       </div>
 

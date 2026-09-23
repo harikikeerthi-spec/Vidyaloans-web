@@ -1724,3 +1724,130 @@ model StaffEmailState {
   @@index([emailId])
   @@map("StaffEmailState")
 }
+
+// ==========================================
+// SECURE BANK STATEMENT PROCESSING & EVV
+// ==========================================
+
+model StatementUpload {
+  id                          String    @id @default(uuid())
+  applicationId               String
+  coApplicantId               String?
+  originalFilename            String
+  originalEncryptedStorageKey String
+  fileHashSha256              String
+  mimeType                    String
+  sizeBytes                   Int
+  uploadedByUserId            String
+  uploadedAt                  DateTime  @default(now())
+  
+  // Encryption & Processing state
+  encryptionStatus            String    @default("UNKNOWN") // UNKNOWN | NOT_ENCRYPTED | PASSWORD_REQUIRED | UNLOCKING | UNLOCKED | PASSWORD_INVALID | LOCKED_AFTER_ATTEMPTS | UNSUPPORTED_ENCRYPTION
+  processingStatus            String    @default("UPLOADED") // UPLOADED | SECURITY_SCANNING | PASSWORD_REQUIRED | UNLOCKING | TEXT_EXTRACTION | OCR_REQUIRED | OCR_PROCESSING | COLUMN_MAPPING_REQUIRED | DATA_VALIDATING | EVV_READY | PROCESSING_FAILED
+  
+  // Rate limiting for password attempts (5 attempts, then 30 min cooldown)
+  passwordAttemptCount        Int       @default(0)
+  passwordCooldownUntil       DateTime?
+  
+  // Consent
+  userConsentAt               DateTime?
+  userConsentVersion          String?
+  
+  // Metadata & extraction pointers
+  extractionJobId             String?
+  accountNumberMasked         String?
+  bankName                    String?
+  statementPeriodFrom         String?
+  statementPeriodTo           String?
+  
+  createdAt                   DateTime  @default(now())
+  updatedAt                   DateTime  @updatedAt
+
+  audits                      StatementProcessingAudit[]
+  extractionResult            ExtractionResult?
+  normalizedTransactions      NormalizedStatementTransaction[]
+  dailyBalances               DailyClosingBalance[]
+  tempArtifacts               SecureTempArtifact[]
+
+  @@index([applicationId])
+  @@index([uploadedByUserId])
+  @@index([fileHashSha256])
+  @@index([processingStatus])
+}
+
+model StatementProcessingAudit {
+  id                 String           @id @default(uuid())
+  statementUploadId  String
+  statementUpload    StatementUpload  @relation(fields: [statementUploadId], references: [id], onDelete: Cascade)
+  eventType          String           // UPLOAD_RECEIVED | MALWARE_SCAN_PASSED | PDF_ENCRYPTION_DETECTED | PDF_PASSWORD_REQUESTED | PDF_UNLOCK_FAILED | PDF_UNLOCK_SUCCEEDED | TEXT_EXTRACTION_SUCCEEDED | OCR_STARTED | OCR_COMPLETED | COLUMN_MAPPING_CONFIRMED | DATA_VALIDATION_FAILED | DAILY_BALANCE_BUILT | EVV_HANDOFF_READY | TEMPORARY_FILES_PURGED | EVV_CALCULATION_STARTED | EVV_CALCULATION_COMPLETED
+  actorType          String           // APPLICANT | STAFF | MANAGER | SYSTEM
+  actorId            String?
+  metadataSafeJson   Json?            // Strictly non-sensitive metadata (file size, page count, row count, error summary)
+  createdAt          DateTime         @default(now())
+
+  @@index([statementUploadId])
+  @@index([eventType])
+  @@index([createdAt])
+}
+
+model ExtractionResult {
+  id                             String          @id @default(uuid())
+  statementUploadId              String          @unique
+  statementUpload                StatementUpload @relation(fields: [statementUploadId], references: [id], onDelete: Cascade)
+  extractionMethod               String          // TEXT | OCR | CSV | XLSX
+  rawTextStorageKey              String?         // Short-lived key; automatically purged
+  ocrConfidence                  Float?
+  detectedColumns                Json?           // Array of { sourceColumn, suggestedField, confidence }
+  normalizedTransactionsCreated  Int             @default(0)
+  reconciliationStatus           String          @default("PASSED") // PASSED | WARNING | FAILED
+  errors                         Json?           // Array of SafeProcessingError
+  createdAt                      DateTime        @default(now())
+}
+
+model NormalizedStatementTransaction {
+  id                 String          @id @default(uuid())
+  statementUploadId  String
+  statementUpload    StatementUpload @relation(fields: [statementUploadId], references: [id], onDelete: Cascade)
+  date               String          // YYYY-MM-DD
+  narration          String          @db.Text
+  debit              Float           @default(0)
+  credit             Float           @default(0)
+  balance            Float
+  referenceNumber    String?
+  channel            String?         // UPI | NEFT | RTGS | IMPS | CHEQUE | CASH | ATM | ONLINE | NACH
+  category           String?         // SALARY | BOUNCE | CASH_DEPOSIT | PASS_THROUGH | REGULAR
+  staffClassification String?
+  rawLine            String?         @db.Text
+  createdAt          DateTime        @default(now())
+
+  @@index([statementUploadId])
+  @@index([date])
+}
+
+model DailyClosingBalance {
+  id                 String          @id @default(uuid())
+  statementUploadId  String
+  statementUpload    StatementUpload @relation(fields: [statementUploadId], references: [id], onDelete: Cascade)
+  date               String          // YYYY-MM-DD
+  closingBalance     Float
+  isCarriedForward   Boolean         @default(false)
+  createdAt          DateTime        @default(now())
+
+  @@unique([statementUploadId, date])
+  @@index([statementUploadId])
+  @@index([date])
+}
+
+model SecureTempArtifact {
+  id                 String          @id @default(uuid())
+  statementUploadId  String
+  statementUpload    StatementUpload @relation(fields: [statementUploadId], references: [id], onDelete: Cascade)
+  storageKey         String
+  artifactType       String          // DECRYPTED_PDF | OCR_IMAGE | RAW_TEXT | TEMP_CSV
+  createdAt          DateTime        @default(now())
+  expiresAt          DateTime
+  purgedAt           DateTime?
+
+  @@index([statementUploadId])
+  @@index([expiresAt])
+}

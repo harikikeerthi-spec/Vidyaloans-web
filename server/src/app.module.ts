@@ -36,6 +36,7 @@ import { MailModule } from './mail/mail.module';
 import { AnalystModule } from './analyst/analyst.module';
 import { MarketingModule } from './marketing/marketing.module';
 import { ErrorLogModule } from './error-log/error-log.module';
+import { StatementProcessingModule } from './statement-processing/statement-processing.module';
 import { APP_FILTER } from '@nestjs/core';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 
@@ -78,6 +79,7 @@ import { GlobalExceptionFilter } from './common/filters/global-exception.filter'
     AnalystModule,
     MarketingModule,
     ErrorLogModule,
+    StatementProcessingModule,
   ],
   controllers: [AppController],
   providers: [

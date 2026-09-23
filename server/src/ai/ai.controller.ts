@@ -215,6 +215,7 @@ export class AiController {
       totalMarks?: number;
       outputType: 'letterGrade' | 'percentage' | 'gpa' | 'cgpa';
       gradingSystem?: 'US' | 'UK' | 'India' | 'Canada' | 'Australia';
+      formula?: 'cbse' | 'direct' | 'vtu' | 'mumbai';
     },
   ): Promise<any> {
     const result = await this.gradeConversionService.convertGrade(data);
@@ -233,6 +234,7 @@ export class AiController {
       totalMarks?: number;
       gpa?: number;
       percentage?: number;
+      formula?: 'cbse' | 'direct' | 'vtu' | 'mumbai';
     },
   ): Promise<any> {
     // Validate marks if provided and compute overall percentage safely
@@ -255,13 +257,17 @@ export class AiController {
       inputType: 'percentage',
       inputValue: percentage,
       outputType: 'percentage',
+      formula: data.formula || 'cbse',
     });
 
     // Enhanced analysis with marks breakdown
     const analysisData = {
       percentage: result.percentage,
+      cgpa: result.cgpa,
+      gpa: result.gpa,
       letterGrade: result.letterGrade,
       classification: result.classification,
+      formulaUsed: result.formulaUsed,
       internationalEquivalent: result.internationalEquivalent,
       analysis: result.analysis,
       marksBreakdown: data.subjects

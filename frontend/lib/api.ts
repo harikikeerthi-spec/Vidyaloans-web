@@ -2098,6 +2098,48 @@ export const siteSettingsApi = {
     resetDefaults: () => adminApi.resetSiteSettings(),
 };
 
+export const statementApi = {
+    uploadStatement: (formData: FormData) =>
+        apiFetch(`${API_URL}/statements/upload`, {
+            method: "POST",
+            body: formData,
+        }),
+    requestUnlock: (statementId: string) =>
+        apiFetch(`${API_URL}/statements/${statementId}/request-unlock`, {
+            method: "POST",
+        }),
+    unlockAndExtract: (statementId: string, data: { documentOpenPassword?: string; userConsent: boolean; userConsentVersion?: string }) =>
+        apiFetch(`${API_URL}/statements/${statementId}/unlock-and-extract`, {
+            method: "POST",
+            body: JSON.stringify(data),
+        }),
+    getStatus: (statementId: string) =>
+        apiFetch(`${API_URL}/statements/${statementId}/status`),
+    getExtractionPreview: (statementId: string) =>
+        apiFetch(`${API_URL}/statements/${statementId}/extraction-preview`),
+    confirmColumnMapping: (statementId: string, data: { columns: any[]; reason?: string }) =>
+        apiFetch(`${API_URL}/statements/${statementId}/confirm-column-mapping`, {
+            method: "POST",
+            body: JSON.stringify(data),
+        }),
+    validateAndBuildDailyBalances: (statementId: string) =>
+        apiFetch(`${API_URL}/statements/${statementId}/validate-and-build-daily-balances`, {
+            method: "POST",
+        }),
+    runEvv: (statementId: string, data: { bankKey?: string; dateMode?: string; customDates?: number[]; managerApproved?: boolean }) =>
+        apiFetch(`${API_URL}/statements/${statementId}/run-evv`, {
+            method: "POST",
+            body: JSON.stringify(data),
+        }),
+    getAudit: (statementId: string) =>
+        apiFetch(`${API_URL}/statements/${statementId}/audit`),
+    purgeTempArtifacts: (statementId: string) =>
+        apiFetch(`${API_URL}/statements/${statementId}/purge-temporary-artifacts`, {
+            method: "POST",
+        }),
+};
+
 /** Shared REST path builders + staff-dashboard catalog (single source for URLs). */
 export { HTTP_API_PREFIX, HttpApiPaths, staffDashboardApiCatalog } from "./http-api-paths";
+
 

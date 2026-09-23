@@ -6,7 +6,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const DISPOSABLE_DOMAINS_SET = new Set(
-  DISPOSABLE_DOMAINS.map((d: string) => d.toLowerCase().trim()),
+  (DISPOSABLE_DOMAINS || []).map((d: string) => d.toLowerCase().trim()),
 );
 
 const DEFAULT_SETTINGS = {
@@ -63,7 +63,7 @@ const DEFAULT_SETTINGS = {
   // Disposable Email Protection
   disposableEmailBlock: true,
   disposableBlockLevel: 'strict', // strict, warning, audit_only
-  blockedDomains: DISPOSABLE_DOMAINS.join(', '),
+  blockedDomains: (DISPOSABLE_DOMAINS || []).join(', '),
   allowedDomains: 'gmail.com, yahoo.com, outlook.com, hotmail.com, icloud.com, proton.me, protonmail.com, vidyaloans.com',
   disposableApiKey: '',
   disposableProvider: 'builtin', // builtin, kickbox, zerobounce, debounce, hunter
