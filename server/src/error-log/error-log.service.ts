@@ -54,6 +54,18 @@ export class ErrorLogService {
       const context = dto.context || null;
       const sanitizedMeta = dto.metadata ? sanitizePayload(dto.metadata) : null;
 
+      // Circuit-breaker: If error is database connection exhaustion or pooler error, do NOT attempt to query the same exhausted database
+      if (
+        message.includes('EMAXCONNSESSION') ||
+        message.includes('max clients reached') ||
+        message.includes('Connection terminated') ||
+        message.includes('pool_size:') ||
+        (stack && (stack.includes('EMAXCONNSESSION') || stack.includes('max clients reached')))
+      ) {
+        this.logger.warn(`[ErrorLogService] DB connection alert (bypassing DB logging to avoid cascading pool saturation): ${message.slice(0, 150)}`);
+        return;
+      }
+
       let level = dto.level;
       if (!level) {
         if (statusCode >= 500 || name.toLowerCase().includes('fatal') || name.toLowerCase().includes('panic')) {

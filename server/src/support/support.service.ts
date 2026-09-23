@@ -570,7 +570,7 @@ export class SupportService {
       this.db.from('SupportTicket').select('id', { count: 'exact', head: true }).gte('resolvedAt', todayStart),
       this.db.from('SupportTicket').select('id', { count: 'exact', head: true }).eq('priority', 'critical').not('status', 'in', '(resolved,closed)'),
       this.db.from('SupportTicket').select('id', { count: 'exact', head: true }).lt('slaResolveAt', now.toISOString()).not('status', 'in', '(resolved,closed)'),
-      this.db.from('SupportTicket').select('id,ticketNumber,subject,status,priority,createdByName,createdByRole,createdAt,category').order('created_at', { ascending: false }).limit(10),
+      this.db.from('SupportTicket').select('id,ticketNumber,subject,status,priority,createdByName,createdByRole,createdAt,category').order('createdAt', { ascending: false }).limit(10),
     ]);
 
     // Category breakdown
@@ -841,7 +841,7 @@ export class SupportService {
 
   // ─── Knowledge Base ───────────────────────────────────────────────────────────
   async getKBArticles(query: any) {
-    let q = this.db.from('KnowledgeBaseArticle').select('*').order('created_at', { ascending: false });
+    let q = this.db.from('KnowledgeBaseArticle').select('*').order('createdAt', { ascending: false });
     if (query.published === 'true') q = q.eq('isPublished', true);
     if (query.category) q = q.eq('category', query.category);
     const { data } = await q;
@@ -875,7 +875,7 @@ export class SupportService {
       .from('SupportNotification')
       .select('*')
       .eq('userId', userId)
-      .order('created_at', { ascending: false })
+      .order('createdAt', { ascending: false })
       .limit(50);
     return data || [];
   }

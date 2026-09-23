@@ -17,7 +17,7 @@ import {
   RunEvvDto,
 } from './types/statement.types';
 
-@Controller('api/statements')
+@Controller('statements')
 @UseInterceptors(PasswordRedactionInterceptor)
 export class StatementProcessingController {
   constructor(private readonly statementService: StatementProcessingService) {}

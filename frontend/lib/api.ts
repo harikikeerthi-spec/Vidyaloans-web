@@ -82,7 +82,7 @@ function getStorageKeys(portal: Portal) {
             email: "itUserEmail",
             userId: "itUserId",
             user: "itAuthUser",
-            loginPath: "/staff/login",
+            loginPath: "/it",
         };
     }
     return {
@@ -293,10 +293,11 @@ function authHeaders(url?: string): HeadersInit {
     // Exclude Authorization header for public endpoints to avoid gateway/proxy 401s from stale local tokens
     const isPublic = isPublicAuthUrl(url);
 
+    const portal = getPortalFromPathname(typeof window !== "undefined" ? window.location.pathname : undefined);
     const token = isPublic ? null : getToken();
     const headers: Record<string, string> = token
-        ? { "Content-Type": "application/json", Authorization: `Bearer ${token}` }
-        : { "Content-Type": "application/json" };
+        ? { "Content-Type": "application/json", Authorization: `Bearer ${token}`, "x-portal": portal }
+        : { "Content-Type": "application/json", "x-portal": portal };
 
     if (typeof window !== "undefined") {
         const selectedBankId = sessionStorage.getItem("selectedBank") || localStorage.getItem("selectedBank");
@@ -370,6 +371,16 @@ async function tryRefreshAccessToken(): Promise<string | null> {
 
 function notifySessionExpired() {
     if (typeof window === "undefined") return;
+
+    // Never kick user out of IT dashboard; clear invalid token and stay on current page
+    if (window.location.pathname.startsWith("/it")) {
+        localStorage.removeItem("itAccessToken");
+        localStorage.removeItem("itRefreshToken");
+        localStorage.removeItem("staffAccessToken");
+        localStorage.removeItem("staffRefreshToken");
+        notifyTokenChange(null);
+        return;
+    }
 
     const portal = getPortalFromPathname(window.location.pathname);
     const { loginPath } = getStorageKeys(portal);
@@ -519,7 +530,11 @@ async function handleResponse<T>(res: Response, url?: string, alreadyRetried = f
     });
 
     if (!res.ok) {
-        console.error(`API Error: ${res.status} ${res.url}`, body);
+        if (res.status === 401) {
+            console.warn(`[API 401 Notice] ${res.status} ${res.url}`);
+        } else {
+            console.error(`API Error: ${res.status} ${res.url}`, body);
+        }
         let err: any;
         try {
             err = typeof body === 'string' ? JSON.parse(body) : body;
@@ -536,7 +551,14 @@ async function handleResponse<T>(res: Response, url?: string, alreadyRetried = f
 
         // Session expired — soft redirect via AuthContext (no full page reload)
         if (res.status === 401 && !isPublicAuthUrl(url) && !alreadyRetried) {
-            notifySessionExpired();
+            if (typeof window !== "undefined" && window.location.pathname.startsWith("/it")) {
+                localStorage.removeItem("itAccessToken");
+                localStorage.removeItem("itRefreshToken");
+                localStorage.removeItem("staffAccessToken");
+                localStorage.removeItem("staffRefreshToken");
+            } else {
+                notifySessionExpired();
+            }
         }
 
         throw new Error(err.message || "API request failed");

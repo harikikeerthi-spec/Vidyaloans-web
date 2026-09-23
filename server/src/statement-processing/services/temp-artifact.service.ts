@@ -101,6 +101,10 @@ export class TempArtifactService {
         }
       }
     } catch (e: any) {
+      if (e.message && e.message.includes('does not exist')) {
+        // Table not yet migrated to DB; silently skip
+        return;
+      }
       this.logger.warn(`Scheduled temp artifact cleanup cycle skipped: ${e.message}`);
     }
   }

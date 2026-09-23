@@ -195,7 +195,12 @@ function getStoredUser(portal: Portal): AuthUser | null {
     try {
         const keys = getStorageKeys(portal);
         const raw = localStorage.getItem(keys.user);
-        return raw ? (JSON.parse(raw) as AuthUser) : null;
+        if (raw) return JSON.parse(raw) as AuthUser;
+        if (portal === "it") {
+            const staffRaw = localStorage.getItem("staffAuthUser") || localStorage.getItem("adminAuthUser");
+            if (staffRaw) return JSON.parse(staffRaw) as AuthUser;
+        }
+        return null;
     } catch {
         return null;
     }
@@ -206,6 +211,9 @@ function getStoredToken(portal: Portal): string | null {
     const keys = getStorageKeys(portal);
     const token = localStorage.getItem(keys.token);
     if (token) return token;
+    if (portal === "it") {
+        return localStorage.getItem("staffAccessToken") || localStorage.getItem("adminAccessToken") || null;
+    }
     if (portal === "student") {
         return localStorage.getItem("accessToken") || localStorage.getItem("token") || localStorage.getItem("userToken") || null;
     }
@@ -217,6 +225,9 @@ function getStoredRefreshToken(portal: Portal): string | null {
     const keys = getStorageKeys(portal);
     const token = localStorage.getItem(keys.refreshToken);
     if (token) return token;
+    if (portal === "it") {
+        return localStorage.getItem("staffRefreshToken") || localStorage.getItem("adminRefreshToken") || null;
+    }
     if (portal === "student") {
         return localStorage.getItem("refreshToken") || null;
     }
@@ -249,6 +260,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Handle session expiry without a full page reload
     useEffect(() => {
         const onSessionExpired = (event: Event) => {
+            if (typeof window !== "undefined" && window.location.pathname.startsWith("/it")) {
+                setUser(null);
+                setToken(null);
+                return; // Stay on IT dashboard
+            }
             const loginPath = (event as CustomEvent<{ loginPath: string }>).detail?.loginPath || "/login";
             setUser(null);
             setToken(null);
@@ -280,8 +296,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 }
             }
         } else if (storedToken && !storedUser) {
-            const email = localStorage.getItem(keys.email);
-            const userId = localStorage.getItem(keys.userId);
+            const email = localStorage.getItem(keys.email) || (portal === "it" ? (localStorage.getItem("staffUserEmail") || localStorage.getItem("adminUserEmail")) : null);
+            const userId = localStorage.getItem(keys.userId) || (portal === "it" ? (localStorage.getItem("staffUserId") || localStorage.getItem("adminUserId")) : null);
             if (email) {
                 setUser({ id: userId || "", email });
                 setToken(storedToken);

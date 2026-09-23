@@ -9,17 +9,18 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   private pool: Pool;
 
   constructor() {
-    // Prefer DIRECT_URL for persistent NestJS server to bypass PgBouncer transaction pooler timeout
-    const connectionString = process.env.DIRECT_URL || process.env.DATABASE_URL || '';
+    // Prefer DATABASE_URL (port 6543 transaction pooler) to avoid (EMAXCONNSESSION) session pooler cap (15)
+    // Fall back to DIRECT_URL only if DATABASE_URL is not configured
+    const connectionString = process.env.DATABASE_URL || process.env.DIRECT_URL || '';
     
     const isLocalhost = connectionString.includes('localhost') || connectionString.includes('127.0.0.1');
 
     const pool = new Pool({
       connectionString,
       ssl: isLocalhost ? false : { rejectUnauthorized: false },
-      max: 10,
-      idleTimeoutMillis: 120000,
-      connectionTimeoutMillis: 30000,
+      max: 6, // Keep pool conservative per worker to prevent pooler exhaustion
+      idleTimeoutMillis: 10000, // Close idle connections after 10s to release back to Supabase
+      connectionTimeoutMillis: 15000,
       keepAlive: true,
       keepAliveInitialDelayMillis: 10000,
     });

@@ -27,8 +27,7 @@ import {
   EVVSnapshotTimelineChart,
   EVVClassificationDonutChart,
 } from "./evv-charts";
-import { applicationApi, documentApi } from "@/lib/api";
-import { SecureStatementUploadFlow } from "./SecureStatementUploadFlow";
+import { applicationApi, documentApi, statementApi } from "@/lib/api";
 
 interface ConsoleMessage {
   time: string;
@@ -253,7 +252,18 @@ export const EVVTestAgent: React.FC<{
   const [activeDocId, setActiveDocId] = useState<string | null>(null);
   const [calculatingDocId, setCalculatingDocId] = useState<string | null>(null);
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
-  const [showSecureFlow, setShowSecureFlow] = useState<boolean>(false);
+
+  // Inline password-unlock states (replaces separate SecureStatementUploadFlow)
+  const [pendingStatementId, setPendingStatementId] = useState<string | null>(null);
+  const [showPasswordModal, setShowPasswordModal] = useState<boolean>(false);
+  const [pwdBankName, setPwdBankName] = useState<string | null>(null);
+  const [pwdMaskedAccount, setPwdMaskedAccount] = useState<string | null>(null);
+  const [pwdAttemptsRemaining, setPwdAttemptsRemaining] = useState<number>(5);
+  const [ephemeralPassword, setEphemeralPassword] = useState<string>("");
+  const [showPasswordText, setShowPasswordText] = useState<boolean>(false);
+  const [pwdConsent, setPwdConsent] = useState<boolean>(false);
+  const [pwdError, setPwdError] = useState<string | null>(null);
+  const [isUnlocking, setIsUnlocking] = useState<boolean>(false);
 
   // States for Interval Balances calculation explanation and interactive inspection
   const [isExplainingIntervals, setIsExplainingIntervals] = useState<boolean>(false);
@@ -851,8 +861,21 @@ export const EVVTestAgent: React.FC<{
   };
 
 
+  // Cleanup: purge temp artifacts if statement was never completed
+  useEffect(() => {
+    return () => {
+      if (pendingStatementId && !evvResult) {
+        statementApi.purgeTempArtifacts(pendingStatementId).catch(() => {});
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingStatementId]);
+
   // File selection handler (Supports PDF & CSV)
-  const handleFileSelected = (file: File) => {
+  // For PDFs: immediately uploads via statementApi to detect if password-protected.
+  // If PROTECTED_WAITING_PASSWORD → shows inline password card.
+  // If not protected → transparently calls unlock-and-extract then EVV.
+  const handleFileSelected = async (file: File) => {
     const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
     const isCsv = file.name.toLowerCase().endsWith('.csv') || file.type === 'text/csv' || file.name.toLowerCase().endsWith('.txt');
     if (!isPdf && !isCsv) {
@@ -862,6 +885,12 @@ export const EVVTestAgent: React.FC<{
     }
     setPendingPdfFile(file);
     setFileNameDisplay(file.name);
+    // Reset any previous password state
+    setShowPasswordModal(false);
+    setPendingStatementId(null);
+    setPwdError(null);
+    setEphemeralPassword("");
+    setPwdConsent(false);
     log(`Selected bank statement: ${file.name} (${Math.round(file.size / 1024)} KB)`);
 
     if (isCsv) {
@@ -888,6 +917,104 @@ export const EVVTestAgent: React.FC<{
         }
       };
       reader.readAsText(file);
+      return; // CSV handled by handleAnalyze normally
+    }
+
+    // PDF: probe via statementApi to detect encryption
+    log("Checking PDF for password protection...", "ok");
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      if (applicationId) formData.append("applicationId", applicationId);
+      const targetUserId = userId || application?.userId;
+      if (targetUserId) formData.append("userId", targetUserId);
+
+      const res: any = await statementApi.uploadStatement(formData);
+      const data = res?.data || res;
+      const sId = data.statementId || data.id;
+
+      if (data.isEncrypted || data.status === "PROTECTED_WAITING_PASSWORD") {
+        // Password-protected — show inline unlock card
+        setPendingStatementId(sId);
+        setPwdBankName(data.bankName || "Detected Financial Institution");
+        setPwdMaskedAccount(data.maskedAccount || "•••• •••• ••••");
+        setPwdAttemptsRemaining(data.attemptsRemaining ?? 5);
+        setShowPasswordModal(true);
+        log("PDF is password-protected. Please enter the document-open password below.", "warn");
+      } else {
+        // Not protected — call unlock transparently (no password needed)
+        setPendingStatementId(sId);
+        log("PDF is not password-protected. Extracting transactions...", "ok");
+        await handleUnlockStatement(sId, undefined);
+      }
+    } catch (err: any) {
+      // If statementApi fails (e.g., backend not available), fall back to local parsing
+      log(`Secure pipeline note: ${err.message || 'Falling back to local PDF parser.'}`, "warn");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // Ephemeral unlock: sends password (or undefined for unprotected) to server
+  const handleUnlockStatement = async (sId: string, password: string | undefined) => {
+    setIsUnlocking(true);
+    setPwdError(null);
+    try {
+      const res: any = await statementApi.unlockAndExtract(sId, {
+        documentOpenPassword: password || undefined,
+        userConsent: true,
+        userConsentVersion: "2026.1-EPHEMERAL-DOCUMENT-OPEN-ONLY",
+      });
+      const data = res?.data || res;
+
+      // Wipe password from memory immediately
+      setEphemeralPassword("");
+
+      if (data.status === "LOCKED_COOLDOWN") {
+        setPwdAttemptsRemaining(0);
+        setPwdError("Statement locked — 5 consecutive failed attempts. Please wait 30 minutes.");
+        return;
+      }
+
+      if (data.status === "EXTRACTED" || data.status === "NEEDS_COLUMN_CONFIRMATION") {
+        // Close the password modal and proceed to standard EVV pipeline
+        setShowPasswordModal(false);
+        log("Statement unlocked & extracted. Running EVV pipeline...", "ok");
+
+        const transactions = data.transactions || [];
+        if (transactions.length > 0) {
+          setActiveTransactions(transactions);
+          const currentPolicy = DEFAULT_BANK_POLICIES[selectedBankKey] || DEFAULT_BANK_POLICIES['DEFAULT'];
+          const coAppProfile = {
+            isRepaymentIncomeContributor,
+            declaredIncomeType: profileType,
+            declaredMonthlyIncome: declaredMonthlyIncome ? parseFloat(declaredMonthlyIncome) : undefined,
+            verificationStatus: "FULLY_VERIFIED" as const,
+          };
+          const result = calculateEVV(transactions, getTargetInterval(), currentPolicy, coAppProfile as any, candidateClassifications);
+          setEvvResult(result);
+          if (onComplete) onComplete(result);
+          log(`6-Component EVV complete via secure pipeline! Score: ${result.overallEVV}/100`, "ok");
+        } else {
+          // No transactions from API — fall back to handleAnalyze local parsing
+          log("Secure pipeline returned no transactions. Click 'Verify & Calculate EVV' to run the local PDF parser.", "warn");
+        }
+      } else {
+        setPwdError(data.message || "Failed to parse transactions from document.");
+      }
+    } catch (err: any) {
+      setEphemeralPassword("");
+      if (err.message?.includes("Incorrect document password")) {
+        setPwdAttemptsRemaining((prev) => Math.max(0, prev - 1));
+        setPwdError("Incorrect password. Please check your bank statement's document-open password.");
+      } else if (err.message?.includes("429")) {
+        setPwdError("Rate limit reached. Maximum 5 attempts exceeded. Try again in 30 minutes.");
+      } else {
+        setPwdError(err.message || "An unexpected error occurred during statement unlocking.");
+      }
+    } finally {
+      setIsUnlocking(false);
     }
   };
 
@@ -1171,49 +1298,107 @@ export const EVVTestAgent: React.FC<{
         )}
       </div>
 
-      {/* Password-Protected / OCR Secure Pipeline Launch Banner */}
-      <div className="bg-gradient-to-r from-violet-900 via-indigo-900 to-purple-950 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="relative z-10 space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-amber-400 text-xl">shield_lock</span>
-            <span className="text-xs font-black uppercase tracking-widest text-amber-300">
-              Zero-Persistence Decryption Pipeline
+      {/* Inline Password Unlock Card — shown only when a protected PDF is detected */}
+      {showPasswordModal && (
+        <div className="bg-slate-50 border border-amber-200 rounded-3xl p-6 space-y-5 shadow-sm">
+          {/* Header */}
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center">
+              <span className="material-symbols-outlined text-xl">lock</span>
+            </div>
+            <div>
+              <h3 className="text-sm font-black text-slate-900 uppercase tracking-wide">Password-Protected PDF Detected</h3>
+              <p className="text-[11px] text-slate-500 font-medium">
+                {pwdBankName || "Detected Financial Institution"} — Account: {pwdMaskedAccount || "•••• •••• ••••"}
+              </p>
+            </div>
+            <span className={`ml-auto px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${
+              pwdAttemptsRemaining <= 1 ? "bg-rose-50 text-rose-700 border-rose-200" : "bg-amber-50 text-amber-700 border-amber-200"
+            }`}>
+              {pwdAttemptsRemaining} / 5 attempts left
             </span>
           </div>
-          <h3 className="text-sm font-bold text-white tracking-tight">
-            Password-Protected e-Statement or Scanned PDF?
-          </h3>
-          <p className="text-xs text-slate-300 max-w-xl font-normal leading-relaxed">
-            Upload password-protected statements from SBI, HDFC, ICICI, Axis, PNB, or scans. Passwords are decrypted purely in transient memory, never stored, and purged immediately.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setShowSecureFlow(!showSecureFlow)}
-          className="relative z-10 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-300 hover:to-yellow-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-lg shadow-amber-500/20 transition-all flex items-center gap-2 shrink-0 cursor-pointer"
-        >
-          <span className="material-symbols-outlined text-base">lock_open</span>
-          {showSecureFlow ? "Hide Secure Pipeline" : "Launch Secure Pipeline"}
-        </button>
-      </div>
 
-      {/* Secure Ephemeral Upload & Unlock Flow Component */}
-      {showSecureFlow && (
-        <div className="my-4">
-          <SecureStatementUploadFlow
-            applicationId={applicationId}
-            userId={userId}
-            onEvvComplete={(result, transactions) => {
-              setEvvResult(result);
-              if (transactions && transactions.length > 0) {
-                setActiveTransactions(transactions);
-              }
-              if (onComplete) onComplete(result);
-              log(`Authoritative EVV Verification Complete via Secure Ephemeral Pipeline! Score: ${result.overallEVV ?? result.score ?? 85}/100`, "ok");
-              setShowSecureFlow(false);
-            }}
-            onClose={() => setShowSecureFlow(false)}
-          />
+          {/* Security notice */}
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-xs text-amber-900 space-y-2">
+            <div className="flex items-center gap-2 font-bold text-amber-950">
+              <span className="material-symbols-outlined text-base text-amber-600">verified_user</span>
+              Enter your PDF document-open password (not your net-banking PIN)
+            </div>
+            <div className="flex items-center gap-2 p-2 rounded-xl bg-white/80 border border-amber-200 font-bold text-[11px] text-rose-800">
+              <span className="material-symbols-outlined text-base text-rose-600 shrink-0">block</span>
+              NEVER enter Net-Banking credentials, OTP, ATM PIN, UPI PIN, or CVV.
+            </div>
+          </div>
+
+          {/* Error */}
+          {pwdError && (
+            <div className="flex items-start gap-2 p-3 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-800 font-semibold">
+              <span className="material-symbols-outlined text-rose-500 shrink-0 mt-0.5 text-base">error</span>
+              <span className="flex-1">{pwdError}</span>
+              <button onClick={() => setPwdError(null)} className="text-rose-400 hover:text-rose-600 font-bold text-xs">✕</button>
+            </div>
+          )}
+
+          {/* Password input */}
+          <div className="space-y-3">
+            <div className="relative">
+              <input
+                type={showPasswordText ? "text" : "password"}
+                value={ephemeralPassword}
+                onChange={(e) => setEphemeralPassword(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && pwdConsent && ephemeralPassword && pwdAttemptsRemaining > 0) handleUnlockStatement(pendingStatementId!, ephemeralPassword); }}
+                placeholder="e.g. DOB (DDMMYYYY) or PAN + DOB"
+                autoComplete="new-password"
+                data-lpignore="true"
+                disabled={isUnlocking || pwdAttemptsRemaining === 0}
+                className="w-full bg-white border border-slate-300 rounded-2xl px-4 py-3 text-sm font-mono text-slate-900 pr-12 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPasswordText(!showPasswordText)}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              >
+                <span className="material-symbols-outlined text-xl">{showPasswordText ? "visibility_off" : "visibility"}</span>
+              </button>
+            </div>
+
+            <label className="flex items-start gap-3 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={pwdConsent}
+                onChange={(e) => setPwdConsent(e.target.checked)}
+                disabled={isUnlocking || pwdAttemptsRemaining === 0}
+                className="w-4 h-4 rounded text-violet-600 focus:ring-violet-500 border-slate-300 mt-0.5 cursor-pointer"
+              />
+              <span className="text-xs text-slate-600 leading-normal">
+                I confirm this is strictly the <strong>document-open password</strong> for this bank statement. I authorize one-time ephemeral unlocking for eligibility verification.
+              </span>
+            </label>
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => { setShowPasswordModal(false); setEphemeralPassword(""); setPwdError(null); }}
+              disabled={isUnlocking}
+              className="px-5 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => handleUnlockStatement(pendingStatementId!, ephemeralPassword)}
+              disabled={!pwdConsent || !ephemeralPassword || isUnlocking || pwdAttemptsRemaining === 0}
+              className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-xs font-bold shadow-md shadow-violet-500/20 hover:from-violet-700 hover:to-indigo-700 transition-all flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+            >
+              <span className={`material-symbols-outlined text-sm ${isUnlocking ? "animate-spin" : ""}`}>
+                {isUnlocking ? "sync" : "lock_open"}
+              </span>
+              {isUnlocking ? "Decrypting & Extracting..." : "Unlock & Extract"}
+            </button>
+          </div>
         </div>
       )}
 
