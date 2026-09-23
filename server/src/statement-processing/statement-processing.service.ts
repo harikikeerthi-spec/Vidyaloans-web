@@ -277,6 +277,21 @@ export class StatementProcessingService {
       throw new BadRequestException('Unable to process PDF structure');
     }
 
+    // If document requires a password and none was provided yet
+    if (result.isPasswordRequired && !documentOpenPassword) {
+      return {
+        success: false,
+        status: 'PROTECTED_WAITING_PASSWORD',
+        isEncrypted: true,
+        encryptionStatus: 'PASSWORD_REQUIRED',
+        processingStatus: 'PASSWORD_REQUIRED',
+        attemptsRemaining: Math.max(0, this.maxUnlockAttempts - currentAttempts),
+        bankName: result.detectedBankName || upload.bankName,
+        maskedAccount: result.detectedAccountMasked || upload.accountNumberMasked,
+        message: 'This document is password protected. Please provide the document password.',
+      };
+    }
+
     // Handle invalid password attempt
     if (result.isPasswordInvalid || (result.isPasswordRequired && documentOpenPassword)) {
       const newAttemptCount = currentAttempts + 1;
@@ -308,6 +323,7 @@ export class StatementProcessingService {
       const remaining = Math.max(0, this.maxUnlockAttempts - newAttemptCount);
       return {
         success: false,
+        status: newAttemptCount >= this.maxUnlockAttempts ? 'LOCKED_COOLDOWN' : 'PASSWORD_INVALID',
         encryptionStatus: newStatus,
         attemptsRemaining: remaining,
         isLockedAfterAttempts: newAttemptCount >= this.maxUnlockAttempts,
@@ -357,8 +373,18 @@ export class StatementProcessingService {
       originalBuffer,
     );
 
+    const txList = (result.preliminaryTransactions || []).map((tx) => ({
+      date: new Date(tx.date),
+      narration: tx.narration,
+      debit: tx.debit,
+      credit: tx.credit,
+      balance: tx.balance,
+      raw: `${tx.date} | ${tx.narration} | ${tx.debit} | ${tx.credit} | ${tx.balance}`,
+    }));
+
     return {
       success: true,
+      status: 'EXTRACTED',
       encryptionStatus: 'UNLOCKED',
       processingStatus: result.isOcrUsed ? 'COLUMN_MAPPING_REQUIRED' : 'DATA_VALIDATING',
       isOcrUsed: result.isOcrUsed,
@@ -367,6 +393,7 @@ export class StatementProcessingService {
       detectedBankName: result.detectedBankName,
       accountNumberMasked: result.detectedAccountMasked,
       detectedColumns: result.detectedColumns,
+      transactions: txList,
     };
   }
 

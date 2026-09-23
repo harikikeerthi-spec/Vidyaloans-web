@@ -41,9 +41,17 @@ export class StatementProcessingController {
       applicationId || 'app-default',
       coApplicantId,
     );
+    const isEncrypted = upload.encryptionStatus === 'PASSWORD_REQUIRED';
     return {
       success: true,
       statement: upload,
+      statementId: upload.id,
+      id: upload.id,
+      isEncrypted,
+      status: isEncrypted ? 'PROTECTED_WAITING_PASSWORD' : upload.processingStatus,
+      bankName: upload.bankName,
+      maskedAccount: upload.accountNumberMasked,
+      attemptsRemaining: Math.max(0, 5 - upload.passwordAttemptCount),
     };
   }
 

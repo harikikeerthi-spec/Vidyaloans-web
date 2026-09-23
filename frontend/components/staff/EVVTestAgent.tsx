@@ -932,14 +932,19 @@ export const EVVTestAgent: React.FC<{
 
       const res: any = await statementApi.uploadStatement(formData);
       const data = res?.data || res;
-      const sId = data.statementId || data.id;
+      const sId = data.statementId || data.id || data.statement?.id;
 
-      if (data.isEncrypted || data.status === "PROTECTED_WAITING_PASSWORD") {
+      const isEncrypted =
+        data.isEncrypted === true ||
+        data.status === "PROTECTED_WAITING_PASSWORD" ||
+        data.statement?.encryptionStatus === "PASSWORD_REQUIRED";
+
+      if (isEncrypted) {
         // Password-protected — show inline unlock card
         setPendingStatementId(sId);
-        setPwdBankName(data.bankName || "Detected Financial Institution");
-        setPwdMaskedAccount(data.maskedAccount || "•••• •••• ••••");
-        setPwdAttemptsRemaining(data.attemptsRemaining ?? 5);
+        setPwdBankName(data.bankName || data.statement?.bankName || "Detected Financial Institution");
+        setPwdMaskedAccount(data.maskedAccount || data.statement?.accountNumberMasked || "•••• •••• ••••");
+        setPwdAttemptsRemaining(data.attemptsRemaining ?? (5 - (data.statement?.passwordAttemptCount || 0)));
         setShowPasswordModal(true);
         log("PDF is password-protected. Please enter the document-open password below.", "warn");
       } else {
@@ -971,18 +976,42 @@ export const EVVTestAgent: React.FC<{
       // Wipe password from memory immediately
       setEphemeralPassword("");
 
-      if (data.status === "LOCKED_COOLDOWN") {
+      if (data.status === "LOCKED_COOLDOWN" || data.isLockedAfterAttempts) {
         setPwdAttemptsRemaining(0);
         setPwdError("Statement locked — 5 consecutive failed attempts. Please wait 30 minutes.");
         return;
       }
 
-      if (data.status === "EXTRACTED" || data.status === "NEEDS_COLUMN_CONFIRMATION") {
+      if (data.status === "PROTECTED_WAITING_PASSWORD" || data.encryptionStatus === "PASSWORD_REQUIRED") {
+        setShowPasswordModal(true);
+        setPwdAttemptsRemaining(data.attemptsRemaining ?? 5);
+        if (password) {
+          setPwdError("Incorrect password. Please check your bank statement's document-open password.");
+        }
+        return;
+      }
+
+      if (data.status === "PASSWORD_INVALID" || data.success === false) {
+        setPwdAttemptsRemaining((prev) => Math.max(0, data.attemptsRemaining ?? prev - 1));
+        setPwdError(data.message || "Incorrect password. Please check your bank statement's document-open password.");
+        return;
+      }
+
+      if (data.status === "EXTRACTED" || data.status === "NEEDS_COLUMN_CONFIRMATION" || data.success) {
         // Close the password modal and proceed to standard EVV pipeline
         setShowPasswordModal(false);
         log("Statement unlocked & extracted. Running EVV pipeline...", "ok");
 
-        const transactions = data.transactions || [];
+        const rawTxList = data.transactions || [];
+        const transactions = rawTxList.map((tx: any) => ({
+          date: new Date(tx.date),
+          narration: tx.narration || tx.description || "Transaction",
+          debit: typeof tx.debit === "number" ? tx.debit : parseFloat(tx.debit || "0") || 0,
+          credit: typeof tx.credit === "number" ? tx.credit : parseFloat(tx.credit || "0") || 0,
+          balance: typeof tx.balance === "number" ? tx.balance : parseFloat(tx.balance || "0") || 0,
+          raw: tx.raw || `${tx.date} | ${tx.narration} | ${tx.debit} | ${tx.credit} | ${tx.balance}`,
+        }));
+
         if (transactions.length > 0) {
           setActiveTransactions(transactions);
           const currentPolicy = DEFAULT_BANK_POLICIES[selectedBankKey] || DEFAULT_BANK_POLICIES['DEFAULT'];
