@@ -195,11 +195,28 @@ export class PdfUnlockWorker {
   }
 
   /**
-   * OCR Fallback using Tesseract worker
+   * OCR Fallback using Tesseract worker (only for image formats like PNG/JPEG)
    */
   private async runOcrOnPdf(buffer: Buffer): Promise<{ text: string; confidence: number }> {
-    const worker = await createWorker('eng');
+    if (!buffer || buffer.length < 4) {
+      return { text: '', confidence: 0 };
+    }
+
+    // Tesseract only processes raw image files (PNG, JPEG, WebP, TIFF, BMP).
+    // Passing a raw PDF stream causes Leptonica/Tesseract fatal worker exceptions.
+    const isImage =
+      (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) || // PNG
+      (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) || // JPEG
+      (buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x46); // WEBP/RIFF
+
+    if (!isImage) {
+      this.logger.log(`[Worker OCR] Buffer is not an image format supported by Tesseract. Skipping local OCR.`);
+      return { text: '', confidence: 0 };
+    }
+
+    let worker: any = null;
     try {
+      worker = await createWorker('eng');
       const { data } = await worker.recognize(buffer);
       await worker.terminate();
       return {
@@ -207,8 +224,11 @@ export class PdfUnlockWorker {
         confidence: data.confidence || 0,
       };
     } catch (e: any) {
-      await worker.terminate().catch(() => {});
-      throw e;
+      if (worker) {
+        await worker.terminate().catch(() => {});
+      }
+      this.logger.warn(`[Worker OCR] OCR processing error: ${e?.message || e}`);
+      return { text: '', confidence: 0 };
     }
   }
 
