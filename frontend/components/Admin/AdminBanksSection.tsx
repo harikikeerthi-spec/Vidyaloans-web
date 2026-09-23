@@ -27,6 +27,126 @@ interface BankPartner {
     isPopular: boolean;
 }
 
+const FIXED_BANKS_ORDER = ["avanse", "auxilo", "poonawalla", "idfc", "credila"];
+
+const isFixedBank = (bank: { shortName?: string } | null | undefined): boolean => {
+    if (!bank?.shortName) return false;
+    return FIXED_BANKS_ORDER.includes(bank.shortName.toLowerCase().trim());
+};
+
+const DEFAULT_FIXED_PARTNERS: BankPartner[] = [
+    {
+        id: "e2bcaeb5-dcac-44d6-8d08-1c765734e3e6",
+        name: "Avanse Financial",
+        shortName: "avanse",
+        country: "India",
+        type: "NBFC",
+        loanTypes: ["Education Loan"],
+        educationLoan: true,
+        interestRateMin: 10.75,
+        interestRateMax: 14.5,
+        maxLoanAmount: "₹1 Cr",
+        collateralRequired: false,
+        collateralFreeLimit: "₹50 Lakhs",
+        processingFee: "1.00% - 2.00%",
+        processingTime: "72 hours",
+        features: ["Flexible Repayment Options", "Pre-admission Sanctions", "Zero Margin Money"],
+        website: "https://www.avanse.com",
+        contactNumber: "1800-123-789",
+        email: "support@avanse.com",
+        logoUrl: "/banks/avanse.png",
+        isPopular: true
+    },
+    {
+        id: "0a8f4c3b-ff0b-479b-8815-d46a43e95309",
+        name: "Auxilo Finserve",
+        shortName: "auxilo",
+        country: "India",
+        type: "NBFC",
+        loanTypes: ["Education Loan"],
+        educationLoan: true,
+        interestRateMin: 10.5,
+        interestRateMax: 14.25,
+        maxLoanAmount: "₹1.5 Cr",
+        collateralRequired: false,
+        collateralFreeLimit: "₹75 Lakhs",
+        processingFee: "1.00%",
+        processingTime: "48 hours",
+        features: ["100% Financing: Covers tuition fees, living costs, and travel expenses", "Quick Disbursals", "Co-borrower Flexibility"],
+        website: "https://www.auxilo.com",
+        contactNumber: "1800-123-456",
+        email: "support@auxilo.com",
+        logoUrl: "/banks/auxilo.png",
+        isPopular: true
+    },
+    {
+        id: "8506bc1d-1c31-415b-9d3e-8b73c77957dd",
+        name: "Poonawalla Fincorp",
+        shortName: "poonawalla",
+        country: "India",
+        type: "NBFC",
+        loanTypes: ["Education Loan"],
+        educationLoan: true,
+        interestRateMin: 11.0,
+        interestRateMax: 14.0,
+        maxLoanAmount: "₹50 Lakhs",
+        collateralRequired: false,
+        collateralFreeLimit: "₹30 Lakhs",
+        processingFee: "1.00%",
+        processingTime: "36 hours",
+        features: ["Digital Sanction", "Zero Foreclosure Charges", "Fast Verification"],
+        website: "https://poonawallafincorp.com",
+        contactNumber: "1800-266-3201",
+        email: "contact@poonawallafincorp.com",
+        logoUrl: "/banks/poonawalla.jpg",
+        isPopular: true
+    },
+    {
+        id: "f7ec4238-2e44-48d9-a5f9-ba94bf344837",
+        name: "IDFC FIRST Bank",
+        shortName: "idfc",
+        country: "India",
+        type: "Private",
+        loanTypes: ["Education Loan"],
+        educationLoan: true,
+        interestRateMin: 9.75,
+        interestRateMax: 13.5,
+        maxLoanAmount: "₹1.5 Cr",
+        collateralRequired: false,
+        collateralFreeLimit: "₹50 Lakhs",
+        processingFee: "1.00%",
+        processingTime: "4-5 days",
+        features: ["Tax Benefits under Sec 80E", "Competitive Spread", "Global University Coverage"],
+        website: "https://www.idfcfirstbank.com",
+        contactNumber: "1800-419-4332",
+        email: "banker@idfcfirstbank.com",
+        logoUrl: "/banks/idfc.png",
+        isPopular: true
+    },
+    {
+        id: "dc0f1ccd-d356-411f-a84f-6ee0cde853af",
+        name: "HDFC Credila",
+        shortName: "credila",
+        country: "India",
+        type: "NBFC",
+        loanTypes: ["Education Loan"],
+        educationLoan: true,
+        interestRateMin: 9.99,
+        interestRateMax: 13.75,
+        maxLoanAmount: "₹2 Cr",
+        collateralRequired: false,
+        collateralFreeLimit: "₹50 Lakhs",
+        processingFee: "1.00% - 1.50%",
+        processingTime: "48-72 hours",
+        features: ["Specialist Education NBFC", "Doorstep Service", "Pre-Visa Disbursement"],
+        website: "https://www.hdfccredila.com",
+        contactNumber: "1800-209-3636",
+        email: "loan@hdfccredila.com",
+        logoUrl: "/banks/credila.png",
+        isPopular: true
+    }
+];
+
 export default function AdminBanksSection() {
     const router = useRouter();
     const [banks, setBanks] = useState<BankPartner[]>([]);
@@ -78,13 +198,16 @@ export default function AdminBanksSection() {
         setError(null);
         try {
             const res = await referenceApi.getBanks() as any;
-            if (res?.success) {
-                setBanks(res.data || []);
+            if (res?.success && Array.isArray(res.data) && res.data.length > 0) {
+                setBanks(res.data);
+            } else if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
+                setBanks(res.data);
             } else {
-                setError("Failed to fetch bank partners list");
+                setBanks(DEFAULT_FIXED_PARTNERS);
             }
         } catch (err: any) {
-            setError(err?.message || "Something went wrong fetching banks");
+            console.warn("Could not fetch banks from server, using fixed partners fallback:", err);
+            setBanks(DEFAULT_FIXED_PARTNERS);
         } finally {
             setLoading(false);
         }
@@ -188,6 +311,11 @@ export default function AdminBanksSection() {
     };
 
     const handleDelete = async (id: string, name: string) => {
+        const target = banks.find(b => b.id === id);
+        if (target && isFixedBank(target)) {
+            alert(`"${name}" is a fixed core lending partner and cannot be deleted.`);
+            return;
+        }
         if (!confirm(`Are you sure you want to delete bank partner "${name}"?`)) return;
         try {
             const res = await adminApi.deleteBank(id) as any;
@@ -272,6 +400,20 @@ export default function AdminBanksSection() {
         return matchesSearch && matchesType;
     });
 
+    const sortedFilteredBanks = [...filteredBanks].sort((a, b) => {
+        const slugA = (a.shortName || "").toLowerCase().trim();
+        const slugB = (b.shortName || "").toLowerCase().trim();
+        const indexA = FIXED_BANKS_ORDER.indexOf(slugA);
+        const indexB = FIXED_BANKS_ORDER.indexOf(slugB);
+
+        if (indexA !== -1 && indexB !== -1) {
+            return indexA - indexB;
+        }
+        if (indexA !== -1) return -1;
+        if (indexB !== -1) return 1;
+        return (a.name || "").localeCompare(b.name || "");
+    });
+
     return (
         <div className="space-y-6 animate-fade-in max-w-[1400px] mx-auto pb-12">
             {/* Header section */}
@@ -324,7 +466,7 @@ export default function AdminBanksSection() {
             <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
                 <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row gap-4 items-center justify-between">
                     <div>
-                        <h3 className="text-sm font-semibold text-slate-900">Registered Lenders ({filteredBanks.length})</h3>
+                        <h3 className="text-sm font-semibold text-slate-900">Registered Lenders ({sortedFilteredBanks.length})</h3>
                         <p className="text-[11px] text-slate-500 mt-0.5">Dynamic bank partner configuration & ROI management</p>
                     </div>
                     {/* Search & Filter Bar */}
@@ -374,97 +516,117 @@ export default function AdminBanksSection() {
                                         Fetching dynamic partners...
                                     </td>
                                 </tr>
-                            ) : filteredBanks.length === 0 ? (
+                            ) : sortedFilteredBanks.length === 0 ? (
                                 <tr>
                                     <td colSpan={8} className="px-5 py-10 text-center text-slate-400 text-xs">
                                         No bank partners found matching your search.
                                     </td>
                                 </tr>
                             ) : (
-                                filteredBanks.map((bank) => (
-                                    <tr key={bank.id} className="hover:bg-slate-50/50 transition-colors text-xs font-medium">
-                                        <td className="px-5 py-4 flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded border border-slate-200 bg-white p-1 overflow-hidden flex items-center justify-center flex-shrink-0">
-                                                {bank.logoUrl ? (
-                                                    <img src={bank.logoUrl} alt={bank.name} className="w-full h-full object-contain" />
+                                sortedFilteredBanks.map((bank) => {
+                                    const isFixed = isFixedBank(bank);
+                                    return (
+                                        <tr key={bank.id} className={`hover:bg-slate-50/50 transition-colors text-xs font-medium ${isFixed ? "bg-slate-50/20" : ""}`}>
+                                            <td className="px-5 py-4 flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded border border-slate-200 bg-white p-1 overflow-hidden flex items-center justify-center flex-shrink-0">
+                                                    {bank.logoUrl ? (
+                                                        <img src={bank.logoUrl} alt={bank.name} className="w-full h-full object-contain" />
+                                                    ) : (
+                                                        <span className="material-symbols-outlined text-slate-400 text-sm">account_balance</span>
+                                                    )}
+                                                </div>
+                                                <div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-bold text-slate-900 block">{bank.name}</span>
+                                                        {isFixed && (
+                                                            <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 shadow-2xs" title="Core Lending Partner - Fixed">
+                                                                <span className="material-symbols-outlined text-[11px] text-amber-600">verified</span>
+                                                                Fixed Partner
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <span className="text-[10px] text-slate-400 block">{bank.website || "No website"}</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-5 py-4 font-mono text-[10px] text-slate-500 font-bold">{bank.shortName}</td>
+                                            <td className="px-5 py-4">
+                                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${bank.type === "NBFC" ? "bg-amber-50 text-amber-700 border border-amber-100" :
+                                                        bank.type === "Private" ? "bg-blue-50 text-blue-700 border border-blue-100" :
+                                                            "bg-slate-50 text-slate-700 border border-slate-100"
+                                                    }`}>
+                                                    {bank.type}
+                                                </span>
+                                            </td>
+                                            <td className="px-5 py-4">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-slate-900 font-bold bg-purple-50 border border-purple-100 text-purple-700 px-2 py-0.5 rounded text-[11px]">
+                                                        {bank.interestRateMin}% - {bank.interestRateMax}%
+                                                    </span>
+                                                    <button
+                                                        onClick={() => handleOpenRoiModal(bank)}
+                                                        className="px-1.5 py-0.5 bg-slate-100 hover:bg-purple-100 text-purple-700 rounded text-[9.5px] font-bold transition-all border border-slate-200 cursor-pointer"
+                                                        title="Set ROI Rates"
+                                                    >
+                                                        Set ROI
+                                                    </button>
+                                                </div>
+                                            </td>
+                                            <td className="px-5 py-4 text-slate-900 font-medium">
+                                                <div>{bank.maxLoanAmount}</div>
+                                                <div className="flex items-center gap-1 mt-1">
+                                                    {bank.collateralFreeLimit && bank.collateralFreeLimit !== "None" ? (
+                                                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold" title="Non-Collateral Limit">
+                                                            Non-Collateral: {bank.collateralFreeLimit}
+                                                        </span>
+                                                    ) : null}
+                                                    {bank.collateralRequired ? (
+                                                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 font-bold" title="Collateral Required">
+                                                            Collateral
+                                                        </span>
+                                                    ) : null}
+                                                </div>
+                                            </td>
+                                            <td className="px-5 py-4 text-slate-600">{bank.processingFee}</td>
+                                            <td className="px-5 py-4">
+                                                {bank.isPopular ? (
+                                                    <span className="text-indigo-600 font-bold flex items-center gap-0.5">
+                                                        <span className="material-symbols-outlined text-sm">check_circle</span>
+                                                        Yes
+                                                    </span>
                                                 ) : (
-                                                    <span className="material-symbols-outlined text-slate-400 text-sm">account_balance</span>
+                                                    <span className="text-slate-400">No</span>
                                                 )}
-                                            </div>
-                                            <div>
-                                                <span className="font-bold text-slate-900 block">{bank.name}</span>
-                                                <span className="text-[10px] text-slate-400 block">{bank.website || "No website"}</span>
-                                            </div>
-                                        </td>
-                                        <td className="px-5 py-4 font-mono text-[10px] text-slate-500 font-bold">{bank.shortName}</td>
-                                        <td className="px-5 py-4">
-                                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${bank.type === "NBFC" ? "bg-amber-50 text-amber-700 border border-amber-100" :
-                                                    bank.type === "Private" ? "bg-blue-50 text-blue-700 border border-blue-100" :
-                                                        "bg-slate-50 text-slate-700 border border-slate-100"
-                                                }`}>
-                                                {bank.type}
-                                            </span>
-                                        </td>
-                                        <td className="px-5 py-4">
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-slate-900 font-bold bg-purple-50 border border-purple-100 text-purple-700 px-2 py-0.5 rounded text-[11px]">
-                                                    {bank.interestRateMin}% - {bank.interestRateMax}%
-                                                </span>
-                                                <button
-                                                    onClick={() => handleOpenRoiModal(bank)}
-                                                    className="px-1.5 py-0.5 bg-slate-100 hover:bg-purple-100 text-purple-700 rounded text-[9.5px] font-bold transition-all border border-slate-200 cursor-pointer"
-                                                    title="Set ROI Rates"
-                                                >
-                                                    Set ROI
-                                                </button>
-                                            </div>
-                                        </td>
-                                        <td className="px-5 py-4 text-slate-900 font-medium">
-                                            <div>{bank.maxLoanAmount}</div>
-                                            <div className="flex items-center gap-1 mt-1">
-                                                {bank.collateralFreeLimit && bank.collateralFreeLimit !== "None" ? (
-                                                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold" title="Non-Collateral Limit">
-                                                        Non-Collateral: {bank.collateralFreeLimit}
-                                                    </span>
-                                                ) : null}
-                                                {bank.collateralRequired ? (
-                                                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 font-bold" title="Collateral Required">
-                                                        Collateral
-                                                    </span>
-                                                ) : null}
-                                            </div>
-                                        </td>
-                                        <td className="px-5 py-4 text-slate-600">{bank.processingFee}</td>
-                                        <td className="px-5 py-4">
-                                            {bank.isPopular ? (
-                                                <span className="text-indigo-600 font-bold flex items-center gap-0.5">
-                                                    <span className="material-symbols-outlined text-sm">check_circle</span>
-                                                    Yes
-                                                </span>
-                                            ) : (
-                                                <span className="text-slate-400">No</span>
-                                            )}
-                                        </td>
-                                        <td className="px-5 py-4 text-right">
-                                            <div className="flex justify-end items-center gap-2">
-                                                <button
-                                                    onClick={() => handleOpenEdit(bank)}
-                                                    className="p-1 text-slate-600 hover:text-indigo-600 hover:bg-slate-100 rounded transition-colors cursor-pointer"
-                                                    title="Edit Partner Details & ROI"
-                                                >
-                                                    <span className="material-symbols-outlined text-[16px]">edit</span>
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDelete(bank.id, bank.name)}
-                                                    className="p-1 text-slate-600 hover:text-red-600 hover:bg-slate-100 rounded transition-colors cursor-pointer"
-                                                    title="Delete Bank Partner"
-                                                >
-                                                    <span className="material-symbols-outlined text-[16px]">delete</span>
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))
+                                            </td>
+                                            <td className="px-5 py-4 text-right">
+                                                <div className="flex justify-end items-center gap-2">
+                                                    <button
+                                                        onClick={() => handleOpenEdit(bank)}
+                                                        className="p-1 text-slate-600 hover:text-indigo-600 hover:bg-slate-100 rounded transition-colors cursor-pointer"
+                                                        title="Edit Partner Details & ROI"
+                                                    >
+                                                        <span className="material-symbols-outlined text-[16px]">edit</span>
+                                                    </button>
+                                                    {isFixed ? (
+                                                        <span
+                                                            className="p-1 text-slate-300 cursor-not-allowed inline-flex items-center justify-center"
+                                                            title="Core Lending Partner - Fixed & Protected from Deletion"
+                                                        >
+                                                            <span className="material-symbols-outlined text-[16px]">lock</span>
+                                                        </span>
+                                                    ) : (
+                                                        <button
+                                                            onClick={() => handleDelete(bank.id, bank.name)}
+                                                            className="p-1 text-slate-600 hover:text-red-600 hover:bg-slate-100 rounded transition-colors cursor-pointer"
+                                                            title="Delete Bank Partner"
+                                                        >
+                                                            <span className="material-symbols-outlined text-[16px]">delete</span>
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })
                             )}
                         </tbody>
                     </table>
@@ -602,11 +764,17 @@ export default function AdminBanksSection() {
                                         <input
                                             type="text"
                                             required
+                                            disabled={!!editingBank && isFixedBank(editingBank)}
                                             value={form.shortName}
                                             onChange={e => setForm({ ...form, shortName: e.target.value })}
                                             placeholder="e.g. credila or hdfc-credila"
-                                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-bold focus:outline-none focus:border-indigo-600 text-slate-900"
+                                            className={`w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-bold focus:outline-none focus:border-indigo-600 text-slate-900 ${editingBank && isFixedBank(editingBank) ? "opacity-60 cursor-not-allowed bg-slate-100" : ""}`}
                                         />
+                                        {editingBank && isFixedBank(editingBank) && (
+                                            <span className="text-[10px] text-amber-600 font-medium mt-1 block">
+                                                Short code is permanently fixed for core system integration.
+                                            </span>
+                                        )}
                                     </div>
                                     <div className="md:col-span-2">
                                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block mb-1">

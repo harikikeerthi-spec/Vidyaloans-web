@@ -1103,6 +1103,7 @@ export class UsersService implements OnModuleInit {
         if (coAppObj.relation || familyObj.coappRelation || familyObj.coApplicantRelation) appPayload.coApplicantRelation = coAppObj.relation || familyObj.coappRelation || familyObj.coApplicantRelation;
         if (coAppObj.mobile || coAppObj.phone || familyObj.coappPhone || familyObj.coApplicantPhone) appPayload.coApplicantPhone = coAppObj.mobile || coAppObj.phone || familyObj.coappPhone || familyObj.coApplicantPhone;
         if (coAppObj.email || familyObj.coappEmail || familyObj.coApplicantEmail) appPayload.coApplicantEmail = coAppObj.email || familyObj.coappEmail || familyObj.coApplicantEmail;
+        if (bank !== undefined && bank !== null && bank !== '') appPayload.bank = bank;
 
         if (Object.keys(appPayload).length > 0) {
           await this.db
@@ -1948,7 +1949,10 @@ export class UsersService implements OnModuleInit {
     const estimatedCompletionAt = new Date();
     estimatedCompletionAt.setDate(estimatedCompletionAt.getDate() + 14);
 
-    const applicationNumber = await this.generateApplicationNumber();
+    // Do NOT generate official VL-APP application number upon initial student submission.
+    // The VL-APP sequential application number is assigned only when the application
+    // is reviewed and officially routed / sent / assigned to a partner bank from the staff/admin dashboard.
+    const applicationNumber = null;
 
     const insertPayload: any = {
       id: randomUUID(),

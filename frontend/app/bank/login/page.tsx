@@ -8,12 +8,11 @@ import { authApi, referenceApi } from "@/lib/api";
 import { motion, AnimatePresence } from "framer-motion";
 
 const DEFAULT_BANKS = [
-    { id: "auxilo", name: "Auxilo Finserve", logo: "/banks/auxilo.png" },
     { id: "avanse", name: "Avanse Financial Services", logo: "/banks/avanse.png" },
-    { id: "credila", name: "HDFC Credila", logo: "/banks/credila.png" },
-    { id: "idfc", name: "IDFC FIRST Bank", logo: "/banks/idfc.png" },
+    { id: "auxilo", name: "Auxilo Finserve", logo: "/banks/auxilo.png" },
     { id: "poonawalla", name: "Poonawalla Fincorp", logo: "/banks/poonawalla.jpg" },
-    { id: "sbi", name: "State Bank of India", logo: "/banks/sbi.png" },
+    { id: "idfc", name: "IDFC FIRST Bank", logo: "/banks/idfc.png" },
+    { id: "credila", name: "HDFC Credila", logo: "/banks/credila.png" },
 ];
 
 export function getBankLogo(idOrName?: string | null, rawLogoUrl?: string | null): string {
@@ -22,9 +21,8 @@ export function getBankLogo(idOrName?: string | null, rawLogoUrl?: string | null
     const l = idOrName.toLowerCase();
     if (l.includes("avanse")) return "/banks/avanse.png";
     if (l.includes("auxilo")) return "/banks/auxilo.png";
-    if (l.includes("credila") || l.includes("hdfc")) return "/banks/credila.png";
     if (l.includes("poonawalla")) return "/banks/poonawalla.jpg";
-    if (l.includes("sbi") || l.includes("state bank")) return "/banks/sbi.png";
+    if (l.includes("credila") || l.includes("hdfc")) return "/banks/credila.png";
     if (l.includes("idfc")) return "/banks/idfc.png";
     return "/banks/idfc.png";
 }

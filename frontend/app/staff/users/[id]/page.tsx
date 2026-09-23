@@ -547,7 +547,11 @@ export default function ProfileTab() {
                 totalMonths: breakdown.length,
                 evvScore,
                 risk,
-                recommendation
+                recommendation,
+                monthly: breakdown.map((item: any) => ({
+                    label: item.label || 'Month',
+                    avg: Number(item.averageBalance || item.evv || 0)
+                }))
             };
         } catch (e) {
             console.error("Failed to parse evvMonthlyBreakdown:", e);
@@ -1399,6 +1403,46 @@ export default function ProfileTab() {
                                         {risk}
                                     </div>
                                 </div>
+
+                                {/* Monthly Balance Trend Sparkline */}
+                                {metrics.monthly && metrics.monthly.length > 1 && (() => {
+                                    const monthlySlice = metrics.monthly.slice(-evvPeriod);
+                                    const vals = monthlySlice.map(m => m.avg);
+                                    const maxVal = Math.max(...vals, 1);
+                                    const minVal = Math.min(...vals, 0);
+                                    const h = 42;
+                                    const w = 220;
+                                    const pts = vals.map((v, i) => ({
+                                        x: (i / (vals.length - 1 || 1)) * (w - 20) + 10,
+                                        y: h - 8 - ((v - minVal) / (maxVal - minVal || 1)) * (h - 16)
+                                    }));
+                                    const path = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+                                    const area = `${path} L ${pts[pts.length - 1].x} ${h} L ${pts[0].x} ${h} Z`;
+                                    return (
+                                        <div className="bg-white p-2.5 rounded-xl border border-slate-100 shadow-2xs space-y-1">
+                                            <div className="flex justify-between items-center text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                                                <span className="flex items-center gap-1">
+                                                    <span className="material-symbols-outlined text-violet-600 text-[12px]">show_chart</span>
+                                                    Balance Trajectory
+                                                </span>
+                                                <span className="text-violet-600 font-mono font-black">₹{Math.round(vals[vals.length - 1] || 0).toLocaleString('en-IN')}</span>
+                                            </div>
+                                            <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-10 overflow-visible">
+                                                <defs>
+                                                    <linearGradient id="userEvvSparkGrad" x1="0" y1="0" x2="0" y2="1">
+                                                        <stop offset="0%" stopColor="#8B5CF6" stopOpacity="0.35" />
+                                                        <stop offset="100%" stopColor="#8B5CF6" stopOpacity="0.0" />
+                                                    </linearGradient>
+                                                </defs>
+                                                <path d={area} fill="url(#userEvvSparkGrad)" />
+                                                <path d={path} fill="none" stroke="#7C3AED" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                                                {pts.map((p, i) => (
+                                                    <circle key={i} cx={p.x} cy={p.y} r="3" fill="#FFFFFF" stroke="#6D28D9" strokeWidth="2" />
+                                                ))}
+                                            </svg>
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         );
                     })() : (

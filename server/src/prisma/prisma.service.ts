@@ -18,14 +18,14 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       connectionString,
       ssl: isLocalhost ? false : { rejectUnauthorized: false },
       max: 10,
-      idleTimeoutMillis: 20000,
-      connectionTimeoutMillis: 15000,
+      idleTimeoutMillis: 120000,
+      connectionTimeoutMillis: 30000,
       keepAlive: true,
       keepAliveInitialDelayMillis: 10000,
     });
 
     pool.on('error', (err) => {
-      this.logger.error(`Unexpected error on idle pg pool client: ${err.message}`);
+      this.logger.warn(`Notice on idle pg pool connection: ${err.message}`);
     });
 
     const adapter = new PrismaPg(pool);
@@ -39,7 +39,12 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   }
 
   async onModuleInit() {
-    await this.$connect();
+    try {
+      await this.$connect();
+      this.logger.log('Prisma connected to PostgreSQL database successfully.');
+    } catch (err: any) {
+      this.logger.warn(`Prisma initial connection delay: ${err.message}. Will retry automatically on next query.`);
+    }
   }
 
   async onModuleDestroy() {

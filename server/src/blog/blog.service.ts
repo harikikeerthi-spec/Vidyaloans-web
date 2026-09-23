@@ -1,6 +1,7 @@
 // @ts-nocheck
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class BlogService {
@@ -46,17 +47,66 @@ export class BlogService {
           : '';
         const styleAttr = styleStr ? ` style="${styleStr}"` : '';
 
+        const getLinkAttrs = (targetUrl?: string, inNewTab?: boolean, nofollow?: boolean) => {
+          if (!targetUrl) return '';
+          const target = inNewTab ? ' target="_blank"' : '';
+          const relParts = [];
+          if (inNewTab) relParts.push('noopener', 'noreferrer');
+          if (nofollow) relParts.push('nofollow');
+          const rel = relParts.length ? ` rel="${relParts.join(' ')}"` : '';
+          return ` href="${targetUrl}"${target}${rel}`;
+        };
+
         switch (block.type) {
-          case 'heading':
-            return `<h2${styleAttr}>${block.content || ''}</h2>`;
+          case 'heading': {
+            const linkAttrs = getLinkAttrs(block.url || block.link, block.openInNewTab, block.addNofollow);
+            const inner = linkAttrs ? `<a${linkAttrs}>${block.content || ''}</a>` : (block.content || '');
+            return `<h2${styleAttr}>${inner}</h2>`;
+          }
           case 'text':
             return `<p${styleAttr}>${block.content || ''}</p>`;
-          case 'image':
-            return `<div class="blog-image-wrapper"><img src="${block.content || ''}" alt="Blog Image"${styleAttr} /></div>`;
-          case 'video':
-            return `<div class="blog-video-wrapper"><iframe src="${block.content || ''}" frameborder="0" allowfullscreen${styleAttr}></iframe></div>`;
-          case 'button':
-            return `<div class="blog-button-wrapper"><a href="#" class="blog-btn"${styleAttr}>${block.content || ''}</a></div>`;
+          case 'image': {
+            const linkAttrs = getLinkAttrs(block.url || block.link, block.openInNewTab, block.addNofollow);
+            const imgTag = `<img src="${block.content || ''}" alt="Blog Image"${styleAttr} />`;
+            const inner = linkAttrs ? `<a${linkAttrs}>${imgTag}</a>` : imgTag;
+            return `<div class="blog-image-wrapper">${inner}</div>`;
+          }
+          case 'video': {
+            const content = block.content || '';
+            const isNativeVideo = content.startsWith('data:video/') || content.startsWith('blob:') || /\.(mp4|webm|ogg|mov)(\?|$)/i.test(content);
+            if (isNativeVideo) {
+              return `<div class="blog-video-wrapper my-4"><video controls src="${content}" class="w-full rounded-xl"${styleAttr}></video></div>`;
+            }
+            let embedUrl = content;
+            const ytMatch = content.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i);
+            if (ytMatch && ytMatch[1]) {
+              embedUrl = `https://www.youtube.com/embed/${ytMatch[1]}`;
+            } else {
+              const vimeoMatch = content.match(/vimeo\.com\/(?:video\/)?([0-9]+)/i);
+              if (vimeoMatch && vimeoMatch[1]) {
+                embedUrl = `https://player.vimeo.com/video/${vimeoMatch[1]}`;
+              }
+            }
+            return `<div class="blog-video-wrapper my-4 aspect-video w-full rounded-xl overflow-hidden shadow-sm"><iframe src="${embedUrl}" class="w-full h-full" frameborder="0" allowfullscreen${styleAttr}></iframe></div>`;
+          }
+          case 'button': {
+            const linkAttrs = getLinkAttrs(block.url || block.link || '#', block.openInNewTab, block.addNofollow);
+            return `<div class="blog-button-wrapper"><a${linkAttrs} class="blog-btn"${styleAttr}>${block.content || 'Click Here'}</a></div>`;
+          }
+          case 'link': {
+            const linkAttrs = getLinkAttrs(block.url || block.link || '#', block.openInNewTab, block.addNofollow);
+            return `<div class="blog-link-wrapper"><a${linkAttrs} class="blog-link font-bold text-indigo-600 hover:underline"${styleAttr}>${block.content || block.url || 'Learn More'} &rarr;</a></div>`;
+          }
+          case 'cta': {
+            const linkAttrs = getLinkAttrs(block.url || block.link || '#', block.openInNewTab, block.addNofollow);
+            return `<div class="blog-cta-card p-6 my-6 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl border border-indigo-100"${styleAttr}>
+              <h3 class="text-xl font-extrabold text-indigo-950 mb-2">${block.title || 'Ready to Apply?'}</h3>
+              <p class="text-sm text-slate-600 mb-4">${block.content || ''}</p>
+              <a${linkAttrs} class="inline-block px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-xs shadow-md">${block.buttonText || 'Apply Now &rarr;'}</a>
+            </div>`;
+          }
+          case 'alert':
+            return `<div class="blog-alert-box p-4 my-4 rounded-xl border border-amber-200 bg-amber-50/80 text-amber-950 text-xs font-semibold"${styleAttr}><strong>${block.title || 'Important'}:</strong> ${block.content || ''}</div>`;
           case 'list':
             const items = (block.content || '')
               .split('\n')
@@ -67,6 +117,78 @@ export class BlogService {
             return `<blockquote${styleAttr}>${block.content || ''}</blockquote>`;
           case 'code':
             return `<pre${styleAttr}><code>${block.content || ''}</code></pre>`;
+          case 'image_box': {
+            return `<div class="blog-image-box p-4 my-4 rounded-2xl border border-slate-200"${styleAttr}>${block.url ? `<img src="${block.url}" alt="${block.title || 'Image'}" class="w-full rounded-xl mb-3" />` : ''}<h3 class="text-lg font-bold text-slate-900">${block.title || ''}</h3><p class="text-sm text-slate-600 mt-1">${block.content || ''}</p></div>`;
+          }
+          case 'testimonial': {
+            return `<div class="blog-testimonial p-6 my-4 bg-purple-50/50 border border-purple-100 rounded-2xl"${styleAttr}><div class="text-amber-400 mb-2">★★★★★</div><p class="italic text-slate-700 mb-3">"${block.content || ''}"</p><strong>${block.title || ''}</strong><div class="text-xs text-slate-500">${block.subtitle || ''}</div></div>`;
+          }
+          case 'icon': {
+            return `<div class="blog-icon-box text-center my-4"${styleAttr}><span class="material-symbols-outlined text-4xl text-rose-600">${block.iconName || 'verified'}</span><p class="font-bold text-sm mt-1">${block.title || ''}</p></div>`;
+          }
+          case 'icon_box': {
+            return `<div class="blog-icon-card flex items-start gap-4 p-4 my-4 rounded-xl border border-slate-200"${styleAttr}><span class="material-symbols-outlined text-3xl text-indigo-600 shrink-0">${block.iconName || 'account_balance'}</span><div><h4 class="font-bold text-slate-900">${block.title || ''}</h4><p class="text-sm text-slate-600 mt-1">${block.content || ''}</p></div></div>`;
+          }
+          case 'social_icons': {
+            const links = (block.items || []).map((it: any) => `<a href="${it.url || '#'}" target="_blank" class="px-3 py-1 bg-slate-100 rounded-lg text-xs font-bold text-slate-700">${it.title}</a>`).join(' ');
+            return `<div class="blog-social-links my-4"${styleAttr}><p class="text-xs font-bold mb-2">${block.title || 'Follow Us'}:</p><div class="flex gap-2 flex-wrap">${links}</div></div>`;
+          }
+          case 'image_gallery': {
+            const imgs = (block.items || []).map((it: any) => `<img src="${it.url}" alt="${it.title || 'Gallery'}" class="rounded-xl object-cover w-full h-40" />`).join('');
+            return `<div class="blog-gallery grid grid-cols-2 sm:grid-cols-3 gap-3 my-4"${styleAttr}>${imgs}</div>`;
+          }
+          case 'image_carousel': {
+            return `<div class="blog-carousel my-4 rounded-2xl overflow-hidden shadow-sm"${styleAttr}>${block.items?.[0] ? `<img src="${block.items[0].url}" alt="Carousel" class="w-full h-64 object-cover" /><div class="p-3 bg-slate-900 text-white"><p class="font-bold text-sm">${block.items[0].title || ''}</p><p class="text-xs text-slate-300">${block.items[0].content || ''}</p></div>` : ''}</div>`;
+          }
+          case 'icon_list': {
+            const listItems = (block.items || []).map((it: any) => `<li class="flex items-center gap-2 text-sm text-slate-700"><span class="text-emerald-600 font-bold">✓</span><span>${it.title}</span></li>`).join('');
+            return `<div class="blog-icon-list my-4"${styleAttr}><p class="font-bold text-xs mb-2">${block.title || 'Highlights'}:</p><ul class="space-y-1.5 list-none pl-0">${listItems}</ul></div>`;
+          }
+          case 'counter': {
+            return `<div class="blog-counter text-center p-6 my-4 bg-slate-50 rounded-2xl border border-slate-200"${styleAttr}><div class="text-4xl font-extrabold text-indigo-600 font-mono">${block.prefix || ''}${block.value || ''}${block.suffix || ''}</div><p class="text-sm font-semibold text-slate-700 mt-1">${block.title || ''}</p></div>`;
+          }
+          case 'progress_bar': {
+            return `<div class="blog-progress my-4 p-4 rounded-xl border border-slate-100"${styleAttr}><div class="flex justify-between text-xs font-bold mb-1"><span>${block.title || ''}</span><span>${block.value || 94}%</span></div><div class="w-full bg-slate-200 rounded-full h-3"><div class="bg-indigo-600 h-3 rounded-full" style="width: ${block.value || 94}%"></div></div></div>`;
+          }
+          case 'nested_tabs': {
+            const tabsHtml = (block.items || []).map((t: any) => `<div class="my-2 p-3 bg-slate-50 rounded-xl"><strong class="text-xs text-indigo-600">${t.title}:</strong> <span class="text-xs text-slate-700">${t.content || ''}</span></div>`).join('');
+            return `<div class="blog-tabs my-4 border border-slate-200 rounded-2xl p-4"${styleAttr}><h4 class="font-bold text-sm mb-2">${block.title || ''}</h4>${tabsHtml}</div>`;
+          }
+          case 'nested_accordion': {
+            const accHtml = (block.items || []).map((a: any) => `<details class="border border-slate-200 rounded-xl p-3 bg-slate-50 my-1.5"><summary class="font-bold text-xs cursor-pointer text-slate-800">${a.title}</summary><div class="pt-2 text-xs text-slate-600">${a.content || ''}</div></details>`).join('');
+            return `<div class="blog-accordion my-4"${styleAttr}><h4 class="font-bold text-sm mb-2">${block.title || ''}</h4>${accHtml}</div>`;
+          }
+          case 'rating': {
+            return `<div class="blog-rating text-center p-4 my-4 bg-amber-50/50 rounded-2xl border border-amber-200"${styleAttr}><div class="text-amber-500 text-xl font-bold">★ ★ ★ ★ ★</div><p class="font-bold text-sm text-slate-800">${block.title || '4.9 / 5 Rating'}</p><p class="text-xs text-slate-500">${block.subtitle || ''}</p></div>`;
+          }
+          case 'html': {
+            return block.content || '';
+          }
+          case 'shortcode': {
+            return `<div class="blog-shortcode my-4 p-3 bg-slate-100 border border-slate-300 rounded-xl font-mono text-xs text-slate-700">${block.content || ''}</div>`;
+          }
+          case 'menu_anchor': {
+            return `<a id="${block.content || 'anchor'}" class="blog-anchor"></a>`;
+          }
+          case 'read_more': {
+            return `<!--more-->`;
+          }
+          case 'sidebar': {
+            return `<div class="blog-sidebar-callout p-4 my-4 bg-slate-50 border border-slate-200 rounded-xl"${styleAttr}><h4 class="font-bold text-xs text-indigo-600 uppercase mb-1">${block.title || 'Sidebar'}</h4><p class="text-xs text-slate-600">${block.content || ''}</p></div>`;
+          }
+          case 'google_maps': {
+            return `<div class="blog-map my-4 rounded-xl overflow-hidden aspect-video border border-slate-200"${styleAttr}><iframe src="https://maps.google.com/maps?q=${encodeURIComponent(block.content || 'London')}&t=&z=13&ie=UTF8&iwloc=&output=embed" class="w-full h-full border-0"></iframe></div>`;
+          }
+          case 'soundcloud': {
+            return `<div class="blog-audio my-4 p-4 bg-orange-50 border border-orange-200 rounded-xl"${styleAttr}><p class="font-bold text-xs text-orange-700">${block.title || 'SoundCloud Audio'}</p><audio controls src="${block.content || ''}" class="w-full mt-2"></audio></div>`;
+          }
+          case 'text_path': {
+            return `<div class="blog-text-path my-4 text-center text-sm font-bold tracking-widest text-indigo-700"${styleAttr}>${block.title || block.content || ''}</div>`;
+          }
+          case 'link_bio': {
+            const bioLinks = (block.items || []).map((it: any) => `<a href="${it.url || '/apply'}" class="block py-2.5 px-4 bg-white border border-indigo-200 rounded-xl text-xs font-bold text-indigo-700 shadow-xs mb-2">${it.title}</a>`).join('');
+            return `<div class="blog-link-in-bio my-6 p-6 bg-gradient-to-b from-indigo-50 to-purple-50 rounded-3xl text-center max-w-md mx-auto border border-indigo-200"${styleAttr}><h3 class="font-extrabold text-lg text-slate-900 mb-1">${block.title || ''}</h3><p class="text-xs text-slate-500 mb-4">${block.subtitle || ''}</p><div>${bioLinks}</div></div>`;
+          }
           case 'divider':
             return `<hr${styleAttr} />`;
           case 'spacer':
@@ -227,26 +349,66 @@ export class BlogService {
 
   async createBlog(data: any) {
     const dbData: any = {};
-    dbData.title = data.title;
-    dbData.slug = data.slug || data.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const now = new Date().toISOString();
+    dbData.id = randomUUID();       // @default(uuid()) is Prisma-only — Supabase JS needs it supplied
+    dbData.createdAt = now;         // @default(now()) is Prisma-only — must supply
+    dbData.updatedAt = now;         // @updatedAt is Prisma-only — must supply
+    dbData.title = data.title || 'Untitled Article';
+
+    // Ensure slug is uniquely available
+    let baseSlug = (data.slug || data.title || 'article')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
+    if (!baseSlug) baseSlug = `article-${Date.now()}`;
+
+    let candidateSlug = baseSlug;
+    let counter = 1;
+    while (true) {
+      const { data: existing } = await this.db.from('Blog').select('id').eq('slug', candidateSlug).maybeSingle();
+      if (!existing) break;
+      candidateSlug = `${baseSlug}-${counter}`;
+      counter++;
+    }
+    dbData.slug = candidateSlug;
+
     dbData.category = data.category || 'Loan Guidance';
     dbData.authorName = data.authorName || 'IT Staff';
-    dbData.authorId = data.authorId;
-    dbData.authorImage = data.authorImage;
-    dbData.authorRole = data.authorRole;
+
+    // Safely check authorId: must exist in User table else set to null to avoid foreign key failure
+    if (data.authorId) {
+      try {
+        const { data: userExists } = await this.db
+          .from('User')
+          .select('id')
+          .eq('id', data.authorId)
+          .maybeSingle();
+        dbData.authorId = userExists?.id || null;
+      } catch {
+        dbData.authorId = null;
+      }
+    } else {
+      dbData.authorId = null;
+    }
+
+    dbData.authorImage = data.authorImage || null;
+    dbData.authorRole = data.authorRole || null;
     dbData.readTime = data.readTime !== undefined ? data.readTime : 5;
     dbData.isFeatured = !!data.isFeatured;
     
     // Map published to isPublished
     const isPub = data.published !== undefined ? !!data.published : (data.isPublished !== undefined ? !!data.isPublished : false);
     dbData.isPublished = isPub;
+    dbData.status = isPub ? 'published' : 'draft';
+    dbData.visibility = isPub ? 'public' : 'private';
     dbData.publishedAt = isPub ? new Date().toISOString() : null;
 
     // Map coverImage to featuredImage
     dbData.featuredImage = data.coverImage || data.featuredImage || '';
 
-    // Map subtitle to excerpt
-    dbData.excerpt = data.excerpt || data.subtitle || '';
+    // Map subtitle to excerpt, guarantee non-empty
+    dbData.excerpt = (data.excerpt || data.subtitle || data.title || 'Educational loan guide').trim();
+    if (!dbData.excerpt) dbData.excerpt = 'Educational loan guidance article';
 
     // Map blocks/content
     let htmlContent = '';
@@ -268,7 +430,10 @@ export class BlogService {
       .select('id, title, slug, excerpt, content, category, authorName, authorImage, authorRole, featuredImage, readTime, isFeatured, isPublished, publishedAt, createdAt')
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase Blog Insert Error:', error);
+      throw new BadRequestException(error.message || 'Failed to create blog');
+    }
 
     if (tags.length > 0) {
       const tagRecords = await this.upsertTags(tags);
@@ -285,15 +450,57 @@ export class BlogService {
   }
 
   async updateBlog(id: string, data: any) {
-    const { data: existingBlog } = await this.db.from('Blog').select('id, publishedAt, content').eq('id', id).single();
+    const { data: existingBlog } = await this.db.from('Blog').select('id, publishedAt, content, slug').eq('id', id).single();
     if (!existingBlog) throw new NotFoundException('Blog not found');
 
     const dbData: any = {};
     if (data.title !== undefined) dbData.title = data.title;
-    if (data.slug !== undefined) dbData.slug = data.slug;
+    
+    // Ensure slug is uniquely available if changed
+    if (data.slug !== undefined && data.slug !== existingBlog.slug) {
+      let baseSlug = (data.slug || data.title || 'article')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '');
+      if (!baseSlug) baseSlug = `article-${Date.now()}`;
+
+      let candidateSlug = baseSlug;
+      let counter = 1;
+      while (true) {
+        const { data: existing } = await this.db
+          .from('Blog')
+          .select('id')
+          .eq('slug', candidateSlug)
+          .neq('id', id)
+          .maybeSingle();
+        if (!existing) break;
+        candidateSlug = `${baseSlug}-${counter}`;
+        counter++;
+      }
+      dbData.slug = candidateSlug;
+    }
+
     if (data.category !== undefined) dbData.category = data.category;
     if (data.authorName !== undefined) dbData.authorName = data.authorName;
-    if (data.authorId !== undefined) dbData.authorId = data.authorId;
+
+    // Safely check authorId: must exist in User table else set to null
+    if (data.authorId !== undefined) {
+      if (data.authorId) {
+        try {
+          const { data: userExists } = await this.db
+            .from('User')
+            .select('id')
+            .eq('id', data.authorId)
+            .maybeSingle();
+          dbData.authorId = userExists?.id || null;
+        } catch {
+          dbData.authorId = null;
+        }
+      } else {
+        dbData.authorId = null;
+      }
+    }
+
     if (data.authorImage !== undefined) dbData.authorImage = data.authorImage;
     if (data.authorRole !== undefined) dbData.authorRole = data.authorRole;
     if (data.readTime !== undefined) dbData.readTime = data.readTime;
@@ -303,6 +510,8 @@ export class BlogService {
     if (data.published !== undefined || data.isPublished !== undefined) {
       const isPublished = data.published !== undefined ? !!data.published : !!data.isPublished;
       dbData.isPublished = isPublished;
+      dbData.status = isPublished ? 'published' : 'draft';
+      dbData.visibility = isPublished ? 'public' : 'private';
       if (isPublished && !existingBlog.publishedAt) {
         dbData.publishedAt = new Date().toISOString();
       } else if (!isPublished) {
@@ -317,7 +526,7 @@ export class BlogService {
 
     // Map subtitle to excerpt
     if (data.subtitle !== undefined || data.excerpt !== undefined) {
-      dbData.excerpt = data.excerpt !== undefined ? data.excerpt : data.subtitle;
+      dbData.excerpt = (data.excerpt !== undefined ? data.excerpt : data.subtitle) || 'Educational loan guide';
     }
 
     // Map blocks/content
@@ -333,7 +542,13 @@ export class BlogService {
       dbData.content = `${htmlContent}\n\n<!--BLOCKS_JSON_START-->${JSON.stringify(blocksArr)}<!--BLOCKS_JSON_END-->`;
     }
 
-    await this.db.from('Blog').update(dbData).eq('id', id);
+    dbData.updatedAt = new Date().toISOString(); // @updatedAt is Prisma-only — must set manually for Supabase JS client
+
+    const { error: updateError } = await this.db.from('Blog').update(dbData).eq('id', id);
+    if (updateError) {
+      console.error('Supabase Blog Update Error:', updateError);
+      throw new BadRequestException(updateError.message || 'Failed to update blog');
+    }
 
     const { tags } = data;
     if (tags !== undefined) {

@@ -82,7 +82,7 @@ function getStorageKeys(portal: Portal) {
             email: "itUserEmail",
             userId: "itUserId",
             user: "itAuthUser",
-            loginPath: "/it",
+            loginPath: "/staff/login",
         };
     }
     return {
@@ -257,7 +257,17 @@ export function getToken(): string | null {
     const portalToken = localStorage.getItem(keys.token);
     if (portalToken) return portalToken;
 
-    // 2. If student portal, check standard user token key aliases ONLY
+    // 2. IT portal can authenticate via staff or admin credentials
+    if (portal === "it") {
+        return localStorage.getItem("staffAccessToken") || localStorage.getItem("adminAccessToken") || null;
+    }
+
+    // 3. Staff portal can fall back to admin credentials
+    if (portal === "staff") {
+        return localStorage.getItem("adminAccessToken") || null;
+    }
+
+    // 4. If student portal, check standard user token key aliases ONLY
     if (portal === "student") {
         return localStorage.getItem("token") || localStorage.getItem("userToken") || localStorage.getItem("jwt") || null;
     }
@@ -338,6 +348,19 @@ async function tryRefreshAccessToken(): Promise<string | null> {
         if (data.refresh_token) {
             localStorage.setItem(keys.refreshToken, data.refresh_token);
         }
+
+        // Sync with staff or admin tokens if on IT portal
+        if (portal === "it") {
+            if (localStorage.getItem("staffRefreshToken")) {
+                localStorage.setItem("staffAccessToken", newToken);
+                if (data.refresh_token) localStorage.setItem("staffRefreshToken", data.refresh_token);
+            }
+            if (localStorage.getItem("adminRefreshToken")) {
+                localStorage.setItem("adminAccessToken", newToken);
+                if (data.refresh_token) localStorage.setItem("adminRefreshToken", data.refresh_token);
+            }
+        }
+
         notifyTokenChange(newToken);
         return newToken;
     } catch {

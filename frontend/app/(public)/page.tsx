@@ -610,7 +610,7 @@ export default async function HomePage() {
                                 Banking Network
                             </span>
                             <h2 className="text-3xl md:text-5xl font-black text-gray-900 mb-4 leading-tight">Our Lending Partners</h2>
-                            <p className="text-gray-500 text-[13px] font-medium">Compare interest rates, processing times & fees from India&apos;s top lenders</p>
+                            <p className="text-gray-500 text-[13px] font-medium">Compare interest rates and processing times from India&apos;s top lenders</p>
                         </div>
 
                         {/* Mobile Interactive Lender Card Slider */}
@@ -621,7 +621,7 @@ export default async function HomePage() {
                             <table className="w-full text-left">
                                 <thead className="bg-gray-50/50 text-gray-900 border-b border-gray-100">
                                     <tr>
-                                        {["Lender", "Interest Rate", "Processing Time", "Processing Fee", ""].map((h) => (
+                                        {["Lender", "Interest Rate", "Processing Time", ""].map((h) => (
                                             <th key={h || 'action'} className="p-6 text-[11px] font-black uppercase tracking-widest text-gray-400">{h}</th>
                                         ))}
                                     </tr>
@@ -646,7 +646,6 @@ export default async function HomePage() {
                                             </td>
                                             <td className="p-6 text-gray-600 text-[13px] font-bold">{l.rate}</td>
                                             <td className="p-6 text-gray-600 text-[13px] font-bold">{l.time}</td>
-                                            <td className="p-6 text-gray-600 text-[13px] font-bold">{l.fee}</td>
                                             <td className="p-6">
                                                 <Link href={`/bank/${l.slug}`} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#6605c7]/5 text-[#6605c7] text-[11px] font-black uppercase tracking-wider hover:bg-[#6605c7] hover:text-white transition-all duration-200 group-hover:bg-[#6605c7] group-hover:text-white whitespace-nowrap">
                                                     View Details

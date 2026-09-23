@@ -19,6 +19,14 @@ import {
   type CashClassification,
   type PassThroughClassification,
 } from "@/lib/evv-parser";
+import {
+  EVVScoreRadialGauge,
+  EVVRadarChart,
+  EVV6ComponentBarChart,
+  EVVMonthlyMetricsChart,
+  EVVSnapshotTimelineChart,
+  EVVClassificationDonutChart,
+} from "./evv-charts";
 import { applicationApi, documentApi } from "@/lib/api";
 
 interface ConsoleMessage {
@@ -273,6 +281,33 @@ export const EVVTestAgent: React.FC<{
     passThrough: {},
   });
   const [activeCandidateTab, setActiveCandidateTab] = useState<"bounces" | "cash" | "passThrough">("bounces");
+
+  // Master and Section-Level Graph vs Table View States
+  const [masterViewMode, setMasterViewMode] = useState<"executive" | "graphs" | "tables">("executive");
+  const [monthlyMetricsView, setMonthlyMetricsView] = useState<"graph" | "table" | "split">("graph");
+  const [snapshotsView, setSnapshotsView] = useState<"graph" | "table" | "split">("graph");
+  const [sixComponentView, setSixComponentView] = useState<"bar" | "radar" | "cards" | "both">("bar");
+  const [classificationsView, setClassificationsView] = useState<"donut" | "table" | "both">("both");
+
+  const handleMasterViewChange = (mode: "executive" | "graphs" | "tables") => {
+    setMasterViewMode(mode);
+    if (mode === "graphs") {
+      setMonthlyMetricsView("graph");
+      setSnapshotsView("graph");
+      setSixComponentView("bar");
+      setClassificationsView("donut");
+    } else if (mode === "tables") {
+      setMonthlyMetricsView("table");
+      setSnapshotsView("table");
+      setSixComponentView("cards");
+      setClassificationsView("table");
+    } else {
+      setMonthlyMetricsView("graph");
+      setSnapshotsView("graph");
+      setSixComponentView("both");
+      setClassificationsView("both");
+    }
+  };
 
   const toggleComponentExpand = (key: string) => {
     setExpandedComponents((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -1470,6 +1505,55 @@ export const EVVTestAgent: React.FC<{
               </div>
             </div>
 
+            {/* Master View Mode Switcher (Tabular vs Visual Graphs vs Combined) */}
+            <div className="bg-slate-100/90 p-2 rounded-2xl flex flex-wrap items-center justify-between gap-3 border border-slate-200/80 no-print">
+              <div className="flex items-center gap-2 pl-2">
+                <span className="material-symbols-outlined text-violet-600 text-xl">auto_graph</span>
+                <div>
+                  <span className="text-xs font-black uppercase tracking-wider text-slate-800 block leading-tight">Presentation & Analysis Mode</span>
+                  <span className="text-[10px] text-slate-500 font-medium">Switch view mode across all sections or customize individually below</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-1 bg-white p-1 rounded-xl shadow-2xs border border-slate-200/70">
+                <button
+                  type="button"
+                  onClick={() => handleMasterViewChange("executive")}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                    masterViewMode === "executive"
+                      ? "bg-violet-600 text-white shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-sm">dashboard</span>
+                  <span>Combined View</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleMasterViewChange("graphs")}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                    masterViewMode === "graphs"
+                      ? "bg-violet-600 text-white shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-sm">analytics</span>
+                  <span>All Graphs View</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleMasterViewChange("tables")}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                    masterViewMode === "tables"
+                      ? "bg-violet-600 text-white shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-sm">table_chart</span>
+                  <span>Audit / Tabular View</span>
+                </button>
+              </div>
+            </div>
+
             {/* MANDATORY COMPLIANCE DISCLAIMER BANNER */}
             <div className="p-4 bg-amber-50/90 border border-amber-200/90 rounded-2xl flex items-start gap-3 shadow-2xs">
               <span className="material-symbols-outlined text-amber-700 text-xl shrink-0 mt-0.5">verified_user</span>
@@ -1626,106 +1710,197 @@ export const EVVTestAgent: React.FC<{
             </div>
 
             {/* TABLE 1: Monthly average balance */}
-            <div className="space-y-3">
-              <div>
-                <h3 className="text-base font-black text-slate-900 tracking-tight">
-                  Monthly Internal Sampled AMB & Financial Metrics
-                </h3>
-                <p className="text-xs font-medium text-slate-500 mt-0.5">
-                  Arithmetic mean of antecedent closing ledger balances sampled across complete calendar months (not an official bank AMB).
-                </p>
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+                <div>
+                  <h3 className="text-base font-black text-slate-900 tracking-tight">
+                    Monthly Internal Sampled AMB & Financial Metrics
+                  </h3>
+                  <p className="text-xs font-medium text-slate-500 mt-0.5">
+                    Arithmetic mean of antecedent closing ledger balances sampled across complete calendar months (not an official bank AMB).
+                  </p>
+                </div>
+                <div className="flex items-center bg-slate-100 p-1 rounded-xl gap-1 shrink-0 no-print">
+                  <button
+                    type="button"
+                    onClick={() => setMonthlyMetricsView("graph")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      monthlyMetricsView === "graph" ? "bg-white text-violet-700 shadow-2xs" : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-sm">show_chart</span>
+                    <span>Graph View</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMonthlyMetricsView("table")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      monthlyMetricsView === "table" ? "bg-white text-violet-700 shadow-2xs" : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-sm">table_rows</span>
+                    <span>Table View</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMonthlyMetricsView("split")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      monthlyMetricsView === "split" ? "bg-white text-violet-700 shadow-2xs" : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-sm">dashboard</span>
+                    <span>Both</span>
+                  </button>
+                </div>
               </div>
 
-              <div className="overflow-x-auto border border-slate-200 rounded-2xl bg-white shadow-2xs">
-                <table className="w-full text-xs font-medium text-slate-700 divide-y divide-slate-200">
-                  <thead>
-                    <tr className="bg-slate-50/80 text-slate-600 text-[11px] font-bold">
-                      <th className="text-left px-4 py-3 whitespace-nowrap">Month</th>
-                      <th className="text-right px-4 py-3 whitespace-nowrap">Internal Sampled AMB</th>
-                      <th className="text-right px-4 py-3 whitespace-nowrap">Daily AMB</th>
-                      <th className="text-right px-4 py-3 whitespace-nowrap">Min</th>
-                      <th className="text-right px-4 py-3 whitespace-nowrap">Max</th>
-                      <th className="text-right px-4 py-3 whitespace-nowrap">Month-End Closing</th>
-                      <th className="text-right px-4 py-3 whitespace-nowrap">Total credits</th>
-                      <th className="text-right px-4 py-3 whitespace-nowrap">Total debits</th>
-                      <th className="text-right px-4 py-3 whitespace-nowrap">Cash %</th>
-                      <th className="text-right px-4 py-3 whitespace-nowrap">Bounces</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 bg-white">
-                    {evvResult.monthlyMetrics.map((metric: MonthlyMetric, idx: number) => (
-                      <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
-                        <td className="px-4 py-3 font-bold text-slate-900 whitespace-nowrap">{metric.label}</td>
-                        <td className="px-4 py-3 text-right font-black text-violet-700 whitespace-nowrap tabular-nums">{displayCurrency(metric.median || metric.avg)}</td>
-                        <td className="px-4 py-3 text-right font-semibold text-slate-700 whitespace-nowrap tabular-nums">{displayCurrency(metric.avgDailyBalance || metric.avg)}</td>
-                        <td className="px-4 py-3 text-right text-slate-600 whitespace-nowrap tabular-nums">{displayCurrency(metric.min)}</td>
-                        <td className="px-4 py-3 text-right text-slate-600 whitespace-nowrap tabular-nums">{displayCurrency(metric.max)}</td>
-                        <td className="px-4 py-3 text-right font-bold text-slate-800 whitespace-nowrap tabular-nums">{displayCurrency(metric.closing)}</td>
-                        <td className="px-4 py-3 text-right text-emerald-700 font-semibold whitespace-nowrap tabular-nums">{displayCurrency(metric.credits)}</td>
-                        <td className="px-4 py-3 text-right text-rose-700 font-semibold whitespace-nowrap tabular-nums">{displayCurrency(metric.debits)}</td>
-                        <td className="px-4 py-3 text-right text-slate-700 font-semibold whitespace-nowrap tabular-nums">{metric.cashPercent || 0}%</td>
-                        <td className="px-4 py-3 text-right font-bold whitespace-nowrap tabular-nums">
-                          <span className={metric.bounces > 0 ? "text-rose-600 font-black" : "text-slate-600"}>
-                            {metric.bounces || 0}
-                          </span>
-                        </td>
+              {/* Monthly Metrics Graph View */}
+              {(monthlyMetricsView === "graph" || monthlyMetricsView === "split") && (
+                <EVVMonthlyMetricsChart
+                  metrics={evvResult.monthlyMetrics}
+                  benchmarkM={evvResult.sixComponent?.bankPolicy?.minimumBalanceBenchmark || 5000}
+                />
+              )}
+
+              {/* Monthly Metrics Table View */}
+              {(monthlyMetricsView === "table" || monthlyMetricsView === "split") && (
+                <div className="overflow-x-auto border border-slate-200 rounded-2xl bg-white shadow-2xs">
+                  <table className="w-full text-xs font-medium text-slate-700 divide-y divide-slate-200">
+                    <thead>
+                      <tr className="bg-slate-50/80 text-slate-600 text-[11px] font-bold">
+                        <th className="text-left px-4 py-3 whitespace-nowrap">Month</th>
+                        <th className="text-right px-4 py-3 whitespace-nowrap">Internal Sampled AMB</th>
+                        <th className="text-right px-4 py-3 whitespace-nowrap">Daily AMB</th>
+                        <th className="text-right px-4 py-3 whitespace-nowrap">Min</th>
+                        <th className="text-right px-4 py-3 whitespace-nowrap">Max</th>
+                        <th className="text-right px-4 py-3 whitespace-nowrap">Month-End Closing</th>
+                        <th className="text-right px-4 py-3 whitespace-nowrap">Total credits</th>
+                        <th className="text-right px-4 py-3 whitespace-nowrap">Total debits</th>
+                        <th className="text-right px-4 py-3 whitespace-nowrap">Cash %</th>
+                        <th className="text-right px-4 py-3 whitespace-nowrap">Bounces</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                      {evvResult.monthlyMetrics.map((metric: MonthlyMetric, idx: number) => (
+                        <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
+                          <td className="px-4 py-3 font-bold text-slate-900 whitespace-nowrap">{metric.label}</td>
+                          <td className="px-4 py-3 text-right font-black text-violet-700 whitespace-nowrap tabular-nums">{displayCurrency(metric.median || metric.avg)}</td>
+                          <td className="px-4 py-3 text-right font-semibold text-slate-700 whitespace-nowrap tabular-nums">{displayCurrency(metric.avgDailyBalance || metric.avg)}</td>
+                          <td className="px-4 py-3 text-right text-slate-600 whitespace-nowrap tabular-nums">{displayCurrency(metric.min)}</td>
+                          <td className="px-4 py-3 text-right text-slate-600 whitespace-nowrap tabular-nums">{displayCurrency(metric.max)}</td>
+                          <td className="px-4 py-3 text-right font-bold text-slate-800 whitespace-nowrap tabular-nums">{displayCurrency(metric.closing)}</td>
+                          <td className="px-4 py-3 text-right text-emerald-700 font-semibold whitespace-nowrap tabular-nums">{displayCurrency(metric.credits)}</td>
+                          <td className="px-4 py-3 text-right text-rose-700 font-semibold whitespace-nowrap tabular-nums">{displayCurrency(metric.debits)}</td>
+                          <td className="px-4 py-3 text-right text-slate-700 font-semibold whitespace-nowrap tabular-nums">{metric.cashPercent || 0}%</td>
+                          <td className="px-4 py-3 text-right font-bold whitespace-nowrap tabular-nums">
+                            <span className={metric.bounces > 0 ? "text-rose-600 font-black" : "text-slate-600"}>
+                              {metric.bounces || 0}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
             {/* TABLE 2: Interval balances */}
-            <div className="space-y-3">
-              <div>
-                <h3 className="text-base font-black text-slate-900 tracking-tight">
-                  Internal Sampled Date Balances (Antecedent EOD Ledger Balances)
-                </h3>
-                <p className="text-xs font-medium text-slate-500 mt-0.5">
-                  {evvResult.snapshots.length} antecedent closing ledger balances sampled across the statement (carry-forward accounting).
-                </p>
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+                <div>
+                  <h3 className="text-base font-black text-slate-900 tracking-tight">
+                    Internal Sampled Date Balances (Antecedent EOD Ledger Balances)
+                  </h3>
+                  <p className="text-xs font-medium text-slate-500 mt-0.5">
+                    {evvResult.snapshots.length} antecedent closing ledger balances sampled across the statement (carry-forward accounting).
+                  </p>
+                </div>
+                <div className="flex items-center bg-slate-100 p-1 rounded-xl gap-1 shrink-0 no-print">
+                  <button
+                    type="button"
+                    onClick={() => setSnapshotsView("graph")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      snapshotsView === "graph" ? "bg-white text-violet-700 shadow-2xs" : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-sm">timeline</span>
+                    <span>Timeline Graph</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSnapshotsView("table")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      snapshotsView === "table" ? "bg-white text-violet-700 shadow-2xs" : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-sm">table_rows</span>
+                    <span>Table View</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSnapshotsView("split")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      snapshotsView === "split" ? "bg-white text-violet-700 shadow-2xs" : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-sm">dashboard</span>
+                    <span>Both</span>
+                  </button>
+                </div>
               </div>
 
-              <div className="overflow-x-auto border border-slate-200 rounded-2xl bg-white max-h-[480px] overflow-y-auto print-full-table shadow-2xs">
-                <table className="w-full text-xs font-medium text-slate-700 divide-y divide-slate-200">
-                  <thead className="sticky top-0 bg-slate-50/95 backdrop-blur-xs z-10">
-                    <tr className="text-slate-600 text-[11px] font-bold border-b border-slate-200">
-                      <th className="text-left px-4 py-3 whitespace-nowrap">Date</th>
-                      <th className="text-right px-4 py-3 whitespace-nowrap">Closing Balance (Antecedent EOD)</th>
-                      <th className="text-right px-4 py-3 whitespace-nowrap">Change vs. previous</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 bg-white">
-                    {evvResult.snapshots.map((snap: Snapshot, idx: number) => {
-                      const hasPrev = idx > 0;
-                      const diff = snap.changeAmount ?? 0;
-                      const pct = snap.changePercent ?? 0;
-                      return (
-                        <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
-                          <td className="px-4 py-2.5 font-bold text-slate-800 whitespace-nowrap">{formatSnapshotDate(snap.date)}</td>
-                          <td className="px-4 py-2.5 text-right font-black text-slate-900 whitespace-nowrap tabular-nums">{displayCurrency(snap.balance)}</td>
-                          <td className="px-4 py-2.5 text-right whitespace-nowrap tabular-nums">
-                            {!hasPrev ? (
-                              <span className="text-slate-400 font-bold">—</span>
-                            ) : diff > 0 ? (
-                              <span className="text-emerald-600 font-bold">
-                                +₹{Math.abs(Math.round(diff)).toLocaleString('en-IN')} (+{Math.abs(pct).toFixed(1)}%)
-                              </span>
-                            ) : diff < 0 ? (
-                              <span className="text-rose-600 font-bold">
-                                -₹{Math.abs(Math.round(diff)).toLocaleString('en-IN')} (-{Math.abs(pct).toFixed(1)}%)
-                              </span>
-                            ) : (
-                              <span className="text-slate-500 font-medium">₹0 (0.0%)</span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+              {/* Snapshot Timeline Graph View */}
+              {(snapshotsView === "graph" || snapshotsView === "split") && (
+                <EVVSnapshotTimelineChart
+                  snapshots={evvResult.snapshots}
+                  benchmarkM={evvResult.sixComponent?.bankPolicy?.minimumBalanceBenchmark || 5000}
+                  targetT={evvResult.sixComponent?.bankPolicy?.strongBalanceTarget || 50000}
+                />
+              )}
+
+              {/* Snapshot Table View */}
+              {(snapshotsView === "table" || snapshotsView === "split") && (
+                <div className="overflow-x-auto border border-slate-200 rounded-2xl bg-white max-h-[480px] overflow-y-auto print-full-table shadow-2xs">
+                  <table className="w-full text-xs font-medium text-slate-700 divide-y divide-slate-200">
+                    <thead className="sticky top-0 bg-slate-50/95 backdrop-blur-xs z-10">
+                      <tr className="text-slate-600 text-[11px] font-bold border-b border-slate-200">
+                        <th className="text-left px-4 py-3 whitespace-nowrap">Date</th>
+                        <th className="text-right px-4 py-3 whitespace-nowrap">Closing Balance (Antecedent EOD)</th>
+                        <th className="text-right px-4 py-3 whitespace-nowrap">Change vs. previous</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                      {evvResult.snapshots.map((snap: Snapshot, idx: number) => {
+                        const hasPrev = idx > 0;
+                        const diff = snap.changeAmount ?? 0;
+                        const pct = snap.changePercent ?? 0;
+                        return (
+                          <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
+                            <td className="px-4 py-2.5 font-bold text-slate-800 whitespace-nowrap">{formatSnapshotDate(snap.date)}</td>
+                            <td className="px-4 py-2.5 text-right font-black text-slate-900 whitespace-nowrap tabular-nums">{displayCurrency(snap.balance)}</td>
+                            <td className="px-4 py-2.5 text-right whitespace-nowrap tabular-nums">
+                              {!hasPrev ? (
+                                <span className="text-slate-400 font-bold">—</span>
+                              ) : diff > 0 ? (
+                                <span className="text-emerald-600 font-bold">
+                                  +₹{Math.abs(Math.round(diff)).toLocaleString('en-IN')} (+{Math.abs(pct).toFixed(1)}%)
+                                </span>
+                              ) : diff < 0 ? (
+                                <span className="text-rose-600 font-bold">
+                                  -₹{Math.abs(Math.round(diff)).toLocaleString('en-IN')} (-{Math.abs(pct).toFixed(1)}%)
+                                </span>
+                              ) : (
+                                <span className="text-slate-500 font-medium">₹0 (0.0%)</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
             {/* Action Buttons & Underwriting Disclaimer (Screenshot 2 Match) */}
@@ -1757,30 +1932,51 @@ export const EVVTestAgent: React.FC<{
             </div>
           </div>
 
-          {/* Hero Metric Card — FIXED EVV Score Card (0-100 Score + Rupee Average Balance) */}
-          <div className="bg-white border border-violet-100 rounded-3xl p-8 shadow-[0_20px_40px_-10px_rgba(91,33,182,0.12)] relative overflow-hidden flex flex-col md:flex-row justify-between md:items-center gap-6">
-            <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 w-full">
-              <div>
-                <div className="text-[10px] font-black text-violet-600 uppercase tracking-widest mb-1">
-                  EVV Underwriting Score Card
-                </div>
-                <div className="text-5xl font-black bg-gradient-to-r from-[#4C1D95] via-[#5B21B6] to-[#8B5CF6] bg-clip-text text-transparent tracking-tight">
-                  {evvResult.overallEVV} <span className="text-xl font-bold text-slate-400">/ 100</span>
-                </div>
-                <p className="text-[10px] text-slate-500 mt-2 font-black uppercase tracking-wider">
-                  Computed EVV Rating across {evvResult.totalMonths} month{evvResult.totalMonths > 1 ? "s" : ""} statements
-                </p>
+          {/* Hero Metric Card — FIXED EVV Score Card with Visual Radial Gauge */}
+          <div className="bg-white border border-violet-100 rounded-3xl p-6 sm:p-8 shadow-[0_20px_40px_-10px_rgba(91,33,182,0.12)] relative overflow-hidden">
+            <div className="relative z-10 flex flex-col lg:flex-row justify-between items-center gap-6 w-full">
+              {/* Left Column: Visual Speedometer Gauge */}
+              <div className="w-full lg:w-auto flex justify-center shrink-0">
+                <EVVScoreRadialGauge
+                  score={evvResult.overallEVV}
+                  grade={evvResult.overallGrade}
+                  risk={evvResult.overallRisk}
+                  statusBand={evvResult.sixComponent?.statusBand || 'Green'}
+                  benchmark={evvResult.sixComponent?.bankPolicy?.minimumBalanceBenchmark || 5000}
+                />
               </div>
 
-              <div className="flex gap-4">
-                <div className="flex flex-col items-center bg-violet-50/60 border border-violet-100/60 px-5 py-3 rounded-2xl min-w-[85px]">
-                  <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Grade</span>
-                  <span className="text-3xl font-black text-[#5B21B6] mt-1">{evvResult.overallGrade}</span>
+              {/* Middle Column: Score Details & Context */}
+              <div className="flex-1 text-center lg:text-left space-y-2">
+                <div className="text-[10px] font-black text-violet-600 uppercase tracking-widest">
+                  Official VidyaLoans Underwriting Rating
+                </div>
+                <div className="text-3xl sm:text-4xl font-black bg-gradient-to-r from-[#4C1D95] via-[#5B21B6] to-[#8B5CF6] bg-clip-text text-transparent tracking-tight">
+                  {evvResult.overallEVV} <span className="text-lg font-bold text-slate-400">/ 100 Points</span>
+                </div>
+                <p className="text-xs text-slate-500 font-medium max-w-md">
+                  Causally reconstructed across <strong className="text-slate-800 font-bold">{evvResult.totalMonths} months</strong> of bank statements ({evvResult.totalTransactions} transactions) under partner bank benchmark standards.
+                </p>
+                <div className="flex items-center justify-center lg:justify-start gap-2 pt-1 flex-wrap">
+                  <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-slate-100 text-slate-700">
+                    Target: {evvResult.sixComponent?.bankPolicy.bankName || "Partner Bank"}
+                  </span>
+                  <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-violet-50 text-violet-700 border border-violet-100">
+                    Min Threshold M: ₹{(evvResult.sixComponent?.bankPolicy.minimumBalanceBenchmark || 5000).toLocaleString('en-IN')}
+                  </span>
+                </div>
+              </div>
+
+              {/* Right Column: Grade & Risk Badges */}
+              <div className="flex sm:flex-row lg:flex-col gap-3 shrink-0">
+                <div className="flex flex-col items-center bg-violet-50/70 border border-violet-100 px-5 py-3 rounded-2xl min-w-[95px] shadow-2xs">
+                  <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">EVV Grade</span>
+                  <span className="text-3xl font-black text-[#5B21B6] mt-0.5">{evvResult.overallGrade}</span>
                 </div>
 
-                <div className="flex flex-col items-center bg-violet-50/60 border border-violet-100/60 px-5 py-3 rounded-2xl min-w-[110px]">
+                <div className="flex flex-col items-center bg-violet-50/70 border border-violet-100 px-5 py-3 rounded-2xl min-w-[115px] shadow-2xs">
                   <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Risk Profile</span>
-                  <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider mt-2 border ${evvResult.overallRisk === "Low"
+                  <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider mt-1.5 border ${evvResult.overallRisk === "Low"
                     ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                     : evvResult.overallRisk === "Medium"
                       ? "border-amber-200 bg-amber-50 text-amber-700"
@@ -1810,7 +2006,49 @@ export const EVVTestAgent: React.FC<{
                     Target Bank: <strong className="text-slate-800">{evvResult.sixComponent.bankPolicy.bankName}</strong> • Benchmark M: <strong className="text-violet-700">₹{evvResult.sixComponent.bankPolicy.minimumBalanceBenchmark.toLocaleString('en-IN')}</strong> • Sampling: <strong className="text-slate-700">Fixed Dates [1, 5, 10, 15, 20, 25]</strong>
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center bg-white/90 p-1 rounded-xl gap-1 border border-violet-100 no-print shadow-2xs">
+                    <button
+                      type="button"
+                      onClick={() => setSixComponentView("bar")}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                        sixComponentView === "bar" ? "bg-violet-600 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-sm">bar_chart</span>
+                      <span>Bar Graph</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSixComponentView("radar")}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                        sixComponentView === "radar" ? "bg-violet-600 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-sm">radar</span>
+                      <span>Radar Web</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSixComponentView("cards")}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                        sixComponentView === "cards" ? "bg-violet-600 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-sm">grid_view</span>
+                      <span>Cards</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSixComponentView("both")}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                        sixComponentView === "both" ? "bg-violet-600 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-sm">dashboard</span>
+                      <span>Both</span>
+                    </button>
+                  </div>
                   <span className={`px-3 py-1 text-xs font-black uppercase tracking-wider rounded-xl border ${
                     evvResult.sixComponent.statusBand === 'Green'
                       ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
@@ -1841,8 +2079,25 @@ export const EVVTestAgent: React.FC<{
                 </div>
               )}
 
+              {/* 6-Component Bar Graph View (Primary) */}
+              {(sixComponentView === "bar" || sixComponentView === "both") && (
+                <div className="w-full my-2">
+                  <EVV6ComponentBarChart sixComponent={evvResult.sixComponent} />
+                </div>
+              )}
+
+              {/* 6-Component Radar Chart View (Alternative Web) */}
+              {sixComponentView === "radar" && (
+                <div className="flex justify-center w-full my-2">
+                  <div className="w-full max-w-2xl">
+                    <EVVRadarChart sixComponent={evvResult.sixComponent} />
+                  </div>
+                </div>
+              )}
+
               {/* 6 Components Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {(sixComponentView === "cards" || sixComponentView === "both") && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {/* Component 1 */}
                 <div className="bg-white border border-violet-100 rounded-2xl p-4 shadow-xs flex flex-col justify-between">
                   <div>
@@ -1851,6 +2106,13 @@ export const EVVTestAgent: React.FC<{
                       <span className="text-xs font-black text-slate-800 font-mono">
                         {evvResult.sixComponent.component1.score} <span className="text-[10px] text-slate-400">/ 25 pts</span>
                       </span>
+                    </div>
+                    {/* Visual Score Progress Bar */}
+                    <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden my-1.5">
+                      <div
+                        className="h-full rounded-full bg-violet-600 transition-all duration-500"
+                        style={{ width: `${Math.min(100, Math.round((evvResult.sixComponent.component1.score / (evvResult.sixComponent.component1.maxScore || 25)) * 100))}%` }}
+                      />
                     </div>
                     <h4 className="text-xs font-bold text-slate-900">Average Balance Trend</h4>
                     <p className="text-[11px] text-slate-500 mt-1">
@@ -1890,6 +2152,13 @@ export const EVVTestAgent: React.FC<{
                         {evvResult.sixComponent.component2.score} <span className="text-[10px] text-slate-400">/ 20 pts</span>
                       </span>
                     </div>
+                    {/* Visual Score Progress Bar */}
+                    <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden my-1.5">
+                      <div
+                        className="h-full rounded-full bg-blue-600 transition-all duration-500"
+                        style={{ width: `${Math.min(100, Math.round((evvResult.sixComponent.component2.score / (evvResult.sixComponent.component2.maxScore || 20)) * 100))}%` }}
+                      />
+                    </div>
                     <h4 className="text-xs font-bold text-slate-900">Minimum-Balance Safety</h4>
                     <p className="text-[11px] text-slate-500 mt-1">
                       Safety Ratio: <strong className="text-slate-800">{evvResult.sixComponent.component2.finalSafetyRatio}%</strong> (Threshold M: ₹{evvResult.sixComponent.bankPolicy.minimumBalanceBenchmark.toLocaleString('en-IN')})
@@ -1926,6 +2195,13 @@ export const EVVTestAgent: React.FC<{
                       <span className="text-xs font-black text-slate-800 font-mono">
                         {evvResult.sixComponent.component3.score} <span className="text-[10px] text-slate-400">/ 20 pts</span>
                       </span>
+                    </div>
+                    {/* Visual Score Progress Bar */}
+                    <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden my-1.5">
+                      <div
+                        className="h-full rounded-full bg-emerald-600 transition-all duration-500"
+                        style={{ width: `${Math.min(100, Math.round((evvResult.sixComponent.component3.score / (evvResult.sixComponent.component3.maxScore || 20)) * 100))}%` }}
+                      />
                     </div>
                     <h4 className="text-xs font-bold text-slate-900">Bounce-Free Record</h4>
                     <p className="text-[11px] text-slate-500 mt-1">
@@ -1964,6 +2240,13 @@ export const EVVTestAgent: React.FC<{
                         {evvResult.sixComponent.component4.isRepaymentIncomeContributor === 'NO' ? "N/A" : `${evvResult.sixComponent.component4.score} / 15 pts`}
                       </span>
                     </div>
+                    {/* Visual Score Progress Bar */}
+                    <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden my-1.5">
+                      <div
+                        className="h-full rounded-full bg-amber-500 transition-all duration-500"
+                        style={{ width: `${evvResult.sixComponent.component4.isRepaymentIncomeContributor === 'NO' ? 100 : Math.min(100, Math.round(((typeof evvResult.sixComponent.component4.score === 'number' ? evvResult.sixComponent.component4.score : 0) / (evvResult.sixComponent.component4.maxScore || 15)) * 100))}%` }}
+                      />
+                    </div>
                     <h4 className="text-xs font-bold text-slate-900">Verified Inflow Regularity</h4>
                     <p className="text-[11px] text-slate-500 mt-1">
                       Role: <strong className="text-slate-800">{evvResult.sixComponent.component4.isRepaymentIncomeContributor}</strong> {evvResult.sixComponent.component4.isRepaymentIncomeContributor === 'NO' ? "(Scaled over 85)" : `• Source: ${evvResult.sixComponent.component4.profileType}`}
@@ -2000,6 +2283,13 @@ export const EVVTestAgent: React.FC<{
                       <span className="text-xs font-black text-slate-800 font-mono">
                         {evvResult.sixComponent.component5.score} <span className="text-[10px] text-slate-400">/ 10 pts</span>
                       </span>
+                    </div>
+                    {/* Visual Score Progress Bar */}
+                    <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden my-1.5">
+                      <div
+                        className="h-full rounded-full bg-pink-500 transition-all duration-500"
+                        style={{ width: `${Math.min(100, Math.round((evvResult.sixComponent.component5.score / (evvResult.sixComponent.component5.maxScore || 10)) * 100))}%` }}
+                      />
                     </div>
                     <h4 className="text-xs font-bold text-slate-900">Cash-Deposit Ratio</h4>
                     <p className="text-[11px] text-slate-500 mt-1">
@@ -2038,6 +2328,13 @@ export const EVVTestAgent: React.FC<{
                         {evvResult.sixComponent.component6.score} <span className="text-[10px] text-slate-400">/ 10 pts</span>
                       </span>
                     </div>
+                    {/* Visual Score Progress Bar */}
+                    <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden my-1.5">
+                      <div
+                        className="h-full rounded-full bg-cyan-500 transition-all duration-500"
+                        style={{ width: `${Math.min(100, Math.round((evvResult.sixComponent.component6.score / (evvResult.sixComponent.component6.maxScore || 10)) * 100))}%` }}
+                      />
+                    </div>
                     <h4 className="text-xs font-bold text-slate-900">Withdrawal Discipline</h4>
                     <p className="text-[11px] text-slate-500 mt-1">
                       Drops: <strong className="text-slate-800">{evvResult.sixComponent.component6.consecutiveDrops.length > 0 ? evvResult.sixComponent.component6.consecutiveDrops[0].severity : "None"}</strong> • Pass-Through: <strong className="text-slate-800">{evvResult.sixComponent.component6.passThroughEvents.length} events</strong>
@@ -2066,6 +2363,7 @@ export const EVVTestAgent: React.FC<{
                   )}
                 </div>
               </div>
+              )}
 
               {/* Mandatory Legal & Underwriting Disclaimer */}
               <div className="p-3.5 bg-slate-100/70 border border-slate-200/80 rounded-2xl flex items-center gap-2.5 text-[11px] text-slate-600">
@@ -2093,43 +2391,103 @@ export const EVVTestAgent: React.FC<{
                   </p>
                 </div>
 
-                {/* Tabs for Candidates */}
-                <div className="flex items-center gap-1.5 bg-slate-100/80 p-1 rounded-xl">
-                  <button
-                    type="button"
-                    onClick={() => setActiveCandidateTab("bounces")}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      activeCandidateTab === "bounces"
-                        ? "bg-white text-violet-700 shadow-xs font-black"
-                        : "text-slate-600 hover:text-slate-900"
-                    }`}
-                  >
-                    Bounces ({evvResult.deterministicEngineResult.component3.candidates.length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveCandidateTab("cash")}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      activeCandidateTab === "cash"
-                        ? "bg-white text-violet-700 shadow-xs font-black"
-                        : "text-slate-600 hover:text-slate-900"
-                    }`}
-                  >
-                    Cash Deposits ({evvResult.deterministicEngineResult.component5.candidates.length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveCandidateTab("passThrough")}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      activeCandidateTab === "passThrough"
-                        ? "bg-white text-violet-700 shadow-xs font-black"
-                        : "text-slate-600 hover:text-slate-900"
-                    }`}
-                  >
-                    Pass-Through ({evvResult.deterministicEngineResult.component6.passThroughCandidates.length})
-                  </button>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* View mode toggle */}
+                  <div className="flex items-center bg-slate-100/90 p-1 rounded-xl gap-1 no-print shadow-2xs border border-slate-200/70">
+                    <button
+                      type="button"
+                      onClick={() => setClassificationsView("donut")}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                        classificationsView === "donut" ? "bg-violet-600 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-sm">donut_large</span>
+                      <span>Donut Chart</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setClassificationsView("table")}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                        classificationsView === "table" ? "bg-violet-600 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-sm">table_rows</span>
+                      <span>Candidates</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setClassificationsView("both")}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                        classificationsView === "both" ? "bg-violet-600 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-sm">dashboard</span>
+                      <span>Both</span>
+                    </button>
+                  </div>
+
+                  {/* Tabs for Candidates */}
+                  {(classificationsView === "table" || classificationsView === "both") && (
+                    <div className="flex items-center gap-1.5 bg-slate-100/80 p-1 rounded-xl">
+                      <button
+                        type="button"
+                        onClick={() => setActiveCandidateTab("bounces")}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          activeCandidateTab === "bounces"
+                            ? "bg-white text-violet-700 shadow-xs font-black"
+                            : "text-slate-600 hover:text-slate-900"
+                        }`}
+                      >
+                        Bounces ({evvResult.deterministicEngineResult.component3.candidates.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveCandidateTab("cash")}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          activeCandidateTab === "cash"
+                            ? "bg-white text-violet-700 shadow-xs font-black"
+                            : "text-slate-600 hover:text-slate-900"
+                        }`}
+                      >
+                        Cash Deposits ({evvResult.deterministicEngineResult.component5.candidates.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveCandidateTab("passThrough")}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          activeCandidateTab === "passThrough"
+                            ? "bg-white text-violet-700 shadow-xs font-black"
+                            : "text-slate-600 hover:text-slate-900"
+                        }`}
+                      >
+                        Pass-Through ({evvResult.deterministicEngineResult.component6.passThroughCandidates.length})
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
+
+              {/* Classification Donut Chart View */}
+              {(classificationsView === "donut" || classificationsView === "both") && (
+                <div className="flex justify-center w-full my-2">
+                  <div className="w-full max-w-md">
+                    <EVVClassificationDonutChart
+                      data={{
+                        bouncesCount: evvResult.sixComponent?.component3?.confirmedBounces || 0,
+                        cashDepositsTotal: evvResult.sixComponent?.component5?.totalCashDeposits || 0,
+                        digitalCreditsTotal: Math.max(0, evvResult.monthlyMetrics.reduce((s, m) => s + (m.credits || 0), 0) - (evvResult.sixComponent?.component5?.totalCashDeposits || 0)),
+                        passThroughTotal: evvResult.sixComponent?.component6?.passThroughEvents?.reduce((s: number, e: any) => s + (e.amount || 0), 0) || 0,
+                        normalDebitsTotal: evvResult.monthlyMetrics.reduce((s, m) => s + (m.debits || 0), 0),
+                        salaryCreditsTotal: (evvResult.deterministicEngineResult as any)?.salaryInflows?.reduce((s: number, i: any) => s + (i.amount || 0), 0) || 0,
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Candidates Tables View */}
+              {(classificationsView === "table" || classificationsView === "both") && (
+                <div className="space-y-4">
 
               {/* Candidate Tab Contents */}
               {activeCandidateTab === "bounces" && (
@@ -2281,6 +2639,8 @@ export const EVVTestAgent: React.FC<{
                       </table>
                     </div>
                   )}
+                </div>
+              )}
                 </div>
               )}
             </div>
@@ -2626,6 +2986,22 @@ export const EVVTestAgent: React.FC<{
                     ))}
                   </div>
                 </div>
+
+                {/* Visual Timeline Chart for Sampled Interval Balances */}
+                <EVVSnapshotTimelineChart
+                  snapshots={
+                    selectedIntervalMonth === "ALL"
+                      ? evvResult.snapshots
+                      : evvResult.snapshots.filter((snap) => {
+                          const d = snap.date instanceof Date ? snap.date : new Date(snap.date);
+                          const mKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+                          const mLabel = d.toLocaleString("en-US", { month: "short", year: "numeric" });
+                          return selectedIntervalMonth === mKey || selectedIntervalMonth.toLowerCase() === mLabel.toLowerCase();
+                        })
+                  }
+                  benchmarkM={evvResult.sixComponent?.bankPolicy?.minimumBalanceBenchmark || 5000}
+                  targetT={evvResult.sixComponent?.bankPolicy?.strongBalanceTarget || 50000}
+                />
 
                 {/* Table */}
                 <div className="overflow-x-auto border border-slate-200 rounded-2xl bg-white max-h-[420px] overflow-y-auto shadow-2xs">

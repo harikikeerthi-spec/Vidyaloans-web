@@ -45,7 +45,7 @@ export default function AnalyticsReports() {
     // Bank detection helpers
     const currentBankId = typeof window !== "undefined" ? sessionStorage.getItem("selectedBank") : null;
     const currentBankName = useMemo(() => {
-        if (!currentBankId) return user?.firstName || "SBI";
+        if (!currentBankId) return user?.firstName || "Avanse";
         const map: Record<string, string> = {
             auxilo: "Auxilo Finserve",
             avanse: "Avanse Financial",

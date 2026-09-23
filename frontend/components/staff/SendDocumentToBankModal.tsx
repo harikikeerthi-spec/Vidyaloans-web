@@ -16,15 +16,11 @@ interface SendDocumentToBankModalProps {
 }
 
 const BANKS = [
-  { id: "sbi", name: "State Bank of India", short: "SBI", color: "#1a6dd1" },
-  { id: "hdfc", name: "HDFC Bank", short: "HDFC", color: "#004c97" },
-  { id: "icici", name: "ICICI Bank", short: "ICICI", color: "#f07820" },
-  { id: "axis", name: "Axis Bank", short: "AXIS", color: "#97144d" },
-  { id: "idfc", name: "IDFC First Bank", short: "IDFC", color: "#3f1f6b" },
-  { id: "hdfc_credila", name: "HDFC Credila", short: "CREDILA", color: "#004c97" },
   { id: "avanse", name: "Avanse Financial", short: "AVANSE", color: "#e63a2e" },
-  { id: "auxilo", name: "Auxilo Fintech", short: "AUXILO", color: "#1a3c6e" },
-  { id: "poonawalla", name: "Poonawalla Finance", short: "POON.", color: "#004b87" },
+  { id: "auxilo", name: "Auxilo Finserve", short: "AUXILO", color: "#1a3c6e" },
+  { id: "poonawalla", name: "Poonawalla Fincorp", short: "POON.", color: "#004b87" },
+  { id: "idfc", name: "IDFC FIRST Bank", short: "IDFC", color: "#3f1f6b" },
+  { id: "credila", name: "HDFC Credila", short: "CREDILA", color: "#004c97" },
 ];
 
 export default function SendDocumentToBankModal({

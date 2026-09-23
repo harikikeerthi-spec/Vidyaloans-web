@@ -38,9 +38,10 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         message = res;
       } else if (typeof res === 'object' && res !== null) {
         const anyRes = res as any;
-        message = Array.isArray(anyRes.message)
-          ? anyRes.message.join(', ')
-          : anyRes.message || exception.message;
+        const rawMsg = anyRes.message || exception.message;
+        message = Array.isArray(rawMsg)
+          ? rawMsg.join(', ')
+          : (typeof rawMsg === 'object' ? JSON.stringify(rawMsg) : String(rawMsg));
         errorName = anyRes.error || exception.name;
       }
       stack = exception.stack;
@@ -48,6 +49,12 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       message = exception.message || 'Unexpected server error';
       errorName = exception.name || 'Error';
       stack = exception.stack;
+    } else if (typeof exception === 'object' && exception !== null) {
+      const anyEx = exception as any;
+      const rawMsg = anyEx.message || anyEx.details || anyEx.error;
+      message = typeof rawMsg === 'object' ? JSON.stringify(rawMsg) : (rawMsg ? String(rawMsg) : JSON.stringify(exception));
+      errorName = anyEx.code || anyEx.name || 'Error';
+      stack = anyEx.stack;
     } else {
       message = String(exception);
     }

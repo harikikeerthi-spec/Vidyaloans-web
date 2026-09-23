@@ -46,6 +46,13 @@ import {
   getProfileDocumentRequirements,
 } from "@/lib/documentRequirements";
 import { formatIntervalDate } from "@/lib/evv-parser";
+import {
+  EVVScoreRadialGauge,
+  EVVRadarChart,
+  EVV6ComponentBarChart,
+  EVVMonthlyMetricsChart,
+  EVVSnapshotTimelineChart,
+} from "./evv-charts";
 
 interface ApplicationDetailViewProps {
   application: any;
@@ -1818,7 +1825,7 @@ const ApplicationDetailView: React.FC<ApplicationDetailViewProps> = ({
               </div>
 
               {/* Bank Routing Banner */}
-              {application.status === "submitted" && (
+              {(!application.submittedToBankAt && !application.bankSubmissionId && !['sanctioned', 'rejected', 'disbursed'].includes(application.status)) && (
                 <div className="bg-gradient-to-r from-[#0d1b2a]/95 to-[#1b263b]/95 backdrop-blur-md rounded-3xl p-8 border border-slate-700/30 flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl shadow-[#0d1b2a]/10 animate-in slide-in-from-top-6 duration-500 font-sans">
                   <div className="flex items-center gap-5">
                     <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center border border-indigo-500/20 shadow-inner">
@@ -4219,49 +4226,15 @@ export const EvvAnalysisTab = ({
               {/* Score & Verdict Details */}
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-6 items-center">
                 {/* Visual Gauge */}
-                <div className="sm:col-span-5 flex justify-center">
-                  <div className="relative w-40 h-40 flex items-center justify-center">
-                    {/* SVG Arc Gauge */}
-                    <svg className="w-full h-full transform -rotate-90">
-                      <circle
-                        cx="80"
-                        cy="80"
-                        r="64"
-                        stroke="#e2e8f0"
-                        strokeWidth="10"
-                        fill="transparent"
-                        className="dark:stroke-slate-800"
-                      />
-                      <circle
-                        cx="80"
-                        cy="80"
-                        r="64"
-                        stroke="url(#gradientScore)"
-                        strokeWidth="12"
-                        fill="transparent"
-                        strokeDasharray={402}
-                        strokeDashoffset={402 - (402 * (evvScore || 0)) / 100}
-                        strokeLinecap="round"
-                        className="transition-all duration-1000"
-                      />
-                      <defs>
-                        <linearGradient id="gradientScore" x1="0%" y1="0%" x2="100%" y2="100%">
-                          <stop offset="0%" stopColor="#f43f5e" />
-                          <stop offset="50%" stopColor="#f59e0b" />
-                          <stop offset="100%" stopColor="#10b981" />
-                        </linearGradient>
-                      </defs>
-                    </svg>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <span className="text-[36px] font-black text-slate-900 dark:text-white tabular-nums leading-none">
-                        {evvScore}
-                      </span>
-                      <span className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider mt-1.5">
-                        EVV Score
-                      </span>
-                    </div>
-                  </div>
+                <div className="sm:col-span-5 flex justify-center py-2">
+                  <EVVScoreRadialGauge
+                    score={evvScore ?? 0}
+                    grade={evvGrade || "B"}
+                    statusBand={statusBand}
+                    size={220}
+                  />
                 </div>
+
 
                 {/* Verdict text column */}
                 <div className="sm:col-span-7 space-y-4">
@@ -4333,6 +4306,22 @@ export const EvvAnalysisTab = ({
                 }`}>
                   Status Band: {statusBand} ({evvScore ?? 80}/100)
                 </span>
+              </div>
+            </div>
+
+            {/* Visual 6-Component Bar Graph */}
+            <div className="flex justify-center w-full no-print my-2">
+              <div className="w-full">
+                <EVV6ComponentBarChart
+                  sixComponent={{
+                    component1: { score: sixComponents?.component1?.score ?? (weightBreakdown[0]?.weightedScore ?? 25), maxScore: 25, sixMonthSampledAMB: sixComponents?.component1?.sixMonthSampledAMB ?? evvOverall } as any,
+                    component2: { score: sixComponents?.component2?.score ?? (weightBreakdown[1]?.weightedScore ?? 20), maxScore: 20, finalSafetyRatio: sixComponents?.component2?.finalSafetyRatio ?? 100 } as any,
+                    component3: { score: sixComponents?.component3?.score ?? (weightBreakdown[2]?.weightedScore ?? 20), maxScore: 20, confirmedBounces: sixComponents?.component3?.bounceCount ?? 0 } as any,
+                    component4: { score: sixComponents?.component4?.score ?? (weightBreakdown[3]?.weightedScore ?? 15), maxScore: 15, isRepaymentIncomeContributor: sixComponents?.component4?.repaymentIncomeRole || 'YES', recurringMonthsCount: sixComponents?.component4?.recurrenceMonthsCount || 6 } as any,
+                    component5: { score: sixComponents?.component5?.score ?? (weightBreakdown[4]?.weightedScore ?? 10), maxScore: 10, cashRatio: (sixComponents?.component5?.cashRatioPercent || 0) / 100 } as any,
+                    component6: { score: sixComponents?.component6?.score ?? (weightBreakdown[5]?.weightedScore ?? 10), maxScore: 10, passThroughEvents: new Array(sixComponents?.component6?.rapidPassThroughCount || 0) } as any,
+                  } as any}
+                />
               </div>
             </div>
 
@@ -4568,6 +4557,15 @@ export const EvvAnalysisTab = ({
             {/* VIEW 1: MONTHLY METRICS CARD GRID */}
             {activeDetailTab === "metrics" && (
               <div className="space-y-6">
+                {/* Visual Graph View for Monthly Metrics */}
+                {monthlyMetrics && monthlyMetrics.length > 0 && (
+                  <EVVMonthlyMetricsChart
+                    metrics={monthlyMetrics}
+                    benchmarkM={bankPolicy.minimumBalanceBenchmark || 3000}
+                    targetT={(bankPolicy.minimumBalanceBenchmark || 3000) * 1.5}
+                  />
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 no-print">
                   {monthlyMetrics.map((item: any, idx: number) => (
                     <div
@@ -4686,6 +4684,16 @@ export const EvvAnalysisTab = ({
                     {snapshots.length} points sampled across the statement
                   </p>
                 </div>
+
+                {/* Continuous Antecedent Ledger Timeline Graph */}
+                {snapshots && snapshots.length > 0 && (
+                  <EVVSnapshotTimelineChart
+                    snapshots={snapshots}
+                    benchmarkM={bankPolicy.minimumBalanceBenchmark || 3000}
+                    targetT={(bankPolicy.minimumBalanceBenchmark || 3000) * 1.5}
+                    criticalThreshold={2000}
+                  />
+                )}
 
                 <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900 max-h-[460px] overflow-y-auto">
                   <table className="w-full text-xs">

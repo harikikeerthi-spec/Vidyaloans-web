@@ -4244,7 +4244,7 @@ export default function AdminDashboardPage() {
                                         </div>
                                         <div>
                                             <h2 className="text-[20px] font-bold text-slate-900 tracking-tight">Application Profile</h2>
-                                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Ref: {selectedApp.applicationNumber || selectedApp.id?.substring(0, 12)}</p>
+                                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Ref: {selectedApp.applicationNumber || `${selectedApp.id?.substring(0, 8)} (Pre-bank)`}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -5499,11 +5499,11 @@ export default function AdminDashboardPage() {
                                                     ))
                                                 ) : (
                                                     <>
-                                                        <option value="auxilo">Auxilo Finserve (AUXILO)</option>
                                                         <option value="avanse">Avanse Financial Services (AVANSE)</option>
-                                                        <option value="credila">HDFC Credila (CREDILA)</option>
+                                                        <option value="auxilo">Auxilo Finserve (AUXILO)</option>
+                                                        <option value="poonawalla">Poonawalla Fincorp (POONAWALLA)</option>
                                                         <option value="idfc">IDFC FIRST Bank (IDFC)</option>
-                                                        <option value="sbi">State Bank of India (SBI)</option>
+                                                        <option value="credila">HDFC Credila (CREDILA)</option>
                                                     </>
                                                 )}
                                             </select>

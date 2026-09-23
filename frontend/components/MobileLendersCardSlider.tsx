@@ -104,7 +104,7 @@ export default function MobileLendersCardSlider({ lenders }: MobileLendersCardSl
                 </div>
 
                 {/* Card Key Metrics Grid */}
-                <div className="grid grid-cols-3 gap-2 my-4">
+                <div className="grid grid-cols-2 gap-2 my-4">
                     <div className="bg-gradient-to-b from-purple-50/60 to-purple-50/20 p-3 rounded-xl border border-purple-100/50 text-center">
                         <span className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider">Interest Rate</span>
                         <span className="block text-sm font-black text-[#6605c7] mt-0.5">{current.rate}</span>
@@ -112,10 +112,6 @@ export default function MobileLendersCardSlider({ lenders }: MobileLendersCardSl
                     <div className="bg-gray-50/80 p-3 rounded-xl border border-gray-100 text-center">
                         <span className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider">Approval Time</span>
                         <span className="block text-xs font-black text-gray-800 mt-0.5">{current.time}</span>
-                    </div>
-                    <div className="bg-gray-50/80 p-3 rounded-xl border border-gray-100 text-center">
-                        <span className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider">Processing Fee</span>
-                        <span className="block text-xs font-black text-gray-800 mt-0.5">{current.fee}</span>
                     </div>
                 </div>
 

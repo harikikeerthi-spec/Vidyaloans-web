@@ -18,9 +18,9 @@ export class CampaignProcessorService {
 
   /**
    * Background queue worker cron:
-   * Checks every 5 seconds for any pending queued emails across all campaigns.
+   * Checks every 30 seconds for any pending queued emails across all campaigns.
    */
-  @Cron('*/5 * * * * *')
+  @Cron('*/30 * * * * *')
   async handleCron() {
     await this.processQueuedEmails().catch(err => {
       this.logger.error('Error during campaign queue batch processing:', err);
@@ -213,7 +213,12 @@ export class CampaignProcessorService {
       await this.checkAndFinalizeCampaigns(campaignIds);
 
     } catch (error: any) {
-      if (error?.message?.includes('connection timeout') || error?.message?.includes('Connection terminated')) {
+      if (
+        error?.message?.includes('connection timeout') ||
+        error?.message?.includes('Connection terminated') ||
+        error?.message?.includes("Can't reach database") ||
+        error?.message?.includes('database server')
+      ) {
         this.logger.warn('[EmailQueue] Database connection warming up / temporarily unreachable. Will retry on next tick.');
       } else {
         this.logger.error('[EmailQueue] Error processing queued emails:', error?.message || error);

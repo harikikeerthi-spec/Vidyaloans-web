@@ -485,11 +485,11 @@ export default function CreateBankOfficerPage() {
                                             ))
                                         ) : (
                                             <>
-                                                <option value="auxilo">Auxilo Finserve (AUXILO)</option>
                                                 <option value="avanse">Avanse Financial Services (AVANSE)</option>
-                                                <option value="credila">HDFC Credila (CREDILA)</option>
+                                                <option value="auxilo">Auxilo Finserve (AUXILO)</option>
+                                                <option value="poonawalla">Poonawalla Fincorp (POONAWALLA)</option>
                                                 <option value="idfc">IDFC FIRST Bank (IDFC)</option>
-                                                <option value="sbi">State Bank of India (SBI)</option>
+                                                <option value="credila">HDFC Credila (CREDILA)</option>
                                             </>
                                         )}
                                     </select>

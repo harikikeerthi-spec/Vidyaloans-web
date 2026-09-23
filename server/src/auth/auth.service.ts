@@ -137,18 +137,14 @@ export class AuthService {
     }
 
     const isStaff = user.role === 'staff' || user.role === 'staff_admin';
-    const standardAccessExpStr = isStaff
-      ? '2h'
-      : (this.configService.get<string>('JWT_ACCESS_TOKEN_EXPIRATION') || '24h');
-    const standardRefreshExpStr = isStaff
-      ? '2h'
-      : (this.configService.get<string>('JWT_REFRESH_TOKEN_EXPIRATION') || '24h');
+    const standardAccessExpStr = this.configService.get<string>('JWT_ACCESS_TOKEN_EXPIRATION') || '24h';
+    const standardRefreshExpStr = this.configService.get<string>('JWT_REFRESH_TOKEN_EXPIRATION') || '7d';
 
     let accessExpiresIn: string | number = standardAccessExpStr;
     let refreshExpiresIn: string | number = standardRefreshExpStr;
 
     if (originalLoginAt) {
-      const maxAgeMs = isStaff ? (2 * 60 * 60 * 1000) : (24 * 60 * 60 * 1000);
+      const maxAgeMs = 7 * 24 * 60 * 60 * 1000; // 7 days session lifetime
       const elapsedMs = Date.now() - originalLoginAt;
       const remainingMs = maxAgeMs - elapsedMs;
 

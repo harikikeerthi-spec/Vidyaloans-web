@@ -2678,10 +2678,11 @@ export default function DecisionsHub() {
                                             onChange={(e) => setRoutingTargetBank(e.target.value)}
                                             className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold focus:outline-none focus:border-[#6605c7]"
                                         >
-                                            <option value="hdfc">HDFC Credila (Co-lending Desk)</option>
                                             <option value="avanse">Avanse Financial (Gap Refinance)</option>
-                                            <option value="auxilo">Auxilo Finserve (Shorterm Bridge)</option>
-                                            <option value="sbi">State Bank of India (Secondary Refinance)</option>
+                                            <option value="auxilo">Auxilo Finserve (Short-term Bridge)</option>
+                                            <option value="poonawalla">Poonawalla Fincorp (Refinance Desk)</option>
+                                            <option value="idfc">IDFC FIRST Bank (Commercial Desk)</option>
+                                            <option value="credila">HDFC Credila (Co-lending Desk)</option>
                                         </select>
                                     </div>
 

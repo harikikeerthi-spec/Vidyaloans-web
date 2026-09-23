@@ -1,9 +1,9 @@
 export const lenders = [
+    { name: "Avanse Financial", slug: "avanse", badge: "High Limits", rate: "10.25%", time: "5-7 days", fee: "1% + GST", logo: "/images/lenders/avanse.jpg", link: "" },
+    { name: "Auxilo Finserve", slug: "auxilo", badge: "Fast Approval", rate: "10.25%", time: "5-7 days", fee: "1% + GST", logo: "/images/lenders/auxilo.png", link: "" },
+    { name: "Poonawalla Fincorp", slug: "poonawalla", badge: "Easy Process", rate: "10.25%", time: "5-7 days", fee: "1% + GST", logo: "/images/lenders/poonawalla.png", link: "" },
     { name: "IDFC First Bank", slug: "idfc", badge: "Digital First", rate: "10.25%", time: "5-7 days", fee: "1% + GST", logo: "/images/lenders/idfc-first-bank.jpg", link: "https://www.idfcfirstbank.com/personal/loans/education-loan" },
     { name: "HDFC Credila", slug: "credila", badge: "Most Popular", rate: "10.25%", time: "5-7 days", fee: "1% + GST", logo: "/images/lenders/hdfc-credila.png", link: "" },
-    { name: "Auxilo Finserve", slug: "auxilo", badge: "Fast Approval", rate: "10.25%", time: "5-7 days", fee: "1% + GST", logo: "/images/lenders/auxilo.png", link: "" },
-    { name: "Avanse Financial", slug: "avanse", badge: "High Limits", rate: "10.25%", time: "5-7 days", fee: "1% + GST", logo: "/images/lenders/avanse.jpg", link: "" },
-    { name: "Poonawalla Fincorp", slug: "poonawalla", badge: "Easy Process", rate: "10.25%", time: "5-7 days", fee: "1% + GST", logo: "/images/lenders/poonawalla.png", link: "" },
 ];
 
 export const features = [

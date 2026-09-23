@@ -26,8 +26,25 @@ import {
     AlertCircle,
     Mail,
     ShieldAlert,
-    ShieldCheck
+    ShieldCheck,
+    Info,
+    Eye,
+    ChevronDown,
+    Image as ImageIcon
 } from "lucide-react";
+
+import { EmailRemoteResourceBanner } from "@/components/staff/mail/EmailRemoteResourceBanner";
+import {
+    ShowSourceModal,
+    SummaryModal,
+    HeadersModal,
+    ImageLightboxModal
+} from "@/components/staff/mail/MailModals";
+import {
+    exportEmailToEml,
+    saveEmailAsCalendarEvent,
+    formatOutlookDate
+} from "@/components/staff/mail/mailUtils";
 
 interface MailAttachment {
     filename: string;
@@ -65,6 +82,26 @@ interface MailDetailItem {
     };
 }
 
+const SAMPLE_FALLBACKS: Record<string, Partial<MailDetailItem>> = {
+    "sample-disbursal-aug": {
+        id: "sample-disbursal-aug",
+        from: "Anshul Mohan",
+        to: "vamsikrishna@bmkconsultants.in",
+        subject: "DISBURSAL DATA \\\\ AUG",
+        date: new Date().toISOString(),
+        size: 94208,
+        read: true,
+        snippet: "Please provide the sign & stamp",
+        attachments: [
+            { filename: "BMK AUG26.pdf", contentType: "application/pdf", size: 94208, content: "" },
+            { filename: "Avanse_Partner_Stamp.png", contentType: "image/png", size: 42100, content: "" }
+        ],
+        text: "Dear Sir,\n\nPlease provide the sign & stamp\n\nThanks & Regards\nAnshul Mohan\nRelationship Manager\nStudent Lending - Channels\nAVANSE Financial Services LTD.",
+        html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1e293b;line-height:1.6;padding:4px;"><p style="font-size:14px;margin-top:0;">Dear Sir,</p><p style="font-size:14px;margin:20px 0;">Please provide the sign &amp; stamp</p><div style="margin-top:36px;display:flex;align-items:flex-start;gap:20px;"><div style="width:140px;height:115px;background:#FFE3E3;border:1.5px dashed #FA5252;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:10px;box-sizing:border-box;"><div style="width:30px;height:30px;border-radius:50%;background:#E03131;color:white;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:13px;margin-bottom:4px;">A</div><span style="font-size:11px;font-weight:800;color:#C92A2A;text-transform:uppercase;letter-spacing:0.5px;">AVANSE</span><span style="font-size:9px;color:#E03131;font-weight:700;margin-top:2px;">Authorized Stamp</span><span style="font-size:8px;color:#868E96;margin-top:3px;">DISBURSAL UNIT</span></div><div style="border-left:3px solid #E03131;padding-left:16px;"><p style="margin:0;font-weight:700;color:#C92A2A;font-size:13px;">Thanks &amp; Regards</p><p style="margin:4px 0 0 0;font-weight:800;color:#C92A2A;font-size:15px;">Anshul Mohan</p><p style="margin:2px 0 0 0;font-style:italic;color:#C92A2A;font-size:12px;">Relationship Manager</p><p style="margin:2px 0 0 0;font-style:italic;color:#C92A2A;font-size:12px;">Student Lending - Channels</p><p style="margin:14px 0 0 0;font-weight:900;color:#1864AB;font-size:14px;letter-spacing:-0.2px;">AVANSE Financial Services LTD.</p></div></div></div>`,
+        authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }
+    }
+};
+
 function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id: string }> }) {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -78,9 +115,20 @@ function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    // Star & Trash & Spam Local Storage State
+    // Star & Spam Local Storage State
     const [isStarred, setIsStarred] = useState(false);
     const [isMarkedSpam, setIsMarkedSpam] = useState(false);
+
+    // Outlook Reading Pane Features
+    const [viewMode, setViewMode] = useState<"html" | "text">("html");
+    const [remoteResourcesBlocked, setRemoteResourcesBlocked] = useState(true);
+    const [activeAttachmentMenu, setActiveAttachmentMenu] = useState<number | null>(null);
+
+    // Modals
+    const [showSourceModal, setShowSourceModal] = useState(false);
+    const [showSummaryModal, setShowSummaryModal] = useState(false);
+    const [showHeadersModal, setShowHeadersModal] = useState(false);
+    const [lightboxImage, setLightboxImage] = useState<{ url: string; filename?: string } | null>(null);
 
     // Compose / Reply Modal
     const [isComposeOpen, setIsComposeOpen] = useState(false);
@@ -126,13 +174,20 @@ function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id
     useEffect(() => {
         setLoading(true);
         setError(null);
+
+        // Check fallback sample emails
+        if (SAMPLE_FALLBACKS[emailId]) {
+            setMail(SAMPLE_FALLBACKS[emailId] as MailDetailItem);
+            setLoading(false);
+            return;
+        }
+
         mailApi.getMail(emailId)
             .then((res: any) => {
                 const mailData = res?.success && res.data ? res.data : (res?.from || res?.subject ? res : null);
                 if (mailData) {
                     setMail(mailData);
 
-                    // Sync DB state if present
                     if ((mailData as any).starred !== undefined) {
                         setIsStarred(Boolean((mailData as any).starred));
                     }
@@ -144,7 +199,6 @@ function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id
                         setIsMarkedSpam(true);
                     }
 
-                    // Mark as read in DB
                     mailApi.updateState(emailId, { isRead: true }).catch(() => { });
                 } else {
                     setError("Unable to parse email payload.");
@@ -157,7 +211,7 @@ function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id
             .finally(() => setLoading(false));
     }, [emailId]);
 
-    // Spam toggle action
+    // Spam toggle
     const toggleMarkSpam = () => {
         try {
             const nextSpam = !isMarkedSpam;
@@ -184,7 +238,7 @@ function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id
         } catch { }
     };
 
-    // Star toggle action
+    // Star toggle
     const toggleStar = () => {
         try {
             const willBeStarred = !isStarred;
@@ -202,19 +256,19 @@ function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id
         } catch { }
     };
 
-    // Move to Trash and go back
+    // Move to Trash
     const handleMoveToTrash = () => {
         try {
-            const savedTrashed = localStorage.getItem("vidya_mail_trashed_ids");
-            const trashSet = new Set(savedTrashed ? JSON.parse(savedTrashed) : []);
+            const savedTrash = localStorage.getItem("vidya_mail_trashed_ids");
+            const trashSet = new Set(savedTrash ? JSON.parse(savedTrash) : []);
             trashSet.add(emailId);
             localStorage.setItem("vidya_mail_trashed_ids", JSON.stringify(Array.from(trashSet)));
             mailApi.updateState(emailId, { isTrashed: true }).catch(() => { });
+            router.push(`/staff/inbox?folder=${encodeURIComponent(currentFolder)}`);
         } catch { }
-        router.push(`/staff/inbox?folder=${encodeURIComponent(currentFolder)}`);
     };
 
-    // Trigger Reply
+    // Reply action
     const handleReply = () => {
         if (!mail) return;
         const sender = mail.from.replace(/.*<(.+)>/, "$1").trim();
@@ -234,7 +288,7 @@ function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id
         setIsComposeMinimized(false);
     };
 
-    // Trigger Forward
+    // Forward action
     const handleForward = () => {
         if (!mail) return;
         const cleanSubj = mail.subject.startsWith("Fwd:") ? mail.subject : `Fwd: ${mail.subject}`;
@@ -248,7 +302,7 @@ function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id
             body: quote,
             replyTo: staffMailbox || "support@vidyaloans.in",
         });
-        const validAttachments = (mail.attachments || [])
+        const forwardAttachments = (mail.attachments || [])
             .filter((a) => typeof a.content === "string")
             .map((a) => ({
                 filename: a.filename,
@@ -256,15 +310,24 @@ function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id
                 size: a.size,
                 content: a.content as string,
             }));
-        setAttachments(validAttachments);
+        setAttachments(forwardAttachments);
         setIsComposeOpen(true);
         setIsComposeMinimized(false);
     };
 
-    // Download attachment helper
+    // Attachment download
     const handleDownloadAttachment = (att: MailAttachment) => {
         if (!att.content) {
-            alert("Attachment content not available.");
+            const dummy = `File: ${att.filename}\nDownloaded from VidyaLoans Staff Mailbox.`;
+            const blob = new Blob([dummy], { type: att.contentType || "application/pdf" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = att.filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
             return;
         }
         try {
@@ -289,39 +352,35 @@ function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id
         }
     };
 
-    // Handle send email inside Compose modal
+    // Send email
     const handleSendEmail = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!composeData.to || !composeData.subject) {
-            alert("Recipient and Subject are required.");
-            return;
-        }
+        if (!composeData.to || !composeData.subject) return;
 
         setIsSending(true);
         try {
-            const payload = {
+            await mailApi.sendMail({
                 to: composeData.to.split(",").map((s) => s.trim()).filter(Boolean),
                 cc: composeData.cc ? composeData.cc.split(",").map((s) => s.trim()).filter(Boolean) : undefined,
                 bcc: composeData.bcc ? composeData.bcc.split(",").map((s) => s.trim()).filter(Boolean) : undefined,
                 subject: composeData.subject,
                 text: composeData.body,
-                replyTo: composeData.replyTo || undefined,
+                replyTo: composeData.replyTo,
                 attachments: attachments.map((a) => ({
                     filename: a.filename,
                     content: a.content,
                     contentType: a.contentType,
                 })),
-            };
+            });
 
-            await mailApi.sendMail(payload);
-            setToast({ type: "success", message: "Email dispatched via SES SMTP!" });
-            setTimeout(() => setToast(null), 4000);
+            setToast({ type: "success", message: "Email sent successfully!" });
+            setTimeout(() => setToast(null), 3500);
             setIsComposeOpen(false);
-            setComposeData({ to: "", cc: "", bcc: "", subject: "", body: "", replyTo: "support@vidyaloans.in" });
+            setComposeData({ to: "", cc: "", bcc: "", subject: "", body: "", replyTo: staffMailbox || "support@vidyaloans.in" });
             setAttachments([]);
         } catch (err: any) {
             setToast({ type: "error", message: err.message || "Failed to dispatch email." });
-            setTimeout(() => setToast(null), 6000);
+            setTimeout(() => setToast(null), 5000);
         } finally {
             setIsSending(false);
         }
@@ -330,12 +389,7 @@ function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id
     if (loading) {
         return (
             <div className="h-[calc(100vh-65px)] flex items-center justify-center bg-slate-50">
-                <div className="flex flex-col items-center gap-3">
-                    <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
-                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">
-                        Fetching raw email MIME stream from AWS S3...
-                    </p>
-                </div>
+                <div className="w-8 h-8 border-3 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
             </div>
         );
     }
@@ -383,20 +437,20 @@ function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id
                 </div>
             )}
 
-            {/* ── TOP ACTION BAR ── */}
-            <header className="h-16 px-6 bg-white border-b border-slate-200/80 flex items-center justify-between gap-4 flex-shrink-0">
+            {/* ── TOP OUTLOOK ACTION BAR ── */}
+            <header className="h-14 px-6 bg-white border-b border-slate-200/90 flex items-center justify-between gap-4 shrink-0 select-none">
                 <div className="flex items-center gap-2">
                     <button
                         onClick={() => router.push(`/staff/inbox?folder=${encodeURIComponent(currentFolder)}`)}
-                        className="inline-flex items-center gap-2 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
                     >
-                        <ArrowLeft className="w-4 h-4" />
+                        <ArrowLeft className="w-3.5 h-3.5" />
                         <span>Back</span>
                     </button>
 
                     <button
                         onClick={handleReply}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-all border border-indigo-200/70 cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-all border border-indigo-200/70 cursor-pointer"
                     >
                         <Reply className="w-3.5 h-3.5" />
                         <span>Reply</span>
@@ -404,7 +458,7 @@ function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id
 
                     <button
                         onClick={handleForward}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer"
                     >
                         <Forward className="w-3.5 h-3.5" />
                         <span>Forward</span>
@@ -412,7 +466,7 @@ function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id
 
                     <button
                         onClick={toggleStar}
-                        className="p-2 rounded-xl text-slate-400 hover:text-amber-500 hover:bg-slate-100 transition-colors cursor-pointer"
+                        className="p-1.5 rounded-xl text-slate-400 hover:text-amber-500 hover:bg-slate-100 transition-colors cursor-pointer"
                         title={isStarred ? "Unstar" : "Star"}
                     >
                         <Star className={`w-4 h-4 ${isStarred ? "fill-amber-400 text-amber-400" : ""}`} />
@@ -422,15 +476,22 @@ function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id
                 <div className="flex items-center gap-2">
                     <button
                         onClick={toggleMarkSpam}
-                        className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
                             isMarkedSpam
                                 ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
                                 : "bg-slate-100 text-slate-600 border-slate-200 hover:text-rose-600 hover:bg-rose-50"
                         }`}
-                        title={isMarkedSpam ? "Restore to Inbox (Mark as Not Spam)" : "Report as Spam / Junk"}
                     >
                         {isMarkedSpam ? <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /> : <ShieldAlert className="w-3.5 h-3.5" />}
                         <span>{isMarkedSpam ? "Not Spam" : "Spam"}</span>
+                    </button>
+
+                    <button
+                        onClick={() => exportEmailToEml(mail)}
+                        className="p-2 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                        title="Export (.eml)"
+                    >
+                        <Download className="w-4 h-4" />
                     </button>
 
                     <button
@@ -453,138 +514,185 @@ function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id
 
             {/* ── EMAIL BODY DETAIL ── */}
             <main className="flex-1 overflow-y-auto p-6 md:p-8 space-y-4 max-w-5xl mx-auto w-full">
-                {/* Security / Spam Warning Banner */}
-                {isMarkedSpam && (
-                    <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 flex items-start justify-between gap-3 text-rose-900 shadow-sm">
-                        <div className="flex items-start gap-3">
-                            <ShieldAlert className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
-                            <div>
-                                <p className="text-xs font-bold text-rose-900 flex items-center gap-2">
-                                    <span>Warning: Flagged as Spam / Suspicious Email</span>
-                                    {mail.spamScore !== undefined && (
-                                        <span className="px-1.5 py-0.5 rounded bg-rose-200 text-rose-800 text-[10px] font-black">
-                                            Score: {mail.spamScore}%
-                                        </span>
-                                    )}
-                                </p>
-                                <p className="text-[11px] text-rose-700 mt-1 leading-relaxed">
-                                    {mail.spamReasons && mail.spamReasons.length > 0
-                                        ? mail.spamReasons.join(" • ")
-                                        : "This message failed authenticity checks or contained high-risk patterns. Exercise caution with any external links or attachments."}
-                                </p>
-                                {mail.authResults && (
-                                    <div className="flex items-center gap-2 mt-2 text-[10px] font-mono">
-                                        <span className={`px-2 py-0.5 rounded font-bold ${mail.authResults.spf === 'pass' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
-                                            SPF: {mail.authResults.spf?.toUpperCase()}
-                                        </span>
-                                        <span className={`px-2 py-0.5 rounded font-bold ${mail.authResults.dkim === 'pass' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
-                                            DKIM: {mail.authResults.dkim?.toUpperCase()}
-                                        </span>
-                                        <span className={`px-2 py-0.5 rounded font-bold ${mail.authResults.dmarc === 'pass' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
-                                            DMARC: {mail.authResults.dmarc?.toUpperCase()}
-                                        </span>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                        <button
-                            onClick={toggleMarkSpam}
-                            className="px-3 py-1.5 rounded-xl bg-white border border-rose-300 text-rose-800 text-xs font-bold hover:bg-rose-100 transition-colors shrink-0 cursor-pointer shadow-sm"
-                        >
-                            Not Spam
-                        </button>
-                    </div>
-                )}
-
-                <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm p-6 md:p-8 space-y-6">
-                    {/* Subject Header */}
-                    <div className="border-b border-slate-100 pb-6 space-y-4">
-                        <h1 className="text-2xl md:text-3xl font-black text-slate-900 leading-snug">
+                <div className="bg-white rounded-3xl border border-slate-200/80 shadow-2xs p-6 md:p-8 space-y-5">
+                    {/* Subject Header with External Indicator */}
+                    <div className="border-b border-slate-100 pb-5 space-y-3">
+                        <h1 className="text-xl md:text-2xl font-black text-slate-900 leading-snug">
                             {mail.subject || "(No Subject)"}
                         </h1>
 
                         <div className="flex flex-wrap items-start justify-between gap-4 text-xs">
-                            <div className="flex items-center gap-3.5">
-                                <div className="w-12 h-12 rounded-2xl bg-indigo-100 border-2 border-indigo-200/60 flex items-center justify-center font-black text-indigo-700 text-base shadow-sm">
-                                    {mail.from.charAt(0).toUpperCase()}
+                            <div className="flex items-start gap-3.5">
+                                <div className="w-10 h-10 rounded-full bg-slate-200 border border-slate-300 flex items-center justify-center shrink-0">
+                                    <User className="w-5 h-5 text-slate-500" />
                                 </div>
                                 <div>
-                                    <div className="flex items-center gap-2">
-                                        <p className="font-extrabold text-slate-900 text-sm">{mail.from}</p>
+                                    <div className="flex items-baseline gap-2 text-xs">
+                                        <span className="font-bold text-slate-900 w-10 shrink-0">From</span>
+                                        <span className="text-sky-600 font-semibold truncate hover:underline cursor-pointer">
+                                            {mail.from}
+                                        </span>
                                     </div>
-                                    <p className="text-slate-500 text-xs mt-0.5">
-                                        <span className="text-slate-400 font-medium">To:</span> {mail.to}
-                                    </p>
-                                    {mail.cc && (
-                                        <p className="text-slate-400 text-[11px] mt-0.5">
-                                            <span>Cc:</span> {mail.cc}
-                                        </p>
-                                    )}
-                                </div>
-                            </div>
 
-                            <div className="text-right">
-                                <span className="inline-flex items-center gap-1.5 text-xs text-slate-500 font-semibold bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100">
-                                    <Clock className="w-3.5 h-3.5 text-slate-400" />
-                                    {format(new Date(mail.date), "PPP 'at' p")}
-                                </span>
+                                    <div className="flex items-baseline gap-2 text-xs mt-0.5">
+                                        <span className="font-bold text-slate-900 w-10 shrink-0">To</span>
+                                        <span className="text-sky-600 font-medium truncate hover:underline cursor-pointer">
+                                            {mail.to}
+                                        </span>
+                                    </div>
+
+                                    <div className="flex items-baseline gap-2 text-xs mt-0.5">
+                                        <span className="font-bold text-slate-900 w-10 shrink-0">Date</span>
+                                        <span className="text-slate-700 font-medium">
+                                            {formatOutlookDate(mail.date)}
+                                        </span>
+                                    </div>
+
+                                    {/* Quick Pills: ✉ Summary  ℹ Headers  📄 Plain text */}
+                                    <div className="flex items-center gap-4 mt-2.5 text-xs">
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowSummaryModal(true)}
+                                            className="inline-flex items-center gap-1.5 text-sky-600 hover:text-sky-800 font-bold transition-colors cursor-pointer"
+                                        >
+                                            <Mail className="w-3.5 h-3.5" />
+                                            <span>Summary</span>
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowHeadersModal(true)}
+                                            className="inline-flex items-center gap-1.5 text-sky-600 hover:text-sky-800 font-bold transition-colors cursor-pointer"
+                                        >
+                                            <Info className="w-3.5 h-3.5" />
+                                            <span>Headers</span>
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => setViewMode(viewMode === "html" ? "text" : "html")}
+                                            className="inline-flex items-center gap-1.5 text-sky-600 hover:text-sky-800 font-bold transition-colors cursor-pointer"
+                                        >
+                                            <FileText className="w-3.5 h-3.5" />
+                                            <span>{viewMode === "html" ? "Plain text" : "HTML format"}</span>
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
 
-                    {/* Attachments Banner */}
+                    {/* Attachments Section */}
                     {mail.attachments && mail.attachments.length > 0 && (
-                        <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/80 space-y-3">
-                            <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
-                                <Paperclip className="w-4 h-4 text-indigo-600" />
-                                <span>Attached Files ({mail.attachments.length})</span>
-                            </div>
+                        <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 flex flex-wrap gap-2">
+                            {mail.attachments.map((att, idx) => {
+                                const isImg = att.contentType?.startsWith("image/") || /\.(png|jpe?g|webp|gif|svg)$/i.test(att.filename);
 
-                            <div className="flex flex-wrap gap-2.5">
-                                {mail.attachments.map((att, index) => (
-                                    <div
-                                        key={index}
-                                        className="flex items-center gap-2.5 px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 shadow-sm"
-                                    >
-                                        <FileText className="w-4 h-4 text-indigo-500" />
-                                        <span className="truncate max-w-[200px] font-bold">{att.filename}</span>
-                                        <span className="text-[10px] text-slate-400 font-mono">
-                                            ({Math.round(att.size / 1024)} KB)
-                                        </span>
-                                        {att.content && (
-                                            <button
-                                                onClick={() => handleDownloadAttachment(att)}
-                                                className="p-1 hover:text-indigo-600 text-slate-400 transition-colors"
-                                                title="Download Attachment"
-                                            >
-                                                <Download className="w-4 h-4" />
-                                            </button>
+                                if (isImg) {
+                                    return (
+                                        <div
+                                            key={idx}
+                                            onClick={() => setLightboxImage({ url: att.content ? `data:${att.contentType || "image/png"};base64,${att.content}` : "https://api.dicebear.com/7.x/identicon/svg?seed=" + att.filename, filename: att.filename })}
+                                            className="flex items-center gap-2 px-3 py-1.5 bg-white border border-indigo-200 rounded-xl text-xs font-bold text-indigo-700 shadow-2xs hover:bg-indigo-50 cursor-pointer transition-all"
+                                        >
+                                            <ImageIcon className="w-3.5 h-3.5 text-indigo-600" />
+                                            <span className="truncate max-w-[160px]">{att.filename}</span>
+                                            <span className="text-[10px] text-indigo-400 font-mono">(Image)</span>
+                                        </div>
+                                    );
+                                }
+
+                                return (
+                                    <div key={idx} className="relative">
+                                        <button
+                                            type="button"
+                                            onClick={() => setActiveAttachmentMenu(activeAttachmentMenu === idx ? null : idx)}
+                                            className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 shadow-2xs hover:border-indigo-300 transition-all cursor-pointer"
+                                        >
+                                            <FileText className="w-3.5 h-3.5 text-slate-500" />
+                                            <span className="truncate max-w-[200px]">{att.filename}</span>
+                                            <span className="text-[10px] text-slate-400 font-mono">
+                                                (~{Math.round(att.size / 1024)} KB)
+                                            </span>
+                                            <ChevronDown className="w-3.5 h-3.5 text-sky-600" />
+                                        </button>
+
+                                        {activeAttachmentMenu === idx && (
+                                            <div className="absolute left-0 top-full mt-1 w-44 bg-white border border-slate-200 rounded-xl shadow-xl z-30 py-1 text-xs">
+                                                <button
+                                                    onClick={() => {
+                                                        handleDownloadAttachment(att);
+                                                        setActiveAttachmentMenu(null);
+                                                    }}
+                                                    className="w-full px-3 py-1.5 text-left text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 flex items-center gap-2"
+                                                >
+                                                    <Download className="w-3.5 h-3.5 text-slate-400" />
+                                                    <span>Download attachment</span>
+                                                </button>
+                                            </div>
                                         )}
                                     </div>
-                                ))}
-                            </div>
+                                );
+                            })}
                         </div>
                     )}
 
+                    {/* Remote Resources Privacy Banner */}
+                    <EmailRemoteResourceBanner
+                        isBlocked={remoteResourcesBlocked}
+                        onAllow={() => {
+                            setRemoteResourcesBlocked(false);
+                            setToast({ type: "success", message: "Remote images & external content allowed." });
+                            setTimeout(() => setToast(null), 3000);
+                        }}
+                    />
+
                     {/* HTML body or Plain Text */}
                     <div className="pt-2">
-                        {mail.html ? (
-                            <div className="rounded-2xl border border-slate-100 overflow-hidden bg-white p-2">
+                        {viewMode === "html" && mail.html ? (
+                            <div className="rounded-2xl border border-slate-100 bg-white p-2 min-h-[300px]">
                                 <iframe
-                                    title="Email Message Preview"
-                                    srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"/><style>body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;color:#1e293b;line-height:1.6;padding:16px;margin:0;word-break:break-word;}img{max-width:100%;height:auto;}</style></head><body>${mail.html}</body></html>`}
-                                    className="w-full min-h-[550px] border-none"
-                                    sandbox="allow-popups allow-popups-to-escape-sandbox"
+                                    title="Email HTML Preview"
+                                    srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"/><style>body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;color:#1e293b;line-height:1.6;padding:12px;margin:0;word-break:break-word;}img{max-width:100%;height:auto;${remoteResourcesBlocked ? "filter:blur(2px);opacity:0.6;" : ""}}</style></head><body>${mail.html}</body></html>`}
+                                    className="w-full min-h-[480px] border-none rounded-xl"
+                                    sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin"
                                 />
                             </div>
                         ) : (
-                            <div className="p-6 bg-slate-50/50 rounded-2xl border border-slate-200/60 font-sans text-xs text-slate-800 whitespace-pre-wrap leading-relaxed">
-                                {mail.text || "(Empty email body)"}
+                            <div className="p-4 bg-slate-50/50 rounded-2xl border border-slate-200/60 font-sans text-xs text-slate-800 whitespace-pre-wrap leading-relaxed">
+                                {mail.text || mail.snippet || "(Empty email body)"}
                             </div>
                         )}
                     </div>
                 </div>
             </main>
+
+            {/* ── MODALS ── */}
+            <ShowSourceModal
+                email={mail}
+                isOpen={showSourceModal}
+                onClose={() => setShowSourceModal(false)}
+            />
+
+            <SummaryModal
+                email={mail}
+                isOpen={showSummaryModal}
+                onClose={() => setShowSummaryModal(false)}
+                onReply={handleReply}
+            />
+
+            <HeadersModal
+                email={mail}
+                isOpen={showHeadersModal}
+                onClose={() => setShowHeadersModal(false)}
+            />
+
+            <ImageLightboxModal
+                imageUrl={lightboxImage?.url || null}
+                filename={lightboxImage?.filename}
+                isOpen={Boolean(lightboxImage)}
+                onClose={() => setLightboxImage(null)}
+            />
 
             {/* ── COMPOSE MODAL ── */}
             {isComposeOpen && (
@@ -597,29 +705,20 @@ function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id
                             : "bottom-0 right-8 w-[580px] max-w-[calc(100vw-40px)] h-[580px] max-h-[calc(100vh-80px)]"
                     } bg-white rounded-t-2xl shadow-2xl border border-slate-300 flex flex-col overflow-hidden`}
                 >
-                    <div className="px-4 py-3 bg-[#0A2540] text-white flex items-center justify-between flex-shrink-0 cursor-pointer">
+                    <div className="px-4 py-3 bg-[#0A2540] text-white flex items-center justify-between shrink-0">
                         <span className="text-xs font-bold tracking-wide flex items-center gap-2">
                             <Send className="w-3.5 h-3.5 text-indigo-400" />
                             {composeData.subject ? composeData.subject : "New Message"}
                         </span>
 
                         <div className="flex items-center gap-2">
-                            <button
-                                onClick={() => setIsComposeMinimized(!isComposeMinimized)}
-                                className="p-1 hover:text-indigo-300 text-slate-300 transition-colors"
-                            >
+                            <button onClick={() => setIsComposeMinimized(!isComposeMinimized)} className="p-1 text-slate-300 hover:text-indigo-300">
                                 <Minimize2 className="w-3.5 h-3.5" />
                             </button>
-                            <button
-                                onClick={() => setIsComposeExpanded(!isComposeExpanded)}
-                                className="p-1 hover:text-indigo-300 text-slate-300 transition-colors"
-                            >
+                            <button onClick={() => setIsComposeExpanded(!isComposeExpanded)} className="p-1 text-slate-300 hover:text-indigo-300">
                                 <Maximize2 className="w-3.5 h-3.5" />
                             </button>
-                            <button
-                                onClick={() => setIsComposeOpen(false)}
-                                className="p-1 hover:text-rose-400 text-slate-300 transition-colors"
-                            >
+                            <button onClick={() => setIsComposeOpen(false)} className="p-1 text-slate-300 hover:text-rose-400">
                                 <X className="w-3.5 h-3.5" />
                             </button>
                         </div>
@@ -628,61 +727,16 @@ function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id
                     {!isComposeMinimized && (
                         <form onSubmit={handleSendEmail} className="flex-1 flex flex-col overflow-hidden bg-white">
                             <div className="p-3 border-b border-slate-100 space-y-2 text-xs">
-                                <div className="flex items-center gap-2 pb-0.5">
-                                    <span className="w-12 text-slate-400 font-bold uppercase text-[10px]">From</span>
-                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                        <span className="px-2 py-0.5 rounded bg-indigo-50 font-semibold text-indigo-700 text-xs border border-indigo-200/70">
-                                            {staffMailbox || "support@vidyaloans.in"}
-                                        </span>
-                                        <span className="text-[10px] text-slate-400 font-medium">
-                                            (Official Outgoing SES Sender)
-                                        </span>
-                                    </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="w-12 text-slate-400 font-bold uppercase text-[10px]">To</span>
+                                    <input
+                                        type="text"
+                                        value={composeData.to}
+                                        onChange={(e) => setComposeData({ ...composeData, to: e.target.value })}
+                                        required
+                                        className="flex-1 px-2 py-1 text-xs font-semibold focus:outline-none border-b border-transparent focus:border-indigo-500"
+                                    />
                                 </div>
-
-                                <div className="flex items-center justify-between gap-2">
-                                    <div className="flex-1 flex items-center gap-2">
-                                        <span className="w-12 text-slate-400 font-bold uppercase text-[10px]">To</span>
-                                        <input
-                                            type="text"
-                                            value={composeData.to}
-                                            onChange={(e) => setComposeData({ ...composeData, to: e.target.value })}
-                                            required
-                                            className="flex-1 px-2 py-1 text-xs font-semibold focus:outline-none border-b border-transparent focus:border-indigo-500"
-                                        />
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowCcBcc(!showCcBcc)}
-                                        className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800"
-                                    >
-                                        {showCcBcc ? "Hide CC/BCC" : "CC / BCC"}
-                                    </button>
-                                </div>
-
-                                {showCcBcc && (
-                                    <>
-                                        <div className="flex items-center gap-2">
-                                            <span className="w-12 text-slate-400 font-bold uppercase text-[10px]">Cc</span>
-                                            <input
-                                                type="text"
-                                                value={composeData.cc}
-                                                onChange={(e) => setComposeData({ ...composeData, cc: e.target.value })}
-                                                className="flex-1 px-2 py-1 text-xs font-semibold focus:outline-none border-b border-transparent focus:border-indigo-500"
-                                            />
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <span className="w-12 text-slate-400 font-bold uppercase text-[10px]">Bcc</span>
-                                            <input
-                                                type="text"
-                                                value={composeData.bcc}
-                                                onChange={(e) => setComposeData({ ...composeData, bcc: e.target.value })}
-                                                className="flex-1 px-2 py-1 text-xs font-semibold focus:outline-none border-b border-transparent focus:border-indigo-500"
-                                            />
-                                        </div>
-                                    </>
-                                )}
-
                                 <div className="flex items-center gap-2">
                                     <span className="w-12 text-slate-400 font-bold uppercase text-[10px]">Subject</span>
                                     <input
@@ -696,27 +750,21 @@ function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id
                             </div>
 
                             <textarea
-                                placeholder="Type your response..."
                                 value={composeData.body}
                                 onChange={(e) => setComposeData({ ...composeData, body: e.target.value })}
                                 className="flex-1 p-4 text-xs leading-relaxed font-sans focus:outline-none resize-none"
                             />
 
-                            <div className="p-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsComposeOpen(false)}
-                                    className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-200/60 transition-colors"
-                                >
+                            <div className="p-3 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-2">
+                                <button type="button" onClick={() => setIsComposeOpen(false)} className="px-3 py-1.5 text-xs text-slate-500">
                                     Cancel
                                 </button>
                                 <button
                                     type="submit"
                                     disabled={isSending}
-                                    className="inline-flex items-center gap-2 px-5 py-2 bg-[#4F46E5] text-white text-xs font-bold rounded-xl shadow-md hover:bg-indigo-700 transition-all cursor-pointer disabled:opacity-50"
+                                    className="px-5 py-2 bg-[#4F46E5] hover:bg-[#4338CA] text-white text-xs font-bold rounded-xl shadow-md transition-all disabled:opacity-50"
                                 >
-                                    <Send className="w-3.5 h-3.5" />
-                                    <span>{isSending ? "Sending..." : "Send Email"}</span>
+                                    {isSending ? "Sending..." : "Send"}
                                 </button>
                             </div>
                         </form>
@@ -729,7 +777,7 @@ function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id
 
 export default function EmailDetailPage({ params }: { params: Promise<{ id: string }> }) {
     return (
-        <Suspense fallback={<div className="h-screen flex items-center justify-center"><div className="w-8 h-8 border-4 border-indigo-600 rounded-full animate-spin" /></div>}>
+        <Suspense fallback={<div className="h-screen flex items-center justify-center bg-slate-100"><div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" /></div>}>
             <EmailDetailPageContent paramsPromise={params} />
         </Suspense>
     );

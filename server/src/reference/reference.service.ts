@@ -84,13 +84,30 @@ export class ReferenceService {
 
   // ==================== BANKS ====================
 
+  private static readonly FIXED_PARTNER_SLUGS = ['avanse', 'auxilo', 'poonawalla', 'idfc', 'credila'];
+
+  private sortBanksByFixedOrder(banks: any[]): any[] {
+    const order = ReferenceService.FIXED_PARTNER_SLUGS;
+    return [...banks].sort((a, b) => {
+      const slugA = (a.shortName || '').toLowerCase().trim();
+      const slugB = (b.shortName || '').toLowerCase().trim();
+      const idxA = order.indexOf(slugA);
+      const idxB = order.indexOf(slugB);
+
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+  }
+
   async getAllBanks() {
     const { data } = await this.db
       .from('Bank')
       .select('*')
       .order('isPopular', { ascending: false })
       .order('name', { ascending: true });
-    return { success: true, data: data || [] };
+    return { success: true, data: this.sortBanksByFixedOrder(data || []) };
   }
 
   async getPopularBanks() {
@@ -99,7 +116,7 @@ export class ReferenceService {
       .select('*')
       .eq('isPopular', true)
       .order('name', { ascending: true });
-    return { success: true, data: data || [] };
+    return { success: true, data: this.sortBanksByFixedOrder(data || []) };
   }
 
   async getBankById(id: string) {
@@ -139,6 +156,11 @@ export class ReferenceService {
   }
 
   async deleteBank(id: string) {
+    const { data: existing } = await this.db.from('Bank').select('shortName, name').eq('id', id).maybeSingle();
+    if (existing && ReferenceService.FIXED_PARTNER_SLUGS.includes((existing.shortName || '').toLowerCase().trim())) {
+      throw new Error(`Cannot delete fixed core partner bank: ${existing.name}`);
+    }
+
     const { error } = await this.db.from('Bank').delete().eq('id', id);
     if (error) throw new Error(error.message);
     return { success: true, message: 'Bank deleted successfully' };

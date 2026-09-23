@@ -634,7 +634,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
                 const amount = parseFloat(eligCheck.amount) || 0;
                 let eligibleBanks = res.eligible
                     ? income >= 600000
-                        ? ["Avanse", "SBI", "HDFC Credila", "Axis Bank"]
+                        ? ["Avanse", "Auxilo", "Poonawalla", "IDFC FIRST Bank", "HDFC Credila"]
                         : ["Avanse (Recommended)", "Auxilo"]
                     : ["Avanse (Partial Collateral Required)"];
 
@@ -670,7 +670,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
             let chance = "HIGH CHANCE OF SANCTION";
             let color = "text-emerald-500 border-emerald-200 bg-emerald-50";
             if (income < 350000) { chance = "MEDIUM CHANCE — Co-applicant income is low"; color = "text-amber-600 border-amber-200 bg-amber-50"; eligibleBanks.push("Auxilo"); }
-            else { eligibleBanks.push("SBI", "HDFC Credila", "Axis Bank"); }
+            else { eligibleBanks.push("Auxilo", "Poonawalla", "IDFC FIRST Bank", "HDFC Credila"); }
             if (amount > 3000000 && income < 600000) { chance = "LOW CHANCE — Insufficient income for high loan"; color = "text-red-600 border-red-200 bg-red-50"; eligibleBanks = ["Avanse (Partial Collateral Required)"]; }
             setEligResult({ chance, color, banks: eligibleBanks, requiredIncome: amount > 1500000 ? "₹5.5L/yr" : "₹3.5L/yr", details: `Local estimate for ${eligCheck.college || 'selected college'}.` });
         } finally {
@@ -847,7 +847,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
             let reply = "I'm checking the VidyaLoans advisor guidelines for that query. Can you clarify which university is involved?";
             const msgLower = userMsg.toLowerCase();
             if (msgLower.includes("collateral") || msgLower.includes("property")) {
-                reply = "Auxilo and Avanse accept partial collateral (up to 50%) for abroad loans above ₹20 Lakhs, subject to a clean legal search title. SBI requires full collateral for loans exceeding ₹7.5 Lakhs unless covered by the CSIS scheme.";
+                reply = "Auxilo and Avanse accept partial collateral (up to 50%) for abroad loans above ₹20 Lakhs, subject to a clean legal search title. Poonawalla and IDFC FIRST Bank provide non-collateral solutions up to ₹50 Lakhs.";
             } else if (msgLower.includes("cibil") || msgLower.includes("score")) {
                 reply = "Our partner lenders require a minimum co-applicant CIBIL score of 685. Scores between 650-684 can be processed with Avanse under special high-interest deviations if co-applicant's monthly surplus is high.";
             } else if (msgLower.includes("stamped") || msgLower.includes("income") || msgLower.includes("salary")) {
