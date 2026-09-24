@@ -13,4 +13,7 @@ export class SendEmailDto {
   html?: string;
   replyTo?: string;
   attachments?: MailAttachmentDto[];
+  priority?: 'high' | 'normal' | 'low';
+  requestReadReceipt?: boolean;
+  scheduledAt?: string | Date;
 }

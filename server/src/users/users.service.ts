@@ -260,6 +260,26 @@ export class UsersService implements OnModuleInit {
     if (data) {
       const { data: parents } = await this.db.from('parents').select('*').eq('userId', id);
       data.parents = parents || [];
+
+      // Fetch office if assigned
+      if (data.officeId) {
+        try {
+          const { data: off } = await this.db.from('Office').select('*').eq('id', data.officeId).maybeSingle();
+          data.office = off || null;
+        } catch (_) {}
+      }
+
+      // Fetch staffProfile if staff user
+      if (data.role === 'staff' || data.role === 'staff_admin') {
+        try {
+          const { data: sp } = await this.db
+            .from('StaffProfile')
+            .select('*')
+            .or(`linkedUserId.eq.${id},email.eq.${data.email}`)
+            .maybeSingle();
+          data.staffProfile = sp || null;
+        } catch (_) {}
+      }
     }
     return data;
   }
@@ -798,7 +818,16 @@ export class UsersService implements OnModuleInit {
     passport?: any,
     officeId?: string,
     officeLocation?: string,
-    bank?: string
+    bank?: string,
+    mailboxEmail?: string,
+    mailboxPrefix?: string,
+    canAccessSupport?: boolean,
+    staffId?: string,
+    isOnLeave?: boolean,
+    isResigned?: boolean,
+    role?: string,
+    department?: string,
+    designation?: string
   ) {
     const dobDate = dateOfBirth ? this.parseDate(dateOfBirth) : null;
 
@@ -867,6 +896,31 @@ export class UsersService implements OnModuleInit {
     if (officeId !== undefined) updatePayload.officeId = officeId;
     if (officeLocation !== undefined) updatePayload.officeLocation = officeLocation;
     if (bank !== undefined) updatePayload.bank = bank;
+    if (mailboxEmail !== undefined) {
+      updatePayload.mailboxEmail = mailboxEmail ? mailboxEmail.trim().toLowerCase() : null;
+    }
+    if (mailboxPrefix !== undefined) {
+      let pref = mailboxPrefix ? mailboxPrefix.trim() : null;
+      if (pref && !pref.endsWith('/')) pref = `${pref}/`;
+      updatePayload.mailboxPrefix = pref;
+    }
+    if (canAccessSupport !== undefined) {
+      updatePayload.canAccessSupport = !!canAccessSupport;
+    }
+    if (staffId !== undefined && staffId !== null && staffId !== '') {
+      updatePayload.staffId = staffId.trim();
+    }
+    if (role !== undefined && role !== null && role !== '') {
+      updatePayload.role = role.trim();
+    }
+    if (officeId && !officeLocation) {
+      try {
+        const { data: off } = await this.db.from('Office').select('name, city, location').eq('id', officeId).maybeSingle();
+        if (off) {
+          updatePayload.officeLocation = `${off.name}, ${off.city}`;
+        }
+      } catch (_) {}
+    }
 
     // Parse and handle academic object
     let parsedAcademic: any = {};
@@ -1044,6 +1098,31 @@ export class UsersService implements OnModuleInit {
       }
     } catch (profErr: any) {
       console.warn(`[UsersService.updateUserDetails] Profile sync warning: ${profErr.message}`);
+    }
+
+    // Sync StaffProfile if staff member status/role fields provided
+    if (updatedUser && (isOnLeave !== undefined || isResigned !== undefined || department !== undefined || designation !== undefined)) {
+      try {
+        const spUpdate: any = {};
+        if (isOnLeave !== undefined) {
+          spUpdate.isOnLeave = !!isOnLeave;
+          spUpdate.isAvailable = !isOnLeave;
+        }
+        if (isResigned !== undefined && isResigned) {
+          spUpdate.isAvailable = false;
+        }
+        if (designation) spUpdate.staffRole = designation;
+        if (department) spUpdate.specialization = department;
+
+        if (Object.keys(spUpdate).length > 0) {
+          await this.db
+            .from('StaffProfile')
+            .update(spUpdate)
+            .or(`linkedUserId.eq.${updatedUser.id},email.eq.${updatedUser.email}`);
+        }
+      } catch (e) {
+        console.warn('[UsersService.updateUserDetails] Syncing StaffProfile warning:', e);
+      }
     }
 
     // Upsert parents table rows for father, mother, coapplicant

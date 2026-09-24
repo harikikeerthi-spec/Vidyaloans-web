@@ -494,7 +494,16 @@ export class UsersController {
                 body.passport,
                 body.officeId,
                 body.officeLocation || body.office,
-                body.bank
+                body.bank,
+                body.mailboxEmail,
+                body.mailboxPrefix,
+                body.canAccessSupport,
+                body.staffId,
+                body.isOnLeave,
+                body.isResigned,
+                body.role,
+                body.department,
+                body.designation
             );
             return { success: true, message: 'User updated successfully', user: updated };
         } catch (error: any) {
@@ -626,7 +635,24 @@ export class UsersController {
                     family: safeJsonParse(user.family),
                     coApplicant: safeJsonParse(user.coApplicant),
                     parents: user.parents || [],
+                    staffId: user.staffId || '',
+                    mailboxEmail: user.mailboxEmail || '',
+                    mailboxPrefix: user.mailboxPrefix || '',
+                    canAccessSupport: user.canAccessSupport ?? false,
+                    officeId: user.officeId || '',
+                    officeLocation: user.officeLocation || (user.office ? `${user.office.name}, ${user.office.city}` : ''),
+                    office: user.office || null,
+                    isOnLeave: user.staffProfile?.isOnLeave ?? user.isOnLeave ?? false,
+                    isResigned: (user.staffProfile && user.staffProfile.isAvailable === false && !user.staffProfile.isOnLeave) || user.status === 'resigned' || user.isResigned || false,
+                    department: user.department || user.staffProfile?.specialization || 'Loan Verification & Operations',
+                    designation: user.designation || user.staffProfile?.staffRole || 'Senior Education Loan Advisor',
+                    staffProfile: user.staffProfile || null,
+                    last_login_at: user.last_login_at || null,
+                    last_login_ip: user.last_login_ip || '',
+                    last_login_device: user.last_login_device || '',
+                    last_login_location: user.last_login_location || '',
                     createdAt: user.createdAt || user.created_at || '',
+                    updatedAt: user.updatedAt || user.updated_at || '',
                 },
             };
         } catch (error) {

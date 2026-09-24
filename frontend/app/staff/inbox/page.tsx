@@ -42,7 +42,9 @@ import {
     Sparkles,
     CheckSquare,
     ReplyAll,
-    Archive
+    Archive,
+    Flag,
+    Calendar,
 } from "lucide-react";
 
 import { OutlookToolbar } from "@/components/staff/mail/OutlookToolbar";
@@ -289,7 +291,9 @@ function StaffInboxContent() {
         }
     }, [staffMailboxPrefix, urlFolder]);
 
-    const [activeTab, setActiveTab] = useState<"inbox" | "starred" | "sent" | "drafts" | "spam" | "trash" | "archive">("inbox");
+    const [activeTab, setActiveTab] = useState<"inbox" | "starred" | "sent" | "drafts" | "spam" | "trash" | "archive" | "scheduled">("inbox");
+    const [scheduledEmails, setScheduledEmails] = useState<any[]>([]);
+    const [loadingScheduled, setLoadingScheduled] = useState(false);
     const [filterType, setFilterType] = useState<"all" | "unread" | "read">("all");
     const [foldersList, setFoldersList] = useState<S3Folder[]>([]);
     const [isFolderDropdownOpen, setIsFolderDropdownOpen] = useState(false);
@@ -369,6 +373,14 @@ function StaffInboxContent() {
     const [isSending, setIsSending] = useState(false);
     const [feedbackToast, setFeedbackToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
+    // SES Priority, Read Receipt, and Delayed Schedule state
+    const [composePriority, setComposePriority] = useState<"normal" | "high" | "low">("normal");
+    const [composeReadReceipt, setComposeReadReceipt] = useState(false);
+    const [composeScheduledAt, setComposeScheduledAt] = useState<string | null>(null);
+    const [showScheduleMenu, setShowScheduleMenu] = useState(false);
+    const [showPriorityMenu, setShowPriorityMenu] = useState(false);
+    const [customScheduleInput, setCustomScheduleInput] = useState("");
+
     // Initialize state from localStorage
     useEffect(() => {
         try {
@@ -405,17 +417,24 @@ function StaffInboxContent() {
         mailApi.getFolders()
             .then((res: any) => {
                 if (res?.success && Array.isArray(res.data)) {
-                    setFoldersList(res.data);
-                    if (res.data.length > 0 && !urlFolder) {
-                        const myFolder = res.data.find((f: any) => f.isStaff || (staffMailboxPrefix && f.prefix === staffMailboxPrefix));
+                    let list = res.data;
+                    const isStaffOnly = user?.role !== 'admin' && user?.role !== 'super_admin';
+                    if (isStaffOnly) {
+                        list = list.filter((f: any) => f.prefix === staffMailboxPrefix || f.isStaff);
+                    }
+                    setFoldersList(list);
+                    if (list.length > 0) {
+                        const myFolder = list.find((f: any) => f.prefix === staffMailboxPrefix || f.isStaff) || list[0];
                         if (myFolder) {
                             setSelectedFolder(myFolder.prefix);
                         }
+                    } else if (staffMailboxPrefix) {
+                        setSelectedFolder(staffMailboxPrefix);
                     }
                 }
             })
             .catch((err) => console.warn("Could not fetch S3 folders", err));
-    }, [staffMailboxPrefix, urlFolder]);
+    }, [staffMailboxPrefix, urlFolder, user?.role]);
 
     // Load emails for the selected folder
     const fetchEmails = useCallback(async (isSilent = false) => {
@@ -473,9 +492,47 @@ function StaffInboxContent() {
         }
     }, [selectedFolder, selectedEmailId]);
 
+    // Load scheduled emails from AWS SES delayed queue
+    const fetchScheduledEmails = useCallback(async () => {
+        try {
+            setLoadingScheduled(true);
+            const res: any = await mailApi.getScheduledEmails();
+            if (res?.success && Array.isArray(res.data)) {
+                setScheduledEmails(res.data);
+            }
+        } catch (e) {
+            console.warn("Failed to fetch scheduled emails", e);
+        } finally {
+            setLoadingScheduled(false);
+        }
+    }, []);
+
+    const handleCancelScheduledEmail = async (id: string, e?: React.MouseEvent) => {
+        if (e) e.stopPropagation();
+        if (!confirm("Are you sure you want to cancel this scheduled email?")) return;
+        try {
+            const res: any = await mailApi.cancelScheduledEmail(id);
+            if (res?.success) {
+                setFeedbackToast({ type: "success", message: "Scheduled email cancelled successfully." });
+                setTimeout(() => setFeedbackToast(null), 3000);
+                fetchScheduledEmails();
+                if (selectedEmailId === id) {
+                    setSelectedEmailId(null);
+                    setActiveEmailDetail(null);
+                }
+            }
+        } catch (err: any) {
+            setFeedbackToast({ type: "error", message: err.message || "Failed to cancel scheduled email" });
+            setTimeout(() => setFeedbackToast(null), 4000);
+        }
+    };
+
     useEffect(() => {
         fetchEmails();
-    }, [fetchEmails]);
+        fetchScheduledEmails();
+        const schedInterval = setInterval(fetchScheduledEmails, 30000);
+        return () => clearInterval(schedInterval);
+    }, [fetchEmails, fetchScheduledEmails]);
 
     // Load email details when an email is selected
     const handleSelectEmail = useCallback(async (email: MailSummaryItem) => {
@@ -491,6 +548,30 @@ function StaffInboxContent() {
             });
             setEditingDraftId(draft.id);
             setIsComposeOpen(true);
+            return;
+        }
+
+        if ((email as any).isScheduled && (email as any).rawScheduled) {
+            const sched = (email as any).rawScheduled;
+            setSelectedEmailId(sched.id);
+            setActiveEmailDetail({
+                id: sched.id,
+                key: `scheduled/${sched.id}`,
+                from: staffMailbox || "Me (Scheduled)",
+                to: Array.isArray(sched.to) ? sched.to.join(", ") : sched.to,
+                cc: Array.isArray(sched.cc) ? sched.cc.join(", ") : sched.cc,
+                bcc: Array.isArray(sched.bcc) ? sched.bcc.join(", ") : sched.bcc,
+                subject: sched.subject || "(No Subject)",
+                date: sched.scheduledAt,
+                size: 0,
+                read: true,
+                text: sched.text || "",
+                html: sched.html || (sched.text ? `<div style="font-family: sans-serif; white-space: pre-wrap;">${sched.text}</div>` : ''),
+                attachments: sched.attachments || [],
+                isScheduled: true,
+                rawScheduled: sched,
+            } as any);
+            setLoadingDetail(false);
             return;
         }
 
@@ -602,6 +683,23 @@ function StaffInboxContent() {
                 isDraft: true,
                 rawDraft: item,
             }));
+        } else if (activeTab === "scheduled") {
+            return scheduledEmails.map((item) => ({
+                id: item.id,
+                key: `scheduled/${item.id}`,
+                from: staffMailbox || "Me (Scheduled)",
+                to: Array.isArray(item.to) ? item.to.join(", ") : item.to,
+                subject: item.subject || "(No Subject)",
+                date: item.scheduledAt,
+                size: 0,
+                read: true,
+                snippet: `${item.status === 'PENDING' ? '⏰ Scheduled for' : item.status} ${format(new Date(item.scheduledAt), "MMM d, yyyy 'at' hh:mm a")}${item.priority === 'high' ? ' • 🔴 High Priority' : item.priority === 'low' ? ' • 🔵 Low Priority' : ''}${item.requestReadReceipt ? ' • ✉️ Read Receipt' : ''} — ${item.text || ''}`,
+                isSpam: false,
+                spamScore: 0,
+                spamReasons: [] as string[],
+                isScheduled: true,
+                rawScheduled: item,
+            }));
         } else {
             list = list.filter((e) => !trashedIds.has(e.id) && !archiveIds.has(e.id) && !isEmailSpam(e));
         }
@@ -629,7 +727,7 @@ function StaffInboxContent() {
         });
 
         return list;
-    }, [emails, activeTab, starredIds, trashedIds, archiveIds, sentEmails, draftEmails, showOnlyUnread, filterType, readIds, searchQuery, isEmailSpam, sortOrder]);
+    }, [emails, activeTab, starredIds, trashedIds, archiveIds, sentEmails, draftEmails, scheduledEmails, showOnlyUnread, filterType, readIds, searchQuery, isEmailSpam, sortOrder]);
 
     // Star toggle action
     const toggleStar = (e: React.MouseEvent, id: string) => {
@@ -1160,7 +1258,7 @@ function StaffInboxContent() {
 
         setIsSending(true);
         try {
-            const payload = {
+            const payload: any = {
                 to: composeData.to.split(",").map((s) => s.trim()).filter(Boolean),
                 cc: composeData.cc ? composeData.cc.split(",").map((s) => s.trim()).filter(Boolean) : undefined,
                 bcc: composeData.bcc ? composeData.bcc.split(",").map((s) => s.trim()).filter(Boolean) : undefined,
@@ -1172,22 +1270,37 @@ function StaffInboxContent() {
                     content: a.content,
                     contentType: a.contentType,
                 })),
+                priority: composePriority,
+                requestReadReceipt: composeReadReceipt,
+                scheduledAt: composeScheduledAt || undefined,
             };
 
-            await mailApi.sendMail(payload);
+            const res: any = await mailApi.sendMail(payload);
 
-            const sentRecord = {
-                to: composeData.to,
-                subject: composeData.subject,
-                body: composeData.body,
-                date: new Date().toISOString(),
-                from: staffMailbox || "support@vidyaloans.in",
-            };
-            const updatedSent = [sentRecord, ...sentEmails].slice(0, 100);
-            setSentEmails(updatedSent);
-            try {
-                localStorage.setItem("vidya_mail_sent_history", JSON.stringify(updatedSent));
-            } catch { }
+            if (res?.scheduled) {
+                setFeedbackToast({
+                    type: "success",
+                    message: res.message || "Email scheduled successfully via AWS SES background queue!",
+                });
+                fetchScheduledEmails();
+            } else {
+                const sentRecord = {
+                    to: composeData.to,
+                    subject: composeData.subject,
+                    body: composeData.body,
+                    date: new Date().toISOString(),
+                    from: staffMailbox || "support@vidyaloans.in",
+                };
+                const updatedSent = [sentRecord, ...sentEmails].slice(0, 100);
+                setSentEmails(updatedSent);
+                try {
+                    localStorage.setItem("vidya_mail_sent_history", JSON.stringify(updatedSent));
+                } catch { }
+
+                setFeedbackToast({ type: "success", message: "Email dispatched successfully via Amazon SES!" });
+            }
+
+            setTimeout(() => setFeedbackToast(null), 4000);
 
             if (editingDraftId) {
                 const updatedDrafts = draftEmails.filter((d) => d.id !== editingDraftId);
@@ -1198,12 +1311,13 @@ function StaffInboxContent() {
                 setEditingDraftId(null);
             }
 
-            setFeedbackToast({ type: "success", message: "Email dispatched successfully via Amazon SES!" });
-            setTimeout(() => setFeedbackToast(null), 4000);
-
             setIsComposeOpen(false);
             setComposeData({ to: "", cc: "", bcc: "", subject: "", body: "", replyTo: "" });
             setAttachments([]);
+            setComposePriority("normal");
+            setComposeReadReceipt(false);
+            setComposeScheduledAt(null);
+            setShowScheduleMenu(false);
         } catch (err: any) {
             console.error("Send email error:", err);
             setFeedbackToast({
@@ -1361,36 +1475,40 @@ function StaffInboxContent() {
                         </button>
                     </div>
 
-                    {/* S3 Folder Switcher */}
+                    {/* S3 Assigned Mailbox (No dropdown for staff) */}
                     <div className="px-3.5 py-2.5 border-b border-slate-100/80 bg-slate-50/50">
-                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1.5 flex items-center justify-between">
-                            <span>S3 Mailbox</span>
-                            <span className="text-[9px] text-indigo-700 font-extrabold bg-indigo-50/90 px-1.5 py-0.5 rounded-md border border-indigo-200/80 shadow-2xs">
+                        <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                Assigned Mailbox
+                            </span>
+                            <span className="text-[9px] text-emerald-700 font-extrabold bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200/80 shadow-2xs flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                                 AWS SES
                             </span>
-                        </label>
+                        </div>
 
-                        <div className="relative">
-                            <button
-                                type="button"
-                                onClick={() => setIsFolderDropdownOpen(!isFolderDropdownOpen)}
-                                className="w-full flex items-center justify-between px-3 py-2 bg-white border border-slate-200/90 rounded-xl text-xs font-bold text-slate-800 shadow-2xs hover:border-indigo-400/80 transition-all text-left truncate"
-                            >
-                                <span className="flex items-center gap-2 truncate">
-                                    <Folder className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-                                    <span className="truncate">{currentFolderLabel}</span>
-                                </span>
-                                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform ${isFolderDropdownOpen ? "rotate-180" : ""}`} />
-                            </button>
+                        {/* Only Admin / Super Admin with multiple folders can see a mailbox switcher dropdown */}
+                        {(user?.role === "admin" || user?.role === "super_admin") && foldersList.length > 1 ? (
+                            <div className="relative">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsFolderDropdownOpen(!isFolderDropdownOpen)}
+                                    className="w-full flex items-center justify-between px-3 py-2 bg-white border border-slate-200/90 rounded-xl text-xs font-bold text-slate-800 shadow-2xs hover:border-indigo-400/80 transition-all text-left truncate cursor-pointer"
+                                >
+                                    <span className="flex items-center gap-2 truncate">
+                                        <Folder className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                                        <span className="truncate">{currentFolderLabel}</span>
+                                    </span>
+                                    <ChevronDown className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform ${isFolderDropdownOpen ? "rotate-180" : ""}`} />
+                                </button>
 
-                            {isFolderDropdownOpen && (
-                                <div className="absolute left-0 right-0 top-full mt-1.5 bg-white/95 backdrop-blur-md border border-slate-200/80 rounded-2xl shadow-xl z-30 py-1.5 max-h-56 overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
-                                    <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100/80">
-                                        Select S3 Mailbox
-                                    </div>
+                                {isFolderDropdownOpen && (
+                                    <div className="absolute left-0 right-0 top-full mt-1.5 bg-white/95 backdrop-blur-md border border-slate-200/80 rounded-2xl shadow-xl z-30 py-1.5 max-h-56 overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+                                        <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100/80">
+                                            Select S3 Mailbox
+                                        </div>
 
-                                    {foldersList.length > 0 ? (
-                                        foldersList.map((f) => {
+                                        {foldersList.map((f) => {
                                             const isSelected = selectedFolder === f.prefix;
                                             return (
                                                 <button
@@ -1399,7 +1517,7 @@ function StaffInboxContent() {
                                                         setSelectedFolder(f.prefix);
                                                         setIsFolderDropdownOpen(false);
                                                     }}
-                                                    className={`w-full px-3 py-2 text-left text-xs flex items-center justify-between hover:bg-indigo-50/80 transition-colors ${
+                                                    className={`w-full px-3 py-2 text-left text-xs flex items-center justify-between hover:bg-indigo-50/80 transition-colors cursor-pointer ${
                                                         isSelected ? "text-indigo-600 bg-indigo-50/70 font-bold" : "text-slate-700 font-medium"
                                                     }`}
                                                 >
@@ -1413,15 +1531,18 @@ function StaffInboxContent() {
                                                     </span>
                                                 </button>
                                             );
-                                        })
-                                    ) : (
-                                        <div className="px-3 py-1.5 text-xs text-slate-400 italic">
-                                            support/ (Default)
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </div>
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="w-full flex items-center gap-2 px-3 py-2 bg-white border border-slate-200/90 rounded-xl text-xs font-bold text-slate-800 shadow-2xs">
+                                <Mail className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                                <span className="truncate" title={staffMailbox || "Assigned Mailbox"}>
+                                    {staffMailbox || currentFolderLabel || "Assigned Mailbox"}
+                                </span>
+                            </div>
+                        )}
                     </div>
 
                     {/* Mail Navigation Tabs */}
@@ -1450,6 +1571,14 @@ function StaffInboxContent() {
                                 label: "Drafts",
                                 icon: FileText,
                                 badge: draftEmails.length,
+                            },
+                            {
+                                id: "scheduled",
+                                label: "Scheduled",
+                                icon: Clock,
+                                badge: scheduledEmails.filter((s: any) => s.status === 'PENDING').length,
+                                activeColor: "bg-amber-50/90 text-amber-800 border-l-3 border-amber-600 shadow-2xs",
+                                badgeColor: "bg-amber-600 text-white",
                             },
                             {
                                 id: "archive",
@@ -1765,13 +1894,23 @@ function StaffInboxContent() {
                                                 >
                                                     <Archive className="w-3.5 h-3.5" />
                                                 </button>
-                                                <button
-                                                    onClick={() => moveToTrash(email.id)}
-                                                    title="Delete"
-                                                    className="p-1 hover:text-rose-600 hover:bg-rose-50 rounded-lg text-slate-400 transition-colors cursor-pointer"
-                                                >
-                                                    <Trash2 className="w-3.5 h-3.5" />
-                                                </button>
+                                                {activeTab === "scheduled" ? (
+                                                    <button
+                                                        onClick={(e) => handleCancelScheduledEmail(email.id, e)}
+                                                        title="Cancel Scheduled Send"
+                                                        className="p-1 hover:text-rose-600 hover:bg-rose-50 rounded-lg text-slate-400 transition-colors cursor-pointer"
+                                                    >
+                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                    </button>
+                                                ) : (
+                                                    <button
+                                                        onClick={() => moveToTrash(email.id)}
+                                                        title="Delete"
+                                                        className="p-1 hover:text-rose-600 hover:bg-rose-50 rounded-lg text-slate-400 transition-colors cursor-pointer"
+                                                    >
+                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                    </button>
+                                                )}
                                             </div>
                                         </motion.div>
                                     );
@@ -1845,6 +1984,30 @@ function StaffInboxContent() {
                                                 {formatOutlookDate(activeEmailDetail.date)}
                                             </span>
                                         </div>
+
+                                        {/* Scheduled / Priority / Read Receipt indicators */}
+                                        {((activeEmailDetail as any)?.rawScheduled || (activeEmailDetail as any)?.priority || (activeEmailDetail as any)?.requestReadReceipt) && (
+                                            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                                                {((activeEmailDetail as any)?.rawScheduled?.priority === 'high' || (activeEmailDetail as any)?.priority === 'high') && (
+                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                                                        <Flag className="w-2.5 h-2.5 fill-rose-500 text-rose-500" />
+                                                        High Priority
+                                                    </span>
+                                                )}
+                                                {((activeEmailDetail as any)?.rawScheduled?.priority === 'low' || (activeEmailDetail as any)?.priority === 'low') && (
+                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
+                                                        <Flag className="w-2.5 h-2.5 fill-sky-500 text-sky-500" />
+                                                        Low Priority
+                                                    </span>
+                                                )}
+                                                {Boolean((activeEmailDetail as any)?.rawScheduled?.requestReadReceipt || (activeEmailDetail as any)?.requestReadReceipt) && (
+                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                        <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />
+                                                        Read Receipt Requested
+                                                    </span>
+                                                )}
+                                            </div>
+                                        )}
 
                                         {/* Quick Action Pills: ✉ Summary  ℹ Headers  📄 Plain text */}
                                         <div className="flex items-center gap-2.5 mt-3 text-xs">
@@ -1953,6 +2116,44 @@ function StaffInboxContent() {
                                     setTimeout(() => setFeedbackToast(null), 3000);
                                 }}
                             />
+
+                            {/* Scheduled Dispatch Status Banner */}
+                            {(activeEmailDetail as any)?.isScheduled && (
+                                <div className="mx-7 mt-4 p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-400/5 to-indigo-500/10 border border-amber-300/60 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                    <div className="flex items-start gap-3">
+                                        <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                                            <Clock className="w-5 h-5" />
+                                        </div>
+                                        <div>
+                                            <div className="flex items-center gap-2">
+                                                <h4 className="text-xs font-bold text-slate-900">Scheduled Dispatch (AWS SES Queue)</h4>
+                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                                    (activeEmailDetail as any)?.rawScheduled?.status === 'SENT'
+                                                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                                        : (activeEmailDetail as any)?.rawScheduled?.status === 'FAILED'
+                                                        ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                                                        : 'bg-amber-100 text-amber-800 border border-amber-200 animate-pulse'
+                                                }`}>
+                                                    {(activeEmailDetail as any)?.rawScheduled?.status || "PENDING"}
+                                                </span>
+                                            </div>
+                                            <p className="text-xs text-slate-600 mt-0.5">
+                                                Scheduled for: <span className="font-semibold text-slate-900">{format(new Date(activeEmailDetail.date), "PPP 'at' p")}</span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                    {(activeEmailDetail as any)?.rawScheduled?.status === 'PENDING' && (
+                                        <button
+                                            type="button"
+                                            onClick={() => handleCancelScheduledEmail(activeEmailDetail.id)}
+                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition-all shadow-2xs hover:shadow-xs shrink-0 cursor-pointer"
+                                        >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                            <span>Cancel Send</span>
+                                        </button>
+                                    )}
+                                </div>
+                            )}
 
                             {/* Email Body Content */}
                             <div className="flex-1 overflow-y-auto px-7 py-4">
@@ -2186,9 +2387,28 @@ function StaffInboxContent() {
                                 </div>
                             )}
 
-                            {/* Footer Toolbar with File & Image Attachments */}
-                            <div className="p-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
-                                <div className="flex items-center gap-1">
+                            {/* Scheduled Send Active Banner */}
+                            {composeScheduledAt && (
+                                <div className="px-4 py-2 bg-gradient-to-r from-amber-50 to-orange-50 border-t border-amber-200 flex items-center justify-between text-xs text-amber-950">
+                                    <div className="flex items-center gap-2">
+                                        <Clock className="w-4 h-4 text-amber-600 animate-pulse" />
+                                        <span>
+                                            Scheduled for <strong>{format(new Date(composeScheduledAt), "EEE, MMM d 'at' hh:mm a")}</strong> via SES queue
+                                        </span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setComposeScheduledAt(null)}
+                                        className="text-[11px] font-black uppercase text-amber-700 hover:text-amber-900 bg-white/80 px-2 py-0.5 rounded border border-amber-200 cursor-pointer shadow-2xs"
+                                    >
+                                        Send Now (Cancel)
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* Footer Toolbar with Attachments, Priority, Read Receipt, and Schedule Send */}
+                            <div className="p-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between flex-wrap gap-2">
+                                <div className="flex items-center gap-1 relative">
                                     <label className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-slate-200/60 rounded-xl transition-colors cursor-pointer" title="Attach Files">
                                         <Paperclip className="w-4 h-4" />
                                         <input
@@ -2210,9 +2430,73 @@ function StaffInboxContent() {
                                         />
                                     </label>
 
-                                    <span className="text-[10px] text-slate-400 ml-2">
-                                        Max 15MB via Amazon SES
-                                    </span>
+                                    {/* Priority Flag Selector */}
+                                    <div className="relative">
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPriorityMenu(!showPriorityMenu)}
+                                            className={`p-2 rounded-xl transition-colors cursor-pointer flex items-center gap-1 ${
+                                                composePriority === "high"
+                                                    ? "bg-rose-50 text-rose-700 font-bold border border-rose-200"
+                                                    : composePriority === "low"
+                                                    ? "bg-blue-50 text-blue-700 font-bold border border-blue-200"
+                                                    : "text-slate-500 hover:text-indigo-600 hover:bg-slate-200/60"
+                                            }`}
+                                            title="Message Priority"
+                                        >
+                                            <Flag className={`w-4 h-4 ${composePriority === "high" ? "text-rose-600 fill-rose-600" : composePriority === "low" ? "text-blue-600 fill-blue-600" : ""}`} />
+                                            {composePriority !== "normal" && (
+                                                <span className="text-[10px] uppercase font-black">{composePriority}</span>
+                                            )}
+                                        </button>
+
+                                        {showPriorityMenu && (
+                                            <div className="absolute left-0 bottom-full mb-2 w-44 bg-white rounded-2xl shadow-xl border border-slate-200 p-1.5 z-50 text-xs animate-in fade-in zoom-in-95 duration-100">
+                                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-2 py-1 block">Priority Header</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { setComposePriority("high"); setShowPriorityMenu(false); }}
+                                                    className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-rose-50 text-rose-700 font-bold flex items-center gap-2 cursor-pointer"
+                                                >
+                                                    <span className="w-2 h-2 rounded-full bg-rose-600" />
+                                                    High Priority (Urgent)
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { setComposePriority("normal"); setShowPriorityMenu(false); }}
+                                                    className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-slate-100 text-slate-700 font-medium flex items-center gap-2 cursor-pointer"
+                                                >
+                                                    <span className="w-2 h-2 rounded-full bg-slate-400" />
+                                                    Normal Priority
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { setComposePriority("low"); setShowPriorityMenu(false); }}
+                                                    className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-blue-50 text-blue-700 font-medium flex items-center gap-2 cursor-pointer"
+                                                >
+                                                    <span className="w-2 h-2 rounded-full bg-blue-500" />
+                                                    Low Priority
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Read Receipt Request Toggle */}
+                                    <button
+                                        type="button"
+                                        onClick={() => setComposeReadReceipt(!composeReadReceipt)}
+                                        className={`px-2 py-1.5 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 text-xs ${
+                                            composeReadReceipt
+                                                ? "bg-indigo-50 text-indigo-700 font-bold border border-indigo-200 shadow-2xs"
+                                                : "text-slate-500 hover:text-indigo-600 hover:bg-slate-200/60"
+                                        }`}
+                                        title="Request Read Receipt (Disposition-Notification-To header)"
+                                    >
+                                        <CheckSquare className="w-3.5 h-3.5" />
+                                        <span className="text-[10px] font-bold">
+                                            {composeReadReceipt ? "Receipt Requested" : "Read Receipt"}
+                                        </span>
+                                    </button>
                                 </div>
 
                                 <div className="flex items-center gap-2">
@@ -2233,14 +2517,139 @@ function StaffInboxContent() {
                                         Cancel
                                     </button>
 
-                                    <button
-                                        type="submit"
-                                        disabled={isSending}
-                                        className="inline-flex items-center gap-2 px-5 py-2 bg-gradient-to-tr from-indigo-600 via-indigo-500 to-violet-500 hover:from-indigo-700 hover:to-violet-600 text-white text-xs font-bold rounded-xl shadow-md shadow-indigo-500/25 transition-all cursor-pointer disabled:opacity-50"
-                                    >
-                                        <Send className="w-3.5 h-3.5" />
-                                        <span>{isSending ? "Sending..." : "Send Email"}</span>
-                                    </button>
+                                    {/* Send or Schedule Button with Popover */}
+                                    <div className="relative inline-flex items-center">
+                                        <button
+                                            type="submit"
+                                            disabled={isSending}
+                                            className={`inline-flex items-center gap-2 ${composeScheduledAt ? 'rounded-xl' : 'rounded-l-xl'} px-4 py-2 ${
+                                                composeScheduledAt
+                                                    ? "bg-gradient-to-tr from-amber-600 to-orange-500 hover:from-amber-700 hover:to-orange-600 shadow-amber-500/25"
+                                                    : "bg-gradient-to-tr from-indigo-600 via-indigo-500 to-violet-500 hover:from-indigo-700 hover:to-violet-600 shadow-indigo-500/25"
+                                            } text-white text-xs font-bold shadow-md transition-all cursor-pointer disabled:opacity-50`}
+                                        >
+                                            {composeScheduledAt ? (
+                                                <Clock className="w-3.5 h-3.5 animate-pulse" />
+                                            ) : (
+                                                <Send className="w-3.5 h-3.5" />
+                                            )}
+                                            <span>
+                                                {isSending
+                                                    ? (composeScheduledAt ? "Scheduling..." : "Sending...")
+                                                    : (composeScheduledAt ? "Schedule Send" : "Send Email")}
+                                            </span>
+                                        </button>
+
+                                        {!composeScheduledAt && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowScheduleMenu(!showScheduleMenu)}
+                                                className="px-2.5 py-2 bg-indigo-700 hover:bg-indigo-800 text-white rounded-r-xl border-l border-indigo-400/40 text-xs font-bold transition-colors cursor-pointer shadow-md"
+                                                title="Schedule Send (Delayed Send via AWS SES)"
+                                            >
+                                                <Clock className="w-3.5 h-3.5" />
+                                            </button>
+                                        )}
+
+                                        {/* Schedule Send Presets & Custom Picker Popover */}
+                                        {showScheduleMenu && (
+                                            <div className="absolute right-0 bottom-full mb-2 w-72 bg-white rounded-2xl shadow-2xl border border-slate-200 p-4 z-50 text-xs space-y-3 animate-in fade-in zoom-in-95 duration-150">
+                                                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                                                    <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                                                        <Clock className="w-3.5 h-3.5 text-indigo-600" />
+                                                        Schedule Send (SES Queue)
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowScheduleMenu(false)}
+                                                        className="text-slate-400 hover:text-slate-600 cursor-pointer"
+                                                    >
+                                                        <X className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                                                        Quick Presets
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const d = new Date(Date.now() + 15 * 60 * 1000);
+                                                            setComposeScheduledAt(d.toISOString());
+                                                            setShowScheduleMenu(false);
+                                                        }}
+                                                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-indigo-50 text-slate-700 font-semibold flex items-center justify-between transition-colors cursor-pointer"
+                                                    >
+                                                        <span>In 15 minutes</span>
+                                                        <span className="text-[10px] text-slate-400 font-normal">
+                                                            {format(new Date(Date.now() + 15 * 60 * 1000), "hh:mm a")}
+                                                        </span>
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const d = new Date(Date.now() + 60 * 60 * 1000);
+                                                            setComposeScheduledAt(d.toISOString());
+                                                            setShowScheduleMenu(false);
+                                                        }}
+                                                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-indigo-50 text-slate-700 font-semibold flex items-center justify-between transition-colors cursor-pointer"
+                                                    >
+                                                        <span>In 1 hour</span>
+                                                        <span className="text-[10px] text-slate-400 font-normal">
+                                                            {format(new Date(Date.now() + 60 * 60 * 1000), "hh:mm a")}
+                                                        </span>
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const tomorrow = new Date();
+                                                            tomorrow.setDate(tomorrow.getDate() + 1);
+                                                            tomorrow.setHours(9, 0, 0, 0);
+                                                            setComposeScheduledAt(tomorrow.toISOString());
+                                                            setShowScheduleMenu(false);
+                                                        }}
+                                                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-indigo-50 text-slate-700 font-semibold flex items-center justify-between transition-colors cursor-pointer"
+                                                    >
+                                                        <span>Tomorrow morning</span>
+                                                        <span className="text-[10px] text-slate-400 font-normal">9:00 AM</span>
+                                                    </button>
+                                                </div>
+
+                                                <div className="pt-2 border-t border-slate-100">
+                                                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1.5">
+                                                        Or Pick Custom Date & Time
+                                                    </label>
+                                                    <div className="flex items-center gap-2">
+                                                        <input
+                                                            type="datetime-local"
+                                                            value={customScheduleInput}
+                                                            onChange={(e) => setCustomScheduleInput(e.target.value)}
+                                                            className="flex-1 px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            disabled={!customScheduleInput}
+                                                            onClick={() => {
+                                                                if (customScheduleInput) {
+                                                                    const d = new Date(customScheduleInput);
+                                                                    if (d.getTime() > Date.now()) {
+                                                                        setComposeScheduledAt(d.toISOString());
+                                                                        setShowScheduleMenu(false);
+                                                                    } else {
+                                                                        alert("Please select a future time.");
+                                                                    }
+                                                                }
+                                                            }}
+                                                            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold disabled:opacity-50 cursor-pointer shadow-2xs"
+                                                        >
+                                                            Set
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         </form>

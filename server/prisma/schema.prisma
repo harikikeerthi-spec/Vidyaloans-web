@@ -1852,3 +1852,29 @@ model SecureTempArtifact {
   @@index([statementUploadId])
   @@index([expiresAt])
 }
+
+model ScheduledEmail {
+  id                 String    @id @default(uuid())
+  userId             String?
+  to                 String[]
+  cc                 String[]  @default([])
+  bcc                String[]  @default([])
+  subject            String
+  text               String?
+  html               String?
+  replyTo            String?
+  attachments        Json?
+  priority           String?   @default("normal") // high, normal, low
+  requestReadReceipt Boolean   @default(false)
+  scheduledAt        DateTime
+  status             String    @default("PENDING") // PENDING, SENT, FAILED, CANCELLED
+  sentAt             DateTime?
+  failedReason       String?
+  messageId          String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([status, scheduledAt])
+  @@index([userId])
+  @@map("scheduled_emails")
+}

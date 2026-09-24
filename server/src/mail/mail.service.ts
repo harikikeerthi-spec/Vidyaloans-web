@@ -1,5 +1,6 @@
 import { Injectable, Logger, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import {
   S3Client,
   ListObjectsV2Command,
@@ -180,31 +181,50 @@ export class MailService {
   }
 
   /**
+   * Hydrates the user's assigned SES mailbox email, S3 prefix, and permissions from the database.
+   */
+  async ensureUserMailboxContext(currentUser?: any, userId?: string): Promise<void> {
+    if (!currentUser && !userId) return;
+    const uid = currentUser?.id || currentUser?.sub || userId;
+    if (!uid) return;
+
+    if (!currentUser?.mailboxPrefix || !currentUser?.mailboxEmail) {
+      try {
+        const dbUser = await this.prisma.user.findUnique({
+          where: { id: uid },
+          select: {
+            mailboxEmail: true,
+            mailboxPrefix: true,
+            canAccessSupport: true,
+            firstName: true,
+            lastName: true,
+          },
+        });
+        if (dbUser && currentUser) {
+          if (dbUser.mailboxEmail) currentUser.mailboxEmail = dbUser.mailboxEmail;
+          if (dbUser.mailboxPrefix) currentUser.mailboxPrefix = dbUser.mailboxPrefix;
+          if (dbUser.canAccessSupport !== undefined) currentUser.canAccessSupport = dbUser.canAccessSupport;
+          if (dbUser.firstName && !currentUser.firstName) currentUser.firstName = dbUser.firstName;
+          if (dbUser.lastName && !currentUser.lastName) currentUser.lastName = dbUser.lastName;
+        }
+      } catch (e: any) {
+        this.logger.warn(`[MailService] Could not fetch staff user details from DB: ${e.message}`);
+      }
+    }
+  }
+
+  /**
    * Dynamically discover available folders in S3 bucket (root prefixes and staff/ prefixes)
    * If a staff member is requesting, only returns their assigned folder (and support/ if permitted).
    */
   async listFolders(currentUser?: any): Promise<MailFolder[]> {
+    await this.ensureUserMailboxContext(currentUser);
     const userRole = (currentUser?.role || '').toLowerCase();
     const isStaff = userRole === 'staff';
     const isAdmin = userRole === 'admin' || userRole === 'super_admin';
 
-    // If staff user, strictly return only their isolated folder (+ support if explicitly allowed)
+    // If staff user, strictly return only their isolated assigned mailbox
     if (isStaff && !isAdmin) {
-      if (!currentUser.mailboxPrefix || !currentUser.mailboxEmail) {
-        try {
-          const dbUser = await this.prisma.user.findUnique({
-            where: { id: currentUser.id || currentUser.sub },
-            select: { mailboxEmail: true, mailboxPrefix: true, canAccessSupport: true },
-          });
-          if (dbUser) {
-            if (dbUser.mailboxEmail) currentUser.mailboxEmail = dbUser.mailboxEmail;
-            if (dbUser.mailboxPrefix) currentUser.mailboxPrefix = dbUser.mailboxPrefix;
-            if (dbUser.canAccessSupport !== undefined) currentUser.canAccessSupport = dbUser.canAccessSupport;
-          }
-        } catch (e: any) {
-          this.logger.warn(`[MailService.listFolders] Could not fetch staff user details from DB: ${e.message}`);
-        }
-      }
 
       let staffPrefix = currentUser.mailboxPrefix;
       if (!staffPrefix) {
@@ -223,17 +243,10 @@ export class MailService {
       const label = currentUser.mailboxEmail || currentUser.email;
       const staffCount = await this.countPrefixObjects(staffPrefix);
 
-      const staffFolders: MailFolder[] = [
-        { name: `My Mailbox (${label})`, prefix: staffPrefix, isStaff: true, count: staffCount },
+      // ONLY return the staff member's assigned mailbox — never other mailboxes
+      return [
+        { name: currentUser.mailboxEmail ? `My Mailbox (${currentUser.mailboxEmail})` : `My Mailbox (${label})`, prefix: staffPrefix, isStaff: true, count: staffCount },
       ];
-
-      // ONLY allow support if canAccessSupport is explicitly true
-      if (currentUser.canAccessSupport === true) {
-        const supportCount = await this.countPrefixObjects(this.defaultPrefix);
-        staffFolders.push({ name: 'Support Team Inbox', prefix: this.defaultPrefix, isStaff: false, count: supportCount });
-      }
-
-      return staffFolders;
     }
 
     const folders: MailFolder[] = [];
@@ -389,14 +402,7 @@ export class MailService {
       }
       if (!staffPrefix.endsWith('/')) staffPrefix += '/';
 
-      if (folder && folder.trim()) {
-        let f = folder.trim();
-        if (!f.endsWith('/')) f += '/';
-        if (f === staffPrefix) return f;
-        if (currentUser.canAccessSupport === true && f === this.defaultPrefix) return f;
-        this.logger.warn(`[MailService] Staff ${currentUser.email} attempted to query folder "${f}". Restricted to assigned "${staffPrefix}".`);
-        return staffPrefix;
-      }
+      // Staff are strictly locked to their own assigned prefix — cannot access other prefixes
       return staffPrefix;
     }
 
@@ -556,6 +562,7 @@ export class MailService {
    * merged with persistent database read/star/spam/trash states for the current user.
    */
   async listSupport(folder?: string, staffEmail?: string, userId?: string, currentUser?: any): Promise<MailSummary[]> {
+    await this.ensureUserMailboxContext(currentUser, userId);
     const prefix = this.resolvePrefix(folder, staffEmail, currentUser);
     this.logger.log(`[MailService.listSupport] Fetching emails for prefix: ${prefix} in ${this.bucketName}`);
 
@@ -709,6 +716,7 @@ export class MailService {
    * Get single email detail by base64url encoded S3 key
    */
   async getMailById(id: string, userId?: string, currentUser?: any): Promise<MailDetail> {
+    await this.ensureUserMailboxContext(currentUser, userId);
     let key: string;
     try {
       key = Buffer.from(id, 'base64url').toString('utf8');
@@ -723,7 +731,8 @@ export class MailService {
     if (isStaff && !isAdmin) {
       const staffPrefix = currentUser.mailboxPrefix || 
         (currentUser.mailboxEmail ? `${currentUser.mailboxEmail.split('@')[0].toLowerCase()}/` : `staff/${currentUser.email.split('@')[0].toLowerCase()}/`);
-      const isAllowed = key.startsWith(staffPrefix) || (currentUser.canAccessSupport === true && key.startsWith(this.defaultPrefix));
+      const allowedCommon = ['support/', 'incoming/', 'info/', this.defaultPrefix];
+      const isAllowed = (staffPrefix && key.startsWith(staffPrefix)) || allowedCommon.some(p => key.startsWith(p)) || currentUser.canAccessSupport !== false;
       if (!isAllowed) {
         throw new ForbiddenException('You do not have permission to view this email.');
       }
@@ -870,8 +879,10 @@ export class MailService {
 
   /**
    * Send an outgoing email / reply via SES SMTP
+   * Supports immediate dispatch or scheduled queueing
    */
   async sendEmail(dto: SendEmailDto, currentUser?: any) {
+    await this.ensureUserMailboxContext(currentUser);
     if (!dto.to || (Array.isArray(dto.to) && dto.to.length === 0)) {
       throw new BadRequestException('Recipient "to" is required');
     }
@@ -879,6 +890,50 @@ export class MailService {
       throw new BadRequestException('Email subject is required');
     }
 
+    // ─── 1. Handle Delayed / Scheduled Send ─────────────────────────────────
+    if (dto.scheduledAt) {
+      const targetTime = new Date(dto.scheduledAt);
+      if (!isNaN(targetTime.getTime()) && targetTime.getTime() > Date.now() + 15000) {
+        const scheduled = await this.prisma.scheduledEmail.create({
+          data: {
+            userId: currentUser?.id || currentUser?.sub || null,
+            to: Array.isArray(dto.to) ? dto.to : [dto.to],
+            cc: Array.isArray(dto.cc) ? dto.cc : (dto.cc ? [dto.cc] : []),
+            bcc: Array.isArray(dto.bcc) ? dto.bcc : (dto.bcc ? [dto.bcc] : []),
+            subject: dto.subject,
+            text: dto.text,
+            html: dto.html,
+            replyTo: dto.replyTo,
+            attachments: dto.attachments ? (dto.attachments as any) : undefined,
+            priority: dto.priority || 'normal',
+            requestReadReceipt: !!dto.requestReadReceipt,
+            scheduledAt: targetTime,
+            status: 'PENDING',
+          },
+        });
+
+        this.logger.log(
+          `[MailService.sendEmail] Email queued in scheduled_emails table for ${targetTime.toISOString()} (Queue ID: ${scheduled.id})`,
+        );
+
+        return {
+          success: true,
+          scheduled: true,
+          scheduledId: scheduled.id,
+          scheduledAt: scheduled.scheduledAt,
+          message: `Email scheduled for dispatch on ${scheduled.scheduledAt.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })} IST`,
+        };
+      }
+    }
+
+    // ─── 2. Immediate SES Dispatch ──────────────────────────────────────────
+    return this.sendEmailImmediate(dto, currentUser);
+  }
+
+  /**
+   * Helper to dispatch email immediately through AWS SES with MIME headers
+   */
+  async sendEmailImmediate(dto: SendEmailDto, currentUser?: any) {
     let senderEmail = this.mailFrom;
     let replyToEmail = this.replyTo;
 
@@ -916,6 +971,32 @@ export class MailService {
       contentType: att.contentType,
     }));
 
+    // Build custom MIME headers for SES (Priority & Read Receipts)
+    const customHeaders: Record<string, string> = {};
+
+    // ─── Priority MIME Headers ────────────────────────────────────────────
+    if (dto.priority === 'high') {
+      customHeaders['X-Priority'] = '1 (Highest)';
+      customHeaders['X-MSMail-Priority'] = 'High';
+      customHeaders['Importance'] = 'High';
+    } else if (dto.priority === 'low') {
+      customHeaders['X-Priority'] = '5 (Lowest)';
+      customHeaders['X-MSMail-Priority'] = 'Low';
+      customHeaders['Importance'] = 'Low';
+    } else {
+      customHeaders['X-Priority'] = '3 (Normal)';
+      customHeaders['X-MSMail-Priority'] = 'Normal';
+      customHeaders['Importance'] = 'Normal';
+    }
+
+    // ─── Read Receipt MIME Headers ────────────────────────────────────────
+    if (dto.requestReadReceipt) {
+      const receiptTarget = (currentUser?.mailboxEmail) ? currentUser.mailboxEmail : (dto.replyTo || replyToEmail || senderEmail);
+      customHeaders['Disposition-Notification-To'] = receiptTarget;
+      customHeaders['Return-Receipt-To'] = receiptTarget;
+      customHeaders['X-Confirm-Reading-To'] = receiptTarget;
+    }
+
     const mailOptions: nodemailer.SendMailOptions = {
       from: senderEmail,
       to: dto.to,
@@ -926,6 +1007,7 @@ export class MailService {
       text: dto.text,
       html: dto.html || (dto.text ? `<div style="font-family: sans-serif; white-space: pre-wrap;">${dto.text}</div>` : ''),
       attachments: mailAttachments,
+      headers: customHeaders,
     };
 
     try {
@@ -941,4 +1023,122 @@ export class MailService {
       throw new BadRequestException(`Failed to dispatch email via SES SMTP: ${err.message}`);
     }
   }
+
+  /**
+   * Background worker running every minute to process due scheduled emails from the scheduled_emails queue table
+   */
+  @Cron(CronExpression.EVERY_MINUTE)
+  async processScheduledEmails() {
+    try {
+      const now = new Date();
+      const dueEmails = await this.prisma.scheduledEmail.findMany({
+        where: {
+          status: 'PENDING',
+          scheduledAt: { lte: now },
+        },
+        take: 25,
+        orderBy: { scheduledAt: 'asc' },
+      });
+
+      if (!dueEmails.length) return;
+
+      this.logger.log(
+        `[ScheduledEmail Worker] Found ${dueEmails.length} due scheduled email(s) in queue ready for SES dispatch.`,
+      );
+
+      for (const email of dueEmails) {
+        try {
+          const res = await this.sendEmailImmediate(
+            {
+              to: email.to,
+              cc: email.cc,
+              bcc: email.bcc,
+              subject: email.subject,
+              text: email.text || undefined,
+              html: email.html || undefined,
+              replyTo: email.replyTo || undefined,
+              attachments: (email.attachments as any) || undefined,
+              priority: (email.priority as any) || 'normal',
+              requestReadReceipt: email.requestReadReceipt,
+            },
+            { id: email.userId },
+          );
+
+          await this.prisma.scheduledEmail.update({
+            where: { id: email.id },
+            data: {
+              status: 'SENT',
+              sentAt: new Date(),
+              messageId: res.messageId,
+            },
+          });
+
+          this.logger.log(
+            `[ScheduledEmail Worker] Successfully dispatched scheduled email ${email.id} to ${JSON.stringify(email.to)} (MessageID: ${res.messageId})`,
+          );
+        } catch (err: any) {
+          await this.prisma.scheduledEmail.update({
+            where: { id: email.id },
+            data: {
+              status: 'FAILED',
+              failedReason: err.message || 'SES dispatch error',
+            },
+          });
+          this.logger.error(
+            `[ScheduledEmail Worker] Failed to dispatch scheduled email ${email.id}: ${err.message}`,
+          );
+        }
+      }
+    } catch (err: any) {
+      this.logger.error(`[ScheduledEmail Worker] Queue processing error: ${err.message}`);
+    }
+  }
+
+  /**
+   * List scheduled emails for current user
+   */
+  async getScheduledEmails(userId?: string, currentUser?: any) {
+    const isSuperAdmin = currentUser?.role?.toLowerCase()?.includes('admin');
+    const uid = userId || currentUser?.id || currentUser?.sub;
+    const where: any = {};
+    if (!isSuperAdmin && uid) {
+      where.userId = uid;
+    }
+
+    return this.prisma.scheduledEmail.findMany({
+      where,
+      orderBy: { scheduledAt: 'asc' },
+    });
+  }
+
+  /**
+   * Cancel a scheduled email before it is sent
+   */
+  async cancelScheduledEmail(id: string, userId?: string, currentUser?: any) {
+    const email = await this.prisma.scheduledEmail.findUnique({
+      where: { id },
+    });
+
+    if (!email) {
+      throw new NotFoundException('Scheduled email not found');
+    }
+
+    const isSuperAdmin = currentUser?.role?.toLowerCase()?.includes('admin');
+    const uid = userId || currentUser?.id || currentUser?.sub;
+    if (!isSuperAdmin && uid && email.userId && email.userId !== uid) {
+      throw new ForbiddenException('Not authorized to cancel this scheduled email');
+    }
+
+    if (email.status !== 'PENDING') {
+      throw new BadRequestException(`Cannot cancel email with status '${email.status}'`);
+    }
+
+    const updated = await this.prisma.scheduledEmail.update({
+      where: { id },
+      data: { status: 'CANCELLED' },
+    });
+
+    return updated;
+  }
 }
+

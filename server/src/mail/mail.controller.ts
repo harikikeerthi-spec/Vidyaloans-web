@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Param,
   Body,
   Query,
@@ -60,36 +61,20 @@ export class MailController {
     return { success: true, data: stats };
   }
 
-  // ─── Get Email Detail ────────────────────────────────────────────────────────
-  @Get(['mail/inbox/:id', 'mail/:id', 'support/mail/:id'])
-  @ApiOperation({ summary: 'Get full parsed email detail by base64url encoded S3 key' })
-  async getMailDetail(@Param('id') id: string, @Req() req?: any) {
-    const userId = req?.user?.id;
-    const mail = await this.mailService.getMailById(id, userId, req?.user);
-    return { success: true, data: mail };
+  // ─── List Scheduled Emails (Must precede :id wildcard) ──────────────────────
+  @Get(['mail/scheduled', 'support/mail/scheduled'])
+  @ApiOperation({ summary: 'List pending and historical scheduled emails' })
+  async getScheduledEmails(@Req() req: any) {
+    const emails = await this.mailService.getScheduledEmails(req.user?.id, req.user);
+    return { success: true, data: emails };
   }
 
-  // ─── Update Single Email State (Read, Star, Spam, Trash) ─────────────────────
-  @Patch(['mail/state/:id', 'support/mail/state/:id'])
-  @ApiOperation({ summary: 'Update state (read, star, spam, trash) for an email' })
-  async updateEmailState(
-    @Param('id') id: string,
-    @Body() dto: UpdateEmailStateDto,
-    @Req() req: any,
-  ) {
-    const result = await this.mailService.updateEmailState(req.user.id, id, dto);
-    return { success: true, data: result };
-  }
-
-  // ─── Batch Update Email States ──────────────────────────────────────────────
-  @Post(['mail/state/batch', 'support/mail/state/batch'])
-  @ApiOperation({ summary: 'Batch update state for multiple emails' })
-  async batchUpdateEmailState(
-    @Body() dto: BatchUpdateEmailStateDto,
-    @Req() req: any,
-  ) {
-    const result = await this.mailService.batchUpdateEmailState(req.user.id, dto.emailIds, dto);
-    return { success: true, ...result };
+  // ─── Cancel Scheduled Email ────────────────────────────────────────────────
+  @Delete(['mail/scheduled/:id', 'support/mail/scheduled/:id'])
+  @ApiOperation({ summary: 'Cancel a pending scheduled email before dispatch' })
+  async cancelScheduledEmail(@Param('id') id: string, @Req() req: any) {
+    const result = await this.mailService.cancelScheduledEmail(id, req.user?.id, req.user);
+    return { success: true, data: result, message: 'Scheduled email cancelled successfully' };
   }
 
   // ─── Get User Email States ──────────────────────────────────────────────────
@@ -107,4 +92,37 @@ export class MailController {
     const result = await this.mailService.sendEmail(dto, req.user);
     return { success: true, ...result };
   }
+
+  // ─── Batch Update Email States ──────────────────────────────────────────────
+  @Post(['mail/state/batch', 'support/mail/state/batch'])
+  @ApiOperation({ summary: 'Batch update state for multiple emails' })
+  async batchUpdateEmailState(
+    @Body() dto: BatchUpdateEmailStateDto,
+    @Req() req: any,
+  ) {
+    const result = await this.mailService.batchUpdateEmailState(req.user.id, dto.emailIds, dto);
+    return { success: true, ...result };
+  }
+
+  // ─── Update Single Email State (Read, Star, Spam, Trash) ─────────────────────
+  @Patch(['mail/state/:id', 'support/mail/state/:id'])
+  @ApiOperation({ summary: 'Update state (read, star, spam, trash) for an email' })
+  async updateEmailState(
+    @Param('id') id: string,
+    @Body() dto: UpdateEmailStateDto,
+    @Req() req: any,
+  ) {
+    const result = await this.mailService.updateEmailState(req.user.id, id, dto);
+    return { success: true, data: result };
+  }
+
+  // ─── Get Email Detail (Parameterized route placed last) ─────────────────────
+  @Get(['mail/inbox/:id', 'mail/:id', 'support/mail/:id'])
+  @ApiOperation({ summary: 'Get full parsed email detail by base64url encoded S3 key' })
+  async getMailDetail(@Param('id') id: string, @Req() req?: any) {
+    const userId = req?.user?.id;
+    const mail = await this.mailService.getMailById(id, userId, req?.user);
+    return { success: true, data: mail };
+  }
 }
+

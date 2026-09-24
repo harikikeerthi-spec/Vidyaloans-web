@@ -1326,7 +1326,34 @@ export const adminApi = {
             method: "POST",
             body: JSON.stringify(data),
         }),
-    updateUserDetails: (data: { userId?: string; email: string; firstName: string; lastName: string; phoneNumber: string; dateOfBirth: string; targetUniversity?: string; studyDestination?: string; fatherName?: string; motherName?: string; family?: any; coApplicant?: any; academic?: any; passport?: any; officeId?: string; officeLocation?: string }) =>
+    updateUserDetails: (data: {
+        userId?: string;
+        email: string;
+        firstName?: string;
+        lastName?: string;
+        phoneNumber?: string;
+        dateOfBirth?: string;
+        targetUniversity?: string;
+        studyDestination?: string;
+        fatherName?: string;
+        motherName?: string;
+        family?: any;
+        coApplicant?: any;
+        academic?: any;
+        passport?: any;
+        officeId?: string;
+        officeLocation?: string;
+        mailboxEmail?: string;
+        mailboxPrefix?: string;
+        canAccessSupport?: boolean;
+        staffId?: string;
+        isOnLeave?: boolean;
+        isResigned?: boolean;
+        role?: string;
+        bank?: string;
+        department?: string;
+        designation?: string;
+    }) =>
         apiFetch(HttpApiPaths.admin.usersUpdateDetails(), {
             method: "POST",
             body: JSON.stringify(data),
@@ -2122,9 +2149,16 @@ export const mailApi = {
         html?: string;
         replyTo?: string;
         attachments?: { filename: string; content: string; contentType?: string }[];
+        priority?: 'high' | 'normal' | 'low';
+        requestReadReceipt?: boolean;
+        scheduledAt?: string | Date;
     }) => apiFetch(`${API_URL}/mail/send`, {
         method: "POST",
         body: JSON.stringify(data),
+    }),
+    getScheduledEmails: () => apiFetch(`${API_URL}/mail/scheduled`),
+    cancelScheduledEmail: (id: string) => apiFetch(`${API_URL}/mail/scheduled/${id}`, {
+        method: "DELETE",
     }),
     updateState: (id: string, data: { isRead?: boolean; isStarred?: boolean; isSpam?: boolean | null; isTrashed?: boolean }) =>
         apiFetch(`${API_URL}/mail/state/${id}`, {
