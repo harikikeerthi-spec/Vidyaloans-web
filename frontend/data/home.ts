@@ -1,8 +1,8 @@
 export const lenders = [
-    { name: "Auxilo Finserve", slug: "auxilo", badge: "Fast Approval", rate: "From 10.50% p.a.", time: "48 hours", fee: "1% + GST", logo: "/banks/auxilo.png", link: "https://www.auxilo.com" },
-    { name: "Poonawalla Fincorp", slug: "poonawalla", badge: "Easy Process", rate: "From 10.50% p.a.", time: "3-5 days", fee: "1% + GST", logo: "/banks/poonawalla.jpg", link: "https://poonawallafincorp.com" },
-    { name: "Avanse Financial", slug: "avanse", badge: "High Limits", rate: "From 10.75% p.a.", time: "3-5 days", fee: "1% - 1.5% + GST", logo: "/banks/avanse.png", link: "https://www.avanse.com" },
-    { name: "HDFC Credila", slug: "credila", badge: "Most Popular", rate: "From 10.25% p.a.", time: "3-5 days", fee: "1% - 1.25% + GST", logo: "/banks/credila.png", link: "https://www.hdfccredila.com" },
+    { name: "Auxilo Finserve", slug: "auxilo", badge: "Fast Approval", rate: "From 10.25% p.a.", time: "48 hours", fee: "1% + GST", logo: "/banks/auxilo.png", link: "https://www.auxilo.com" },
+    { name: "Poonawalla Fincorp", slug: "poonawalla", badge: "Easy Process", rate: "From 10.25% p.a.", time: "48 hours", fee: "1% + GST", logo: "/banks/poonawalla.jpg", link: "https://poonawallafincorp.com" },
+    { name: "Avanse Financial", slug: "avanse", badge: "High Limits", rate: "From 10.25% p.a.", time: "48 hours", fee: "1% - 1.5% + GST", logo: "/banks/avanse.png", link: "https://www.avanse.com" },
+    { name: "HDFC Credila", slug: "credila", badge: "Most Popular", rate: "From 10.25% p.a.", time: "48 hours", fee: "1% - 1.25% + GST", logo: "/banks/credila.png", link: "https://www.hdfccredila.com" },
     { name: "IDFC FIRST Bank", slug: "idfc", badge: "Digital First", rate: "From 10.25% p.a.", time: "48 hours", fee: "1% + GST", logo: "/banks/idfc.png", link: "https://www.idfcfirstbank.com" },
 ];
 

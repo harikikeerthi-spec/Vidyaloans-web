@@ -21,7 +21,7 @@ const CORE_BANKS_CONFIG = [
         name: "Auxilo Finserve",
         slug: "auxilo",
         badge: "Fast Approval",
-        defaultRate: "From 10.50% p.a.",
+        defaultRate: "From 10.25% p.a.",
         defaultTime: "48 hours",
         defaultFee: "1% + GST",
         defaultLogo: "/banks/auxilo.png",
@@ -32,8 +32,8 @@ const CORE_BANKS_CONFIG = [
         name: "Poonawalla Fincorp",
         slug: "poonawalla",
         badge: "Easy Process",
-        defaultRate: "From 10.50% p.a.",
-        defaultTime: "3-5 days",
+        defaultRate: "From 10.25% p.a.",
+        defaultTime: "48 hours",
         defaultFee: "1% + GST",
         defaultLogo: "/banks/poonawalla.jpg",
         link: "https://poonawallafincorp.com",
@@ -43,8 +43,8 @@ const CORE_BANKS_CONFIG = [
         name: "Avanse Financial",
         slug: "avanse",
         badge: "High Limits",
-        defaultRate: "From 10.75% p.a.",
-        defaultTime: "3-5 days",
+        defaultRate: "From 10.25% p.a.",
+        defaultTime: "48 hours",
         defaultFee: "1% - 1.5% + GST",
         defaultLogo: "/banks/avanse.png",
         link: "https://www.avanse.com",
@@ -55,7 +55,7 @@ const CORE_BANKS_CONFIG = [
         slug: "credila",
         badge: "Most Popular",
         defaultRate: "From 10.25% p.a.",
-        defaultTime: "3-5 days",
+        defaultTime: "48 hours",
         defaultFee: "1% - 1.25% + GST",
         defaultLogo: "/banks/credila.png",
         link: "https://www.hdfccredila.com",
@@ -100,9 +100,7 @@ function buildActiveLenders(dbBanks: any[] | null) {
             };
         }
         const rateStr = dbMatch.interestRateMin
-            ? (dbMatch.interestRateMin === dbMatch.interestRateMax
-                ? `From ${dbMatch.interestRateMin}% p.a.`
-                : `${dbMatch.interestRateMin}% - ${dbMatch.interestRateMax}%`)
+            ? `${dbMatch.interestRateMin}% p.a.`
             : core.defaultRate;
 
         return {
@@ -128,10 +126,8 @@ function buildActiveLenders(dbBanks: any[] | null) {
     const additionalLenders = customDbBanks.map((b: any) => {
         const slug = (b.shortName || b.name.toLowerCase().replace(/[^a-z0-9_-]/g, "")).toLowerCase();
         const rateStr = b.interestRateMin
-            ? (b.interestRateMin === b.interestRateMax
-                ? `From ${b.interestRateMin}% p.a.`
-                : `${b.interestRateMin}% - ${b.interestRateMax}%`)
-            : "Competitive ROI";
+            ? `${b.interestRateMin}% p.a.`
+            : "10.25% p.a.";
 
         return {
             name: b.name,
