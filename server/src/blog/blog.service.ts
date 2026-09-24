@@ -344,26 +344,55 @@ export class BlogService {
   }
 
   async getBlogBySlug(slug: string) {
-    const { data: blog } = await this.db
+    let { data: blog } = await this.db
       .from('Blog')
       .select('id, title, slug, excerpt, content, category, authorName, authorImage, authorRole, featuredImage, readTime, views, publishedAt, createdAt, updatedAt, tags:BlogTag(tag:Tag(name)), comments:Comment(id, author, content, createdAt)')
       .eq('slug', slug)
-      .single();
+      .maybeSingle();
+
+    if (!blog) {
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(slug);
+      if (isUUID) {
+        const { data: byId } = await this.db
+          .from('Blog')
+          .select('id, title, slug, excerpt, content, category, authorName, authorImage, authorRole, featuredImage, readTime, views, publishedAt, createdAt, updatedAt, tags:BlogTag(tag:Tag(name)), comments:Comment(id, author, content, createdAt)')
+          .eq('id', slug)
+          .maybeSingle();
+        blog = byId;
+      }
+    }
 
     if (!blog) throw new NotFoundException('Blog not found');
 
     // Increment view count (fire-and-forget)
-    this.db.from('Blog').update({ views: (blog.views || 0) + 1 }).eq('slug', slug).then(() => {});
+    if (blog.slug) {
+      this.db.from('Blog').update({ views: (blog.views || 0) + 1 }).eq('slug', blog.slug).then(() => {});
+    }
 
     return { success: true, data: this.mapTags(blog) };
   }
 
   async getBlogById(id: string) {
-    const { data: blog } = await this.db
-      .from('Blog')
-      .select('id, title, slug, excerpt, content, category, authorName, authorImage, authorRole, featuredImage, readTime, views, isFeatured, isPublished, publishedAt, createdAt, updatedAt, tags:BlogTag(tag:Tag(name))')
-      .eq('id', id)
-      .single();
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
+    let blog: any = null;
+
+    if (isUUID) {
+      const { data } = await this.db
+        .from('Blog')
+        .select('id, title, slug, excerpt, content, category, authorName, authorImage, authorRole, featuredImage, readTime, views, isFeatured, isPublished, publishedAt, createdAt, updatedAt, tags:BlogTag(tag:Tag(name))')
+        .eq('id', id)
+        .maybeSingle();
+      blog = data;
+    }
+
+    if (!blog) {
+      const { data } = await this.db
+        .from('Blog')
+        .select('id, title, slug, excerpt, content, category, authorName, authorImage, authorRole, featuredImage, readTime, views, isFeatured, isPublished, publishedAt, createdAt, updatedAt, tags:BlogTag(tag:Tag(name))')
+        .eq('slug', id)
+        .maybeSingle();
+      blog = data;
+    }
 
     if (!blog) throw new NotFoundException('Blog not found');
     return { success: true, data: this.mapTags(blog) };

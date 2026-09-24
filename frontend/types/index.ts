@@ -63,9 +63,11 @@ export interface LoanApplication {
 export interface BlogPost {
     id: string;
     title: string;
+    subtitle?: string;
     slug: string;
     excerpt?: string;
     content: string;
+    blocks?: any[];
     coverImage?: string;
     featuredImage?: string;
     author?: string;

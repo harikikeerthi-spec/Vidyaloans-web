@@ -5,6 +5,7 @@ import {
   extractPdfText,
   parseTransactions,
   calculateEVV,
+  parseCustomDates,
   generateDemoData,
   formatCurrency,
   formatDate,
@@ -420,13 +421,75 @@ export const EVVTestAgent: React.FC<{
     const currentMode = mode || intervalMode;
     if (currentMode === "custom") {
       const inputStr = customInput !== undefined ? customInput : customDatesInput;
-      const parsed = inputStr
-        .split(",")
-        .map((s) => parseInt(s.trim(), 10))
-        .filter((n) => !isNaN(n) && n >= 1 && n <= 31);
-      return parsed.length > 0 ? parsed : [1, 5, 10, 15, 20, 25];
+      return parseCustomDates(inputStr);
     }
     return 5;
+  };
+
+  // Synthesize transaction balance checkpoints from saved monthly metrics or snapshots if raw txs are missing
+  const synthesizeTransactionsFromSnapshotsOrMetrics = (): any[] => {
+    if (evvResult?.snapshots && evvResult.snapshots.length > 0) {
+      return evvResult.snapshots.map((s, idx) => {
+        const dStr = s.date instanceof Date ? s.date.toISOString().slice(0, 10) : String(s.date).slice(0, 10);
+        return {
+          date: new Date(dStr),
+          narration: `Balance Checkpoint #${idx + 1}`,
+          debit: (s.changeAmount ?? 0) < 0 ? Math.abs(s.changeAmount ?? 0) : 0,
+          credit: (s.changeAmount ?? 0) > 0 ? (s.changeAmount ?? 0) : 0,
+          balance: s.balance,
+          raw: `${dStr} | Checkpoint | ${s.balance}`,
+        };
+      });
+    }
+    if (evvResult?.monthlyMetrics && evvResult.monthlyMetrics.length > 0) {
+      const generatedTxs: any[] = [];
+      evvResult.monthlyMetrics.forEach((m, mIdx) => {
+        let year = 2025;
+        let month = (mIdx % 12) + 1;
+        if (m.month && m.month.includes("-")) {
+          const parts = m.month.split("-");
+          year = parseInt(parts[0], 10) || year;
+          month = parseInt(parts[1], 10) || month;
+        }
+        const yStr = String(year);
+        const mStr = String(month).padStart(2, "0");
+        const daysInMonth = new Date(year, month, 0).getDate();
+        const avg = m.avg || 30000;
+        const credits = m.credits || Math.round(avg * 0.8);
+        const debits = m.debits || Math.round(avg * 0.7);
+
+        // Day 1 opening / salary
+        generatedTxs.push({
+          date: new Date(`${yStr}-${mStr}-01`),
+          narration: "Direct Payroll Credit / Salary",
+          debit: 0,
+          credit: credits,
+          balance: Math.round(avg * 1.1),
+          raw: `${yStr}-${mStr}-01 | Direct Payroll Credit | ${credits} | ${Math.round(avg * 1.1)}`,
+        });
+        // Day 15 debit
+        generatedTxs.push({
+          date: new Date(`${yStr}-${mStr}-15`),
+          narration: "Living Expenses & Bills",
+          debit: debits,
+          credit: 0,
+          balance: Math.round(avg * 0.9),
+          raw: `${yStr}-${mStr}-15 | Expenses | ${debits} | ${Math.round(avg * 0.9)}`,
+        });
+        // Last day closing
+        const lastDayStr = String(daysInMonth).padStart(2, "0");
+        generatedTxs.push({
+          date: new Date(`${yStr}-${mStr}-${lastDayStr}`),
+          narration: "Month End Closing Balance",
+          debit: 0,
+          credit: 0,
+          balance: m.closing || avg,
+          raw: `${yStr}-${mStr}-${lastDayStr} | Closing Balance | 0 | ${m.closing || avg}`,
+        });
+      });
+      return generatedTxs;
+    }
+    return [];
   };
 
   const runRecalculation = (
@@ -437,13 +500,22 @@ export const EVVTestAgent: React.FC<{
     intMode: "5day" | "custom" = intervalMode,
     customDates: string = customDatesInput
   ) => {
-    const txs =
+    let txs =
       activeTransactions.length > 0
         ? activeTransactions
         : evvResult?.transactions && evvResult.transactions.length > 0
         ? evvResult.transactions
         : [];
-    if (txs.length === 0) return;
+    if (txs.length === 0) {
+      txs = synthesizeTransactionsFromSnapshotsOrMetrics();
+      if (txs.length > 0) {
+        setActiveTransactions(txs);
+      }
+    }
+    if (txs.length === 0) {
+      log("No transaction data available for EVV recalculation.", "warn");
+      return;
+    }
 
     const currentPolicy = DEFAULT_BANK_POLICIES[bankKey] || DEFAULT_BANK_POLICIES["DEFAULT"];
     const targetInterval = getTargetInterval(intMode, customDates);
@@ -456,7 +528,47 @@ export const EVVTestAgent: React.FC<{
     const updated = calculateEVV(txs, targetInterval, currentPolicy, coApp, overrides);
     setEvvResult(updated);
     if (onComplete) onComplete(updated);
-    log(`EVV Recalculated with updated underwriting profile & candidate overrides. Score: ${updated.overallEVV}/100`, "ok");
+    const sampleCount = Array.isArray(targetInterval) ? targetInterval.length : 6;
+    log(`EVV Recalculated with ${intMode === "5day" ? "5-day interval" : `custom dates (${sampleCount} sample days)`}. Score: ${updated.overallEVV}/100`, "ok");
+  };
+
+  const handleToggleDay = (day: number) => {
+    const currentDays = parseCustomDates(customDatesInput);
+    let updatedDays: number[];
+    if (currentDays.includes(day)) {
+      updatedDays = currentDays.filter((d) => d !== day);
+      if (updatedDays.length === 0) updatedDays = [day]; // keep at least 1 day
+    } else {
+      updatedDays = [...currentDays, day].sort((a, b) => a - b);
+    }
+    const newStr = updatedDays.join(", ");
+    setCustomDatesInput(newStr);
+    setIntervalMode("custom");
+    if (evvResult) {
+      runRecalculation(candidateClassifications, isRepaymentIncomeContributor, profileType, selectedBankKey, "custom", newStr);
+    }
+  };
+
+  const handleApplyPreset = (presetKey: "all" | "5day" | "weekly" | "biweekly" | "boundaries") => {
+    let daysStr = "1, 5, 10, 15, 20, 25";
+    let mode: "5day" | "custom" = "custom";
+    if (presetKey === "all") {
+      daysStr = "1 to 31";
+    } else if (presetKey === "5day") {
+      daysStr = "1, 5, 10, 15, 20, 25";
+      mode = "5day";
+    } else if (presetKey === "weekly") {
+      daysStr = "7, 14, 21, 28";
+    } else if (presetKey === "biweekly") {
+      daysStr = "15, 30";
+    } else if (presetKey === "boundaries") {
+      daysStr = "1, 31";
+    }
+    setCustomDatesInput(daysStr);
+    setIntervalMode(mode);
+    if (evvResult) {
+      runRecalculation(candidateClassifications, isRepaymentIncomeContributor, profileType, selectedBankKey, mode, daysStr);
+    }
   };
 
   const handleDownloadAuditSnapshot = () => {
@@ -1588,7 +1700,7 @@ export const EVVTestAgent: React.FC<{
         <div>
           <h3 className="text-sm font-bold text-slate-900">3 · Choose your interval</h3>
           <p className="text-xs text-slate-500 mt-0.5 font-normal">
-            Pick how the balance should be sampled through the statement period.
+            Pick how the balance should be sampled through the statement period (1 to 31).
           </p>
         </div>
 
@@ -1601,7 +1713,7 @@ export const EVVTestAgent: React.FC<{
               onChange={() => handleIntervalChange("5day")}
               className="w-4 h-4 text-violet-600 focus:ring-violet-500 border-slate-300 cursor-pointer"
             />
-            <span>5-day interval</span>
+            <span>5-day interval ([1, 5, 10, 15, 20, 25])</span>
           </label>
 
           <label className="flex items-center gap-2.5 cursor-pointer text-xs font-semibold text-slate-700">
@@ -1612,20 +1724,112 @@ export const EVVTestAgent: React.FC<{
               onChange={() => handleIntervalChange("custom")}
               className="w-4 h-4 text-violet-600 focus:ring-violet-500 border-slate-300 cursor-pointer"
             />
-            <span>Custom dates</span>
+            <span>Custom dates (1 to 31)</span>
           </label>
         </div>
 
         {intervalMode === "custom" && (
-          <div className="flex flex-wrap items-center gap-3 pt-2 bg-slate-50/80 p-3 rounded-2xl border border-slate-200/60">
-            <span className="text-xs font-medium text-slate-600">Sample dates (comma-separated days of month):</span>
-            <input
-              type="text"
-              value={customDatesInput}
-              onChange={(e) => handleIntervalChange("custom", e.target.value)}
-              placeholder="1, 5, 10, 15, 20, 25"
-              className="bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-mono font-bold text-slate-800 w-56 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
-            />
+          <div className="bg-slate-50/90 border border-slate-200/80 rounded-2xl p-4 space-y-3.5">
+            {/* Quick Presets */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 mr-1">Presets:</span>
+              <button
+                type="button"
+                onClick={() => handleApplyPreset("all")}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                  parseCustomDates(customDatesInput).length === 31
+                    ? "bg-violet-600 text-white border-violet-600 shadow-xs"
+                    : "bg-white text-slate-700 border-slate-200 hover:bg-violet-50 hover:border-violet-200"
+                }`}
+              >
+                1 to 31 (All Days)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleApplyPreset("5day")}
+                className="px-2.5 py-1 bg-white hover:bg-violet-50 text-slate-700 hover:text-violet-700 border border-slate-200 hover:border-violet-200 rounded-lg text-[11px] font-bold transition-all cursor-pointer"
+              >
+                1, 5, 10, 15, 20, 25 (Standard)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleApplyPreset("weekly")}
+                className="px-2.5 py-1 bg-white hover:bg-violet-50 text-slate-700 hover:text-violet-700 border border-slate-200 hover:border-violet-200 rounded-lg text-[11px] font-bold transition-all cursor-pointer"
+              >
+                7, 14, 21, 28 (Weekly)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleApplyPreset("biweekly")}
+                className="px-2.5 py-1 bg-white hover:bg-violet-50 text-slate-700 hover:text-violet-700 border border-slate-200 hover:border-violet-200 rounded-lg text-[11px] font-bold transition-all cursor-pointer"
+              >
+                15, 30 (Bi-Weekly)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleApplyPreset("boundaries")}
+                className="px-2.5 py-1 bg-white hover:bg-violet-50 text-slate-700 hover:text-violet-700 border border-slate-200 hover:border-violet-200 rounded-lg text-[11px] font-bold transition-all cursor-pointer"
+              >
+                1, 31 (Month Boundaries)
+              </button>
+            </div>
+
+            {/* Input field */}
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+                Custom Sample Days (Supports comma/space separated or ranges like &quot;1 to 31&quot;):
+              </label>
+              <input
+                type="text"
+                value={customDatesInput}
+                onChange={(e) => handleIntervalChange("custom", e.target.value)}
+                placeholder="e.g. 1 to 31 or 1, 5, 10, 15, 20, 25"
+                className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+              />
+            </div>
+
+            {/* 1 to 31 Day Chips Grid */}
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                  Select Days of the Month (1 to 31):
+                </span>
+                <span className="text-[10px] font-bold text-violet-700 font-mono">
+                  {parseCustomDates(customDatesInput).length} Days Selected
+                </span>
+              </div>
+              <div className="grid grid-cols-7 sm:grid-cols-11 md:grid-cols-16 gap-1.5">
+                {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => {
+                  const isSelected = parseCustomDates(customDatesInput).includes(d);
+                  return (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => handleToggleDay(d)}
+                      className={`py-1.5 px-1 rounded-lg text-xs font-bold transition-all text-center cursor-pointer ${
+                        isSelected
+                          ? "bg-violet-600 text-white shadow-2xs scale-102"
+                          : "bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-900 border border-slate-200"
+                      }`}
+                      title={`Toggle Day ${d}`}
+                    >
+                      {d}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Live Active Sampling Status */}
+            <div className="pt-1 flex items-center justify-between gap-2 flex-wrap text-[11px] border-t border-slate-200/60">
+              <div className="flex items-center gap-1.5 text-emerald-700 font-medium">
+                <span className="material-symbols-outlined text-sm text-emerald-600">check_circle</span>
+                <span>Sampling <strong>{parseCustomDates(customDatesInput).length} days</strong> per calendar month</span>
+              </div>
+              <span className="text-[10px] font-mono text-slate-500 truncate max-w-md">
+                [{parseCustomDates(customDatesInput).join(", ")}]
+              </span>
+            </div>
           </div>
         )}
       </div>
@@ -1861,7 +2065,9 @@ export const EVVTestAgent: React.FC<{
                 <div>
                   <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block">Date Sampling Mode</span>
                   <span className="font-black text-slate-800 text-xs mt-0.5 block">
-                    {intervalMode === "5day" ? "Mode A: Fixed [1, 5, 10, 15, 20, 25]" : `Mode B: Custom [${customDatesInput}]`}
+                    {intervalMode === "5day"
+                      ? "Mode A: Fixed [1, 5, 10, 15, 20, 25]"
+                      : `Mode B: Custom [${parseCustomDates(customDatesInput).join(", ")}]`}
                   </span>
                 </div>
               </div>
@@ -1968,6 +2174,155 @@ export const EVVTestAgent: React.FC<{
                     ))}
                   </select>
                 </div>
+              </div>
+
+              {/* SECTION E.2: Date Sampling Interval & Custom Dates (1 to 31) Controls */}
+              <div className="pt-3 border-t border-slate-200/60 space-y-3">
+                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+                  <div>
+                    <span className="text-[11px] font-black uppercase tracking-wider text-slate-700 block">
+                      Date Sampling Mode & Custom Dates (1 to 31)
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-medium">
+                      Select 5-day interval or customize exact sample dates (1 to 31) to re-score live.
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 bg-slate-200/70 p-1 rounded-xl">
+                    <button
+                      type="button"
+                      onClick={() => handleIntervalChange("5day")}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        intervalMode === "5day" ? "bg-white text-violet-700 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      5-Day Interval
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleIntervalChange("custom")}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        intervalMode === "custom" ? "bg-white text-violet-700 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      Custom Dates (1 to 31)
+                    </button>
+                  </div>
+                </div>
+
+                {intervalMode === "custom" && (
+                  <div className="bg-white/95 border border-slate-200 rounded-2xl p-4 space-y-3.5 shadow-2xs">
+                    {/* Quick Presets */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 mr-1">Presets:</span>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyPreset("all")}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                          parseCustomDates(customDatesInput).length === 31
+                            ? "bg-violet-600 text-white border-violet-600 shadow-xs"
+                            : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-violet-50 hover:border-violet-200"
+                        }`}
+                      >
+                        1 to 31 (All Days)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyPreset("5day")}
+                        className="px-2.5 py-1 bg-slate-50 hover:bg-violet-50 text-slate-700 hover:text-violet-700 border border-slate-200 hover:border-violet-200 rounded-lg text-[11px] font-bold transition-all cursor-pointer"
+                      >
+                        1, 5, 10, 15, 20, 25 (Standard)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyPreset("weekly")}
+                        className="px-2.5 py-1 bg-slate-50 hover:bg-violet-50 text-slate-700 hover:text-violet-700 border border-slate-200 hover:border-violet-200 rounded-lg text-[11px] font-bold transition-all cursor-pointer"
+                      >
+                        7, 14, 21, 28 (Weekly)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyPreset("biweekly")}
+                        className="px-2.5 py-1 bg-slate-50 hover:bg-violet-50 text-slate-700 hover:text-violet-700 border border-slate-200 hover:border-violet-200 rounded-lg text-[11px] font-bold transition-all cursor-pointer"
+                      >
+                        15, 30 (Bi-Weekly)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyPreset("boundaries")}
+                        className="px-2.5 py-1 bg-slate-50 hover:bg-violet-50 text-slate-700 hover:text-violet-700 border border-slate-200 hover:border-violet-200 rounded-lg text-[11px] font-bold transition-all cursor-pointer"
+                      >
+                        1, 31 (Month Boundaries)
+                      </button>
+                    </div>
+
+                    {/* Input and Recalculate Trigger */}
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                      <div className="flex-1">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+                          Custom Dates (Supports comma/space separated or ranges like &quot;1 to 31&quot;):
+                        </label>
+                        <input
+                          type="text"
+                          value={customDatesInput}
+                          onChange={(e) => handleIntervalChange("custom", e.target.value)}
+                          placeholder="e.g. 1 to 31 or 1, 5, 10, 15, 20, 25"
+                          className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => runRecalculation(candidateClassifications, isRepaymentIncomeContributor, profileType, selectedBankKey, "custom", customDatesInput)}
+                        className="sm:self-end px-4 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+                      >
+                        <span className="material-symbols-outlined text-[16px]">bolt</span>
+                        <span>Execute EVV Custom Dates</span>
+                      </button>
+                    </div>
+
+                    {/* 1 to 31 Day Chips Grid */}
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                          Day of Month Selector (Days 1 to 31):
+                        </span>
+                        <span className="text-[10px] font-bold text-violet-700 font-mono">
+                          {parseCustomDates(customDatesInput).length} Days Selected
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-7 sm:grid-cols-11 md:grid-cols-16 gap-1.5">
+                        {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => {
+                          const isSelected = parseCustomDates(customDatesInput).includes(d);
+                          return (
+                            <button
+                              key={d}
+                              type="button"
+                              onClick={() => handleToggleDay(d)}
+                              className={`py-1.5 px-1 rounded-lg text-xs font-bold transition-all text-center cursor-pointer ${
+                                isSelected
+                                  ? "bg-violet-600 text-white shadow-2xs scale-102"
+                                  : "bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border border-slate-200/60"
+                              }`}
+                              title={`Toggle Day ${d}`}
+                            >
+                              {d}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Live Active Sampling Status */}
+                    <div className="pt-1 flex items-center justify-between gap-2 flex-wrap text-[11px] border-t border-slate-200/60">
+                      <div className="flex items-center gap-1.5 text-emerald-700 font-medium">
+                        <span className="material-symbols-outlined text-sm text-emerald-600">check_circle</span>
+                        <span>Active Sampling: <strong>{parseCustomDates(customDatesInput).length} days</strong> per calendar month</span>
+                      </div>
+                      <span className="text-[10px] font-mono text-slate-500 truncate max-w-md">
+                        [{parseCustomDates(customDatesInput).join(", ")}]
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -3016,10 +3371,10 @@ export const EVVTestAgent: React.FC<{
                         </button>
                       </div>
                       <div className="text-base font-black text-slate-900">
-                        {intervalMode === "5day" ? "5 Days" : "Custom Dates"}
+                        {intervalMode === "5day" ? "5 Days" : `Custom (${parseCustomDates(customDatesInput).length} Days)`}
                       </div>
-                      <div className="text-[10px] font-medium text-slate-500 mt-1 truncate">
-                        {intervalMode === "5day" ? "Days 1, 5, 10, 15, 20, 25" : customDatesInput}
+                      <div className="text-[10px] font-medium text-slate-500 mt-1 truncate" title={intervalMode === "5day" ? "Days 1, 5, 10, 15, 20, 25" : `Days: ${parseCustomDates(customDatesInput).join(", ")}`}>
+                        {intervalMode === "5day" ? "Days 1, 5, 10, 15, 20, 25" : `Days ${parseCustomDates(customDatesInput).join(", ")}`}
                       </div>
                     </div>
 

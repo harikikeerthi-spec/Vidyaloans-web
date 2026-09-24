@@ -17,6 +17,7 @@
 export * from "./evv-engine";
 import {
   calculateDeterministicEVV,
+  parseCustomDates,
   MANDATORY_EVV_DISCLAIMER,
   DEFAULT_BANK_POLICIES as ENGINE_BANK_POLICIES,
   type BankPolicy,
@@ -557,6 +558,7 @@ export function calculateEVV(
   }
 
   const isCustomMode = Array.isArray(intervalDays);
+  const customDaysList = isCustomMode ? parseCustomDates(intervalDays) : undefined;
   const detResult = calculateDeterministicEVV({
     transactions: transactions.map((t) => ({
       date: t.date,
@@ -576,7 +578,7 @@ export function calculateEVV(
         coApplicantProfile.verificationStatus === "FULLY_VERIFIED" ? ["SALARY_SLIP", "FORM_16"] : [],
     },
     dateMode: isCustomMode ? "CUSTOM" : "FIXED",
-    customDays: isCustomMode ? (intervalDays as number[]) : undefined,
+    customDays: customDaysList,
     candidateClassifications: candidateClassificationsInput,
   });
 

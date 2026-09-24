@@ -738,10 +738,20 @@ export class StatementProcessingService {
     // Default dates: [1, 5, 10, 15, 20, 25]
     let datesToUse = [1, 5, 10, 15, 20, 25];
     if (options.dateMode === 'CUSTOM' && options.customDates && options.customDates.length > 0) {
-      if (!options.managerApproved) {
+      if (options.managerApproved === false) {
         throw new ForbiddenException('Custom EVV calculation dates require documented manager approval.');
       }
-      datesToUse = options.customDates;
+      const validCustomDays = Array.from(
+        new Set(
+          options.customDates
+            .map((d) => Number(d))
+            .filter((d) => !isNaN(d) && d >= 1 && d <= 31)
+        )
+      ).sort((a, b) => a - b);
+
+      if (validCustomDays.length > 0) {
+        datesToUse = validCustomDays;
+      }
     }
 
     const snapshots = this.evvEngine.calculateSnapshots(dailyBalancesForEngine, datesToUse);

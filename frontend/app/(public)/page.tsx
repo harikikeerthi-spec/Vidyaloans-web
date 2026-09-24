@@ -10,13 +10,148 @@ import MobileLendersCardSlider from "../../components/MobileLendersCardSlider";
 import MobileStepSlider from "../../components/MobileStepSlider";
 import MobileTestimonialsSlider from "../../components/MobileTestimonialsSlider";
 import MobileFloatingActionBar from "../../components/MobileFloatingActionBar";
+import LenderLogo from "../../components/LenderLogo";
 import { lenders, features } from "../../data/home";
 import { fetchTopGoogleReviews } from "../../lib/googleReviews";
+
+// 5 Core Lending Partners ordered as requested: Auxilo, Poonawalla, Avanse, HDFC Credila, IDFC
+const CORE_BANKS_CONFIG = [
+    {
+        key: "auxilo",
+        name: "Auxilo Finserve",
+        slug: "auxilo",
+        badge: "Fast Approval",
+        defaultRate: "From 10.50% p.a.",
+        defaultTime: "48 hours",
+        defaultFee: "1% + GST",
+        defaultLogo: "/banks/auxilo.png",
+        link: "https://www.auxilo.com",
+    },
+    {
+        key: "poonawalla",
+        name: "Poonawalla Fincorp",
+        slug: "poonawalla",
+        badge: "Easy Process",
+        defaultRate: "From 10.50% p.a.",
+        defaultTime: "3-5 days",
+        defaultFee: "1% + GST",
+        defaultLogo: "/banks/poonawalla.jpg",
+        link: "https://poonawallafincorp.com",
+    },
+    {
+        key: "avanse",
+        name: "Avanse Financial",
+        slug: "avanse",
+        badge: "High Limits",
+        defaultRate: "From 10.75% p.a.",
+        defaultTime: "3-5 days",
+        defaultFee: "1% - 1.5% + GST",
+        defaultLogo: "/banks/avanse.png",
+        link: "https://www.avanse.com",
+    },
+    {
+        key: "credila",
+        name: "HDFC Credila",
+        slug: "credila",
+        badge: "Most Popular",
+        defaultRate: "From 10.25% p.a.",
+        defaultTime: "3-5 days",
+        defaultFee: "1% - 1.25% + GST",
+        defaultLogo: "/banks/credila.png",
+        link: "https://www.hdfccredila.com",
+    },
+    {
+        key: "idfc",
+        name: "IDFC FIRST Bank",
+        slug: "idfc",
+        badge: "Digital First",
+        defaultRate: "From 10.25% p.a.",
+        defaultTime: "48 hours",
+        defaultFee: "1% + GST",
+        defaultLogo: "/banks/idfc.png",
+        link: "https://www.idfcfirstbank.com",
+    },
+];
+
+function buildActiveLenders(dbBanks: any[] | null) {
+    const rawList = Array.isArray(dbBanks) ? dbBanks : [];
+
+    const findDbBank = (coreKey: string) => {
+        return rawList.find((b: any) => {
+            const short = (b.shortName || '').toLowerCase().trim();
+            const name = (b.name || '').toLowerCase().trim();
+            return short === coreKey || short.includes(coreKey) || name.includes(coreKey);
+        });
+    };
+
+    // 1. Fixed Core Partners (Auxilo, Poonawalla, Avanse, HDFC Credila, IDFC First Bank)
+    const coreLenders = CORE_BANKS_CONFIG.map(core => {
+        const dbMatch = findDbBank(core.key);
+        if (!dbMatch) {
+            return {
+                name: core.name,
+                slug: core.slug,
+                badge: core.badge,
+                rate: core.defaultRate,
+                time: core.defaultTime,
+                fee: core.defaultFee,
+                logo: core.defaultLogo,
+                link: core.link,
+            };
+        }
+        const rateStr = dbMatch.interestRateMin
+            ? (dbMatch.interestRateMin === dbMatch.interestRateMax
+                ? `From ${dbMatch.interestRateMin}% p.a.`
+                : `${dbMatch.interestRateMin}% - ${dbMatch.interestRateMax}%`)
+            : core.defaultRate;
+
+        return {
+            name: dbMatch.name || core.name,
+            slug: (dbMatch.shortName || core.slug).toLowerCase(),
+            badge: dbMatch.isPopular ? "Most Popular" : (dbMatch.type || core.badge),
+            rate: rateStr,
+            time: dbMatch.processingTime || core.defaultTime,
+            fee: dbMatch.processingFee || core.defaultFee,
+            logo: dbMatch.logoUrl || dbMatch.logo || core.defaultLogo,
+            link: dbMatch.website || core.link,
+        };
+    });
+
+    // 2. Any additional banks added by admin or existing in DB
+    const coreKeys = CORE_BANKS_CONFIG.map(c => c.key);
+    const customDbBanks = rawList.filter((b: any) => {
+        const short = (b.shortName || '').toLowerCase().trim();
+        const name = (b.name || '').toLowerCase().trim();
+        return !coreKeys.some(k => short === k || short.includes(k) || name.includes(k));
+    });
+
+    const additionalLenders = customDbBanks.map((b: any) => {
+        const slug = (b.shortName || b.name.toLowerCase().replace(/[^a-z0-9_-]/g, "")).toLowerCase();
+        const rateStr = b.interestRateMin
+            ? (b.interestRateMin === b.interestRateMax
+                ? `From ${b.interestRateMin}% p.a.`
+                : `${b.interestRateMin}% - ${b.interestRateMax}%`)
+            : "Competitive ROI";
+
+        return {
+            name: b.name,
+            slug: slug,
+            badge: b.isPopular ? "Most Popular" : (b.type || "Partner Bank"),
+            rate: rateStr,
+            time: b.processingTime || "48 hours",
+            fee: b.processingFee || "1% + GST",
+            logo: b.logoUrl || b.logo || `/banks/${slug}.png`,
+            link: b.website || ""
+        };
+    });
+
+    return [...coreLenders, ...additionalLenders];
+}
 
 async function getDynamicBanks() {
     try {
         const backendUrl = process.env.BACKEND_URL || "http://127.0.0.1:5000";
-        const res = await fetch(`${backendUrl}/api/reference/banks`, { next: { revalidate: 60 } });
+        const res = await fetch(`${backendUrl}/api/reference/banks`, { cache: 'no-store' });
         const json = await res.json();
         if (json?.success && Array.isArray(json.data) && json.data.length > 0) {
             return json.data;
@@ -53,16 +188,7 @@ export default async function HomePage() {
     const dynamicTestimonials = await fetchTopGoogleReviews();
     const dbBanks = await getDynamicBanks();
     const disbursedAmount = await getDisbursedAmount();
-    const activeLenders = dbBanks ? dbBanks.map((b: any) => ({
-        name: b.name,
-        slug: (b.shortName || b.name.toLowerCase().replace(/[^a-z0-9]/g, "")).toLowerCase(),
-        badge: b.isPopular ? "Most Popular" : (b.type || ""),
-        rate: b.interestRateMin ? `${b.interestRateMin}% p.a.` : "From 10.25% p.a.",
-        time: b.processingTime || "48 hours",
-        fee: b.processingFee || "1% + GST",
-        logo: b.logoUrl || b.logo || `/banks/${(b.shortName || 'idfc').toLowerCase()}.png`,
-        link: b.website || ""
-    })) : lenders;
+    const activeLenders = buildActiveLenders(dbBanks);
 
     return (
         <div className="relative min-h-screen text-gray-900 bg-transparent selection:bg-[#6605c7]/20">
@@ -631,13 +757,7 @@ export default async function HomePage() {
                                         <tr key={l.name} className="hover:bg-[#6605c7]/[0.03] transition-all duration-200 group">
                                             <td className="p-6">
                                                 <Link href={`/bank/${l.slug}`} className="flex items-center gap-4">
-                                                    <div className="flex items-center justify-center p-1.5 overflow-hidden transition-all duration-300 w-28 h-12">
-                                                        <img
-                                                            src={l.logo}
-                                                            alt={l.name}
-                                                            className={`w-full h-full object-contain ${l.name.includes("Auxilo") ? "scale-100" : ""}`}
-                                                        />
-                                                    </div>
+                                                    <LenderLogo name={l.name} logo={l.logo} />
                                                     <div>
                                                         <div className="font-bold text-gray-900 text-[13px] group-hover:text-[#6605c7] transition-colors">{l.name}</div>
                                                         {l.badge && <div className="text-[10px] text-green-600 font-bold uppercase tracking-tight">{l.badge}</div>}

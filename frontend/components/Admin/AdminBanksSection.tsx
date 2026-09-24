@@ -27,7 +27,7 @@ interface BankPartner {
     isPopular: boolean;
 }
 
-const FIXED_BANKS_ORDER = ["avanse", "auxilo", "poonawalla", "idfc", "credila"];
+const FIXED_BANKS_ORDER = ["auxilo", "poonawalla", "avanse", "credila", "idfc"];
 
 const isFixedBank = (bank: { shortName?: string } | null | undefined): boolean => {
     if (!bank?.shortName) return false;

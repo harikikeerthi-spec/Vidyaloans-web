@@ -27,6 +27,7 @@ import {
   buildDailyBalances,
   normalizeTransactions,
   identifyCompletedMonths,
+  parseCustomDates,
   DEFAULT_BANK_POLICIES,
   rupeesToPaise,
   type RawInputTransaction,
@@ -431,8 +432,51 @@ function runAllTests() {
     console.log("✓ TEST 15 PASSED\n");
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // TEST 16: Custom dates parsing ("1 to 31", "1-31", ranges) & EVV calculation
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    console.log("TEST 16: Custom dates starting from 1 to 31, range parsing & EVV execution...");
+    const parsedRange1 = parseCustomDates("1 to 31");
+    assert(parsedRange1.length === 31, `Expected 31 dates, got ${parsedRange1.length}`);
+    assert(parsedRange1[0] === 1, `Expected first date 1, got ${parsedRange1[0]}`);
+    assert(parsedRange1[30] === 31, `Expected last date 31, got ${parsedRange1[30]}`);
+
+    const parsedRange2 = parseCustomDates("1-31");
+    assert(parsedRange2.length === 31, `Expected 31 dates for "1-31", got ${parsedRange2.length}`);
+
+    const parsedCustom = parseCustomDates("1, 5, 10, 15, 20, 25");
+    assert(parsedCustom.length === 6, `Expected 6 dates, got ${parsedCustom.length}`);
+    assert(parsedCustom[0] === 1 && parsedCustom[5] === 25, `Expected 1..25, got ${parsedCustom}`);
+
+    const txs: RawInputTransaction[] = [
+      { date: '2025-01-01', balance: 35000, narration: 'Opening salary' },
+      { date: '2025-01-15', balance: 32000, debit: 3000, narration: 'Utility bill' },
+      { date: '2025-06-30', balance: 40000, credit: 8000, narration: 'Closing bal' },
+    ];
+
+    const resAllDays = calculateDeterministicEVV({
+      transactions: txs,
+      dateMode: 'CUSTOM',
+      customDays: parsedRange1,
+    });
+
+    assert(resAllDays.selectedSamples.length > 0, "Selected samples must not be empty");
+    // Verify each completed calendar month has unique dates (Feb should have 28, Apr 30, Jan/Mar/May 31)
+    const febSamples = resAllDays.selectedSamples.filter((s) => s.month === '2025-02');
+    const aprSamples = resAllDays.selectedSamples.filter((s) => s.month === '2025-04');
+    const janSamples = resAllDays.selectedSamples.filter((s) => s.month === '2025-01');
+
+    assert(febSamples.length === 28, `Expected 28 unique samples for Feb, got ${febSamples.length}`);
+    assert(aprSamples.length === 30, `Expected 30 unique samples for Apr, got ${aprSamples.length}`);
+    assert(janSamples.length === 31, `Expected 31 unique samples for Jan, got ${janSamples.length}`);
+
+    assert(resAllDays.effectiveScoreOutOf100 > 0, `Expected positive score, got ${resAllDays.effectiveScoreOutOf100}`);
+    console.log(`✓ TEST 16 PASSED (EVV Score with 1 to 31 custom dates: ${resAllDays.effectiveScoreOutOf100}/100, AMB: ₹${resAllDays.component1.sixMonthSampledAMBRupees})\n`);
+  }
+
   console.log("================================================================================");
-  console.log("ALL 15 MANDATORY UNIT TESTS PASSED SUCCESSFULLY! (100% Deterministic Engine)");
+  console.log("ALL 16 UNIT TESTS PASSED SUCCESSFULLY! (100% Deterministic Engine)");
   console.log("================================================================================");
 }
 

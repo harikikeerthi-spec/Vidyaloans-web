@@ -318,55 +318,73 @@ function authHeaders(url?: string): HeadersInit {
     return headers;
 }
 
+let activeRefreshPromise: Promise<string | null> | null = null;
+
 /** Attempt a silent token refresh — only called when an API request returns 401 */
 async function tryRefreshAccessToken(): Promise<string | null> {
     if (typeof window === "undefined") return null;
 
-    const portal = getPortalFromPathname(window.location.pathname);
-    const keys = getStorageKeys(portal);
-    const refreshToken =
-        localStorage.getItem(keys.refreshToken) ||
-        localStorage.getItem("adminRefreshToken") ||
-        localStorage.getItem("staffRefreshToken") ||
-        localStorage.getItem("refreshToken");
-
-    if (!refreshToken) return null;
-
-    try {
-        const refreshRes = await fetch(`${API_URL}/auth/refresh`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ refresh_token: refreshToken }),
-        });
-
-        if (!refreshRes.ok) return null;
-
-        const data = await refreshRes.json();
-        const newToken = data.access_token || data.accessToken;
-        if (!newToken) return null;
-
-        localStorage.setItem(keys.token, newToken);
-        if (data.refresh_token) {
-            localStorage.setItem(keys.refreshToken, data.refresh_token);
-        }
-
-        // Sync with staff or admin tokens if on IT portal
-        if (portal === "it") {
-            if (localStorage.getItem("staffRefreshToken")) {
-                localStorage.setItem("staffAccessToken", newToken);
-                if (data.refresh_token) localStorage.setItem("staffRefreshToken", data.refresh_token);
-            }
-            if (localStorage.getItem("adminRefreshToken")) {
-                localStorage.setItem("adminAccessToken", newToken);
-                if (data.refresh_token) localStorage.setItem("adminRefreshToken", data.refresh_token);
-            }
-        }
-
-        notifyTokenChange(newToken);
-        return newToken;
-    } catch {
-        return null;
+    if (activeRefreshPromise) {
+        return activeRefreshPromise;
     }
+
+    activeRefreshPromise = (async () => {
+        const portal = getPortalFromPathname(window.location.pathname);
+        const keys = getStorageKeys(portal);
+        const refreshToken =
+            localStorage.getItem(keys.refreshToken) ||
+            localStorage.getItem("adminRefreshToken") ||
+            localStorage.getItem("staffRefreshToken") ||
+            localStorage.getItem("refreshToken");
+
+        if (!refreshToken) return null;
+
+        try {
+            const refreshRes = await fetch(`${API_URL}/auth/refresh`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ refresh_token: refreshToken }),
+            });
+
+            if (!refreshRes.ok) {
+                if (refreshRes.status === 401 || refreshRes.status === 403) {
+                    clearAllPortalAuthStorage();
+                    notifySessionExpired();
+                }
+                return null;
+            }
+
+            const data = await refreshRes.json();
+            const newToken = data.access_token || data.accessToken;
+            if (!newToken) return null;
+
+            localStorage.setItem(keys.token, newToken);
+            if (data.refresh_token) {
+                localStorage.setItem(keys.refreshToken, data.refresh_token);
+            }
+
+            // Sync with staff or admin tokens if on IT portal
+            if (portal === "it") {
+                if (localStorage.getItem("staffRefreshToken")) {
+                    localStorage.setItem("staffAccessToken", newToken);
+                    if (data.refresh_token) localStorage.setItem("staffRefreshToken", data.refresh_token);
+                }
+                if (localStorage.getItem("adminRefreshToken")) {
+                    localStorage.setItem("adminAccessToken", newToken);
+                    if (data.refresh_token) localStorage.setItem("adminRefreshToken", data.refresh_token);
+                }
+            }
+
+            notifyTokenChange(newToken);
+            return newToken;
+        } catch {
+            return null;
+        } finally {
+            activeRefreshPromise = null;
+        }
+    })();
+
+    return activeRefreshPromise;
 }
 
 function notifySessionExpired() {
@@ -747,7 +765,7 @@ export const blogApi = {
         apiFetch(`${API_URL}/blogs/${id}`),
 
     getBySlug: (slug: string) =>
-        apiFetch(`${API_URL}/blogs/${slug}`),
+        apiFetch(`${API_URL}/blogs/slug/${slug}`),
 
     create: (data: Record<string, unknown>) =>
         apiFetch(`${API_URL}/blogs`, {

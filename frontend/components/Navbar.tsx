@@ -19,11 +19,11 @@ interface DynamicPartner {
 }
 
 const DEFAULT_PARTNERS: DynamicPartner[] = [
-    { slug: "idfc", name: "IDFC First Bank", rate: "From 10.25% p.a.", initials: "IF", color: "text-red-600", bgColor: "bg-red-500/10", logo: "/banks/idfc.png" },
     { slug: "auxilo", name: "Auxilo Finserve", rate: "From 10.50% p.a.", initials: "AX", color: "text-blue-600", bgColor: "bg-blue-500/10", logo: "/banks/auxilo.png" },
-    { slug: "avanse", name: "Avanse Financial", rate: "From 10.50% p.a.", initials: "AV", color: "text-green-600", bgColor: "bg-green-500/10", logo: "/banks/avanse.png" },
+    { slug: "poonawalla", name: "Poonawalla Fincorp", rate: "From 10.50% p.a.", initials: "PF", color: "text-orange-600", bgColor: "bg-orange-500/10", logo: "/banks/poonawalla.jpg" },
+    { slug: "avanse", name: "Avanse Financial", rate: "From 10.75% p.a.", initials: "AV", color: "text-green-600", bgColor: "bg-green-500/10", logo: "/banks/avanse.png" },
     { slug: "credila", name: "Credila (HDFC)", rate: "From 10.25% p.a.", initials: "CR", color: "text-indigo-600", bgColor: "bg-indigo-500/10", logo: "/banks/credila.png" },
-    { slug: "poonawalla", name: "Poonawalla Fincorp", rate: "From 11.00% p.a.", initials: "PF", color: "text-orange-600", bgColor: "bg-orange-500/10", logo: "/banks/poonawalla.jpg" },
+    { slug: "idfc", name: "IDFC First Bank", rate: "From 10.25% p.a.", initials: "IF", color: "text-red-600", bgColor: "bg-red-500/10", logo: "/banks/idfc.png" },
 ];
 
 const COLOR_CYCLE = [

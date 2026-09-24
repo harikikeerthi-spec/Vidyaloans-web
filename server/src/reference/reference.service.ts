@@ -84,7 +84,140 @@ export class ReferenceService {
 
   // ==================== BANKS ====================
 
-  private static readonly FIXED_PARTNER_SLUGS = ['avanse', 'auxilo', 'poonawalla', 'idfc', 'credila'];
+  private static readonly FIXED_PARTNER_SLUGS = ['auxilo', 'poonawalla', 'avanse', 'credila', 'idfc'];
+
+  public static readonly DEFAULT_CORE_BANKS = [
+    {
+      id: "0a8f4c3b-ff0b-479b-8815-d46a43e95309",
+      name: "Auxilo Finserve",
+      shortName: "auxilo",
+      country: "India",
+      type: "NBFC",
+      loanTypes: ["Education Loan"],
+      educationLoan: true,
+      interestRateMin: 10.5,
+      interestRateMax: 14.0,
+      maxLoanAmount: "₹1.5 Crore",
+      collateralRequired: false,
+      collateralFreeLimit: "50 Lakhs",
+      processingFee: "1% + GST",
+      processingTime: "48 hours",
+      features: [
+        "100% Financing: Covers tuition, living expenses, and travel",
+        "Fast Digital Approval: Sanction within 48 to 72 hours",
+        "No Collateral: Up to ₹50 Lakhs for premier universities"
+      ],
+      website: "https://www.auxilo.com",
+      contactNumber: "1800 266 4333",
+      email: "support@auxilo.com",
+      logoUrl: "/banks/auxilo.png",
+      isPopular: true
+    },
+    {
+      id: "8506bc1d-1c31-415b-9d3e-8b73c77957dd",
+      name: "Poonawalla Fincorp",
+      shortName: "poonawalla",
+      country: "India",
+      type: "NBFC",
+      loanTypes: ["Education Loan"],
+      educationLoan: true,
+      interestRateMin: 10.5,
+      interestRateMax: 13.9,
+      maxLoanAmount: "₹75 Lakhs",
+      collateralRequired: false,
+      collateralFreeLimit: "40 Lakhs",
+      processingFee: "1% + GST",
+      processingTime: "3-5 days",
+      features: [
+        "Minimal Documentation & quick turnaround",
+        "Competitive ROI for STEM and Management programs",
+        "Transparent fee structure with no hidden costs"
+      ],
+      website: "https://poonawallafincorp.com",
+      contactNumber: "1800 208 0000",
+      email: "customercare@poonawallafincorp.com",
+      logoUrl: "/banks/poonawalla.jpg",
+      isPopular: true
+    },
+    {
+      id: "e2bcaeb5-dcac-44d6-8d08-1c765734e3e6",
+      name: "Avanse Financial",
+      shortName: "avanse",
+      country: "India",
+      type: "NBFC",
+      loanTypes: ["Education Loan"],
+      educationLoan: true,
+      interestRateMin: 10.75,
+      interestRateMax: 14.25,
+      maxLoanAmount: "No Limit",
+      collateralRequired: false,
+      collateralFreeLimit: "50 Lakhs",
+      processingFee: "1% - 1.5% + GST",
+      processingTime: "3-5 days",
+      features: [
+        "High Loan Amounts with flexible collateral terms",
+        "Living Expenses & Living Pre-requisite Funding",
+        "Comprehensive coverage of global universities"
+      ],
+      website: "https://www.avanse.com",
+      contactNumber: "1800 222 344",
+      email: "response@avanse.com",
+      logoUrl: "/banks/avanse.png",
+      isPopular: true
+    },
+    {
+      id: "dc0f1ccd-d356-411f-a84f-6ee0cde853af",
+      name: "HDFC Credila",
+      shortName: "credila",
+      country: "India",
+      type: "NBFC",
+      loanTypes: ["Education Loan"],
+      educationLoan: true,
+      interestRateMin: 10.25,
+      interestRateMax: 13.75,
+      maxLoanAmount: "No Limit",
+      collateralRequired: false,
+      collateralFreeLimit: "50 Lakhs",
+      processingFee: "1% - 1.25% + GST",
+      processingTime: "3-5 days",
+      features: [
+        "Specialist Education Lender: Customized loans for 35+ countries",
+        "Pre-Visa Disbursal: Proof of funds before visa interview",
+        "Flexible Co-borrower: Non-standard co-applicant flexibility"
+      ],
+      website: "https://www.hdfccredila.com",
+      contactNumber: "1800 209 8840",
+      email: "loan@hdfccredila.com",
+      logoUrl: "/banks/credila.png",
+      isPopular: true
+    },
+    {
+      id: "f7ec4238-2e44-48d9-a5f9-ba94bf344837",
+      name: "IDFC FIRST Bank",
+      shortName: "idfc",
+      country: "India",
+      type: "Private",
+      loanTypes: ["Education Loan"],
+      educationLoan: true,
+      interestRateMin: 10.25,
+      interestRateMax: 13.5,
+      maxLoanAmount: "₹1.5 Crore",
+      collateralRequired: false,
+      collateralFreeLimit: "50 Lakhs",
+      processingFee: "1% + GST",
+      processingTime: "48 hours",
+      features: [
+        "100% Financing: Covers tuition, living expenses, and travel",
+        "Fast Digital Approval: Sanction within 48 to 72 hours",
+        "No Collateral: Up to ₹50 Lakhs for premier universities"
+      ],
+      website: "https://www.idfcfirstbank.com",
+      contactNumber: "1800 10 888",
+      email: "educationloan@idfcfirstbank.com",
+      logoUrl: "/banks/idfc.png",
+      isPopular: true
+    }
+  ];
 
   private sortBanksByFixedOrder(banks: any[]): any[] {
     const order = ReferenceService.FIXED_PARTNER_SLUGS;
@@ -107,7 +240,23 @@ export class ReferenceService {
       .select('*')
       .order('isPopular', { ascending: false })
       .order('name', { ascending: true });
-    return { success: true, data: this.sortBanksByFixedOrder(data || []) };
+
+    const dbList = data || [];
+    const merged = [...dbList];
+
+    // Ensure all 5 core banks exist in the list even if missing in DB
+    for (const core of ReferenceService.DEFAULT_CORE_BANKS) {
+      const exists = merged.some(b => {
+        const short = (b.shortName || '').toLowerCase().trim();
+        const name = (b.name || '').toLowerCase().trim();
+        return short === core.shortName || short.includes(core.shortName) || name.includes(core.shortName);
+      });
+      if (!exists) {
+        merged.push(core);
+      }
+    }
+
+    return { success: true, data: this.sortBanksByFixedOrder(merged) };
   }
 
   async getPopularBanks() {
@@ -121,11 +270,22 @@ export class ReferenceService {
 
   async getBankById(id: string) {
     const { data } = await this.db.from('Bank').select('*').eq('id', id).single();
+    if (!data) {
+      const fallback = ReferenceService.DEFAULT_CORE_BANKS.find(b => b.id === id);
+      if (fallback) return { success: true, data: fallback };
+    }
     return { success: true, data };
   }
 
   async getBankBySlug(slug: string) {
-    const { data } = await this.db.from('Bank').select('*').eq('shortName', slug).maybeSingle();
+    const cleanSlug = (slug || '').toLowerCase().trim();
+    const { data } = await this.db.from('Bank').select('*').eq('shortName', cleanSlug).maybeSingle();
+    if (!data) {
+      const fallback = ReferenceService.DEFAULT_CORE_BANKS.find(
+        b => b.shortName.toLowerCase() === cleanSlug || b.name.toLowerCase().includes(cleanSlug)
+      );
+      if (fallback) return { success: true, data: fallback };
+    }
     return { success: true, data };
   }
 

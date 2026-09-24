@@ -1,54 +1,81 @@
-﻿
+
 "use client";
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
 import { blogApi } from "@/lib/api";
 import type { BlogPost } from "@/types";
 
 export default function BlogPostPage() {
-    const { slug } = useParams();
+    const params = useParams();
+    const slug = params?.slug;
+    const rawSlug = Array.isArray(slug) ? slug[0] : slug;
+    const cleanSlug = rawSlug ? decodeURIComponent(rawSlug) : "";
     const [blog, setBlog] = useState<BlogPost | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchBlog = async () => {
-            if (!slug) return;
+            if (!cleanSlug) return;
             setLoading(true);
+            setError(null);
             try {
-                const res = await blogApi.getBySlug(slug as string) as { success: boolean; data: BlogPost };
-                if (res.success) {
+                // Try fetching by slug first
+                const res = await blogApi.getBySlug(cleanSlug) as { success: boolean; data: BlogPost };
+                if (res?.success && res.data) {
                     setBlog(res.data);
-                } else {
-                    setError("Blog not found");
+                    return;
+                } else if ((res as any)?.data) {
+                    setBlog((res as any).data);
+                    return;
                 }
+                
+                // Fallback: try by ID if slug might be a UUID
+                const fallback = await blogApi.getById(cleanSlug) as any;
+                if (fallback?.success && fallback.data) {
+                    setBlog(fallback.data);
+                    return;
+                }
+                setError("Blog not found");
             } catch (err) {
-                console.error(err);
+                // Secondary attempt with getById
+                try {
+                    const fallback = await blogApi.getById(cleanSlug) as any;
+                    if (fallback?.success && fallback.data) {
+                        setBlog(fallback.data);
+                        return;
+                    }
+                } catch (_) {}
+                console.error("Error fetching blog:", err);
                 setError("Failed to load blog post");
             } finally {
                 setLoading(false);
             }
         };
         fetchBlog();
-    }, [slug]);
+    }, [cleanSlug]);
 
     if (loading) {
         return (
-            <div className="min-h-screen pt-32 pb-20 flex items-center justify-center">
-                <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+            <div className="min-h-screen pt-32 pb-20 flex flex-col items-center justify-center">
+                <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Loading article...</p>
             </div>
         );
     }
 
     if (error || !blog) {
         return (
-            <div className="min-h-screen pt-32 pb-20 flex flex-col items-center justify-center px-6">
-                <span className="material-symbols-outlined text-6xl text-gray-300 mb-6">error</span>
-                <h1 className="text-2xl font-bold mb-4">{error || "Blog not found"}</h1>
-                <Link href="/blog" className="text-purple-600 font-bold hover:underline">Back to all blogs</Link>
+            <div className="min-h-screen pt-32 pb-20 flex flex-col items-center justify-center px-6 text-center">
+                <span className="material-symbols-outlined text-6xl text-rose-400 mb-6">error_outline</span>
+                <h1 className="text-2xl font-bold mb-3 text-gray-900">{error || "Blog not found"}</h1>
+                <p className="text-gray-500 text-sm max-w-md mb-6">The article you requested could not be located or may have moved.</p>
+                <Link href="/blog" className="inline-flex items-center gap-2 px-6 py-3 bg-purple-600 text-white font-bold rounded-xl shadow-lg shadow-purple-600/20 hover:bg-purple-700 transition-all text-sm">
+                    <span className="material-symbols-outlined text-[18px]">arrow_back</span>
+                    Back to all blogs
+                </Link>
             </div>
         );
     }
@@ -74,9 +101,15 @@ export default function BlogPostPage() {
                     <span>{blog.readTime || 5} min read</span>
                 </div>
 
-                <h1 className="text-4xl md:text-6xl font-black text-gray-900 leading-[1.1] tracking-tight mb-8 font-display">
+                <h1 className="text-4xl md:text-6xl font-black text-gray-900 leading-[1.1] tracking-tight mb-4 font-display">
                     {blog.title}
                 </h1>
+
+                {(blog.subtitle || (blog as any).excerpt) && (
+                    <p className="text-lg md:text-xl text-gray-500 font-medium leading-relaxed mb-8">
+                        {blog.subtitle || (blog as any).excerpt}
+                    </p>
+                )}
 
                 <div className="flex items-center gap-4">
                     <div className="w-12 h-12 bg-purple-100 rounded-2xl flex items-center justify-center font-bold text-purple-600 text-lg">
@@ -97,13 +130,11 @@ export default function BlogPostPage() {
 
             {/* Featured Image */}
             <div className="max-w-6xl mx-auto px-6 mb-20">
-                <div className="relative aspect-[21/9] rounded-[3rem] overflow-hidden shadow-2xl">
-                    <Image
+                <div className="relative aspect-[21/9] rounded-[3rem] overflow-hidden shadow-2xl bg-slate-100 border border-slate-100">
+                    <img
                         src={normalizeSrc(blog.featuredImage || blog.coverImage)}
                         alt={blog.title}
-                        fill
-                        className="object-cover"
-                        priority
+                        className="w-full h-full object-cover"
                     />
                 </div>
             </div>

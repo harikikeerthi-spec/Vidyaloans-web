@@ -834,9 +834,108 @@ export function identifyCompletedMonths(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
+ * Robust parser for user-defined EVV custom sample dates.
+ * Supports:
+ * - Range expressions: "1 to 31", "1-31", "1 - 31", "1..31", "5-15, 20-31"
+ * - Delimiters: commas, spaces, semicolons, tabs, newlines
+ * - Strict clamping/filtering to valid calendar days of month: 1 to 31
+ * - Automatic deduplication and chronological ascending sort
+ */
+export function parseCustomDates(input: string | number[] | undefined | null): number[] {
+  if (!input) return [1, 5, 10, 15, 20, 25];
+
+  if (Array.isArray(input)) {
+    const valid = Array.from(
+      new Set(
+        input
+          .map((n) => Number(n))
+          .filter((n) => !isNaN(n) && n >= 1 && n <= 31)
+      )
+    ).sort((a, b) => a - b);
+    return valid.length > 0 ? valid : [1, 5, 10, 15, 20, 25];
+  }
+
+  const str = String(input).trim();
+  if (!str) return [1, 5, 10, 15, 20, 25];
+
+  const results: number[] = [];
+
+  // Match range keywords like "1 to 31", "1 - 31", "1-31", "1..31" or individual numbers
+  const tokens = str.split(/[,;\n|]+/).map((t) => t.trim()).filter(Boolean);
+
+  for (const token of tokens) {
+    // Check if the whole token is a range: "1 to 31", "1-31", "1..31"
+    const rangeMatch = token.match(/^(\d{1,2})\s*(?:to|-|\.\.)\s*(\d{1,2})$/i);
+    if (rangeMatch) {
+      const start = parseInt(rangeMatch[1], 10);
+      const end = parseInt(rangeMatch[2], 10);
+      if (!isNaN(start) && !isNaN(end)) {
+        const minVal = Math.max(1, Math.min(start, end));
+        const maxVal = Math.min(31, Math.max(start, end));
+        for (let d = minVal; d <= maxVal; d++) {
+          results.push(d);
+        }
+        continue;
+      }
+    }
+
+    // Token might contain space-separated numbers or sub-ranges, e.g. "1 5 10" or "1 to 31"
+    const subTokens = token.split(/\s+/).filter(Boolean);
+    let i = 0;
+    while (i < subTokens.length) {
+      // Check for three-part space range: "1" "to" "31" or "1" "-" "31"
+      if (
+        i + 2 < subTokens.length &&
+        /^\d{1,2}$/.test(subTokens[i]) &&
+        /^(to|-|\.\.)$/i.test(subTokens[i + 1]) &&
+        /^\d{1,2}$/.test(subTokens[i + 2])
+      ) {
+        const start = parseInt(subTokens[i], 10);
+        const end = parseInt(subTokens[i + 2], 10);
+        if (!isNaN(start) && !isNaN(end)) {
+          const minVal = Math.max(1, Math.min(start, end));
+          const maxVal = Math.min(31, Math.max(start, end));
+          for (let d = minVal; d <= maxVal; d++) {
+            results.push(d);
+          }
+        }
+        i += 3;
+        continue;
+      }
+
+      // Check sub-token for embedded range like "1-31" or "1to31"
+      const subRangeMatch = subTokens[i].match(/^(\d{1,2})(?:to|-|\.\.)(\d{1,2})$/i);
+      if (subRangeMatch) {
+        const start = parseInt(subRangeMatch[1], 10);
+        const end = parseInt(subRangeMatch[2], 10);
+        if (!isNaN(start) && !isNaN(end)) {
+          const minVal = Math.max(1, Math.min(start, end));
+          const maxVal = Math.min(31, Math.max(start, end));
+          for (let d = minVal; d <= maxVal; d++) {
+            results.push(d);
+          }
+        }
+        i++;
+        continue;
+      }
+
+      const num = parseInt(subTokens[i], 10);
+      if (!isNaN(num) && num >= 1 && num <= 31) {
+        results.push(num);
+      }
+      i++;
+    }
+  }
+
+  const uniqueSorted = Array.from(new Set(results)).sort((a, b) => a - b);
+  return uniqueSorted.length > 0 ? uniqueSorted : [1, 5, 10, 15, 20, 25];
+}
+
+/**
  * Samples balances for each completed month.
  * Clamps target day to month length (e.g. day 31 -> Feb 28/29, Apr 30).
  * Uses daily balance on target date (incorporating carry-forward).
+ * Deduplicates actual dates for months with fewer days to avoid skewing AMB.
  */
 export function sampleBalancesForMonths(
   dailyBalances: DailyBalance[],
@@ -848,12 +947,29 @@ export function sampleBalancesForMonths(
 
   const samples: SelectedBalanceSample[] = [];
 
+  // Ensure requested days are unique, sorted, and between 1 and 31
+  const sortedRequestedDays = Array.from(
+    new Set(
+      requestedDays
+        .map((d) => Number(d))
+        .filter((d) => !isNaN(d) && d >= 1 && d <= 31)
+    )
+  ).sort((a, b) => a - b);
+
+  const daysToUse = sortedRequestedDays.length > 0 ? sortedRequestedDays : [1, 5, 10, 15, 20, 25];
+
   completedMonths.forEach((mStr) => {
     const [year, month] = mStr.split('-').map(Number);
     const daysInThisMonth = getDaysInMonth(year, month);
+    const seenActualDays = new Set<number>();
 
-    requestedDays.forEach((reqDay) => {
+    daysToUse.forEach((reqDay) => {
       const actualDay = Math.min(Math.max(1, reqDay), daysInThisMonth);
+      if (seenActualDays.has(actualDay)) {
+        return; // Avoid duplicate end-of-month samples for shorter months (e.g. Feb 28, Apr 30)
+      }
+      seenActualDays.add(actualDay);
+
       const targetDate = `${year}-${String(month).padStart(2, '0')}-${String(actualDay).padStart(2, '0')}`;
 
       const dailyEntry = dailyMap.get(targetDate);
