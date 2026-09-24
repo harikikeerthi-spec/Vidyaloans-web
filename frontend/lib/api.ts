@@ -738,6 +738,14 @@ export const blogApi = {
         return apiFetch(`${API_URL}/blogs?offset=${offset}&limit=${limit}`);
     },
 
+    getAdminAll: (page = 1, limit = 50) => {
+        const offset = (page - 1) * limit;
+        return apiFetch(`${API_URL}/blogs/admin/all?offset=${offset}&limit=${limit}`);
+    },
+
+    getById: (id: string) =>
+        apiFetch(`${API_URL}/blogs/${id}`),
+
     getBySlug: (slug: string) =>
         apiFetch(`${API_URL}/blogs/${slug}`),
 

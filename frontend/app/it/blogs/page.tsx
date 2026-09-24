@@ -12,6 +12,9 @@ type BlockType =
   | "text"
   | "video"
   | "button"
+  | "table"
+  | "table_of_contents"
+  | "list"
   | "link_bio"
   | "image_box"
   | "testimonial"
@@ -40,7 +43,6 @@ type BlockType =
   // Legacy / convenience types
   | "link"
   | "cta"
-  | "list"
   | "quote"
   | "code"
   | "container";
@@ -68,6 +70,24 @@ interface Block {
   suffix?: string;
   prefix?: string;
   items?: BlockItem[];
+  // Heading specific (H1 to H6)
+  level?: 1 | 2 | 3 | 4 | 5 | 6;
+  // List specific (Ordered vs Unordered)
+  listType?: "ordered" | "unordered";
+  listStyle?: "disc" | "decimal" | "check" | "roman";
+  // Table specific
+  tableData?: {
+    headers: string[];
+    rows: string[][];
+    hasHeader: boolean;
+    isStriped: boolean;
+  };
+  // Table of Contents specific
+  tocOptions?: {
+    title?: string;
+    maxDepth?: number;
+    numbered?: boolean;
+  };
   // Elementor-style Link Settings
   url?: string;
   link?: string;
@@ -77,12 +97,19 @@ interface Block {
   style?: {
     fontSize?: string;
     fontFamily?: string;
+    fontWeight?: string;
+    lineHeight?: string;
     color?: string;
     backgroundColor?: string;
     textAlign?: "left" | "center" | "right" | "justify";
     padding?: string;
     borderRadius?: string;
     opacity?: string;
+    width?: string;
+    maxWidth?: string;
+    height?: string;
+    minHeight?: string;
+    margin?: string;
   };
 }
 
@@ -97,10 +124,13 @@ interface ElementorWidget {
 
 const ELEMENTOR_WIDGETS: ElementorWidget[] = [
   // 1. Basic Content
-  { type: "heading", label: "Heading", icon: "title", category: "basic", desc: "Add eye-catching headlines." },
-  { type: "image", label: "Image", icon: "image", category: "basic", desc: "Control the size, opacity and more." },
-  { type: "text", label: "Text Editor", icon: "text_fields", category: "basic", desc: "Just like the WordPress text editor." },
-  { type: "video", label: "Video", icon: "videocam", category: "basic", desc: "Add YouTube, Vimeo, VideoPress, Dailymotion or self-hosted videos." },
+  { type: "heading", label: "Heading (H1-H6)", icon: "title", category: "basic", desc: "Add headlines with H1 to H6 levels." },
+  { type: "text", label: "Text & Live Editor", icon: "text_fields", category: "basic", desc: "Paragraph with inline formatting & hyperlinks." },
+  { type: "list", label: "List (OL / UL)", icon: "format_list_bulleted", category: "basic", desc: "Ordered numbers or bulleted lists." },
+  { type: "table", label: "Data Table", icon: "table_chart", category: "basic", badge: "New", desc: "Interactive grid with rows, columns & headers." },
+  { type: "table_of_contents", label: "Table of Contents", icon: "toc", category: "basic", badge: "Auto", desc: "Real-time automated index of all H1-H6 headlines." },
+  { type: "image", label: "Image (Resizable)", icon: "image", category: "basic", desc: "Control width, height, opacity, and links." },
+  { type: "video", label: "Video", icon: "videocam", category: "basic", desc: "Add YouTube, Vimeo, or self-hosted videos." },
   { type: "button", label: "Button", icon: "smart_button", category: "basic", badge: "Link", desc: "Create interactive buttons." },
   { type: "divider", label: "Divider", icon: "horizontal_rule", category: "basic", desc: "Separate content with a designed divider." },
   { type: "spacer", label: "Spacer", icon: "unfold_more", category: "basic", desc: "Add space between elements." },
@@ -144,6 +174,325 @@ const PRESET_PORTAL_LINKS = [
   { label: "Home Page", url: "/", desc: "VidyaLoan main landing page" },
 ];
 
+function parseHtmlOrTextToBlocks(rawContent: string): Block[] {
+  if (!rawContent || !rawContent.trim()) return [];
+  const trimmed = rawContent.trim();
+
+  // 1. Embedded JSON blocks comment
+  const match = trimmed.match(/<!--BLOCKS_JSON_START-->([\s\S]*?)<!--BLOCKS_JSON_END-->/);
+  if (match && match[1]) {
+    try {
+      const parsed = JSON.parse(match[1]);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    } catch {}
+  }
+
+  // 2. Direct JSON string array
+  if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    } catch {}
+  }
+
+  // 3. HTML parsing via browser DOMParser
+  if (typeof window !== "undefined" && typeof window.DOMParser !== "undefined") {
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(trimmed, "text/html");
+      const blocks: Block[] = [];
+      let idCounter = 1;
+
+      const processElement = (el: Element) => {
+        const tag = el.tagName.toLowerCase();
+        const blockId = `block-${Date.now()}-${idCounter++}`;
+
+        if (/^h[1-6]$/.test(tag)) {
+          const level = parseInt(tag.charAt(1), 10) as 1 | 2 | 3 | 4 | 5 | 6;
+          const fontSizes: Record<number, string> = {
+            1: "32px",
+            2: "26px",
+            3: "22px",
+            4: "18px",
+            5: "16px",
+            6: "14px",
+          };
+          const aTag = el.querySelector("a");
+          blocks.push({
+            id: blockId,
+            type: "heading",
+            level,
+            content: el.textContent?.trim() || "Headline",
+            url: aTag?.getAttribute("href") || undefined,
+            openInNewTab: aTag?.getAttribute("target") === "_blank",
+            style: {
+              fontSize: fontSizes[level] || "24px",
+              fontWeight: "700",
+              color: "#0f172a",
+              width: "100%",
+              padding: "8px 0",
+            },
+          });
+        } else if (tag === "p") {
+          const text = el.innerHTML?.trim() || el.textContent?.trim() || "";
+          if (text) {
+            blocks.push({
+              id: blockId,
+              type: "text",
+              content: text,
+              style: {
+                fontSize: "15px",
+                lineHeight: "1.7",
+                color: "#334155",
+                width: "100%",
+                padding: "6px 0",
+              },
+            });
+          }
+        } else if (tag === "ul" || tag === "ol") {
+          const listType = tag === "ol" ? "ordered" : "unordered";
+          const items = Array.from(el.querySelectorAll("li"))
+            .map((li, idx) => ({
+              id: `${blockId}-${idx + 1}`,
+              title: li.innerHTML?.trim() || li.textContent?.trim() || "",
+            }))
+            .filter((it) => it.title);
+
+          if (items.length > 0) {
+            blocks.push({
+              id: blockId,
+              type: "list",
+              listType,
+              listStyle: tag === "ol" ? "decimal" : "disc",
+              content: items.map((i) => i.title).join("\n"),
+              items,
+              style: {
+                fontSize: "14px",
+                color: "#334155",
+                width: "100%",
+                padding: "8px 12px",
+              },
+            });
+          }
+        } else if (tag === "table") {
+          const headerCells = Array.from(
+            el.querySelectorAll("thead th, thead td, tr:first-child th")
+          ).map((c) => c.textContent?.trim() || "");
+          const rowEls = Array.from(
+            el.querySelectorAll("tbody tr, tr:not(:first-child)")
+          );
+          const rows = rowEls
+            .map((r) =>
+              Array.from(r.querySelectorAll("td, th")).map(
+                (c) => c.textContent?.trim() || ""
+              )
+            )
+            .filter((r) => r.length > 0 && r.some((c) => c.length > 0));
+
+          blocks.push({
+            id: blockId,
+            type: "table",
+            title: "Data Table",
+            content: "Loan Comparison Matrix",
+            tableData: {
+              headers:
+                headerCells.length > 0 ? headerCells : ["Col 1", "Col 2"],
+              rows: rows.length > 0 ? rows : [["Sample A", "Sample B"]],
+              hasHeader: headerCells.length > 0,
+              isStriped: true,
+            },
+            style: { width: "100%", padding: "8px 0" },
+          });
+        } else if (tag === "img") {
+          const img = el as HTMLImageElement;
+          blocks.push({
+            id: blockId,
+            type: "image",
+            content: img.getAttribute("src") || "",
+            title: img.getAttribute("alt") || "",
+            style: {
+              width: "100%",
+              maxWidth: "100%",
+              borderRadius: "12px",
+              padding: "8px 0",
+            },
+          });
+        } else if (tag === "blockquote") {
+          blocks.push({
+            id: blockId,
+            type: "quote",
+            content: el.textContent?.trim() || "",
+            style: {
+              fontSize: "16px",
+              color: "#475569",
+              width: "100%",
+              padding: "12px 16px",
+            },
+          });
+        } else if (tag === "pre" || tag === "code") {
+          blocks.push({
+            id: blockId,
+            type: "code",
+            content: el.textContent?.trim() || "",
+            style: {
+              fontSize: "13px",
+              color: "#1e293b",
+              backgroundColor: "#f8fafc",
+              width: "100%",
+              padding: "12px",
+            },
+          });
+        } else if (tag === "hr") {
+          blocks.push({
+            id: blockId,
+            type: "divider",
+            content: "",
+            style: { width: "100%", padding: "12px 0" },
+          });
+        } else if (tag === "iframe" || tag === "video") {
+          const src = el.getAttribute("src") || "";
+          blocks.push({
+            id: blockId,
+            type: "video",
+            content: src,
+            style: { width: "100%", padding: "8px 0" },
+          });
+        } else if (tag === "div" || tag === "section" || tag === "article") {
+          if (el.children.length > 0) {
+            Array.from(el.children).forEach(processElement);
+          } else {
+            const text = el.textContent?.trim() || "";
+            if (text) {
+              blocks.push({
+                id: blockId,
+                type: "text",
+                content: text,
+                style: {
+                  fontSize: "15px",
+                  color: "#334155",
+                  width: "100%",
+                  padding: "6px 0",
+                },
+              });
+            }
+          }
+        } else {
+          const text = el.textContent?.trim() || "";
+          if (text) {
+            blocks.push({
+              id: blockId,
+              type: "text",
+              content: text,
+              style: {
+                fontSize: "15px",
+                color: "#334155",
+                width: "100%",
+                padding: "6px 0",
+              },
+            });
+          }
+        }
+      };
+
+      Array.from(doc.body.children).forEach(processElement);
+      if (blocks.length > 0) return blocks;
+    } catch (e) {
+      console.warn("DOMParser failed, falling back to plain text:", e);
+    }
+  }
+
+  // 4. Plain text / Markdown fallback parser
+  const paragraphs = trimmed
+    .split(/\n\s*\n/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+  if (paragraphs.length > 0) {
+    return paragraphs.map((par, idx) => {
+      const blockId = `block-text-${Date.now()}-${idx + 1}`;
+      if (par.startsWith("# ")) {
+        return {
+          id: blockId,
+          type: "heading",
+          level: 1,
+          content: par.replace(/^#\s+/, ""),
+          style: {
+            fontSize: "32px",
+            fontWeight: "800",
+            color: "#0f172a",
+            width: "100%",
+            padding: "8px 0",
+          },
+        };
+      }
+      if (par.startsWith("## ")) {
+        return {
+          id: blockId,
+          type: "heading",
+          level: 2,
+          content: par.replace(/^##\s+/, ""),
+          style: {
+            fontSize: "26px",
+            fontWeight: "700",
+            color: "#0f172a",
+            width: "100%",
+            padding: "8px 0",
+          },
+        };
+      }
+      if (par.startsWith("### ")) {
+        return {
+          id: blockId,
+          type: "heading",
+          level: 3,
+          content: par.replace(/^###\s+/, ""),
+          style: {
+            fontSize: "22px",
+            fontWeight: "600",
+            color: "#0f172a",
+            width: "100%",
+            padding: "8px 0",
+          },
+        };
+      }
+      if (par.startsWith("• ") || par.startsWith("- ") || par.startsWith("* ")) {
+        const items = par
+          .split("\n")
+          .map((line) => line.replace(/^[\s•\-\*]+/, "").trim())
+          .filter(Boolean)
+          .map((line, i) => ({ id: `${blockId}-${i + 1}`, title: line }));
+        return {
+          id: blockId,
+          type: "list",
+          listType: "unordered",
+          content: par,
+          items,
+          style: {
+            fontSize: "14px",
+            color: "#334155",
+            width: "100%",
+            padding: "8px 12px",
+          },
+        };
+      }
+      return {
+        id: blockId,
+        type: "text",
+        content: par,
+        style: {
+          fontSize: "15px",
+          lineHeight: "1.7",
+          color: "#334155",
+          width: "100%",
+          padding: "6px 0",
+        },
+      };
+    });
+  }
+
+  return [];
+}
+
 export default function ITBlogsPage() {
   const { user } = useAuth();
   const router = useRouter();
@@ -165,6 +514,18 @@ export default function ITBlogsPage() {
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [saving, setSaving] = useState(false);
   const [editingBlogId, setEditingBlogId] = useState<string | null>(null);
+
+  // Tags System States
+  const [blogTags, setBlogTags] = useState<string[]>(["EducationLoan", "StudyAbroad", "FintechGuidance"]);
+  const [tagInput, setTagInput] = useState("");
+  const [tagsManagerOpen, setTagsManagerOpen] = useState(false);
+
+  // Hyperlink & Selected Text Formatter States
+  const [hyperlinkModalOpen, setHyperlinkModalOpen] = useState(false);
+  const [hyperlinkTargetBlockId, setHyperlinkTargetBlockId] = useState<string | null>(null);
+  const [hyperlinkUrl, setHyperlinkUrl] = useState("");
+  const [hyperlinkText, setHyperlinkText] = useState("");
+  const [hyperlinkTargetBlank, setHyperlinkTargetBlank] = useState(true);
 
   // Link & Elementor States
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
@@ -195,7 +556,7 @@ export default function ITBlogsPage() {
   const loadBlogs = useCallback(async () => {
     setLoading(true);
     try {
-      const res: any = await blogApi.getAll(1, 100).catch(() => ({ data: [] }));
+      const res: any = await blogApi.getAdminAll(1, 100).catch(() => blogApi.getAll(1, 100)).catch(() => ({ data: [] }));
       setBlogs(res.data || []);
     } catch (e) {
       console.error("Failed to load blogs:", e);
@@ -224,10 +585,22 @@ export default function ITBlogsPage() {
   }, []);
 
   useEffect(() => {
+    const editId = searchParams.get("id");
+    const editSlug = searchParams.get("slug");
     if (action === "create") {
       setIsCreating(true);
+    } else if (action === "edit" || editId || editSlug) {
+      if (editId) {
+        blogApi.getById(editId).then((res: any) => {
+          if (res?.data) handleEditBlog(res.data);
+        }).catch(() => {});
+      } else if (editSlug) {
+        blogApi.getBySlug(editSlug).then((res: any) => {
+          if (res?.data) handleEditBlog(res.data);
+        }).catch(() => {});
+      }
     }
-  }, [action]);
+  }, [action, searchParams]);
 
   const restoreDraft = () => {
     try {
@@ -239,6 +612,7 @@ export default function ITBlogsPage() {
         if (parsed.subtitle) setBlogSubtitle(parsed.subtitle);
         if (parsed.category) setBlogCategory(parsed.category);
         if (parsed.coverImage) setCoverImage(parsed.coverImage);
+        if (Array.isArray(parsed.tags)) setBlogTags(parsed.tags);
         if (Array.isArray(parsed.blocks) && parsed.blocks.length > 0) setBlocks(parsed.blocks);
         setIsCreating(true);
         setSavedDraftNotice(null);
@@ -264,6 +638,7 @@ export default function ITBlogsPage() {
           subtitle: blogSubtitle,
           category: blogCategory,
           coverImage,
+          tags: blogTags,
           blocks,
           savedAt: new Date().toISOString(),
         })
@@ -317,14 +692,16 @@ export default function ITBlogsPage() {
     return { type: "video", src: trimmed };
   };
 
-  // Create block helper with smart defaults for all 30 Elementor widgets
+  // Create block helper with smart defaults for all widgets
   const createBlock = (type: BlockType, customContent?: string): Block => {
     const defaults: Record<BlockType, string> = {
       heading: "Add Eye-Catching Headline",
       image: "https://images.unsplash.com/photo-1523240795612-9a054b0db644?q=80&w=800",
-      text: "Enter your detailed article paragraph text here. Just like the WordPress text editor, you can format, align, and customize typography seamlessly.",
+      text: "Enter your detailed article paragraph text here. Select any text to format with bold, italic, code or insert hyperlinks.",
       video: "https://www.youtube.com/embed/dQw4w9WgXcQ",
       button: "Check Eligibility & Apply Now",
+      table: "Loan Comparison Matrix",
+      table_of_contents: "In this Article",
       divider: "",
       spacer: "32px",
       read_more: "Read More Cut-Off Point",
@@ -366,13 +743,66 @@ export default function ITBlogsPage() {
         textAlign: "left",
         color: "#1e293b",
         backgroundColor: "transparent",
-        fontSize: type === "heading" ? "24px" : "14px",
+        fontSize: type === "heading" ? "26px" : "14px",
         padding: "8px",
+        width: "100%",
+        maxWidth: "100%",
+        height: "auto",
       },
     };
 
     // Smart initializers for interactive & complex widgets
     switch (type) {
+      case "heading":
+        block.level = 2;
+        block.style = {
+          ...(block.style || {}),
+          fontSize: "26px",
+          width: "100%",
+        };
+        break;
+      case "list":
+        block.listType = "unordered";
+        block.listStyle = "disc";
+        block.items = [
+          { id: "1", title: "Unsecured Loans: Up to ₹75 Lakhs without collateral requirement" },
+          { id: "2", title: "Competitive Interest: Starting from 8.5% p.a. with tax rebate under 80E" },
+          { id: "3", title: "Moratorium Period: Course Duration + 6 to 12 months grace period" },
+          { id: "4", title: "100% Comprehensive Coverage: Tuition, living costs, and flight tickets" },
+        ];
+        break;
+      case "table":
+        block.title = "Loan Comparison Matrix";
+        block.tableData = {
+          headers: ["Bank / Partner Lender", "Max Collateral-Free", "Interest Rate", "Processing Speed"],
+          rows: [
+            ["HDFC Credila", "Up to ₹75 Lakhs", "9.50% - 11.25%", "3 Business Days"],
+            ["IDFC FIRST Bank", "Up to ₹50 Lakhs", "9.25% - 10.50%", "48 Hours Fast-Track"],
+            ["State Bank of India (SBI)", "Up to ₹50 Lakhs", "8.15% - 9.15%", "7-10 Business Days"],
+            ["ICICI Bank", "Up to ₹50 Lakhs", "9.75% - 11.50%", "3-4 Business Days"],
+          ],
+          hasHeader: true,
+          isStriped: true,
+        };
+        block.style = {
+          ...(block.style || {}),
+          width: "100%",
+          padding: "8px",
+        };
+        break;
+      case "table_of_contents":
+        block.title = "Table of Contents";
+        block.tocOptions = {
+          title: "Table of Contents",
+          maxDepth: 6,
+          numbered: true,
+        };
+        block.style = {
+          ...(block.style || {}),
+          width: "100%",
+          padding: "8px",
+        };
+        break;
       case "button":
         block.url = "/apply";
         block.openInNewTab = true;
@@ -519,6 +949,331 @@ export default function ITBlogsPage() {
 
   const updateBlockData = (id: string, updates: Partial<Block>) => {
     setBlocks((prev) => prev.map((b) => (b.id === id ? { ...b, ...updates } : b)));
+  };
+
+  // Helper functions for Dynamic #Tags System
+  const addTag = (tagToAdd: string) => {
+    const clean = tagToAdd.trim().replace(/^#+/, "").replace(/[^a-zA-Z0-9_\-]/g, "");
+    if (!clean) return;
+    if (!blogTags.includes(clean)) {
+      setBlogTags((prev) => [...prev, clean]);
+    }
+    setTagInput("");
+  };
+
+  const removeTag = (tagToRemove: string) => {
+    setBlogTags((prev) => prev.filter((t) => t !== tagToRemove));
+  };
+
+  // Helper functions for Table Widget
+  const addTableRow = (blockId: string) => {
+    setBlocks((prev) =>
+      prev.map((b) => {
+        if (b.id !== blockId) return b;
+        const currentData = b.tableData || {
+          headers: ["Header 1", "Header 2", "Header 3"],
+          rows: [["Cell 1", "Cell 2", "Cell 3"]],
+          hasHeader: true,
+          isStriped: true,
+        };
+        const colCount = Math.max(currentData.headers.length, currentData.rows[0]?.length || 3);
+        const newRow = Array(colCount).fill("New Data");
+        return {
+          ...b,
+          tableData: {
+            ...currentData,
+            rows: [...currentData.rows, newRow],
+          },
+        };
+      })
+    );
+  };
+
+  const deleteTableRow = (blockId: string, rowIndex?: number) => {
+    setBlocks((prev) =>
+      prev.map((b) => {
+        if (b.id !== blockId || !b.tableData) return b;
+        if (b.tableData.rows.length <= 1) return b;
+        const targetIndex = rowIndex !== undefined ? rowIndex : b.tableData.rows.length - 1;
+        const newRows = b.tableData.rows.filter((_, i) => i !== targetIndex);
+        return {
+          ...b,
+          tableData: {
+            ...b.tableData,
+            rows: newRows,
+          },
+        };
+      })
+    );
+  };
+
+  const addTableColumn = (blockId: string) => {
+    setBlocks((prev) =>
+      prev.map((b) => {
+        if (b.id !== blockId) return b;
+        const currentData = b.tableData || {
+          headers: ["Header 1", "Header 2"],
+          rows: [["Cell 1", "Cell 2"]],
+          hasHeader: true,
+          isStriped: true,
+        };
+        const newColNumber = currentData.headers.length + 1;
+        const newHeaders = [...currentData.headers, `Col ${newColNumber}`];
+        const newRows = currentData.rows.map((row) => [...row, "Cell"]);
+        return {
+          ...b,
+          tableData: {
+            ...currentData,
+            headers: newHeaders,
+            rows: newRows,
+          },
+        };
+      })
+    );
+  };
+
+  const deleteTableColumn = (blockId: string, colIndex?: number) => {
+    setBlocks((prev) =>
+      prev.map((b) => {
+        if (b.id !== blockId || !b.tableData) return b;
+        if (b.tableData.headers.length <= 1) return b;
+        const targetCol = colIndex !== undefined ? colIndex : b.tableData.headers.length - 1;
+        const newHeaders = b.tableData.headers.filter((_, i) => i !== targetCol);
+        const newRows = b.tableData.rows.map((row) => row.filter((_, i) => i !== targetCol));
+        return {
+          ...b,
+          tableData: {
+            ...b.tableData,
+            headers: newHeaders,
+            rows: newRows,
+          },
+        };
+      })
+    );
+  };
+
+  const updateTableCell = (blockId: string, rowIndex: number, colIndex: number, val: string) => {
+    setBlocks((prev) =>
+      prev.map((b) => {
+        if (b.id !== blockId || !b.tableData) return b;
+        const newRows = b.tableData.rows.map((row, rIdx) => {
+          if (rIdx !== rowIndex) return row;
+          const updatedRow = [...row];
+          updatedRow[colIndex] = val;
+          return updatedRow;
+        });
+        return {
+          ...b,
+          tableData: {
+            ...b.tableData,
+            rows: newRows,
+          },
+        };
+      })
+    );
+  };
+
+  const updateTableHeader = (blockId: string, colIndex: number, val: string) => {
+    setBlocks((prev) =>
+      prev.map((b) => {
+        if (b.id !== blockId || !b.tableData) return b;
+        const newHeaders = [...b.tableData.headers];
+        newHeaders[colIndex] = val;
+        return {
+          ...b,
+          tableData: {
+            ...b.tableData,
+            headers: newHeaders,
+          },
+        };
+      })
+    );
+  };
+
+  const toggleTableHeader = (blockId: string) => {
+    setBlocks((prev) =>
+      prev.map((b) => {
+        if (b.id !== blockId || !b.tableData) return b;
+        return {
+          ...b,
+          tableData: {
+            ...b.tableData,
+            hasHeader: !b.tableData.hasHeader,
+          },
+        };
+      })
+    );
+  };
+
+  const toggleTableStriped = (blockId: string) => {
+    setBlocks((prev) =>
+      prev.map((b) => {
+        if (b.id !== blockId || !b.tableData) return b;
+        return {
+          ...b,
+          tableData: {
+            ...b.tableData,
+            isStriped: !b.tableData.isStriped,
+          },
+        };
+      })
+    );
+  };
+
+  // Helper functions for List Widget (Ordered / Unordered)
+  const toggleListType = (blockId: string) => {
+    setBlocks((prev) =>
+      prev.map((b) => {
+        if (b.id !== blockId) return b;
+        const nextType = (b.listType || "unordered") === "ordered" ? "unordered" : "ordered";
+        return { ...b, listType: nextType };
+      })
+    );
+  };
+
+  const addListItem = (blockId: string) => {
+    setBlocks((prev) =>
+      prev.map((b) => {
+        if (b.id !== blockId) return b;
+        const currentItems = b.items || [];
+        const newItem: BlockItem = {
+          id: Date.now().toString(),
+          title: "New bullet point item",
+        };
+        return { ...b, items: [...currentItems, newItem] };
+      })
+    );
+  };
+
+  const removeListItem = (blockId: string, itemIdxOrId: string | number) => {
+    setBlocks((prev) =>
+      prev.map((b) => {
+        if (b.id !== blockId) return b;
+        const currentItems = b.items || [];
+        return {
+          ...b,
+          items: currentItems.filter((it, idx) =>
+            typeof itemIdxOrId === "number" ? idx !== itemIdxOrId : it.id !== itemIdxOrId
+          ),
+        };
+      })
+    );
+  };
+
+  const updateListItem = (blockId: string, itemIdxOrId: string | number, title: string) => {
+    setBlocks((prev) =>
+      prev.map((b) => {
+        if (b.id !== blockId) return b;
+        const currentItems = b.items || [];
+        return {
+          ...b,
+          items: currentItems.map((it, idx) =>
+            (typeof itemIdxOrId === "number" ? idx === itemIdxOrId : it.id === itemIdxOrId)
+              ? { ...it, title }
+              : it
+          ),
+        };
+      })
+    );
+  };
+
+  const deleteBlock = (blockId: string) => {
+    setBlocks((prev) => prev.filter((b) => b.id !== blockId));
+    if (selectedBlockId === blockId) {
+      setSelectedBlockId(null);
+    }
+  };
+
+  // Box Dimensions update helper
+  const updateBlockDimensions = (
+    blockId: string,
+    updates: {
+      width?: string;
+      maxWidth?: string;
+      height?: string;
+      minHeight?: string;
+      textAlign?: "left" | "center" | "right" | "justify";
+      margin?: string;
+    }
+  ) => {
+    setBlocks((prev) =>
+      prev.map((b) => {
+        if (b.id !== blockId) return b;
+        const newStyle = { ...(b.style || {}), ...updates };
+        if (updates.textAlign === "center") {
+          newStyle.margin = "0 auto";
+        } else if (updates.textAlign === "right") {
+          newStyle.margin = "0 0 0 auto";
+        } else if (updates.textAlign === "left") {
+          newStyle.margin = "0 auto 0 0";
+        }
+        return { ...b, style: newStyle };
+      })
+    );
+  };
+
+  // Real-time Text Selection & Hyperlink Helpers
+  const openHyperlinkDialog = (blockId: string, initialText?: string, initialUrl?: string) => {
+    setHyperlinkTargetBlockId(blockId);
+    setHyperlinkText(initialText || "");
+    setHyperlinkUrl(initialUrl || "/apply");
+    setHyperlinkTargetBlank(true);
+    setHyperlinkModalOpen(true);
+  };
+
+  const applyHyperlink = () => {
+    if (!hyperlinkTargetBlockId) return;
+    const targetUrl = hyperlinkUrl.trim() || "/apply";
+
+    setBlocks((prev) =>
+      prev.map((b) => {
+        if (b.id !== hyperlinkTargetBlockId) return b;
+        // If block has link properties:
+        const updated = {
+          ...b,
+          url: targetUrl,
+          link: targetUrl,
+          openInNewTab: hyperlinkTargetBlank,
+        };
+        // If user customized text:
+        if (hyperlinkText.trim()) {
+          if (b.type === "link" || b.type === "button") {
+            updated.content = hyperlinkText;
+          } else if (b.type === "text") {
+            // Append or format hyperlinked text
+            const linkHtml = `<a href="${targetUrl}" ${hyperlinkTargetBlank ? 'target="_blank" rel="noopener noreferrer"' : ''} style="color: #4f46e5; font-weight: 700; text-decoration: underline;">${hyperlinkText}</a>`;
+            if (b.content.includes(hyperlinkText)) {
+              updated.content = b.content.replace(hyperlinkText, linkHtml);
+            } else {
+              updated.content = `${b.content} ${linkHtml}`;
+            }
+          }
+        }
+        return updated;
+      })
+    );
+
+    setHyperlinkModalOpen(false);
+  };
+
+  const applyFormatToBlock = (
+    blockId: string,
+    format: "bold" | "italic" | "underline" | "code" | "highlight"
+  ) => {
+    setBlocks((prev) =>
+      prev.map((b) => {
+        if (b.id !== blockId) return b;
+        const text = b.content || "";
+        let newContent = text;
+        if (format === "bold") newContent = `<strong>${text}</strong>`;
+        else if (format === "italic") newContent = `<em>${text}</em>`;
+        else if (format === "underline") newContent = `<u>${text}</u>`;
+        else if (format === "code") newContent = `<code>${text}</code>`;
+        else if (format === "highlight")
+          newContent = `<mark style="background-color: #fef08a; padding: 2px 6px; border-radius: 4px;">${text}</mark>`;
+        return { ...b, content: newContent };
+      })
+    );
   };
 
   const copyToClipboard = async (text: string, label: string = "Link") => {
@@ -746,6 +1501,7 @@ export default function ITBlogsPage() {
         category: blogCategory,
         coverImage,
         blocks,
+        tags: blogTags,
         published: publishStatus,
         authorName: user?.firstName ? `${user.firstName} ${user.lastName || ""}`.trim() : "IT Staff",
       };
@@ -767,6 +1523,7 @@ export default function ITBlogsPage() {
       setBlogSubtitle("");
       setCoverImage("");
       setBlocks([]);
+      setBlogTags(["EducationLoan", "StudyAbroad", "FintechGuidance"]);
       setEditingBlogId(null);
       handleBackToList();
       loadBlogs();
@@ -781,6 +1538,7 @@ export default function ITBlogsPage() {
             subtitle: blogSubtitle,
             category: blogCategory,
             coverImage,
+            tags: blogTags,
             blocks,
             savedAt: new Date().toISOString(),
           })
@@ -820,9 +1578,7 @@ export default function ITBlogsPage() {
   const handleBackToList = () => {
     setIsCreating(false);
     setEditingBlogId(null);
-    if (action === "create") {
-      router.replace("/it/blogs");
-    }
+    router.replace("/it/blogs");
   };
 
   const handleDeleteBlog = async (id: string, title: string) => {
@@ -836,7 +1592,7 @@ export default function ITBlogsPage() {
     }
   };
 
-  const getBlogBlocks = (blog: any): Block[] => {
+  function getBlogBlocks(blog: any): Block[] {
     if (!blog) return [];
     if (Array.isArray(blog.blocks) && blog.blocks.length > 0) return blog.blocks;
     if (typeof blog.blocks === "string") {
@@ -845,20 +1601,10 @@ export default function ITBlogsPage() {
         if (Array.isArray(parsed)) return parsed;
       } catch {}
     }
-    if (typeof blog.content === "string") {
-      const match = blog.content.match(/<!--BLOCKS_JSON_START-->([\s\S]*?)<!--BLOCKS_JSON_END-->/);
-      if (match && match[1]) {
-        try {
-          const parsed = JSON.parse(match[1]);
-          if (Array.isArray(parsed)) return parsed;
-        } catch {}
-      }
-      if (blog.content.startsWith("[")) {
-        try {
-          const parsed = JSON.parse(blog.content);
-          if (Array.isArray(parsed)) return parsed;
-        } catch {}
-      }
+    const rawContent = blog.content || "";
+    if (rawContent) {
+      const parsed = parseHtmlOrTextToBlocks(rawContent);
+      if (parsed.length > 0) return parsed;
     }
     return [];
   };
@@ -902,16 +1648,37 @@ export default function ITBlogsPage() {
     setComparing(true);
   };
 
-  const handleEditBlog = (blog: any) => {
-    setEditingBlogId(blog.id || blog._id);
-    setBlogTitle(blog.title || "");
-    setBlogSlug(blog.slug || "");
-    setBlogSubtitle(blog.subtitle || blog.excerpt || "");
-    setBlogCategory(blog.category || "Loan Guidance");
-    setCoverImage(blog.coverImage || blog.featuredImage || "");
-    setBlocks(getBlogBlocks(blog));
+  async function handleEditBlog(blog: any) {
+    let fullBlog = blog;
+    const id = fullBlog.id || fullBlog._id;
+    // If full content is not present, fetch complete blog from API
+    if (!fullBlog.content && (!fullBlog.blocks || fullBlog.blocks.length === 0)) {
+      try {
+        if (id) {
+          const res: any = await blogApi.getById(id).catch(() => null);
+          if (res?.data) {
+            fullBlog = { ...fullBlog, ...res.data };
+          }
+        }
+      } catch (err) {
+        console.warn("Could not fetch full blog by ID:", err);
+      }
+    }
+
+    setEditingBlogId(id || null);
+    setBlogTitle(fullBlog.title || "");
+    setBlogSlug(fullBlog.slug || "");
+    setBlogSubtitle(fullBlog.subtitle || fullBlog.excerpt || "");
+    setBlogCategory(fullBlog.category || "Loan Guidance");
+    setCoverImage(fullBlog.coverImage || fullBlog.featuredImage || "");
+    const rawTags = Array.isArray(fullBlog.tags)
+      ? fullBlog.tags.map((t: any) => (typeof t === "string" ? t : t?.name || t?.tag?.name || "")).filter(Boolean)
+      : [];
+    setBlogTags(rawTags.length > 0 ? rawTags : ["EducationLoan", "StudyAbroad", "FintechGuidance"]);
+    const parsedBlocks = getBlogBlocks(fullBlog);
+    setBlocks(parsedBlocks);
     setIsCreating(true);
-  };
+  }
 
   const filteredBlogs = blogs.filter((b) => {
     const matchesSearch =
@@ -1684,13 +2451,26 @@ export default function ITBlogsPage() {
                 <span>Back</span>
               </button>
 
-              {/* Elementor Iconic Badge */}
-              <div
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0 shadow-sm"
-                style={{ backgroundColor: "#E21B5A" }}
-                title="WordPress Elementor Visual Engine"
-              >
-                <span className="material-symbols-outlined text-lg font-black">widgets</span>
+              {/* Elementor Iconic Badge & Status */}
+              <div className="flex items-center gap-2 shrink-0">
+                <div
+                  className="w-8 h-8 rounded-xl flex items-center justify-center text-white shrink-0 shadow-sm"
+                  style={{ backgroundColor: "#E21B5A" }}
+                  title="WordPress Elementor Visual Engine"
+                >
+                  <span className="material-symbols-outlined text-lg font-black">widgets</span>
+                </div>
+                {editingBlogId ? (
+                  <span className="hidden xl:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                    Editing Mode
+                  </span>
+                ) : (
+                  <span className="hidden xl:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    New Article
+                  </span>
+                )}
               </div>
               <div className="min-w-0 flex-1">
                 <input
@@ -1779,16 +2559,16 @@ export default function ITBlogsPage() {
                 type="button"
                 onClick={saveLocalDraftManual}
                 title="Backup article draft to local browser storage"
-                className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 hover:text-white text-xs font-semibold rounded-xl transition-all border border-slate-700 cursor-pointer flex items-center gap-1.5"
+                className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 hover:text-white text-xs font-semibold rounded-xl transition-all border border-slate-700 cursor-pointer flex items-center gap-1.5 shadow-2xs"
               >
-                <span className="material-symbols-outlined text-[15px] text-amber-400">save</span>
+                <span className="material-symbols-outlined text-[15px] text-amber-400">cloud_sync</span>
                 <span className="hidden sm:inline">Backup</span>
               </button>
               <button
                 type="button"
                 disabled={saving}
                 onClick={() => handleSaveBlog(false)}
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-white text-xs font-bold rounded-xl transition-all border border-slate-700 cursor-pointer"
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 hover:text-white text-xs font-bold rounded-xl transition-all border border-slate-700 cursor-pointer shadow-2xs"
               >
                 {saving ? "Saving..." : "Save Draft"}
               </button>
@@ -1796,11 +2576,98 @@ export default function ITBlogsPage() {
                 type="button"
                 disabled={saving}
                 onClick={() => handleSaveBlog(true)}
-                className="px-4 py-1.5 bg-[#E21B5A] hover:bg-[#C9134D] active:scale-95 text-white text-xs font-black rounded-xl transition-all shadow-md cursor-pointer flex items-center gap-1.5"
+                className="px-4 py-1.5 bg-gradient-to-r from-[#E21B5A] to-rose-600 hover:from-[#c9144d] hover:to-rose-700 active:scale-95 text-white text-xs font-black rounded-xl transition-all shadow-md shadow-rose-900/30 cursor-pointer flex items-center gap-1.5"
               >
-                <span className="material-symbols-outlined text-[16px]">publish</span>
-                {saving ? "Publishing..." : "Publish"}
+                <span className="material-symbols-outlined text-[16px]">{editingBlogId ? "update" : "publish"}</span>
+                {saving ? (editingBlogId ? "Updating..." : "Publishing...") : (editingBlogId ? "Update Live" : "Publish Live")}
               </button>
+            </div>
+          </div>
+
+          {/* DYNAMIC #TAGS INTERACTIVE BAR */}
+          <div className="bg-[#18181f] text-white px-4 py-2 border-b border-slate-800 flex items-center justify-between gap-3 text-xs flex-wrap z-10 shrink-0">
+            <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
+              <div className="flex items-center gap-1 text-slate-400 font-bold uppercase tracking-wider text-[10px] shrink-0">
+                <span className="material-symbols-outlined text-[15px] text-[#E21B5A]">tag</span>
+                <span>#Tags ({blogTags.length}):</span>
+              </div>
+
+              {/* Render Current Tag Chips */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {blogTags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-slate-800 hover:bg-slate-700 text-rose-300 rounded-full text-[11px] font-bold border border-rose-500/30 transition-all shadow-xs"
+                  >
+                    <span>#{tag}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeTag(tag)}
+                      className="w-3.5 h-3.5 rounded-full hover:bg-rose-500 hover:text-white flex items-center justify-center text-[10px] text-slate-400 transition-colors cursor-pointer"
+                      title="Remove tag"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+
+              {/* Tag Input Field */}
+              <div className="flex items-center gap-1 bg-slate-900 border border-slate-700 rounded-full px-2.5 py-0.5 focus-within:border-rose-400">
+                <span className="text-slate-500 text-[11px] font-bold">#</span>
+                <input
+                  type="text"
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === ",") {
+                      e.preventDefault();
+                      addTag(tagInput);
+                    }
+                  }}
+                  placeholder="Type #tag & Enter..."
+                  className="bg-transparent text-[11px] text-white placeholder-slate-500 focus:outline-none w-32"
+                />
+                {tagInput && (
+                  <button
+                    type="button"
+                    onClick={() => addTag(tagInput)}
+                    className="text-[10px] bg-[#E21B5A] hover:bg-[#C9134D] text-white px-2 py-0.5 rounded-full font-bold cursor-pointer"
+                  >
+                    Add
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Quick Popular Tag Presets */}
+            <div className="hidden lg:flex items-center gap-1.5 text-[10px] text-slate-400 shrink-0">
+              <span className="text-slate-500 font-bold uppercase tracking-wider text-[9px]">Popular:</span>
+              {[
+                "EducationLoan",
+                "StudyAbroad",
+                "VisaGuidance",
+                "HDFCBank",
+                "SBILoans",
+                "Scholarships",
+                "TaxBenefits",
+              ].map((preset) => {
+                const isAdded = blogTags.includes(preset);
+                return (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => (isAdded ? removeTag(preset) : addTag(preset))}
+                    className={`px-2 py-0.5 rounded-md transition-all cursor-pointer font-semibold ${
+                      isAdded
+                        ? "bg-rose-500/20 text-rose-300 border border-rose-500/40"
+                        : "bg-slate-800 text-slate-400 hover:text-white border border-slate-700"
+                    }`}
+                  >
+                    {isAdded ? "✓" : "+"} #{preset}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -1829,7 +2696,7 @@ export default function ITBlogsPage() {
                       }`}
                     >
                       <span className="material-symbols-outlined text-[14px]">palette</span>
-                      Style
+                      Style & Dimensions
                     </button>
                     <button
                       type="button"
@@ -1845,7 +2712,185 @@ export default function ITBlogsPage() {
 
                   {/* TAB 1: CONTENT & LINK SETTINGS */}
                   {elementorInspectorTab === "content" && (
-                    <div className="flex items-center gap-2.5 border-l border-slate-200 pl-3">
+                    <div className="flex items-center gap-2.5 border-l border-slate-200 pl-3 flex-wrap">
+                      {/* Contextual: Heading Level Selector (H1-H6) & Anchor */}
+                      {selectedBlock.type === "heading" && (
+                        <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200 mr-2">
+                          <span className="text-[10px] font-bold text-slate-500 px-1">Heading:</span>
+                          {([1, 2, 3, 4, 5, 6] as const).map((lvl) => {
+                            const isCurrent = (selectedBlock.level || 2) === lvl;
+                            return (
+                              <button
+                                key={lvl}
+                                type="button"
+                                onClick={() => {
+                                  const fontSizes: Record<number, string> = {
+                                    1: "32px",
+                                    2: "26px",
+                                    3: "22px",
+                                    4: "18px",
+                                    5: "16px",
+                                    6: "14px",
+                                  };
+                                  updateBlockData(selectedBlock.id, {
+                                    level: lvl,
+                                    style: { ...(selectedBlock.style || {}), fontSize: fontSizes[lvl] },
+                                  });
+                                }}
+                                className={`px-2 py-0.5 rounded text-xs font-black transition-all cursor-pointer ${
+                                  isCurrent
+                                    ? "bg-[#E21B5A] text-white shadow-xs"
+                                    : "text-slate-600 hover:text-slate-900 hover:bg-slate-200"
+                                }`}
+                              >
+                                H{lvl}
+                              </button>
+                            );
+                          })}
+                          <span className="text-[10px] font-mono text-slate-400 border-l border-slate-200 pl-1.5 pr-1">
+                            #{(selectedBlock.content || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || `heading-${selectedBlock.level || 2}`}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Contextual: Image Source Tools */}
+                      {selectedBlock.type === "image" && (
+                        <div className="flex items-center gap-2 mr-2">
+                          <label className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer">
+                            <span className="material-symbols-outlined text-[14px]">upload_file</span>
+                            <span>Upload Image</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  const reader = new FileReader();
+                                  reader.onload = (evt) => {
+                                    const dataUrl = evt.target?.result as string;
+                                    if (dataUrl) updateBlockContent(selectedBlock.id, dataUrl);
+                                  };
+                                  reader.readAsDataURL(file);
+                                }
+                              }}
+                            />
+                          </label>
+                          <input
+                            type="text"
+                            value={selectedBlock.content.startsWith("data:") ? "[Local Image File]" : selectedBlock.content}
+                            onChange={(e) => updateBlockContent(selectedBlock.id, e.target.value)}
+                            placeholder="Image URL (https://...)"
+                            className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 w-40 font-mono text-slate-700"
+                          />
+                          {selectedBlock.content && (
+                            <button
+                              type="button"
+                              onClick={() => updateBlockContent(selectedBlock.id, "")}
+                              className="px-2 py-1 text-rose-600 hover:bg-rose-50 text-xs font-bold rounded border border-rose-200 cursor-pointer"
+                            >
+                              Clear
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Contextual: Video Source Tools */}
+                      {selectedBlock.type === "video" && (
+                        <div className="flex items-center gap-2 mr-2">
+                          <input
+                            type="text"
+                            value={selectedBlock.content.startsWith("data:") ? "[Local Video File]" : selectedBlock.content}
+                            onChange={(e) => updateBlockContent(selectedBlock.id, e.target.value)}
+                            placeholder="YouTube, Vimeo or MP4 URL..."
+                            className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 w-44 font-mono text-slate-700"
+                          />
+                        </div>
+                      )}
+
+                      {/* Contextual: Icon Widget Tools */}
+                      {(selectedBlock.type === "icon" || selectedBlock.type === "icon_box") && (
+                        <div className="flex items-center gap-1.5 mr-2">
+                          <span className="text-[10px] font-bold text-slate-500">Icon:</span>
+                          <input
+                            type="text"
+                            value={selectedBlock.iconName || "verified_user"}
+                            onChange={(e) => updateBlockData(selectedBlock.id, { iconName: e.target.value })}
+                            className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono w-28 text-slate-700"
+                            placeholder="Icon name"
+                          />
+                        </div>
+                      )}
+
+                      {/* Contextual: Button / CTA Tools */}
+                      {(selectedBlock.type === "button" || selectedBlock.type === "cta") && (
+                        <div className="flex items-center gap-1.5 mr-2">
+                          <span className="text-[10px] font-bold text-slate-500">Text:</span>
+                          <input
+                            type="text"
+                            value={selectedBlock.content || selectedBlock.buttonText || ""}
+                            onChange={(e) => updateBlockContent(selectedBlock.id, e.target.value)}
+                            placeholder="Button Text..."
+                            className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs w-28 text-slate-700"
+                          />
+                        </div>
+                      )}
+
+                      {/* Contextual: List Widget Toggle */}
+                      {selectedBlock.type === "list" && (
+                        <div className="flex items-center gap-1.5 mr-2">
+                          <button
+                            type="button"
+                            onClick={() => toggleListType(selectedBlock.id)}
+                            className="px-2.5 py-1 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">format_list_numbered</span>
+                            Type: {selectedBlock.listType === "ordered" ? "Ordered (1.2.3)" : "Unordered (•)"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => addListItem(selectedBlock.id)}
+                            className="px-2.5 py-1 bg-slate-800 text-white rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer"
+                          >
+                            + Item
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Contextual: Table Widget Tools */}
+                      {selectedBlock.type === "table" && (
+                        <div className="flex items-center gap-1 mr-2 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => addTableRow(selectedBlock.id)}
+                            className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded font-bold text-[11px] border border-slate-200 cursor-pointer"
+                          >
+                            + Row
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteTableRow(selectedBlock.id)}
+                            className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-rose-700 rounded font-bold text-[11px] border border-slate-200 cursor-pointer"
+                          >
+                            - Row
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => addTableColumn(selectedBlock.id)}
+                            className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded font-bold text-[11px] border border-slate-200 cursor-pointer"
+                          >
+                            + Col
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteTableColumn(selectedBlock.id)}
+                            className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-rose-700 rounded font-bold text-[11px] border border-slate-200 cursor-pointer"
+                          >
+                            - Col
+                          </button>
+                        </div>
+                      )}
+
                       {/* Link URL Quick Input */}
                       <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-xl">
                         <span className="material-symbols-outlined text-indigo-600 text-[16px]">link</span>
@@ -1853,24 +2898,24 @@ export default function ITBlogsPage() {
                           type="text"
                           value={selectedBlock.url || selectedBlock.link || ""}
                           onChange={(e) => updateBlockData(selectedBlock.id, { url: e.target.value, link: e.target.value })}
-                          placeholder="Link URL (e.g. /apply or https://...)"
-                          className="text-xs bg-transparent border-none focus:outline-none w-52 font-mono font-medium text-slate-800"
+                          placeholder="Link URL (/apply or https://...)"
+                          className="text-xs bg-transparent border-none focus:outline-none w-48 font-mono font-medium text-slate-800"
                         />
                       </div>
 
                       {/* Open Link Inspector Details Modal */}
                       <button
                         type="button"
-                        onClick={() => setLinkInspectorOpen(!linkInspectorOpen)}
+                        onClick={() => openHyperlinkDialog(selectedBlock.id, selectedBlock.content?.slice(0, 30), selectedBlock.url || selectedBlock.link)}
                         className={`px-3 py-1 text-xs font-bold rounded-xl transition-all flex items-center gap-1 cursor-pointer ${
                           selectedBlock.url || selectedBlock.link
                             ? "bg-indigo-600 text-white"
                             : "bg-slate-100 hover:bg-slate-200 text-slate-700"
                         }`}
-                        title="Elementor Link Settings (Target, Nofollow, Presets)"
+                        title="Hyperlink Modal & Preset Selector"
                       >
-                        <span className="material-symbols-outlined text-[14px]">settings_ethernet</span>
-                        <span>Link Options</span>
+                        <span className="material-symbols-outlined text-[14px]">link</span>
+                        <span>Hyperlink Dialog</span>
                         {selectedBlock.url && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 ml-0.5" />}
                       </button>
 
@@ -1887,34 +2932,138 @@ export default function ITBlogsPage() {
                     </div>
                   )}
 
-                  {/* TAB 2: STYLE (TYPOGRAPHY, COLORS, ALIGNMENT) */}
+                  {/* TAB 2: STYLE (TYPOGRAPHY, BOX DIMENSIONS & ALIGNMENT) */}
                   {elementorInspectorTab === "style" && (
-                    <div className="flex items-center gap-3 border-l border-slate-200 pl-3">
-                      <select
-                        value={selectedBlock.style?.fontSize || "14px"}
-                        onChange={(e) => updateBlockStyle(selectedBlock.id, { fontSize: e.target.value })}
-                        className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 cursor-pointer"
-                      >
-                        <option value="12px">12px Small</option>
-                        <option value="14px">14px Body</option>
-                        <option value="16px">16px Medium</option>
-                        <option value="20px">20px Subtitle</option>
-                        <option value="24px">24px Heading</option>
-                        <option value="32px">32px Hero Title</option>
-                      </select>
+                    <div className="flex items-center gap-3 border-l border-slate-200 pl-3 flex-wrap">
+                      {/* Contextual: Heading Level Selector (H1-H6) in Style Tab */}
+                      {selectedBlock.type === "heading" && (
+                        <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                          <span className="text-[10px] font-bold text-slate-500 px-1">Level:</span>
+                          {([1, 2, 3, 4, 5, 6] as const).map((lvl) => {
+                            const isCurrent = (selectedBlock.level || 2) === lvl;
+                            return (
+                              <button
+                                key={lvl}
+                                type="button"
+                                onClick={() => {
+                                  const fontSizes: Record<number, string> = {
+                                    1: "32px",
+                                    2: "26px",
+                                    3: "22px",
+                                    4: "18px",
+                                    5: "16px",
+                                    6: "14px",
+                                  };
+                                  updateBlockData(selectedBlock.id, {
+                                    level: lvl,
+                                    style: { ...(selectedBlock.style || {}), fontSize: fontSizes[lvl] },
+                                  });
+                                }}
+                                className={`px-2 py-0.5 rounded text-xs font-black transition-all cursor-pointer ${
+                                  isCurrent
+                                    ? "bg-[#E21B5A] text-white shadow-xs"
+                                    : "text-slate-600 hover:text-slate-900 hover:bg-slate-200"
+                                }`}
+                              >
+                                H{lvl}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Font Size */}
+                      <div className="flex items-center gap-1">
+                        <span className="text-[10px] font-bold text-slate-400">Size:</span>
+                        <select
+                          value={selectedBlock.style?.fontSize || "16px"}
+                          onChange={(e) => updateBlockStyle(selectedBlock.id, { fontSize: e.target.value })}
+                          className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 cursor-pointer"
+                        >
+                          <option value="12px">12px Small</option>
+                          <option value="14px">14px Body</option>
+                          <option value="16px">16px Regular</option>
+                          <option value="18px">18px Large</option>
+                          <option value="20px">20px Subtitle</option>
+                          <option value="24px">24px H3</option>
+                          <option value="28px">28px H2</option>
+                          <option value="32px">32px H1</option>
+                          <option value="40px">40px Hero</option>
+                        </select>
+                      </div>
+
+                      {/* Font Weight */}
+                      <div className="flex items-center gap-1">
+                        <span className="text-[10px] font-bold text-slate-400">Weight:</span>
+                        <select
+                          value={selectedBlock.style?.fontWeight || "normal"}
+                          onChange={(e) => updateBlockStyle(selectedBlock.id, { fontWeight: e.target.value })}
+                          className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 cursor-pointer"
+                        >
+                          <option value="400">Normal</option>
+                          <option value="500">Medium</option>
+                          <option value="600">Semibold</option>
+                          <option value="700">Bold</option>
+                          <option value="900">Black</option>
+                        </select>
+                      </div>
+
+                      {/* Box Width Presets */}
+                      <div className="flex items-center gap-1 border-l border-slate-200 pl-2">
+                        <span className="text-[10px] font-bold text-slate-400">Width:</span>
+                        {(["25%", "33%", "50%", "75%", "100%"] as const).map((w) => (
+                          <button
+                            key={w}
+                            type="button"
+                            onClick={() => updateBlockDimensions(selectedBlock.id, { width: w, maxWidth: w })}
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-black cursor-pointer transition-all ${
+                              (selectedBlock.style?.width || "100%") === w
+                                ? "bg-[#E21B5A] text-white shadow-xs"
+                                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                            }`}
+                          >
+                            {w}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Box Height Presets */}
+                      <div className="flex items-center gap-1 border-l border-slate-200 pl-2">
+                        <span className="text-[10px] font-bold text-slate-400">Height:</span>
+                        {[
+                          { label: "Auto", val: "auto" },
+                          { label: "160px", val: "160px" },
+                          { label: "280px", val: "280px" },
+                          { label: "420px", val: "420px" },
+                        ].map((h) => (
+                          <button
+                            key={h.val}
+                            type="button"
+                            onClick={() => updateBlockDimensions(selectedBlock.id, { height: h.val })}
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-black cursor-pointer transition-all ${
+                              (selectedBlock.style?.height || "auto") === h.val
+                                ? "bg-indigo-600 text-white shadow-xs"
+                                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                            }`}
+                          >
+                            {h.label}
+                          </button>
+                        ))}
+                      </div>
 
                       {/* Text Alignment */}
                       <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
-                        {(["left", "center", "right"] as const).map((align) => (
+                        {(["left", "center", "right", "justify"] as const).map((align) => (
                           <button
                             key={align}
                             type="button"
-                            onClick={() => updateBlockStyle(selectedBlock.id, { textAlign: align })}
-                            className={`p-1 rounded-md text-slate-600 transition-all ${
+                            onClick={() => updateBlockDimensions(selectedBlock.id, { textAlign: align })}
+                            className={`p-1 rounded-md text-slate-600 transition-all cursor-pointer ${
                               (selectedBlock.style?.textAlign || "left") === align
                                 ? "bg-white text-indigo-600 shadow-2xs font-bold"
                                 : "hover:bg-slate-200/50"
                             }`}
+                            title={`Align ${align}`}
                           >
                             <span className="material-symbols-outlined text-[16px]">format_align_{align}</span>
                           </button>
@@ -1935,10 +3084,50 @@ export default function ITBlogsPage() {
                             key={c.name}
                             type="button"
                             onClick={() => updateBlockStyle(selectedBlock.id, { color: c.color })}
-                            className="w-5 h-5 rounded-full border border-slate-200 transition-transform hover:scale-110 cursor-pointer"
+                            className={`w-5 h-5 rounded-full border transition-transform hover:scale-110 cursor-pointer ${
+                              (selectedBlock.style?.color || "#1e293b") === c.color
+                                ? "ring-2 ring-indigo-500 ring-offset-1 border-white"
+                                : "border-slate-200"
+                            }`}
                             style={{ backgroundColor: c.color }}
                             title={c.name}
                           />
+                        ))}
+                        <label className="w-5 h-5 rounded-full border border-slate-200 overflow-hidden cursor-pointer relative hover:scale-110 transition-transform" title="Custom color">
+                          <input
+                            type="color"
+                            value={selectedBlock.style?.color || "#1e293b"}
+                            onChange={(e) => updateBlockStyle(selectedBlock.id, { color: e.target.value })}
+                            className="opacity-0 absolute inset-0 cursor-pointer w-full h-full"
+                          />
+                          <span className="w-full h-full block bg-gradient-to-tr from-rose-500 via-emerald-500 to-indigo-500" />
+                        </label>
+                      </div>
+
+                      {/* Background Color */}
+                      <div className="flex items-center gap-1 border-l border-slate-200 pl-2">
+                        <span className="text-[10px] font-bold text-slate-400">Bg:</span>
+                        {[
+                          { name: "None", color: "transparent" },
+                          { name: "White", color: "#ffffff" },
+                          { name: "Light Slate", color: "#f8fafc" },
+                          { name: "Indigo Tint", color: "#eef2ff" },
+                          { name: "Rose Tint", color: "#fff1f2" },
+                        ].map((bg) => (
+                          <button
+                            key={bg.name}
+                            type="button"
+                            onClick={() => updateBlockStyle(selectedBlock.id, { backgroundColor: bg.color })}
+                            className={`w-4 h-4 rounded border text-[9px] flex items-center justify-center transition-transform hover:scale-110 cursor-pointer ${
+                              (selectedBlock.style?.backgroundColor || "transparent") === bg.color
+                                ? "ring-2 ring-indigo-500 border-white"
+                                : "border-slate-300"
+                            }`}
+                            style={{ backgroundColor: bg.color === "transparent" ? "#ffffff" : bg.color }}
+                            title={bg.name}
+                          >
+                            {bg.color === "transparent" && <span className="text-slate-400 text-[10px]">✕</span>}
+                          </button>
                         ))}
                       </div>
                     </div>
@@ -1972,8 +3161,17 @@ export default function ITBlogsPage() {
                   )}
                 </div>
 
-                {/* Block Quick Duplicate / Delete */}
+                {/* Block Quick Actions */}
                 <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => openHyperlinkDialog(selectedBlock.id, selectedBlock.content?.slice(0, 30), selectedBlock.url || selectedBlock.link)}
+                    className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-lg transition-all flex items-center gap-1 cursor-pointer border border-indigo-200"
+                    title="Add / Edit Link"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">link</span>
+                    Link
+                  </button>
                   <button
                     type="button"
                     onClick={() => duplicateBlock(selectedBlock.id)}
@@ -2474,33 +3672,125 @@ export default function ITBlogsPage() {
                   </div>
                 )}
 
-                {/* Main Article Title */}
-                <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight mb-6">
-                  {blogTitle || "Untitled Article Header"}
-                </h1>
+                {/* Editable Article Header Section on Canvas */}
+                <div className="mb-6 space-y-3">
+                  <div>
+                    <input
+                      type="text"
+                      value={blogTitle}
+                      onChange={(e) => handleTitleChange(e.target.value)}
+                      placeholder="Enter Article Headline..."
+                      className="w-full bg-transparent text-2xl sm:text-3xl md:text-4xl font-black text-slate-900 placeholder:text-slate-300 focus:outline-none focus:ring-0 border-b-2 border-transparent hover:border-slate-200 focus:border-[#E21B5A] pb-1 transition-colors tracking-tight leading-tight"
+                    />
+                  </div>
+
+                  <div>
+                    <textarea
+                      rows={2}
+                      value={blogSubtitle}
+                      onChange={(e) => setBlogSubtitle(e.target.value)}
+                      placeholder="Add an engaging excerpt or summary for readers and search engines..."
+                      className="w-full bg-transparent text-sm sm:text-base font-medium text-slate-600 placeholder:text-slate-300 focus:outline-none focus:ring-0 border-b border-transparent hover:border-slate-200 focus:border-indigo-400 resize-none pb-1 transition-colors leading-relaxed italic"
+                    />
+                  </div>
+
+                  {/* Metadata Byline */}
+                  <div className="flex items-center gap-3 text-xs text-slate-400 pt-1 pb-3 border-b border-slate-100 flex-wrap">
+                    <span className="flex items-center gap-1 font-bold text-slate-700">
+                      <span className="material-symbols-outlined text-[15px] text-[#E21B5A]">edit_note</span>
+                      {user?.firstName ? `${user.firstName} ${user.lastName || ""}` : "VidyaLoan IT Editor"}
+                    </span>
+                    <span>•</span>
+                    <span className="flex items-center gap-1 font-semibold text-slate-600">
+                      <span className="material-symbols-outlined text-[15px] text-indigo-500">label</span>
+                      {blogCategory}
+                    </span>
+                    <span>•</span>
+                    <span className="flex items-center gap-1 font-semibold text-slate-600">
+                      <span className="material-symbols-outlined text-[15px] text-amber-500">timer</span>
+                      {Math.max(1, Math.ceil(blocks.reduce((acc, b) => acc + (b.content?.split(/\s+/).length || 0), 0) / 200))} min read
+                    </span>
+                    <span>•</span>
+                    <span className="font-mono text-indigo-600 text-[11px] font-bold">
+                      {blocks.length} {blocks.length === 1 ? "widget" : "widgets"} in canvas
+                    </span>
+                  </div>
+                </div>
 
                 {/* Canvas Blocks Container */}
                 <div className="space-y-4 flex-1">
                   {blocks.length === 0 ? (
-                    <div className="py-20 text-center text-slate-400 my-auto">
+                    <div className="py-14 px-6 text-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50 my-auto">
                       <div
-                        className="w-16 h-16 rounded-2xl text-white flex items-center justify-center mx-auto mb-3 shadow-md"
+                        className="w-14 h-14 rounded-2xl text-white flex items-center justify-center mx-auto mb-3 shadow-md ring-4 ring-rose-50"
                         style={{ backgroundColor: "#E21B5A" }}
                       >
-                        <span className="material-symbols-outlined text-3xl">widgets</span>
+                        <span className="material-symbols-outlined text-3xl">post_add</span>
                       </div>
-                      <h4 className="text-sm font-black text-slate-800 mb-1">
-                        Elementor Canvas is Ready
+                      <h4 className="text-base font-black text-slate-800 mb-1">
+                        Start Building Your Article Content
                       </h4>
-                      <p className="text-xs text-slate-400 max-w-sm mx-auto mb-4">
-                        Drag widgets from the left panel, add dedicated link cards, or load a pre-built kit to begin.
+                      <p className="text-xs text-slate-500 max-w-md mx-auto mb-6 leading-relaxed">
+                        Add a block below to start writing, or drag any of the 30+ widgets from the left library.
                       </p>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-lg mx-auto mb-6 text-left">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newB = createBlock("heading");
+                            setBlocks([newB]);
+                            setSelectedBlockId(newB.id);
+                          }}
+                          className="p-3 bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#E21B5A] rounded-xl text-left transition-all group shadow-2xs cursor-pointer"
+                        >
+                          <div className="w-7 h-7 rounded-lg bg-rose-50 text-[#E21B5A] flex items-center justify-center mb-1.5 group-hover:scale-105 transition-transform">
+                            <span className="material-symbols-outlined text-[17px]">title</span>
+                          </div>
+                          <div className="text-xs font-bold text-slate-800">Add Headline</div>
+                          <div className="text-[10px] text-slate-400">H1-H6 heading</div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newB = createBlock("text");
+                            setBlocks([newB]);
+                            setSelectedBlockId(newB.id);
+                          }}
+                          className="p-3 bg-white hover:bg-slate-50 border border-slate-200 hover:border-indigo-500 rounded-xl text-left transition-all group shadow-2xs cursor-pointer"
+                        >
+                          <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center mb-1.5 group-hover:scale-105 transition-transform">
+                            <span className="material-symbols-outlined text-[17px]">text_fields</span>
+                          </div>
+                          <div className="text-xs font-bold text-slate-800">Add Paragraph</div>
+                          <div className="text-[10px] text-slate-400">Rich text & links</div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newB = createBlock("table");
+                            setBlocks([newB]);
+                            setSelectedBlockId(newB.id);
+                          }}
+                          className="p-3 bg-white hover:bg-slate-50 border border-slate-200 hover:border-emerald-500 rounded-xl text-left transition-all group shadow-2xs cursor-pointer"
+                        >
+                          <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center mb-1.5 group-hover:scale-105 transition-transform">
+                            <span className="material-symbols-outlined text-[17px]">table_chart</span>
+                          </div>
+                          <div className="text-xs font-bold text-slate-800">Loan Table</div>
+                          <div className="text-[10px] text-slate-400">Rates & terms grid</div>
+                        </button>
+                      </div>
+
                       <button
                         type="button"
                         onClick={() => applyTemplate("education_guide")}
-                        className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 shadow-sm cursor-pointer"
+                        className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl text-xs font-bold hover:from-indigo-700 hover:to-purple-700 shadow-md cursor-pointer transition-all"
                       >
-                        Load Education Guide Kit
+                        <span className="material-symbols-outlined text-[16px]">auto_awesome</span>
+                        <span>Load Education Guide Starter Kit</span>
                       </button>
                     </div>
                   ) : (
@@ -2516,20 +3806,32 @@ export default function ITBlogsPage() {
 
                           <div
                             draggable={viewMode === "edit"}
-                            onClick={() => setSelectedBlockId(block.id)}
+                            onClick={() => {
+                              setSelectedBlockId(block.id);
+                              setElementorInspectorTab("style");
+                            }}
                             onDragStart={(e) => handleBlockDragStart(e, block.id)}
                             onDragEnd={handleBlockDragEnd}
                             onDragOver={(e) => handleCanvasDragOver(e, index)}
                             onDrop={(e) => handleCanvasDrop(e, index)}
                             className={`group relative rounded-xl p-3 transition-all cursor-pointer ${
                               isSelected
-                                ? "ring-2 ring-[#E21B5A] ring-offset-2 bg-rose-50/20 shadow-sm"
+                                ? "ring-2 ring-[#E21B5A] ring-offset-2 bg-rose-50/10 shadow-sm"
                                 : "hover:ring-1 hover:ring-slate-300"
                             }`}
                             style={{
                               color: block.style?.color || "#1e293b",
                               backgroundColor: block.style?.backgroundColor || "transparent",
                               textAlign: block.style?.textAlign || "left",
+                              fontSize: block.style?.fontSize,
+                              fontWeight: block.style?.fontWeight,
+                              borderRadius: block.style?.borderRadius,
+                              padding: block.style?.padding,
+                              width: block.style?.width || "100%",
+                              maxWidth: block.style?.maxWidth || "100%",
+                              height: block.style?.height || "auto",
+                              minHeight: block.style?.minHeight || "auto",
+                              margin: block.style?.margin || (block.style?.textAlign === "center" ? "0 auto" : block.style?.textAlign === "right" ? "0 0 0 auto" : "0 auto 0 0"),
                             }}
                           >
                             {/* Hover Elementor Handle Badge */}
@@ -2558,14 +3860,33 @@ export default function ITBlogsPage() {
 
                             {/* BLOCK TYPE: HEADING */}
                             {block.type === "heading" ? (
-                              <input
-                                type="text"
-                                value={block.content}
-                                onChange={(e) => updateBlockContent(block.id, e.target.value)}
-                                className="w-full font-bold text-slate-900 bg-transparent border-none focus:outline-none"
-                                style={{ fontSize: block.style?.fontSize || "22px" }}
-                                placeholder="Heading text..."
-                              />
+                              <div className="w-full">
+                                <input
+                                  type="text"
+                                  value={block.content}
+                                  onChange={(e) => updateBlockContent(block.id, e.target.value)}
+                                  className={`w-full bg-transparent border-none focus:outline-none placeholder:text-slate-300 transition-all ${
+                                    (block.level || 2) === 1
+                                      ? "text-2xl md:text-3xl font-black"
+                                      : (block.level || 2) === 2
+                                      ? "text-xl md:text-2xl font-extrabold"
+                                      : (block.level || 2) === 3
+                                      ? "text-lg md:text-xl font-bold"
+                                      : (block.level || 2) === 4
+                                      ? "text-base font-bold text-slate-800"
+                                      : (block.level || 2) === 5
+                                      ? "text-sm font-semibold text-slate-800"
+                                      : "text-xs font-semibold text-slate-700 uppercase tracking-wider"
+                                  }`}
+                                  style={{
+                                    fontSize: block.style?.fontSize,
+                                    fontWeight: block.style?.fontWeight,
+                                    color: block.style?.color,
+                                    textAlign: block.style?.textAlign,
+                                  }}
+                                  placeholder={`Enter Heading ${block.level || 2} text...`}
+                                />
+                              </div>
                             ) : /* BLOCK TYPE: DEDICATED HYPERLINK WIDGET */
                             block.type === "link" ? (
                               <div className="p-3 my-1 bg-indigo-50/70 border border-indigo-200 rounded-xl flex items-center justify-between gap-3">
@@ -2585,19 +3906,14 @@ export default function ITBlogsPage() {
                               </div>
                             ) : /* BLOCK TYPE: BUTTON WITH LINK */
                             block.type === "button" ? (
-                              <div className="my-2 flex flex-col sm:flex-row sm:items-center gap-2">
-                                <button
-                                  type="button"
-                                  className="px-6 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl font-bold text-xs shadow-md transition-all cursor-pointer"
-                                >
-                                  {block.content || "Click Here"}
-                                </button>
-                                {isSelected && (
-                                  <span className="text-[10px] font-mono text-slate-400">
-                                    Target: {block.url || "/apply"}
-                                  </span>
-                                )}
-                              </div>
+                                <div className="my-2 flex flex-col sm:flex-row sm:items-center gap-2">
+                                  <button
+                                    type="button"
+                                    className="px-6 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl font-bold text-xs shadow-md transition-all cursor-pointer"
+                                  >
+                                    {block.content || "Click Here"}
+                                  </button>
+                                </div>
                             ) : /* BLOCK TYPE: CALL TO ACTION (CTA CARD) */
                             block.type === "cta" ? (
                               <div className="p-6 my-2 bg-gradient-to-r from-indigo-50 via-purple-50 to-rose-50 border border-indigo-200 rounded-2xl shadow-xs space-y-3">
@@ -2771,57 +4087,6 @@ export default function ITBlogsPage() {
                                           Apply
                                         </button>
                                       </div>
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* Image Settings (Selected State) */}
-                                {isSelected && (
-                                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                                    <div className="flex items-center justify-between text-[11px] font-bold text-slate-600">
-                                      <span className="flex items-center gap-1">
-                                        <span className="material-symbols-outlined text-[14px] text-indigo-600">photo_library</span>
-                                        Image Source (File Upload or Link)
-                                      </span>
-                                      <label className="text-indigo-600 hover:text-indigo-800 cursor-pointer flex items-center gap-1 font-bold">
-                                        <span className="material-symbols-outlined text-[14px]">file_upload</span>
-                                        Choose File From Device
-                                        <input
-                                          type="file"
-                                          accept="image/*"
-                                          className="hidden"
-                                          onChange={(e) => {
-                                            const file = e.target.files?.[0];
-                                            if (file) {
-                                              const reader = new FileReader();
-                                              reader.onload = (evt) => {
-                                                const dataUrl = evt.target?.result as string;
-                                                if (dataUrl) updateBlockContent(block.id, dataUrl);
-                                              };
-                                              reader.readAsDataURL(file);
-                                            }
-                                          }}
-                                        />
-                                      </label>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      <span className="material-symbols-outlined text-slate-400 text-[16px]">link</span>
-                                      <input
-                                        type="text"
-                                        value={block.content.startsWith("data:") ? "[Local Uploaded Image File]" : block.content}
-                                        onChange={(e) => updateBlockContent(block.id, e.target.value)}
-                                        placeholder="Or enter image link URL (https://...)..."
-                                        className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-mono text-slate-800 focus:outline-none focus:border-rose-400"
-                                      />
-                                      {block.content && (
-                                        <button
-                                          type="button"
-                                          onClick={() => updateBlockContent(block.id, "")}
-                                          className="px-2.5 py-1.5 text-rose-600 hover:bg-rose-50 rounded-lg text-xs font-bold border border-rose-200 cursor-pointer"
-                                        >
-                                          Clear
-                                        </button>
-                                      )}
                                     </div>
                                   </div>
                                 )}
@@ -3021,61 +4286,6 @@ export default function ITBlogsPage() {
                                     );
                                   }
                                 })()}
-
-                                {/* Video Settings (Selected State) */}
-                                {isSelected && (
-                                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                                    <div className="flex items-center justify-between text-[11px] font-bold text-slate-600">
-                                      <span className="flex items-center gap-1">
-                                        <span className="material-symbols-outlined text-[14px] text-indigo-600">smart_display</span>
-                                        Video Source (File Upload or YouTube / Vimeo URL)
-                                      </span>
-                                      <label className="text-indigo-600 hover:text-indigo-800 cursor-pointer flex items-center gap-1 font-bold">
-                                        <span className="material-symbols-outlined text-[14px]">file_upload</span>
-                                        Upload Video File
-                                        <input
-                                          type="file"
-                                          accept="video/*"
-                                          className="hidden"
-                                          onChange={(e) => {
-                                            const file = e.target.files?.[0];
-                                            if (file) {
-                                              if (file.size > 50 * 1024 * 1024) {
-                                                alert("Video exceeds 50MB. For larger videos, please paste a YouTube or Vimeo link.");
-                                                return;
-                                              }
-                                              const reader = new FileReader();
-                                              reader.onload = (evt) => {
-                                                const dataUrl = evt.target?.result as string;
-                                                if (dataUrl) updateBlockContent(block.id, dataUrl);
-                                              };
-                                              reader.readAsDataURL(file);
-                                            }
-                                          }}
-                                        />
-                                      </label>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      <span className="material-symbols-outlined text-slate-400 text-[16px]">link</span>
-                                      <input
-                                        type="text"
-                                        value={block.content.startsWith("data:") ? "[Local Uploaded Video File]" : block.content}
-                                        onChange={(e) => updateBlockContent(block.id, e.target.value)}
-                                        placeholder="Paste YouTube, Vimeo or MP4 URL (e.g. https://youtube.com/watch?v=...)..."
-                                        className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-mono text-slate-800 focus:outline-none focus:border-indigo-400"
-                                      />
-                                      {block.content && (
-                                        <button
-                                          type="button"
-                                          onClick={() => updateBlockContent(block.id, "")}
-                                          className="px-2.5 py-1.5 text-rose-600 hover:bg-rose-50 rounded-lg text-xs font-bold border border-rose-200 cursor-pointer"
-                                        >
-                                          Clear
-                                        </button>
-                                      )}
-                                    </div>
-                                  </div>
-                                )}
                               </div>
                             ) : /* BLOCK TYPE: DIVIDER */
                             block.type === "divider" ? (
@@ -3219,18 +4429,7 @@ export default function ITBlogsPage() {
                                   placeholder="Icon Title / Description..."
                                   className="text-xs font-bold text-slate-800 text-center bg-transparent border-none focus:outline-none w-full"
                                 />
-                                {isSelected && (
-                                  <div className="flex items-center gap-1.5 text-[11px] font-mono text-slate-500 pt-1">
-                                    <span>Material Icon Name:</span>
-                                    <input
-                                      type="text"
-                                      value={block.iconName || "verified_user"}
-                                      onChange={(e) => updateBlockData(block.id, { iconName: e.target.value })}
-                                      className="px-2 py-0.5 bg-white border border-slate-200 rounded text-xs w-36 font-mono"
-                                    />
-                                  </div>
-                                )}
-                              </div>
+                                </div>
                             ) : /* BLOCK TYPE: ICON BOX */
                             block.type === "icon_box" ? (
                               <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs flex items-start gap-4">
@@ -3653,16 +4852,310 @@ export default function ITBlogsPage() {
                                   ))}
                                 </div>
                               </div>
+                            ) : /* BLOCK TYPE: TABLE OF CONTENTS (TOC) */
+                            block.type === "table_of_contents" ? (
+                              <div className="p-5 bg-gradient-to-br from-slate-50 to-indigo-50/40 rounded-2xl border border-indigo-100 shadow-xs space-y-3">
+                                <div className="flex items-center justify-between border-b border-indigo-100/80 pb-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="material-symbols-outlined text-indigo-600 text-lg">toc</span>
+                                    <input
+                                      type="text"
+                                      value={block.title || "Table of Contents"}
+                                      onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
+                                      className="font-black text-sm text-slate-900 bg-transparent border-none focus:outline-none"
+                                      placeholder="TOC Heading..."
+                                    />
+                                  </div>
+                                  <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
+                                    Auto-Indexed from H1–H6
+                                  </span>
+                                </div>
+
+                                {(() => {
+                                  const headings = blocks.filter((b) => b.type === "heading" && b.content?.trim());
+                                  if (headings.length === 0) {
+                                    return (
+                                      <div className="py-4 text-center text-slate-400">
+                                        <p className="text-xs font-semibold">No headings found yet.</p>
+                                        <p className="text-[11px] text-slate-400">
+                                          Add H1–H6 heading blocks to your blog to automatically generate chapter links here!
+                                        </p>
+                                      </div>
+                                    );
+                                  }
+
+                                  return (
+                                    <ul className="space-y-1.5 list-none pl-0">
+                                      {headings.map((h, i) => {
+                                        const lvl = Number(h.level || 2);
+                                        const paddingClass =
+                                          lvl === 1 ? "pl-0 font-bold text-slate-900 text-sm" :
+                                          lvl === 2 ? "pl-3 font-semibold text-slate-800 text-xs" :
+                                          lvl === 3 ? "pl-6 font-medium text-slate-700 text-xs" :
+                                          lvl === 4 ? "pl-9 font-medium text-slate-600 text-xs" :
+                                          "pl-12 text-slate-500 text-[11px]";
+                                        const slug = (h.content || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+
+                                        return (
+                                          <li key={h.id || i} className={`flex items-center gap-2 ${paddingClass}`}>
+                                            <span className="text-indigo-400 font-mono text-[10px]">{i + 1}.</span>
+                                            <a
+                                              href={`#${slug}`}
+                                              onClick={(e) => e.preventDefault()}
+                                              className="hover:text-indigo-600 hover:underline flex items-center gap-1 flex-1 truncate"
+                                            >
+                                              <span>{h.content}</span>
+                                              <span className="text-[9px] font-mono text-slate-400 bg-slate-100 px-1 rounded">H{lvl}</span>
+                                            </a>
+                                          </li>
+                                        );
+                                      })}
+                                    </ul>
+                                  );
+                                })()}
+                              </div>
+                            ) : /* BLOCK TYPE: RESPONSIVE DATA TABLE */
+                            block.type === "table" ? (
+                              <div className="space-y-2.5">
+                                {/* Table Toolbar */}
+                                <div className="flex items-center justify-between gap-2 flex-wrap text-xs bg-slate-50 p-2 rounded-xl border border-slate-200">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="material-symbols-outlined text-indigo-600 text-sm">table_chart</span>
+                                    <span className="font-bold text-slate-800 text-xs">Table Matrix:</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => addTableRow(block.id)}
+                                      className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded font-bold text-[10px] cursor-pointer"
+                                    >
+                                      + Row
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => deleteTableRow(block.id)}
+                                      className="px-2 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded font-bold text-[10px] border border-rose-200 cursor-pointer"
+                                    >
+                                      - Row
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => addTableColumn(block.id)}
+                                      className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded font-bold text-[10px] cursor-pointer"
+                                    >
+                                      + Col
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => deleteTableColumn(block.id)}
+                                      className="px-2 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded font-bold text-[10px] border border-rose-200 cursor-pointer"
+                                    >
+                                      - Col
+                                    </button>
+                                  </div>
+
+                                  <div className="flex items-center gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleTableHeader(block.id)}
+                                      className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
+                                        block.tableData?.hasHeader !== false
+                                          ? "bg-slate-800 text-white"
+                                          : "bg-white text-slate-600 border border-slate-200"
+                                      }`}
+                                    >
+                                      Header: {block.tableData?.hasHeader !== false ? "ON" : "OFF"}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleTableStriped(block.id)}
+                                      className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
+                                        block.tableData?.isStriped
+                                          ? "bg-indigo-600 text-white"
+                                          : "bg-white text-slate-600 border border-slate-200"
+                                      }`}
+                                    >
+                                      Striped: {block.tableData?.isStriped ? "ON" : "OFF"}
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Table Grid */}
+                                <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-2xs">
+                                  <table className="w-full text-left border-collapse">
+                                    {block.tableData?.hasHeader !== false && (
+                                      <thead className="bg-slate-100 text-slate-800 text-xs font-bold uppercase tracking-wider border-b border-slate-200">
+                                        <tr>
+                                          {(block.tableData?.headers || ["Feature", "Rate", "Details"]).map((h, colIdx) => (
+                                            <th key={colIdx} className="p-2 border-r border-slate-200 last:border-r-0">
+                                              <input
+                                                type="text"
+                                                value={h}
+                                                onChange={(e) => updateTableHeader(block.id, colIdx, e.target.value)}
+                                                className="w-full bg-transparent font-bold text-xs text-slate-900 border-none focus:outline-none"
+                                              />
+                                            </th>
+                                          ))}
+                                        </tr>
+                                      </thead>
+                                    )}
+                                    <tbody className="divide-y divide-slate-100">
+                                      {(block.tableData?.rows || [
+                                        ["Collateral-Free Limit", "Up to ₹75 Lakhs", "Instant pre-approval"],
+                                        ["Interest Rate", "From 8.5% p.a.", "Tax benefit under 80E"],
+                                      ]).map((row, rowIdx) => (
+                                        <tr
+                                          key={rowIdx}
+                                          className={`${
+                                            block.tableData?.isStriped && rowIdx % 2 === 1
+                                              ? "bg-slate-50/70"
+                                              : "bg-white"
+                                          } hover:bg-indigo-50/30 transition-colors`}
+                                        >
+                                          {row.map((cell, colIdx) => (
+                                            <td key={colIdx} className="p-2 border-r border-slate-100 last:border-r-0">
+                                              <input
+                                                type="text"
+                                                value={cell}
+                                                onChange={(e) => updateTableCell(block.id, rowIdx, colIdx, e.target.value)}
+                                                className="w-full bg-transparent text-xs text-slate-700 border-none focus:outline-none"
+                                              />
+                                            </td>
+                                          ))}
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            ) : /* BLOCK TYPE: LIST (ORDERED / UNORDERED) */
+                            block.type === "list" ? (
+                              <div className="space-y-2 p-3 bg-slate-50/60 rounded-xl border border-slate-200">
+                                <div className="flex items-center justify-between gap-2 border-b border-slate-200 pb-2 flex-wrap">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="material-symbols-outlined text-indigo-600 text-sm">
+                                      {block.listType === "ordered" ? "format_list_numbered" : "format_list_bulleted"}
+                                    </span>
+                                    <span className="text-xs font-bold text-slate-800">
+                                      {block.listType === "ordered" ? "Numbered List (<ol>)" : "Bulleted List (<ul>)"}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleListType(block.id)}
+                                      className="px-2 py-0.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 rounded text-[10px] font-bold cursor-pointer transition-colors"
+                                    >
+                                      Switch to {block.listType === "ordered" ? "Bulleted (•)" : "Numbered (1.)"}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => addListItem(block.id)}
+                                      className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[10px] font-bold cursor-pointer"
+                                    >
+                                      + Add Item
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                  {((block.items && block.items.length > 0)
+                                    ? block.items
+                                    : (block.content || "First item\nSecond item\nThird item").split("\n").map((s, idx) => ({ id: String(idx), title: s }))
+                                  ).map((item, itemIdx) => (
+                                    <div key={item.id || itemIdx} className="flex items-center gap-2">
+                                      <span className="w-5 text-center font-mono text-xs font-bold text-indigo-600 shrink-0 select-none">
+                                        {block.listType === "ordered" ? `${itemIdx + 1}.` : "•"}
+                                      </span>
+                                      <input
+                                        type="text"
+                                        value={item.title || ""}
+                                        onChange={(e) => updateListItem(block.id, itemIdx, e.target.value)}
+                                        className="flex-1 bg-white px-2 py-1 rounded-lg border border-slate-200 text-xs text-slate-800 focus:outline-none focus:border-indigo-400"
+                                        placeholder={`List item ${itemIdx + 1}...`}
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => removeListItem(block.id, itemIdx)}
+                                        className="p-1 text-slate-400 hover:text-rose-600 rounded cursor-pointer"
+                                        title="Delete item"
+                                      >
+                                        <span className="material-symbols-outlined text-[14px]">close</span>
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
                             ) : (
-                              /* DEFAULT: TEXT EDITOR */
-                              <textarea
-                                value={block.content}
-                                onChange={(e) => updateBlockContent(block.id, e.target.value)}
-                                rows={3}
-                                className="w-full bg-transparent border-none focus:outline-none resize-y text-slate-800 text-sm leading-relaxed"
-                                style={{ fontSize: block.style?.fontSize || "14px" }}
-                                placeholder="Enter paragraph text..."
-                              />
+                              /* DEFAULT: REAL-TIME TEXT EDITOR WITH INLINE FORMATTING */
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1.5 flex-wrap">
+                                  <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                                    <button
+                                      type="button"
+                                      onClick={() => applyFormatToBlock(block.id, "bold")}
+                                      className="px-2 py-0.5 text-xs font-black text-slate-700 hover:bg-white rounded transition-colors cursor-pointer"
+                                      title="Bold (**text**)"
+                                    >
+                                      B
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => applyFormatToBlock(block.id, "italic")}
+                                      className="px-2 py-0.5 text-xs italic font-serif text-slate-700 hover:bg-white rounded transition-colors cursor-pointer"
+                                      title="Italic (*text*)"
+                                    >
+                                      I
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => applyFormatToBlock(block.id, "underline")}
+                                      className="px-2 py-0.5 text-xs underline font-semibold text-slate-700 hover:bg-white rounded transition-colors cursor-pointer"
+                                      title="Underline (<u>text</u>)"
+                                    >
+                                      U
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => applyFormatToBlock(block.id, "code")}
+                                      className="px-2 py-0.5 text-xs font-mono text-emerald-700 hover:bg-white rounded transition-colors cursor-pointer"
+                                      title="Inline Code (`code`)"
+                                    >
+                                      &lt;/&gt;
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => applyFormatToBlock(block.id, "highlight")}
+                                      className="px-2 py-0.5 text-xs font-bold text-amber-800 bg-amber-200/60 hover:bg-amber-200 rounded transition-colors cursor-pointer"
+                                      title="Highlight text"
+                                    >
+                                      Highlight
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => openHyperlinkDialog(block.id, block.content?.slice(0, 30), block.url || block.link)}
+                                      className="px-2 py-0.5 text-xs font-bold text-indigo-700 hover:bg-white rounded transition-colors flex items-center gap-0.5 cursor-pointer"
+                                      title="Add Hyperlink"
+                                    >
+                                      <span className="material-symbols-outlined text-[13px]">link</span>
+                                      <span>Link</span>
+                                    </button>
+                                  </div>
+
+                                  <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono">
+                                    <span>{block.content ? block.content.trim().split(/\s+/).filter(Boolean).length : 0} words</span>
+                                    <span>•</span>
+                                    <span>{block.content ? block.content.length : 0} chars</span>
+                                  </div>
+                                </div>
+
+                                <textarea
+                                  value={block.content}
+                                  onChange={(e) => updateBlockContent(block.id, e.target.value)}
+                                  rows={3}
+                                  className="w-full bg-transparent border-none focus:outline-none resize-y text-slate-800 text-sm leading-relaxed"
+                                  style={{ fontSize: block.style?.fontSize || "14px" }}
+                                  placeholder="Enter paragraph text... Select text or use format buttons above to style or link."
+                                />
+                              </div>
                             )}
                           </div>
                         </React.Fragment>
@@ -3687,6 +5180,108 @@ export default function ITBlogsPage() {
                   )}
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dynamic Hyperlink Modal Dialog */}
+      {hyperlinkModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined">link</span>
+                <h4 className="font-bold text-sm">Insert / Edit Hyperlink</h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setHyperlinkModalOpen(false)}
+                className="p-1 hover:bg-white/20 rounded-lg transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-sm">close</span>
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Display Text (Anchor)</label>
+                <input
+                  type="text"
+                  value={hyperlinkText}
+                  onChange={(e) => setHyperlinkText(e.target.value)}
+                  placeholder="e.g. Apply for Education Loan"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Destination URL / Web Address</label>
+                <input
+                  type="text"
+                  value={hyperlinkUrl}
+                  onChange={(e) => setHyperlinkUrl(e.target.value)}
+                  placeholder="https://... or /apply or #heading-id"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-800 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              {/* Quick Preset Links */}
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+                  Popular Loan Presets:
+                </span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {[
+                    { label: "Loan Application", url: "/apply" },
+                    { label: "Check Eligibility", url: "/eligibility" },
+                    { label: "EMI Calculator", url: "/calculator" },
+                    { label: "Partner Banks", url: "/banks" },
+                  ].map((preset) => (
+                    <button
+                      key={preset.url}
+                      type="button"
+                      onClick={() => {
+                        setHyperlinkUrl(preset.url);
+                        if (!hyperlinkText) setHyperlinkText(preset.label);
+                      }}
+                      className="px-2 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-700 rounded-lg text-[10px] font-bold border border-slate-200 transition-colors cursor-pointer"
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="target-blank-chk"
+                  checked={hyperlinkTargetBlank}
+                  onChange={(e) => setHyperlinkTargetBlank(e.target.checked)}
+                  className="rounded text-indigo-600 focus:ring-indigo-500"
+                />
+                <label htmlFor="target-blank-chk" className="text-xs font-semibold text-slate-700 cursor-pointer">
+                  Open link in a new tab (target=&quot;_blank&quot;)
+                </label>
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setHyperlinkModalOpen(false)}
+                className="px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-bold border border-slate-200 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={applyHyperlink}
+                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer"
+              >
+                Apply Hyperlink
+              </button>
             </div>
           </div>
         </div>

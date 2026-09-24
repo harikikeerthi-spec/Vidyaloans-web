@@ -61,10 +61,85 @@ export class BlogService {
           case 'heading': {
             const linkAttrs = getLinkAttrs(block.url || block.link, block.openInNewTab, block.addNofollow);
             const inner = linkAttrs ? `<a${linkAttrs}>${block.content || ''}</a>` : (block.content || '');
-            return `<h2${styleAttr}>${inner}</h2>`;
+            const rawLvl = Number(block.level || (block.headingType ? block.headingType.replace('h', '') : 2));
+            const lvl = Math.min(Math.max(isNaN(rawLvl) ? 2 : rawLvl, 1), 6);
+            const headingId = (block.content || `heading-${lvl}`)
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, '-')
+              .replace(/(^-|-$)/g, '');
+            return `<h${lvl} id="${headingId}"${styleAttr}>${inner}</h${lvl}>`;
           }
           case 'text':
             return `<p${styleAttr}>${block.content || ''}</p>`;
+          case 'table_of_contents': {
+            const tocTitle = block.title || block.tocOptions?.title || 'Table of Contents';
+            const headings = blocks
+              .filter((b) => b.type === 'heading' && b.content?.trim())
+              .map((b) => {
+                const rawLvl = Number(b.level || (b.headingType ? b.headingType.replace('h', '') : 2));
+                const lvl = Math.min(Math.max(isNaN(rawLvl) ? 2 : rawLvl, 1), 6);
+                const headingId = (b.content || `heading-${lvl}`)
+                  .toLowerCase()
+                  .replace(/[^a-z0-9]+/g, '-')
+                  .replace(/(^-|-$)/g, '');
+                return { title: b.content, level: lvl, id: headingId };
+              });
+
+            const linksHtml = headings.length > 0
+              ? headings.map((h, i) => {
+                  const paddingLeft = Math.max(0, (h.level - 1) * 12);
+                  return `<li style="padding-left: ${paddingLeft}px" class="py-1">
+                    <a href="#${h.id}" class="text-indigo-600 hover:text-indigo-800 hover:underline text-sm font-semibold flex items-center gap-1.5">
+                      <span class="text-xs text-slate-400 font-mono">${i + 1}.</span>
+                      <span>${h.title}</span>
+                    </a>
+                  </li>`;
+                }).join('')
+              : '<li class="text-xs text-slate-400 italic">No headings found in article yet</li>';
+
+            return `<nav class="blog-toc my-6 p-5 bg-gradient-to-br from-slate-50 to-indigo-50/30 rounded-2xl border border-indigo-100 shadow-xs"${styleAttr}>
+              <div class="text-sm font-black text-slate-900 mb-3 flex items-center gap-2">
+                <span class="material-symbols-outlined text-indigo-600 text-lg">toc</span>
+                <span>${tocTitle}</span>
+              </div>
+              <ul class="space-y-1 list-none pl-0 mb-0">${linksHtml}</ul>
+            </nav>`;
+          }
+          case 'table': {
+            const tableData = block.tableData || {
+              headers: ['Feature', 'Bank Rate', 'Details'],
+              rows: [
+                ['Collateral-Free Limit', 'Up to ₹75 Lakhs', 'Instant pre-approval'],
+                ['Interest Rate', 'From 8.5% p.a.', 'Tax benefit under 80E'],
+                ['Moratorium Period', 'Course + 1 Year', 'Zero payment during study'],
+              ],
+              hasHeader: true,
+              isStriped: true,
+            };
+            const headers = Array.isArray(tableData.headers) ? tableData.headers : [];
+            const rows = Array.isArray(tableData.rows) ? tableData.rows : [];
+            const hasHeader = tableData.hasHeader !== false;
+            const isStriped = !!tableData.isStriped;
+
+            const headerHtml = hasHeader && headers.length > 0
+              ? `<thead class="bg-slate-100 text-slate-800 text-xs font-bold uppercase tracking-wider">
+                  <tr>${headers.map((h: string) => `<th class="px-4 py-3 text-left border-b border-slate-200">${h}</th>`).join('')}</tr>
+                </thead>`
+              : '';
+
+            const rowsHtml = rows.map((row: string[], rIdx: number) => {
+              const bgClass = isStriped && rIdx % 2 === 1 ? 'bg-slate-50/60' : 'bg-white';
+              const cells = (Array.isArray(row) ? row : []).map((cell: string) => `<td class="px-4 py-3 text-slate-700 text-sm border-b border-slate-200/80">${cell}</td>`).join('');
+              return `<tr class="${bgClass} hover:bg-slate-50 transition-colors">${cells}</tr>`;
+            }).join('');
+
+            return `<div class="blog-table-wrapper my-6 overflow-x-auto rounded-xl border border-slate-200 shadow-xs"${styleAttr}>
+              <table class="min-w-full divide-y divide-slate-200 text-left border-collapse">
+                ${headerHtml}
+                <tbody class="divide-y divide-slate-100">${rowsHtml}</tbody>
+              </table>
+            </div>`;
+          }
           case 'image': {
             const linkAttrs = getLinkAttrs(block.url || block.link, block.openInNewTab, block.addNofollow);
             const imgTag = `<img src="${block.content || ''}" alt="Blog Image"${styleAttr} />`;
@@ -107,12 +182,17 @@ export class BlogService {
           }
           case 'alert':
             return `<div class="blog-alert-box p-4 my-4 rounded-xl border border-amber-200 bg-amber-50/80 text-amber-950 text-xs font-semibold"${styleAttr}><strong>${block.title || 'Important'}:</strong> ${block.content || ''}</div>`;
-          case 'list':
-            const items = (block.content || '')
-              .split('\n')
-              .map((item: string) => `<li>${item.replace(/^[•\-\*\s]+/, '')}</li>`)
-              .join('');
-            return `<ul${styleAttr}>${items}</ul>`;
+          case 'list': {
+            const isOrdered = block.listType === 'ordered';
+            const items = (block.items && block.items.length > 0)
+              ? block.items.map((it: any) => `<li>${it.title || it.content || it}</li>`).join('')
+              : (block.content || '')
+                  .split('\n')
+                  .filter((s: string) => s.trim().length > 0)
+                  .map((item: string) => `<li>${item.replace(/^[•\-\*\d+\.]\s*/, '')}</li>`)
+                  .join('');
+            return isOrdered ? `<ol${styleAttr}>${items}</ol>` : `<ul${styleAttr}>${items}</ul>`;
+          }
           case 'quote':
             return `<blockquote${styleAttr}>${block.content || ''}</blockquote>`;
           case 'code':
@@ -233,8 +313,7 @@ export class BlogService {
 
     let query = this.db
       .from('Blog')
-      .select('id, title, slug, excerpt, category, authorName, authorImage, authorRole, featuredImage, readTime, views, isFeatured, publishedAt, createdAt, tags:BlogTag(tag:Tag(name))', { count: 'exact' })
-      .eq('isPublished', true)
+      .select('id, title, slug, excerpt, content, category, authorName, authorImage, authorRole, featuredImage, readTime, views, isFeatured, isPublished, publishedAt, createdAt, tags:BlogTag(tag:Tag(name))', { count: 'exact' })
       .order('isFeatured', { ascending: false })
       .order('publishedAt', { ascending: false })
       .range(offset, offset + limit - 1);
