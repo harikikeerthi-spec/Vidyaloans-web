@@ -14,7 +14,17 @@ import {
     ZoomOut,
     Filter,
     ArrowRight,
-    ExternalLink
+    ExternalLink,
+    Ban,
+    Clock,
+    PenTool,
+    Sliders,
+    Palette,
+    Plus,
+    Trash2,
+    Calendar,
+    CheckCircle2,
+    AlertCircle
 } from "lucide-react";
 import { MailItemBase, generateEmailSummary } from "./mailUtils";
 
@@ -467,3 +477,622 @@ export function CreateFilterModal({
         </div>
     );
 }
+
+// ── 6. BLOCK SENDER (BLACKLIST) MODAL ──
+export function BlockSenderModal({
+    senderEmail,
+    isOpen,
+    onClose,
+    onConfirmBlock,
+}: {
+    senderEmail: string;
+    isOpen: boolean;
+    onClose: () => void;
+    onConfirmBlock: (target: string, type: "sender" | "domain", moveToJunk: boolean) => void;
+}) {
+    const domain = senderEmail?.includes("@") ? senderEmail.split("@")[1] : "";
+    const [blockType, setBlockType] = useState<"sender" | "domain">("sender");
+    const [moveToJunk, setMoveToJunk] = useState(true);
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+            <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-rose-200/80 overflow-hidden">
+                <div className="px-5 py-4 bg-gradient-to-r from-rose-700 to-rose-600 text-white flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-xl bg-white/15 flex items-center justify-center">
+                            <Ban className="w-4 h-4 text-white" />
+                        </div>
+                        <div>
+                            <h3 className="text-xs font-bold uppercase tracking-wider">Block Sender & Domain</h3>
+                            <p className="text-[10px] text-rose-100">Add to mailbox blacklist</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="text-white/80 hover:text-white transition-colors">
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+
+                <div className="p-5 space-y-4">
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                        Future incoming messages matching this rule will automatically be blocked or routed directly to your <strong>Junk / Spam</strong> folder.
+                    </p>
+
+                    <div className="space-y-2">
+                        <label
+                            className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                                blockType === "sender"
+                                    ? "bg-rose-50/60 border-rose-300 shadow-2xs"
+                                    : "border-slate-200 hover:bg-slate-50"
+                            }`}
+                        >
+                            <input
+                                type="radio"
+                                name="blockType"
+                                checked={blockType === "sender"}
+                                onChange={() => setBlockType("sender")}
+                                className="mt-0.5 text-rose-600 focus:ring-rose-500"
+                            />
+                            <div>
+                                <span className="text-xs font-bold text-slate-800 block">Block this specific sender</span>
+                                <span className="text-[11px] font-mono text-slate-500 truncate block mt-0.5">{senderEmail}</span>
+                            </div>
+                        </label>
+
+                        {domain && (
+                            <label
+                                className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                                    blockType === "domain"
+                                        ? "bg-rose-50/60 border-rose-300 shadow-2xs"
+                                        : "border-slate-200 hover:bg-slate-50"
+                                }`}
+                            >
+                                <input
+                                    type="radio"
+                                    name="blockType"
+                                    checked={blockType === "domain"}
+                                    onChange={() => setBlockType("domain")}
+                                    className="mt-0.5 text-rose-600 focus:ring-rose-500"
+                                />
+                                <div>
+                                    <span className="text-xs font-bold text-slate-800 block">Block entire domain</span>
+                                    <span className="text-[11px] font-mono text-slate-500 truncate block mt-0.5">@{domain}</span>
+                                </div>
+                            </label>
+                        )}
+                    </div>
+
+                    <label className="flex items-center gap-2 pt-2 border-t border-slate-100 cursor-pointer">
+                        <input
+                            type="checkbox"
+                            checked={moveToJunk}
+                            onChange={(e) => setMoveToJunk(e.target.checked)}
+                            className="rounded text-rose-600 focus:ring-rose-500"
+                        />
+                        <span className="text-xs font-medium text-slate-700">Move all existing messages from this sender to Junk</span>
+                    </label>
+                </div>
+
+                <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2">
+                    <button
+                        onClick={onClose}
+                        className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={() => {
+                            const target = blockType === "domain" && domain ? `@${domain}` : senderEmail;
+                            onConfirmBlock(target, blockType, moveToJunk);
+                            onClose();
+                        }}
+                        className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all"
+                    >
+                        Confirm Block
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ── 7. SAFE SENDER (WHITELIST) MODAL ──
+export function SafeSenderModal({
+    senderEmail,
+    isOpen,
+    onClose,
+    onConfirmSafe,
+}: {
+    senderEmail: string;
+    isOpen: boolean;
+    onClose: () => void;
+    onConfirmSafe: (target: string, type: "sender" | "domain") => void;
+}) {
+    const domain = senderEmail?.includes("@") ? senderEmail.split("@")[1] : "";
+    const [safeType, setSafeType] = useState<"sender" | "domain">("sender");
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+            <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-emerald-200/80 overflow-hidden">
+                <div className="px-5 py-4 bg-gradient-to-r from-emerald-700 to-teal-600 text-white flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-xl bg-white/15 flex items-center justify-center">
+                            <ShieldCheck className="w-4 h-4 text-white" />
+                        </div>
+                        <div>
+                            <h3 className="text-xs font-bold uppercase tracking-wider">Add to Safe Senders (Whitelist)</h3>
+                            <p className="text-[10px] text-emerald-100">Never treat as junk/spam</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="text-white/80 hover:text-white transition-colors">
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+
+                <div className="p-5 space-y-4">
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                        Emails from trusted senders bypass spam heuristics, are delivered straight to your primary inbox, and remote images can be automatically displayed.
+                    </p>
+
+                    <div className="space-y-2">
+                        <label
+                            className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                                safeType === "sender"
+                                    ? "bg-emerald-50/60 border-emerald-300 shadow-2xs"
+                                    : "border-slate-200 hover:bg-slate-50"
+                            }`}
+                        >
+                            <input
+                                type="radio"
+                                name="safeType"
+                                checked={safeType === "sender"}
+                                onChange={() => setSafeType("sender")}
+                                className="mt-0.5 text-emerald-600 focus:ring-emerald-500"
+                            />
+                            <div>
+                                <span className="text-xs font-bold text-slate-800 block">Trust this specific sender</span>
+                                <span className="text-[11px] font-mono text-slate-500 truncate block mt-0.5">{senderEmail}</span>
+                            </div>
+                        </label>
+
+                        {domain && (
+                            <label
+                                className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                                    safeType === "domain"
+                                        ? "bg-emerald-50/60 border-emerald-300 shadow-2xs"
+                                        : "border-slate-200 hover:bg-slate-50"
+                                }`}
+                            >
+                                <input
+                                    type="radio"
+                                    name="safeType"
+                                    checked={safeType === "domain"}
+                                    onChange={() => setSafeType("domain")}
+                                    className="mt-0.5 text-emerald-600 focus:ring-emerald-500"
+                                />
+                                <div>
+                                    <span className="text-xs font-bold text-slate-800 block">Trust entire organization / domain</span>
+                                    <span className="text-[11px] font-mono text-slate-500 truncate block mt-0.5">@{domain}</span>
+                                </div>
+                            </label>
+                        )}
+                    </div>
+                </div>
+
+                <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2">
+                    <button
+                        onClick={onClose}
+                        className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={() => {
+                            const target = safeType === "domain" && domain ? `@${domain}` : senderEmail;
+                            onConfirmSafe(target, safeType);
+                            onClose();
+                        }}
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all"
+                    >
+                        Add to Safe Senders
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ── 8. OUT OF OFFICE (VACATION RESPONDER) MODAL ──
+export function OutOfOfficeModal({
+    isOpen,
+    onClose,
+    onSave,
+}: {
+    isOpen: boolean;
+    onClose: () => void;
+    onSave: (config: { isEnabled: boolean; startDate: string; endDate: string; subject: string; message: string }) => void;
+}) {
+    const today = new Date().toISOString().split("T")[0];
+    const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+
+    const [isEnabled, setIsEnabled] = useState(false);
+    const [startDate, setStartDate] = useState(today);
+    const [endDate, setEndDate] = useState(nextWeek);
+    const [subject, setSubject] = useState("Automatic Reply: I am currently Out of Office");
+    const [message, setMessage] = useState(
+        "Thank you for contacting VidyaLoans. I am currently out of the office with limited access to email. If your inquiry is urgent regarding a pending education loan application, please contact support@vidyaloans.in or our escalation desk.\n\nWarm regards,\nVidyaLoans Team"
+    );
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+            <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+                <div className="px-5 py-4 bg-gradient-to-r from-amber-600 via-amber-500 to-orange-500 text-white flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-xl bg-white/20 flex items-center justify-center">
+                            <Clock className="w-4 h-4 text-white" />
+                        </div>
+                        <div>
+                            <h3 className="text-xs font-bold uppercase tracking-wider">Auto-reply / Out of Office</h3>
+                            <p className="text-[10px] text-amber-100">Automatic vacation responder</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="text-white/80 hover:text-white transition-colors">
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+
+                <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+                    {/* Toggle */}
+                    <div className="flex items-center justify-between p-3.5 bg-amber-50/60 rounded-xl border border-amber-200">
+                        <div>
+                            <span className="text-xs font-bold text-amber-950 block">Send automatic replies</span>
+                            <span className="text-[11px] text-amber-800">Replies will be sent once to each sender within date range</span>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={isEnabled}
+                                onChange={(e) => setIsEnabled(e.target.checked)}
+                                className="sr-only peer"
+                            />
+                            <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
+                        </label>
+                    </div>
+
+                    {/* Date Range */}
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                                Start Date
+                            </label>
+                            <input
+                                type="date"
+                                value={startDate}
+                                onChange={(e) => setStartDate(e.target.value)}
+                                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                                End Date
+                            </label>
+                            <input
+                                type="date"
+                                value={endDate}
+                                onChange={(e) => setEndDate(e.target.value)}
+                                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Subject */}
+                    <div>
+                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                            Response Subject
+                        </label>
+                        <input
+                            type="text"
+                            value={subject}
+                            onChange={(e) => setSubject(e.target.value)}
+                            className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                        />
+                    </div>
+
+                    {/* Message Body */}
+                    <div>
+                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                            Response Message
+                        </label>
+                        <textarea
+                            rows={5}
+                            value={message}
+                            onChange={(e) => setMessage(e.target.value)}
+                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-sans leading-relaxed focus:ring-2 focus:ring-amber-500 focus:outline-none resize-none"
+                        />
+                    </div>
+                </div>
+
+                <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2">
+                    <button
+                        onClick={onClose}
+                        className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={() => {
+                            onSave({ isEnabled, startDate, endDate, subject, message });
+                            onClose();
+                        }}
+                        className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all"
+                    >
+                        Save Auto-Reply Settings
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ── 9. EMAIL SIGNATURES MANAGEMENT MODAL ──
+export function SignaturesModal({
+    isOpen,
+    onClose,
+    onSaveSignature,
+}: {
+    isOpen: boolean;
+    onClose: () => void;
+    onSaveSignature?: (signature: { name: string; html: string; isDefault: boolean }) => void;
+}) {
+    const [name, setName] = useState("Primary Official Signature");
+    const [title, setTitle] = useState("Relationship Manager");
+    const [phone, setPhone] = useState("+91 98765 43210");
+    const [department, setDepartment] = useState("Student Lending Desk");
+
+    if (!isOpen) return null;
+
+    const signaturePreview = `
+<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1e293b; font-size: 13px; line-height: 1.5; border-left: 3px solid #4F46E5; padding-left: 12px; margin-top: 16px;">
+  <p style="margin: 0; font-weight: 700; color: #0f172a; font-size: 14px;">VidyaLoans Support Team</p>
+  <p style="margin: 2px 0 0 0; color: #4F46E5; font-weight: 600; font-size: 12px;">${title} &bull; ${department}</p>
+  <p style="margin: 4px 0 0 0; color: #64748b; font-size: 11px;">Direct: ${phone} | Web: <a href="https://vidyaloans.in" style="color: #4F46E5; text-decoration: none;">vidyaloans.in</a></p>
+  <p style="margin: 6px 0 0 0; color: #94a3b8; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px;">VidyaLoans &bull; Empowering Higher Education Globally</p>
+</div>
+    `.trim();
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+            <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+                <div className="px-5 py-4 bg-gradient-to-r from-indigo-700 via-indigo-600 to-violet-600 text-white flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-xl bg-white/20 flex items-center justify-center">
+                            <PenTool className="w-4 h-4 text-white" />
+                        </div>
+                        <div>
+                            <h3 className="text-xs font-bold uppercase tracking-wider">Email Signatures</h3>
+                            <p className="text-[10px] text-indigo-100">Configure your official HTML signature</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="text-white/80 hover:text-white transition-colors">
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+
+                <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                                Designation / Title
+                            </label>
+                            <input
+                                type="text"
+                                value={title}
+                                onChange={(e) => setTitle(e.target.value)}
+                                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                                Department / Unit
+                            </label>
+                            <input
+                                type="text"
+                                value={department}
+                                onChange={(e) => setDepartment(e.target.value)}
+                                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                            Contact Number / Phone
+                        </label>
+                        <input
+                            type="text"
+                            value={phone}
+                            onChange={(e) => setPhone(e.target.value)}
+                            className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-2">
+                            Live Signature Preview
+                        </label>
+                        <div
+                            className="p-4 bg-slate-50 rounded-xl border border-slate-200"
+                            dangerouslySetInnerHTML={{ __html: signaturePreview }}
+                        />
+                    </div>
+                </div>
+
+                <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2">
+                    <button
+                        onClick={onClose}
+                        className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={() => {
+                            onSaveSignature?.({ name, html: signaturePreview, isDefault: true });
+                            onClose();
+                        }}
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all"
+                    >
+                        Save Signature
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ── 10. MAIL RULES & AUTOMATION MODAL ──
+export function MailRulesModal({
+    isOpen,
+    onClose,
+}: {
+    isOpen: boolean;
+    onClose: () => void;
+}) {
+    const [rules, setRules] = useState([
+        { id: "1", name: "Flag Disbursal Confirmations", field: "Subject contains 'DISBURSAL'", action: "Star & Apply Green Tag", active: true },
+        { id: "2", name: "Route DigiLocker Verifications", field: "From contains 'digilocker'", action: "Move to Dossier/ Folder", active: true },
+        { id: "3", name: "Filter Promotional Newsletters", field: "Subject contains 'discount' or 'deal'", action: "Move to Archive", active: true },
+    ]);
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+            <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+                <div className="px-5 py-4 bg-gradient-to-r from-violet-700 via-violet-600 to-indigo-600 text-white flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-xl bg-white/20 flex items-center justify-center">
+                            <Sliders className="w-4 h-4 text-white" />
+                        </div>
+                        <div>
+                            <h3 className="text-xs font-bold uppercase tracking-wider">Mail Rules & Server Automation</h3>
+                            <p className="text-[10px] text-violet-100">Automated incoming mail routing (Sieve / Server Rules)</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="text-white/80 hover:text-white transition-colors">
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+
+                <div className="p-5 space-y-3 max-h-[70vh] overflow-y-auto">
+                    <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                            Active Rules ({rules.length})
+                        </span>
+                    </div>
+
+                    {rules.map((rule) => (
+                        <div key={rule.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-3">
+                            <div>
+                                <span className="text-xs font-bold text-slate-800 block">{rule.name}</span>
+                                <span className="text-[11px] font-mono text-indigo-600 block mt-0.5">{rule.field}</span>
+                                <span className="text-[10px] text-slate-500 font-semibold block mt-0.5">&rarr; {rule.action}</span>
+                            </div>
+                            <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                ACTIVE
+                            </span>
+                        </div>
+                    ))}
+                </div>
+
+                <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2">
+                    <button
+                        onClick={onClose}
+                        className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-sm transition-all"
+                    >
+                        Done
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ── 11. CONDITIONAL FORMATTING MODAL ──
+export function ConditionalFormattingModal({
+    isOpen,
+    onClose,
+}: {
+    isOpen: boolean;
+    onClose: () => void;
+}) {
+    const [rules, setRules] = useState([
+        { id: "urgent", label: "Urgent & High Priority Messages", style: "Rose badge with red border accent", enabled: true },
+        { id: "disbursals", label: "Disbursal & Sanction Documents", style: "Emerald badge with green border accent", enabled: true },
+        { id: "partners", label: "Bank & NBFC Partner Domain (@avanse, @hdfcbank)", style: "Gold badge with VIP star", enabled: true },
+        { id: "internal", label: "VidyaLoans Internal Staff (@vidyaloans.in)", style: "Indigo badge with Team tag", enabled: true },
+    ]);
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+            <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+                <div className="px-5 py-4 bg-gradient-to-r from-pink-600 to-rose-600 text-white flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-xl bg-white/20 flex items-center justify-center">
+                            <Palette className="w-4 h-4 text-white" />
+                        </div>
+                        <div>
+                            <h3 className="text-xs font-bold uppercase tracking-wider">Conditional Formatting</h3>
+                            <p className="text-[10px] text-pink-100">Visual highlighting for high-priority emails</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="text-white/80 hover:text-white transition-colors">
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+
+                <div className="p-5 space-y-3">
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                        Customize visual color tags and priority badges shown directly in the inbox list:
+                    </p>
+
+                    {rules.map((rule) => (
+                        <label
+                            key={rule.id}
+                            className="flex items-start gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-100/60 transition-all"
+                        >
+                            <input
+                                type="checkbox"
+                                checked={rule.enabled}
+                                onChange={() => {
+                                    setRules(rules.map((r) => r.id === rule.id ? { ...r, enabled: !r.enabled } : r));
+                                }}
+                                className="mt-0.5 text-pink-600 focus:ring-pink-500 rounded"
+                            />
+                            <div>
+                                <span className="text-xs font-bold text-slate-800 block">{rule.label}</span>
+                                <span className="text-[10px] text-slate-500 block mt-0.5">{rule.style}</span>
+                            </div>
+                        </label>
+                    ))}
+                </div>
+
+                <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2">
+                    <button
+                        onClick={onClose}
+                        className="px-4 py-2 bg-pink-600 hover:bg-pink-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all"
+                    >
+                        Apply Formatting
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+

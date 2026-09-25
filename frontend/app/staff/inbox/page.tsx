@@ -45,6 +45,7 @@ import {
     Archive,
     Flag,
     Calendar,
+    PenTool,
 } from "lucide-react";
 
 import { OutlookToolbar } from "@/components/staff/mail/OutlookToolbar";
@@ -54,7 +55,13 @@ import {
     SummaryModal,
     HeadersModal,
     ImageLightboxModal,
-    CreateFilterModal
+    CreateFilterModal,
+    BlockSenderModal,
+    SafeSenderModal,
+    OutOfOfficeModal,
+    SignaturesModal,
+    MailRulesModal,
+    ConditionalFormattingModal
 } from "@/components/staff/mail/MailModals";
 import {
     exportEmailToEml,
@@ -325,8 +332,22 @@ function StaffInboxContent() {
     const [showSummaryModal, setShowSummaryModal] = useState(false);
     const [showHeadersModal, setShowHeadersModal] = useState(false);
     const [showFilterModal, setShowFilterModal] = useState(false);
+    const [showBlockSenderModal, setShowBlockSenderModal] = useState(false);
+    const [showSafeSenderModal, setShowSafeSenderModal] = useState(false);
+    const [showOutOfOfficeModal, setShowOutOfOfficeModal] = useState(false);
+    const [showSignaturesModal, setShowSignaturesModal] = useState(false);
+    const [showMailRulesModal, setShowMailRulesModal] = useState(false);
+    const [showConditionalFormattingModal, setShowConditionalFormattingModal] = useState(false);
+    const [savedSignature, setSavedSignature] = useState<string>(
+        `<div style="font-family: sans-serif; font-size: 13px; color: #334155; margin-top: 14px; border-left: 3px solid #4F46E5; padding-left: 10px;">` +
+        `<strong>VidyaLoans Support Desk</strong><br/><span style="color: #64748b; font-size: 11px;">Education Lending Advisory &bull; vidyaloans.in</span></div>`
+    );
     const [lightboxImage, setLightboxImage] = useState<{ url: string; filename?: string } | null>(null);
     const [activeAttachmentMenu, setActiveAttachmentMenu] = useState<number | null>(null);
+
+    // Blacklist & Whitelist tracking
+    const [blacklistSenders, setBlacklistSenders] = useState<string[]>([]);
+    const [whitelistSenders, setWhitelistSenders] = useState<string[]>([]);
 
     // File import ref
     const importFileInputRef = useRef<HTMLInputElement>(null);
@@ -1263,7 +1284,10 @@ function StaffInboxContent() {
                 cc: composeData.cc ? composeData.cc.split(",").map((s) => s.trim()).filter(Boolean) : undefined,
                 bcc: composeData.bcc ? composeData.bcc.split(",").map((s) => s.trim()).filter(Boolean) : undefined,
                 subject: composeData.subject,
-                text: composeData.body,
+                text: composeData.body.replace(/<[^>]*>/g, ""),
+                html: composeData.body.includes("<div") || composeData.body.includes("<p") || composeData.body.includes("<br")
+                    ? composeData.body
+                    : `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; line-height: 1.6; color: #1e293b; white-space: pre-wrap;">${composeData.body}</div>`,
                 replyTo: composeData.replyTo || undefined,
                 attachments: attachments.map((a) => ({
                     filename: a.filename,
@@ -1386,8 +1410,26 @@ function StaffInboxContent() {
         return selectedFolder;
     }, [selectedFolder, foldersList]);
 
+    const handleBlockSender = (target: string, type: "sender" | "domain", moveToJunk: boolean) => {
+        setBlacklistSenders((prev) => [...new Set([...prev, target.toLowerCase()])]);
+        if (moveToJunk && activeEmailDetail) {
+            setUserSpamIds((prev) => new Set([...prev, activeEmailDetail.id]));
+            setFeedbackToast({ type: "success", message: `Blocked ${target}. Existing messages routed to Junk.` });
+        } else {
+            setFeedbackToast({ type: "success", message: `Blocked ${target}. Future emails will be filtered.` });
+        }
+        setTimeout(() => setFeedbackToast(null), 3500);
+    };
+
+    const handleSafeSender = (target: string) => {
+        setWhitelistSenders((prev) => [...new Set([...prev, target.toLowerCase()])]);
+        setRemoteResourcesBlocked(false);
+        setFeedbackToast({ type: "success", message: `Added ${target} to Safe Senders. Will never be marked as spam.` });
+        setTimeout(() => setFeedbackToast(null), 3500);
+    };
+
     return (
-        <div className="flex flex-col h-[calc(100vh-65px)] overflow-hidden bg-slate-100/70 font-sans">
+        <div className="flex flex-col h-full w-full overflow-hidden bg-slate-100/70 font-sans">
             {/* ── HIDDEN IMPORT INPUT ── */}
             <input
                 type="file"
@@ -1452,6 +1494,12 @@ function StaffInboxContent() {
                 onOpenInNewWindow={handleOpenInNewWindow}
                 onCreateFilter={() => setShowFilterModal(true)}
                 onSaveAsEvent={handleSaveAsEvent}
+                onBlockSender={() => setShowBlockSenderModal(true)}
+                onSafeSender={() => setShowSafeSenderModal(true)}
+                onOutOfOffice={() => setShowOutOfOfficeModal(true)}
+                onSignatures={() => setShowSignaturesModal(true)}
+                onMailRules={() => setShowMailRulesModal(true)}
+                onConditionalFormatting={() => setShowConditionalFormattingModal(true)}
                 availableFolders={foldersList}
             />
 
@@ -2107,15 +2155,17 @@ function StaffInboxContent() {
                                 </div>
                             )}
 
-                            {/* Elevated Remote Resources Privacy Banner */}
-                            <EmailRemoteResourceBanner
-                                isBlocked={remoteResourcesBlocked}
-                                onAllow={() => {
-                                    setRemoteResourcesBlocked(false);
-                                    setFeedbackToast({ type: "success", message: "Remote images & external content allowed." });
-                                    setTimeout(() => setFeedbackToast(null), 3000);
-                                }}
-                            />
+                            {/* Elevated Remote Resources Privacy Banner (Only displayed if remote HTTP/HTTPS images are present) */}
+                            {Boolean(activeEmailDetail?.html && /<img[^>]+src=["'](https?:\/\/[^"']+)["']/i.test(activeEmailDetail.html)) && (
+                                <EmailRemoteResourceBanner
+                                    isBlocked={remoteResourcesBlocked}
+                                    onAllow={() => {
+                                        setRemoteResourcesBlocked(false);
+                                        setFeedbackToast({ type: "success", message: "Remote images & external content allowed." });
+                                        setTimeout(() => setFeedbackToast(null), 3000);
+                                    }}
+                                />
+                            )}
 
                             {/* Scheduled Dispatch Status Banner */}
                             {(activeEmailDetail as any)?.isScheduled && (
@@ -2236,6 +2286,54 @@ function StaffInboxContent() {
                 }}
             />
 
+            <BlockSenderModal
+                senderEmail={activeEmailDetail?.from || ""}
+                isOpen={showBlockSenderModal}
+                onClose={() => setShowBlockSenderModal(false)}
+                onConfirmBlock={handleBlockSender}
+            />
+
+            <SafeSenderModal
+                senderEmail={activeEmailDetail?.from || ""}
+                isOpen={showSafeSenderModal}
+                onClose={() => setShowSafeSenderModal(false)}
+                onConfirmSafe={handleSafeSender}
+            />
+
+            <OutOfOfficeModal
+                isOpen={showOutOfOfficeModal}
+                onClose={() => setShowOutOfOfficeModal(false)}
+                onSave={(cfg) => {
+                    setFeedbackToast({
+                        type: "success",
+                        message: cfg.isEnabled
+                            ? `Auto-reply enabled from ${cfg.startDate} to ${cfg.endDate}`
+                            : "Auto-reply disabled."
+                    });
+                    setTimeout(() => setFeedbackToast(null), 3500);
+                }}
+            />
+
+            <SignaturesModal
+                isOpen={showSignaturesModal}
+                onClose={() => setShowSignaturesModal(false)}
+                onSaveSignature={(sig) => {
+                    setSavedSignature(sig.html);
+                    setFeedbackToast({ type: "success", message: "Email signature updated successfully." });
+                    setTimeout(() => setFeedbackToast(null), 3000);
+                }}
+            />
+
+            <MailRulesModal
+                isOpen={showMailRulesModal}
+                onClose={() => setShowMailRulesModal(false)}
+            />
+
+            <ConditionalFormattingModal
+                isOpen={showConditionalFormattingModal}
+                onClose={() => setShowConditionalFormattingModal(false)}
+            />
+
             {/* ── 5. COMPOSE & REPLY MODAL (WITH IMAGE INSERTION) ── */}
             {isComposeOpen && (
                 <div
@@ -2346,11 +2444,80 @@ function StaffInboxContent() {
                                 </div>
                             </div>
 
+                            {/* Rich Formatting Toolbar & Signature Helper */}
+                            <div className="px-3 py-1.5 bg-slate-50/80 border-b border-slate-200/80 flex items-center justify-between flex-wrap gap-2 text-slate-600">
+                                <div className="flex items-center gap-1">
+                                    <button
+                                        type="button"
+                                        title="Bold"
+                                        onClick={() => {
+                                            setComposeData((prev) => ({ ...prev, body: prev.body + " **bold text** " }));
+                                        }}
+                                        className="w-6 h-6 rounded flex items-center justify-center font-bold text-xs hover:bg-slate-200 text-slate-700 transition-colors"
+                                    >
+                                        B
+                                    </button>
+                                    <button
+                                        type="button"
+                                        title="Italic"
+                                        onClick={() => {
+                                            setComposeData((prev) => ({ ...prev, body: prev.body + " *italic text* " }));
+                                        }}
+                                        className="w-6 h-6 rounded flex items-center justify-center italic text-xs hover:bg-slate-200 text-slate-700 transition-colors font-serif"
+                                    >
+                                        I
+                                    </button>
+                                    <button
+                                        type="button"
+                                        title="Underline"
+                                        onClick={() => {
+                                            setComposeData((prev) => ({ ...prev, body: prev.body + " <u>underlined text</u> " }));
+                                        }}
+                                        className="w-6 h-6 rounded flex items-center justify-center underline text-xs hover:bg-slate-200 text-slate-700 transition-colors"
+                                    >
+                                        U
+                                    </button>
+                                    <span className="w-px h-4 bg-slate-200 mx-1" />
+                                    <button
+                                        type="button"
+                                        title="Bullet List"
+                                        onClick={() => {
+                                            setComposeData((prev) => ({ ...prev, body: prev.body + "\n• Item 1\n• Item 2" }));
+                                        }}
+                                        className="px-1.5 py-0.5 rounded text-[11px] font-mono hover:bg-slate-200 text-slate-700 transition-colors"
+                                    >
+                                        &bull; List
+                                    </button>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setComposeData((prev) => ({
+                                                ...prev,
+                                                body: prev.body + "\n\n" + savedSignature,
+                                            }));
+                                            setFeedbackToast({ type: "success", message: "HTML Signature inserted!" });
+                                            setTimeout(() => setFeedbackToast(null), 2500);
+                                        }}
+                                        className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-[10px] font-bold border border-indigo-200 transition-colors cursor-pointer"
+                                    >
+                                        <PenTool className="w-3 h-3" />
+                                        <span>Insert Signature</span>
+                                    </button>
+                                    <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                        Spell Check: On
+                                    </span>
+                                </div>
+                            </div>
+
                             {/* Body */}
                             <textarea
                                 placeholder="Type your message here..."
                                 value={composeData.body}
                                 onChange={(e) => setComposeData({ ...composeData, body: e.target.value })}
+                                spellCheck={true}
                                 className="flex-1 p-4 text-xs leading-relaxed font-sans focus:outline-none resize-none"
                             />
 

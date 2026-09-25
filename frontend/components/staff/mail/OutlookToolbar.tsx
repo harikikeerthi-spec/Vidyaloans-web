@@ -29,7 +29,14 @@ import {
     Star,
     MailCheck,
     MailWarning,
-    Check
+    Check,
+    ShieldAlert,
+    ShieldCheck,
+    Ban,
+    Clock,
+    PenTool,
+    Sliders,
+    Palette
 } from "lucide-react";
 
 export interface OutlookToolbarProps {
@@ -78,6 +85,14 @@ export interface OutlookToolbarProps {
     onCreateFilter?: () => void;
     onSaveAsEvent?: () => void;
 
+    // Advanced & Security Actions
+    onBlockSender?: () => void;
+    onSafeSender?: () => void;
+    onOutOfOffice?: () => void;
+    onSignatures?: () => void;
+    onMailRules?: () => void;
+    onConditionalFormatting?: () => void;
+
     // Available folders for Move To / Copy To
     availableFolders?: { name: string; prefix: string }[];
 }
@@ -118,6 +133,12 @@ export function OutlookToolbar({
     onOpenInNewWindow,
     onCreateFilter,
     onSaveAsEvent,
+    onBlockSender,
+    onSafeSender,
+    onOutOfOffice,
+    onSignatures,
+    onMailRules,
+    onConditionalFormatting,
     availableFolders = [],
 }: OutlookToolbarProps) {
     // Dropdown toggles
@@ -165,8 +186,8 @@ export function OutlookToolbar({
         ];
 
     return (
-        <header className="bg-white/90 backdrop-blur-md border-b border-slate-200/70 select-none sticky top-0 z-20 shadow-2xs transition-all">
-            <div className="flex items-center justify-between px-3 sm:px-5 py-2 overflow-x-auto no-scrollbar gap-2">
+        <header className="bg-white/90 backdrop-blur-md border-b border-slate-200/70 select-none sticky top-0 z-30 shadow-2xs transition-all">
+            <div className="flex items-center justify-between px-3 sm:px-5 py-2 overflow-visible gap-2">
                 {/* ── LEFT RIBBON GROUP ── */}
                 <div className="flex items-center gap-1.5 shrink-0">
                     {/* Select Dropdown */}
@@ -419,12 +440,12 @@ export function OutlookToolbar({
                         </button>
 
                         {moreMenuOpen && (
-                            <div className="absolute right-0 top-full mt-1.5 w-60 bg-white/95 backdrop-blur-md border border-slate-200/80 rounded-2xl shadow-2xl z-40 py-2 text-xs animate-in fade-in zoom-in-95 duration-150">
+                            <div className="absolute right-0 top-full mt-1.5 w-64 max-h-[82vh] overflow-y-auto bg-white/98 backdrop-blur-md border border-slate-200/90 rounded-2xl shadow-2xl z-50 py-2 text-xs animate-in fade-in zoom-in-95 duration-150">
                                 {/* Print this message */}
                                 <button
                                     onClick={() => { onPrint?.(); setMoreMenuOpen(false); }}
                                     disabled={!hasActiveEmail}
-                                    className="w-full px-3.5 py-2 text-left text-slate-700 hover:bg-indigo-50/80 hover:text-indigo-600 disabled:opacity-35 flex items-center gap-3 font-medium transition-colors"
+                                    className="w-full px-3.5 py-2 text-left text-slate-700 hover:bg-indigo-50/80 hover:text-indigo-600 disabled:opacity-35 flex items-center gap-3 font-medium transition-colors cursor-pointer"
                                 >
                                     <Printer className="w-4 h-4 text-slate-500" />
                                     <span>Print this message</span>
@@ -433,7 +454,7 @@ export function OutlookToolbar({
                                 {/* Import */}
                                 <button
                                     onClick={() => { onImport?.(); setMoreMenuOpen(false); }}
-                                    className="w-full px-3.5 py-2 text-left text-slate-700 hover:bg-indigo-50/80 hover:text-indigo-600 flex items-center gap-3 font-medium transition-colors"
+                                    className="w-full px-3.5 py-2 text-left text-slate-700 hover:bg-indigo-50/80 hover:text-indigo-600 flex items-center gap-3 font-medium transition-colors cursor-pointer"
                                 >
                                     <FileUp className="w-4 h-4 text-slate-500" />
                                     <span>Import (.eml)</span>
@@ -443,7 +464,7 @@ export function OutlookToolbar({
                                 <button
                                     onClick={() => { onExport?.(); setMoreMenuOpen(false); }}
                                     disabled={!hasActiveEmail}
-                                    className="w-full px-3.5 py-2 text-left text-slate-700 hover:bg-indigo-50/80 hover:text-indigo-600 disabled:opacity-35 flex items-center gap-3 font-medium transition-colors"
+                                    className="w-full px-3.5 py-2 text-left text-slate-700 hover:bg-indigo-50/80 hover:text-indigo-600 disabled:opacity-35 flex items-center gap-3 font-medium transition-colors cursor-pointer"
                                 >
                                     <FileDown className="w-4 h-4 text-slate-500" />
                                     <span>Export (.eml)</span>
@@ -453,7 +474,7 @@ export function OutlookToolbar({
                                 <button
                                     onClick={() => { onEditAsNew?.(); setMoreMenuOpen(false); }}
                                     disabled={!hasActiveEmail}
-                                    className="w-full px-3.5 py-2 text-left text-slate-700 hover:bg-indigo-50/80 hover:text-indigo-600 disabled:opacity-35 flex items-center gap-3 font-medium transition-colors"
+                                    className="w-full px-3.5 py-2 text-left text-slate-700 hover:bg-indigo-50/80 hover:text-indigo-600 disabled:opacity-35 flex items-center gap-3 font-medium transition-colors cursor-pointer"
                                 >
                                     <Edit3 className="w-4 h-4 text-slate-500" />
                                     <span>Edit as new</span>
@@ -463,7 +484,7 @@ export function OutlookToolbar({
                                 <button
                                     onClick={() => { onShowSource?.(); setMoreMenuOpen(false); }}
                                     disabled={!hasActiveEmail}
-                                    className="w-full px-3.5 py-2 text-left text-slate-700 hover:bg-indigo-50/80 hover:text-indigo-600 disabled:opacity-35 flex items-center gap-3 font-medium transition-colors"
+                                    className="w-full px-3.5 py-2 text-left text-slate-700 hover:bg-indigo-50/80 hover:text-indigo-600 disabled:opacity-35 flex items-center gap-3 font-medium transition-colors cursor-pointer"
                                 >
                                     <Code className="w-4 h-4 text-slate-500" />
                                     <span>Show source</span>
@@ -471,23 +492,23 @@ export function OutlookToolbar({
 
                                 <div className="border-t border-slate-100/80 my-1.5" />
 
-                                {/* Move to... with flyout */}
-                                <div className="relative">
+                                {/* Move to... with inline folder accordion */}
+                                <div>
                                     <button
                                         type="button"
                                         onClick={() => setMoveToSubmenuOpen(!moveToSubmenuOpen)}
                                         disabled={!hasActiveEmail && selectedCount === 0}
-                                        className="w-full px-3.5 py-2 text-left text-slate-700 hover:bg-indigo-50/80 hover:text-indigo-600 disabled:opacity-35 flex items-center justify-between font-medium transition-colors"
+                                        className="w-full px-3.5 py-2 text-left text-slate-700 hover:bg-indigo-50/80 hover:text-indigo-600 disabled:opacity-35 flex items-center justify-between font-medium transition-colors cursor-pointer"
                                     >
                                         <span className="flex items-center gap-3">
                                             <FolderInput className="w-4 h-4 text-slate-500" />
                                             <span>Move to...</span>
                                         </span>
-                                        <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                                        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${moveToSubmenuOpen ? 'rotate-180' : ''}`} />
                                     </button>
 
                                     {moveToSubmenuOpen && (
-                                        <div className="absolute right-full top-0 mr-1.5 w-48 bg-white/95 backdrop-blur-md border border-slate-200/80 rounded-2xl shadow-xl z-50 py-1.5 text-xs">
+                                        <div className="bg-slate-50/80 py-1 px-2 border-y border-slate-100/80 space-y-0.5">
                                             {folders.map((f) => (
                                                 <button
                                                     key={f.prefix}
@@ -496,32 +517,33 @@ export function OutlookToolbar({
                                                         setMoveToSubmenuOpen(false);
                                                         setMoreMenuOpen(false);
                                                     }}
-                                                    className="w-full px-3.5 py-1.5 text-left text-slate-700 hover:bg-indigo-50/80 hover:text-indigo-600 font-medium truncate transition-colors"
+                                                    className="w-full px-3 py-1.5 text-left text-slate-700 hover:bg-white hover:text-indigo-600 rounded-lg font-medium truncate transition-colors text-[11px] flex items-center gap-2 cursor-pointer"
                                                 >
-                                                    {f.name}
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
+                                                    <span className="truncate">{f.name}</span>
                                                 </button>
                                             ))}
                                         </div>
                                     )}
                                 </div>
 
-                                {/* Copy to... with flyout */}
-                                <div className="relative">
+                                {/* Copy to... with inline folder accordion */}
+                                <div>
                                     <button
                                         type="button"
                                         onClick={() => setCopyToSubmenuOpen(!copyToSubmenuOpen)}
                                         disabled={!hasActiveEmail && selectedCount === 0}
-                                        className="w-full px-3.5 py-2 text-left text-slate-700 hover:bg-indigo-50/80 hover:text-indigo-600 disabled:opacity-35 flex items-center justify-between font-medium transition-colors"
+                                        className="w-full px-3.5 py-2 text-left text-slate-700 hover:bg-indigo-50/80 hover:text-indigo-600 disabled:opacity-35 flex items-center justify-between font-medium transition-colors cursor-pointer"
                                     >
                                         <span className="flex items-center gap-3">
                                             <Copy className="w-4 h-4 text-slate-500" />
                                             <span>Copy to...</span>
                                         </span>
-                                        <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                                        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${copyToSubmenuOpen ? 'rotate-180' : ''}`} />
                                     </button>
 
                                     {copyToSubmenuOpen && (
-                                        <div className="absolute right-full top-0 mr-1.5 w-48 bg-white/95 backdrop-blur-md border border-slate-200/80 rounded-2xl shadow-xl z-50 py-1.5 text-xs">
+                                        <div className="bg-slate-50/80 py-1 px-2 border-y border-slate-100/80 space-y-0.5">
                                             {folders.map((f) => (
                                                 <button
                                                     key={f.prefix}
@@ -530,9 +552,10 @@ export function OutlookToolbar({
                                                         setCopyToSubmenuOpen(false);
                                                         setMoreMenuOpen(false);
                                                     }}
-                                                    className="w-full px-3.5 py-1.5 text-left text-slate-700 hover:bg-indigo-50/80 hover:text-indigo-600 font-medium truncate transition-colors"
+                                                    className="w-full px-3 py-1.5 text-left text-slate-700 hover:bg-white hover:text-indigo-600 rounded-lg font-medium truncate transition-colors text-[11px] flex items-center gap-2 cursor-pointer"
                                                 >
-                                                    {f.name}
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-violet-500 shrink-0" />
+                                                    <span className="truncate">{f.name}</span>
                                                 </button>
                                             ))}
                                         </div>
@@ -545,7 +568,7 @@ export function OutlookToolbar({
                                 <button
                                     onClick={() => { onOpenInNewWindow?.(); setMoreMenuOpen(false); }}
                                     disabled={!hasActiveEmail}
-                                    className="w-full px-3.5 py-2 text-left text-slate-700 hover:bg-indigo-50/80 hover:text-indigo-600 disabled:opacity-35 flex items-center gap-3 font-medium transition-colors"
+                                    className="w-full px-3.5 py-2 text-left text-slate-700 hover:bg-indigo-50/80 hover:text-indigo-600 disabled:opacity-35 flex items-center gap-3 font-medium transition-colors cursor-pointer"
                                 >
                                     <ExternalLink className="w-4 h-4 text-slate-500" />
                                     <span>Open in new window</span>
@@ -554,8 +577,7 @@ export function OutlookToolbar({
                                 {/* Create filter */}
                                 <button
                                     onClick={() => { onCreateFilter?.(); setMoreMenuOpen(false); }}
-                                    disabled={!hasActiveEmail}
-                                    className="w-full px-3.5 py-2 text-left text-slate-700 hover:bg-indigo-50/80 hover:text-indigo-600 disabled:opacity-35 flex items-center gap-3 font-medium transition-colors"
+                                    className="w-full px-3.5 py-2 text-left text-slate-700 hover:bg-indigo-50/80 hover:text-indigo-600 flex items-center gap-3 font-medium transition-colors cursor-pointer"
                                 >
                                     <Filter className="w-4 h-4 text-slate-500" />
                                     <span>Create filter</span>
@@ -565,10 +587,68 @@ export function OutlookToolbar({
                                 <button
                                     onClick={() => { onSaveAsEvent?.(); setMoreMenuOpen(false); }}
                                     disabled={!hasActiveEmail}
-                                    className="w-full px-3.5 py-2 text-left text-slate-700 hover:bg-indigo-50/80 hover:text-indigo-600 disabled:opacity-35 flex items-center gap-3 font-medium transition-colors"
+                                    className="w-full px-3.5 py-2 text-left text-slate-700 hover:bg-indigo-50/80 hover:text-indigo-600 disabled:opacity-35 flex items-center gap-3 font-medium transition-colors cursor-pointer"
                                 >
                                     <Calendar className="w-4 h-4 text-slate-500" />
                                     <span>Save as event</span>
+                                </button>
+
+                                <div className="border-t border-slate-100/80 my-1.5" />
+
+                                {/* Block sender */}
+                                <button
+                                    onClick={() => { onBlockSender?.(); setMoreMenuOpen(false); }}
+                                    className="w-full px-3.5 py-2 text-left text-rose-700 hover:bg-rose-50/80 flex items-center gap-3 font-medium transition-colors cursor-pointer"
+                                >
+                                    <Ban className="w-4 h-4 text-rose-500" />
+                                    <span>Block sender</span>
+                                </button>
+
+                                {/* Safe Senders */}
+                                <button
+                                    onClick={() => { onSafeSender?.(); setMoreMenuOpen(false); }}
+                                    className="w-full px-3.5 py-2 text-left text-emerald-700 hover:bg-emerald-50/80 flex items-center gap-3 font-medium transition-colors cursor-pointer"
+                                >
+                                    <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                                    <span>Add to Safe Senders</span>
+                                </button>
+
+                                <div className="border-t border-slate-100/80 my-1.5" />
+
+                                {/* Auto-reply / Out of office */}
+                                <button
+                                    onClick={() => { onOutOfOffice?.(); setMoreMenuOpen(false); }}
+                                    className="w-full px-3.5 py-2 text-left text-slate-700 hover:bg-indigo-50/80 hover:text-indigo-600 flex items-center gap-3 font-medium transition-colors cursor-pointer"
+                                >
+                                    <Clock className="w-4 h-4 text-amber-500" />
+                                    <span>Auto-reply / Out of Office</span>
+                                </button>
+
+                                {/* Signatures */}
+                                <button
+                                    onClick={() => { onSignatures?.(); setMoreMenuOpen(false); }}
+                                    className="w-full px-3.5 py-2 text-left text-slate-700 hover:bg-indigo-50/80 hover:text-indigo-600 flex items-center gap-3 font-medium transition-colors cursor-pointer"
+                                >
+                                    <PenTool className="w-4 h-4 text-indigo-500" />
+                                    <span>Email Signatures</span>
+                                </button>
+
+                                {/* Mail Rules & Automation */}
+                                <button
+                                    onClick={() => { onMailRules?.(); setMoreMenuOpen(false); }}
+                                    className="w-full px-3.5 py-2 text-left text-slate-700 hover:bg-indigo-50/80 hover:text-indigo-600 flex items-center gap-3 font-medium transition-colors cursor-pointer"
+                                >
+                                    <Sliders className="w-4 h-4 text-violet-500" />
+                                    <span>Mail Rules & Filters</span>
+                                </button>
+
+                                {/* Conditional Formatting */}
+                                <button
+                                    onClick={() => { onConditionalFormatting?.(); setMoreMenuOpen(false); }}
+                                    className="w-full px-3.5 py-2 text-left text-slate-700 hover:bg-indigo-50/80 hover:text-indigo-600 flex items-center gap-3 font-medium transition-colors cursor-pointer"
+                                >
+                                    <Palette className="w-4 h-4 text-pink-500" />
+                                    <span>Conditional Formatting</span>
                                 </button>
                             </div>
                         )}

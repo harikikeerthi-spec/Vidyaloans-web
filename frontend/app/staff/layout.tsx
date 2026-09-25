@@ -524,7 +524,7 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
                         </div>
                     </header>
 
-                    <div className={`staff-dashboard-body flex-1 ${(activeSection.startsWith('chat_') || activeSection === 'onboarding') ? 'p-0 overflow-hidden' : 'p-6 overflow-y-auto space-y-6 custom-scrollbar'} bg-[#f8fafc]`}>
+                    <div className={`staff-dashboard-body flex-1 ${(activeSection.startsWith('chat_') || activeSection === 'onboarding' || activeSection === 'inbox') ? 'p-0 overflow-hidden h-[calc(100vh-60px)]' : 'p-6 overflow-y-auto space-y-6 custom-scrollbar'} bg-[#f8fafc]`}>
                         {children}
                     </div>
                 </main>
