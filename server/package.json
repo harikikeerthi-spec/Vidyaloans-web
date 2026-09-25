@@ -7,6 +7,7 @@
   "license": "UNLICENSED",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "postinstall": "prisma generate",
     "prisma:generate": "npx prisma generate",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "npm run build && node dist/main",
