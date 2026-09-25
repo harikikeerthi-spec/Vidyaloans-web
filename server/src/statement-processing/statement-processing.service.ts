@@ -373,14 +373,26 @@ export class StatementProcessingService {
       originalBuffer,
     );
 
-    const txList = (result.preliminaryTransactions || []).map((tx) => ({
-      date: new Date(tx.date),
-      narration: tx.narration,
-      debit: tx.debit,
-      credit: tx.credit,
-      balance: tx.balance,
-      raw: `${tx.date} | ${tx.narration} | ${tx.debit} | ${tx.credit} | ${tx.balance}`,
-    }));
+    const txList = (result.preliminaryTransactions || []).map((tx) => {
+      let parsedDate: Date;
+      try {
+        parsedDate = new Date(tx.date);
+        if (isNaN(parsedDate.getTime())) parsedDate = new Date();
+      } catch {
+        parsedDate = new Date();
+      }
+      const debitVal = typeof tx.debit === 'number' && !isNaN(tx.debit) ? tx.debit : 0;
+      const creditVal = typeof tx.credit === 'number' && !isNaN(tx.credit) ? tx.credit : 0;
+      const balanceVal = typeof tx.balance === 'number' && !isNaN(tx.balance) ? tx.balance : 0;
+      return {
+        date: parsedDate,
+        narration: tx.narration || 'Transaction',
+        debit: debitVal,
+        credit: creditVal,
+        balance: balanceVal,
+        raw: `${tx.date} | ${tx.narration} | ${debitVal} | ${creditVal} | ${balanceVal}`,
+      };
+    });
 
     return {
       success: true,
@@ -438,26 +450,26 @@ export class StatementProcessingService {
       },
     });
 
-    // Save preliminary transactions
+    // Save preliminary transactions using high-performance batch insert
     if (result.preliminaryTransactions.length > 0) {
       await (this.prisma as any).normalizedStatementTransaction.deleteMany({
         where: { statementUploadId },
       });
 
-      for (const tx of result.preliminaryTransactions) {
-        await (this.prisma as any).normalizedStatementTransaction.create({
-          data: {
-            statementUploadId,
-            date: tx.date,
-            narration: tx.narration,
-            debit: tx.debit,
-            credit: tx.credit,
-            balance: tx.balance,
-            channel: tx.channel || 'ONLINE',
-            category: tx.category || 'REGULAR',
-          },
-        });
-      }
+      const rows = result.preliminaryTransactions.map((tx) => ({
+        statementUploadId,
+        date: tx.date || new Date().toISOString().split('T')[0],
+        narration: tx.narration || 'Transaction',
+        debit: typeof tx.debit === 'number' && !isNaN(tx.debit) ? tx.debit : 0,
+        credit: typeof tx.credit === 'number' && !isNaN(tx.credit) ? tx.credit : 0,
+        balance: typeof tx.balance === 'number' && !isNaN(tx.balance) ? tx.balance : 0,
+        channel: tx.channel || 'ONLINE',
+        category: tx.category || 'REGULAR',
+      }));
+
+      await (this.prisma as any).normalizedStatementTransaction.createMany({
+        data: rows,
+      });
     }
 
     const nextStatus = result.isOcrUsed ? 'COLUMN_MAPPING_REQUIRED' : 'DATA_VALIDATING';
@@ -509,16 +521,24 @@ export class StatementProcessingService {
       },
     });
 
-    for (const tx of transactions) {
-      await (this.prisma as any).normalizedStatementTransaction.create({
-        data: {
-          statementUploadId,
-          date: tx.date,
-          narration: tx.narration,
-          debit: tx.debit,
-          credit: tx.credit,
-          balance: tx.balance,
-        },
+    if (transactions.length > 0) {
+      await (this.prisma as any).normalizedStatementTransaction.deleteMany({
+        where: { statementUploadId },
+      });
+
+      const rows = transactions.map((tx) => ({
+        statementUploadId,
+        date: tx.date || new Date().toISOString().split('T')[0],
+        narration: tx.narration || 'Transaction',
+        debit: typeof tx.debit === 'number' && !isNaN(tx.debit) ? tx.debit : 0,
+        credit: typeof tx.credit === 'number' && !isNaN(tx.credit) ? tx.credit : 0,
+        balance: typeof tx.balance === 'number' && !isNaN(tx.balance) ? tx.balance : 0,
+        channel: 'ONLINE',
+        category: 'REGULAR',
+      }));
+
+      await (this.prisma as any).normalizedStatementTransaction.createMany({
+        data: rows,
       });
     }
 
