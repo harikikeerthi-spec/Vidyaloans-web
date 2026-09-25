@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const getBackendUrl = (request: NextRequest) => {
+  if (process.env.BACKEND_URL) {
+    return process.env.BACKEND_URL;
+  }
   const hostname = request.nextUrl.hostname;
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
-    return 'http://localhost:5000';
+    return 'http://127.0.0.1:5000';
   }
-  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+  return process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
 };
 
 async function handler(request: NextRequest) {

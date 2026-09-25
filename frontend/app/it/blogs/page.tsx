@@ -40,6 +40,7 @@ type BlockType =
   | "divider"
   | "spacer"
   | "text_path"
+  | "tags"
   // Legacy / convenience types
   | "link"
   | "cta"
@@ -70,6 +71,9 @@ interface Block {
   suffix?: string;
   prefix?: string;
   items?: BlockItem[];
+  tags?: string[];
+  tagsStyle?: "pill" | "badge" | "outline" | "minimal";
+  activeSlideIndex?: number;
   // Heading specific (H1 to H6)
   level?: 1 | 2 | 3 | 4 | 5 | 6;
   // List specific (Ordered vs Unordered)
@@ -93,7 +97,7 @@ interface Block {
   link?: string;
   openInNewTab?: boolean;
   addNofollow?: boolean;
-  linkStyle?: "primary" | "secondary" | "outline" | "inline";
+  linkStyle?: "primary" | "secondary" | "outline" | "inline" | "deal" | "emerald" | "gradient";
   style?: {
     fontSize?: string;
     fontFamily?: string;
@@ -126,6 +130,7 @@ const ELEMENTOR_WIDGETS: ElementorWidget[] = [
   // 1. Basic Content
   { type: "heading", label: "Heading (H1-H6)", icon: "title", category: "basic", desc: "Add headlines with H1 to H6 levels." },
   { type: "text", label: "Text & Live Editor", icon: "text_fields", category: "basic", desc: "Paragraph with inline formatting & hyperlinks." },
+  { type: "tags", label: "Tags & Topics", icon: "label", category: "basic", badge: "New", desc: "Dynamic article tags cloud with custom pill styles & links." },
   { type: "list", label: "List (OL / UL)", icon: "format_list_bulleted", category: "basic", desc: "Ordered numbers or bulleted lists." },
   { type: "table", label: "Data Table", icon: "table_chart", category: "basic", badge: "New", desc: "Interactive grid with rows, columns & headers." },
   { type: "table_of_contents", label: "Table of Contents", icon: "toc", category: "basic", badge: "Auto", desc: "Real-time automated index of all H1-H6 headlines." },
@@ -520,12 +525,24 @@ export default function ITBlogsPage() {
   const [tagInput, setTagInput] = useState("");
   const [tagsManagerOpen, setTagsManagerOpen] = useState(false);
 
+  // Saved Selection Range for Inline Formatting & Hyperlinks
+  const savedSelectionRef = React.useRef<{ range: Range | null; text: string; blockId: string | null }>({
+    range: null,
+    text: "",
+    blockId: null,
+  });
+  const [editorModes, setEditorModes] = useState<Record<string, "visual" | "html">>({});
+
   // Hyperlink & Selected Text Formatter States
   const [hyperlinkModalOpen, setHyperlinkModalOpen] = useState(false);
   const [hyperlinkTargetBlockId, setHyperlinkTargetBlockId] = useState<string | null>(null);
   const [hyperlinkUrl, setHyperlinkUrl] = useState("");
   const [hyperlinkText, setHyperlinkText] = useState("");
   const [hyperlinkTargetBlank, setHyperlinkTargetBlank] = useState(true);
+
+  // Dynamic Highlight Picker & Text Settings States
+  const [activeHighlightPicker, setActiveHighlightPicker] = useState<string | null>(null);
+  const [activeTextSettings, setActiveTextSettings] = useState<string | null>(null);
 
   // Link & Elementor States
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
@@ -727,6 +744,7 @@ export default function ITBlogsPage() {
       google_maps: "Harvard University, Cambridge, MA, USA",
       soundcloud: "https://soundcloud.com/example/education-loan-podcast",
       text_path: "VidyaLoan • Study Abroad • Dream Higher • ",
+      tags: "iPhoneAir, PriceDrop, AmazonDeals, TechNews, DealOffer",
       link: "Click here to view full partner bank interest rate matrix",
       cta: "Explore uncollateralized student loans up to ₹75 Lakhs with instant pre-approval and 0 upfront processing fees.",
       list: "• Unsecured Loans: Up to ₹75 Lakhs without collateral\n• Competitive Interest: Starting from 9.25% p.a.\n• Moratorium Period: Course Duration + 6 months\n• Repayment Tenure: Up to 15 years",
@@ -963,6 +981,33 @@ export default function ITBlogsPage() {
 
   const removeTag = (tagToRemove: string) => {
     setBlogTags((prev) => prev.filter((t) => t !== tagToRemove));
+  };
+
+  const addBlockTag = (blockId: string, tagToAdd: string) => {
+    const clean = tagToAdd.trim().replace(/^#+/, "").replace(/[^a-zA-Z0-9_\-]/g, "");
+    if (!clean) return;
+    setBlocks((prev) =>
+      prev.map((b) => {
+        if (b.id !== blockId) return b;
+        const curTags = b.tags || [];
+        if (!curTags.includes(clean)) {
+          return { ...b, tags: [...curTags, clean] };
+        }
+        return b;
+      })
+    );
+    if (!blogTags.includes(clean)) {
+      setBlogTags((prev) => [...prev, clean]);
+    }
+  };
+
+  const removeBlockTag = (blockId: string, tagToRemove: string) => {
+    setBlocks((prev) =>
+      prev.map((b) => {
+        if (b.id !== blockId) return b;
+        return { ...b, tags: (b.tags || []).filter((t) => t !== tagToRemove) };
+      })
+    );
   };
 
   // Helper functions for Table Widget
@@ -1212,11 +1257,36 @@ export default function ITBlogsPage() {
     );
   };
 
-  // Real-time Text Selection & Hyperlink Helpers
+  // Real-time Text Selection & Professional Formatting Helpers
+  const handleTextSelectionChange = (blockId: string) => {
+    if (typeof window === "undefined") return;
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
+      const text = sel.toString().trim();
+      savedSelectionRef.current = {
+        range: sel.getRangeAt(0).cloneRange(),
+        text,
+        blockId,
+      };
+    }
+  };
+
   const openHyperlinkDialog = (blockId: string, initialText?: string, initialUrl?: string) => {
+    let textToUse = initialText || "";
+    if (typeof window !== "undefined") {
+      const sel = window.getSelection();
+      if (sel && !sel.isCollapsed && sel.toString().trim()) {
+        textToUse = sel.toString().trim();
+        savedSelectionRef.current = {
+          range: sel.getRangeAt(0).cloneRange(),
+          text: textToUse,
+          blockId,
+        };
+      }
+    }
     setHyperlinkTargetBlockId(blockId);
-    setHyperlinkText(initialText || "");
-    setHyperlinkUrl(initialUrl || "/apply");
+    setHyperlinkText(textToUse);
+    setHyperlinkUrl(initialUrl || "https://");
     setHyperlinkTargetBlank(true);
     setHyperlinkModalOpen(true);
   };
@@ -1224,29 +1294,63 @@ export default function ITBlogsPage() {
   const applyHyperlink = () => {
     if (!hyperlinkTargetBlockId) return;
     const targetUrl = hyperlinkUrl.trim() || "/apply";
+    const displayText = hyperlinkText.trim() || targetUrl;
+
+    const saved = savedSelectionRef.current;
+    if (saved && saved.range && saved.blockId === hyperlinkTargetBlockId && typeof window !== "undefined") {
+      try {
+        const sel = window.getSelection();
+        if (sel) {
+          sel.removeAllRanges();
+          sel.addRange(saved.range);
+
+          const a = document.createElement("a");
+          a.href = targetUrl;
+          if (hyperlinkTargetBlank) {
+            a.target = "_blank";
+            a.rel = "noopener noreferrer";
+          }
+          a.style.color = "#4f46e5";
+          a.style.fontWeight = "700";
+          a.style.textDecoration = "underline";
+          a.textContent = displayText;
+
+          saved.range.deleteContents();
+          saved.range.insertNode(a);
+
+          const el = document.getElementById(`editor-${hyperlinkTargetBlockId}`);
+          if (el) {
+            updateBlockContent(hyperlinkTargetBlockId, el.innerHTML);
+            setHyperlinkModalOpen(false);
+            savedSelectionRef.current = { range: null, text: "", blockId: null };
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn("DOM selection replacement fallback:", err);
+      }
+    }
 
     setBlocks((prev) =>
       prev.map((b) => {
         if (b.id !== hyperlinkTargetBlockId) return b;
-        // If block has link properties:
         const updated = {
           ...b,
           url: targetUrl,
           link: targetUrl,
           openInNewTab: hyperlinkTargetBlank,
         };
-        // If user customized text:
-        if (hyperlinkText.trim()) {
-          if (b.type === "link" || b.type === "button") {
-            updated.content = hyperlinkText;
-          } else if (b.type === "text") {
-            // Append or format hyperlinked text
-            const linkHtml = `<a href="${targetUrl}" ${hyperlinkTargetBlank ? 'target="_blank" rel="noopener noreferrer"' : ''} style="color: #4f46e5; font-weight: 700; text-decoration: underline;">${hyperlinkText}</a>`;
-            if (b.content.includes(hyperlinkText)) {
-              updated.content = b.content.replace(hyperlinkText, linkHtml);
-            } else {
-              updated.content = `${b.content} ${linkHtml}`;
-            }
+        const linkHtml = `<a href="${targetUrl}" ${
+          hyperlinkTargetBlank ? 'target="_blank" rel="noopener noreferrer"' : ""
+        } style="color: #4f46e5; font-weight: 700; text-decoration: underline;">${displayText}</a>`;
+
+        if (b.type === "link" || b.type === "button") {
+          updated.content = displayText;
+        } else if (b.type === "text") {
+          if (b.content.includes(displayText)) {
+            updated.content = b.content.replace(displayText, linkHtml);
+          } else {
+            updated.content = `${b.content} ${linkHtml}`;
           }
         }
         return updated;
@@ -1254,23 +1358,315 @@ export default function ITBlogsPage() {
     );
 
     setHyperlinkModalOpen(false);
+    savedSelectionRef.current = { range: null, text: "", blockId: null };
   };
 
-  const applyFormatToBlock = (
+  const HIGHLIGHT_SWATCHES = [
+    { name: "Yellow", bg: "#fef08a", text: "#854d0e", border: "#fde047" },
+    { name: "Mint", bg: "#bbf7d0", text: "#14532d", border: "#86efac" },
+    { name: "Sky", bg: "#bae6fd", text: "#0369a1", border: "#7dd3fc" },
+    { name: "Pink", bg: "#fbcfe8", text: "#9d174d", border: "#f472b6" },
+    { name: "Purple", bg: "#e9d5ff", text: "#6b21a8", border: "#d8b4fe" },
+    { name: "Orange", bg: "#fed7aa", text: "#9a3412", border: "#fdba74" },
+  ];
+
+  const applyHighlight = (
     blockId: string,
-    format: "bold" | "italic" | "underline" | "code" | "highlight"
+    bg: string = "#fef08a",
+    textColor: string = "#854d0e"
   ) => {
+    const sel = typeof window !== "undefined" ? window.getSelection() : null;
+    if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
+      try {
+        const range = sel.getRangeAt(0);
+        let node: Node | null = range.commonAncestorContainer;
+        if (node.nodeType === Node.TEXT_NODE) {
+          node = node.parentNode;
+        }
+
+        const existingMark =
+          (node as HTMLElement)?.closest?.("mark") ||
+          ((node as HTMLElement)?.tagName === "MARK" ? (node as HTMLElement) : null);
+
+        if (existingMark) {
+          const isSameColor =
+            existingMark.style.backgroundColor === bg ||
+            existingMark.getAttribute("data-color") === bg;
+          if (isSameColor) {
+            // Toggle off highlight
+            const textNode = document.createTextNode(existingMark.textContent || "");
+            existingMark.parentNode?.replaceChild(textNode, existingMark);
+          } else {
+            // Update color
+            existingMark.style.backgroundColor = bg;
+            existingMark.style.color = textColor;
+            existingMark.setAttribute("data-color", bg);
+          }
+        } else {
+          const mark = document.createElement("mark");
+          mark.style.backgroundColor = bg;
+          mark.style.color = textColor;
+          mark.style.padding = "2px 6px";
+          mark.style.borderRadius = "4px";
+          mark.style.fontWeight = "600";
+          mark.setAttribute("data-color", bg);
+
+          try {
+            range.surroundContents(mark);
+          } catch {
+            const fragment = range.extractContents();
+            mark.appendChild(fragment);
+            range.insertNode(mark);
+          }
+        }
+
+        // Collapse selection so it doesn't remain trapped in blue browser selection
+        sel.collapseToEnd();
+      } catch (err) {
+        console.warn("Highlight fallback", err);
+        try {
+          document.execCommand("hiliteColor", false, bg);
+        } catch (_) {}
+        sel?.collapseToEnd();
+      }
+
+      const el = document.getElementById(`editor-${blockId}`);
+      if (el) {
+        updateBlockContent(blockId, el.innerHTML);
+      }
+    } else {
+      // Fallback: toggle full block highlight
+      setBlocks((prev) =>
+        prev.map((b) => {
+          if (b.id !== blockId) return b;
+          const text = b.content || "";
+          if (text.includes("<mark")) {
+            return {
+              ...b,
+              content: text.replace(/<mark[^>]*>([\s\S]*?)<\/mark>/gi, "$1"),
+            };
+          }
+          return {
+            ...b,
+            content: `<mark style="background-color: ${bg}; color: ${textColor}; padding: 2px 6px; border-radius: 4px; font-weight: 600;">${text}</mark>`,
+          };
+        })
+      );
+    }
+
+    // Always immediately close highlight picker
+    setActiveHighlightPicker(null);
+  };
+
+  const removeHighlight = (blockId: string) => {
+    const sel = typeof window !== "undefined" ? window.getSelection() : null;
+    if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
+      try {
+        const range = sel.getRangeAt(0);
+        let node: Node | null = range.commonAncestorContainer;
+        if (node.nodeType === Node.TEXT_NODE) {
+          node = node.parentNode;
+        }
+
+        const existingMark =
+          (node as HTMLElement)?.closest?.("mark") ||
+          ((node as HTMLElement)?.tagName === "MARK" ? (node as HTMLElement) : null);
+
+        if (existingMark) {
+          const textNode = document.createTextNode(existingMark.textContent || "");
+          existingMark.parentNode?.replaceChild(textNode, existingMark);
+        } else {
+          document.execCommand("hiliteColor", false, "transparent");
+        }
+        sel.collapseToEnd();
+      } catch (_) {
+        try {
+          document.execCommand("hiliteColor", false, "transparent");
+        } catch {}
+        sel?.collapseToEnd();
+      }
+
+      const el = document.getElementById(`editor-${blockId}`);
+      if (el) {
+        updateBlockContent(blockId, el.innerHTML);
+      }
+    } else {
+      setBlocks((prev) =>
+        prev.map((b) => {
+          if (b.id !== blockId) return b;
+          return {
+            ...b,
+            content: (b.content || "").replace(/<mark[^>]*>([\s\S]*?)<\/mark>/gi, "$1"),
+          };
+        })
+      );
+    }
+
+    // Always immediately close highlight picker
+    setActiveHighlightPicker(null);
+  };
+
+  const applyTextPreset = (
+    blockId: string,
+    preset: "body" | "lead" | "editorial" | "tip" | "alert" | "card" | "footnote"
+  ) => {
+    let newStyle: Partial<Block["style"]> = {};
+
+    switch (preset) {
+      case "body":
+        newStyle = {
+          fontSize: "15px",
+          lineHeight: "1.7",
+          fontFamily: "inherit",
+          color: "#1e293b",
+          backgroundColor: "transparent",
+          padding: "0px",
+          borderRadius: "0px",
+          textAlign: "left",
+        };
+        break;
+      case "lead":
+        newStyle = {
+          fontSize: "19px",
+          lineHeight: "1.75",
+          fontFamily: "inherit",
+          color: "#0f172a",
+          fontWeight: "500",
+          backgroundColor: "transparent",
+          padding: "0px",
+          borderRadius: "0px",
+          textAlign: "left",
+        };
+        break;
+      case "editorial":
+        newStyle = {
+          fontSize: "17px",
+          lineHeight: "1.8",
+          fontFamily: "'Merriweather', 'Georgia', serif",
+          color: "#1e293b",
+          backgroundColor: "transparent",
+          padding: "0px",
+          borderRadius: "0px",
+          textAlign: "left",
+        };
+        break;
+      case "tip":
+        newStyle = {
+          fontSize: "15px",
+          lineHeight: "1.65",
+          fontFamily: "inherit",
+          color: "#064e3b",
+          backgroundColor: "#f0fdf4",
+          padding: "16px 20px",
+          borderRadius: "0 12px 12px 0",
+          textAlign: "left",
+        };
+        break;
+      case "alert":
+        newStyle = {
+          fontSize: "15px",
+          lineHeight: "1.65",
+          fontFamily: "inherit",
+          color: "#78350f",
+          backgroundColor: "#fffbeb",
+          padding: "16px 20px",
+          borderRadius: "0 12px 12px 0",
+          textAlign: "left",
+        };
+        break;
+      case "card":
+        newStyle = {
+          fontSize: "15px",
+          lineHeight: "1.65",
+          fontFamily: "inherit",
+          color: "#334155",
+          backgroundColor: "#f8fafc",
+          padding: "18px 20px",
+          borderRadius: "14px",
+          textAlign: "left",
+        };
+        break;
+      case "footnote":
+        newStyle = {
+          fontSize: "12px",
+          lineHeight: "1.5",
+          fontFamily: "inherit",
+          color: "#64748b",
+          backgroundColor: "transparent",
+          padding: "4px 0",
+          borderRadius: "0px",
+          textAlign: "left",
+        };
+        break;
+    }
+
+    setBlocks((prev) =>
+      prev.map((b) => {
+        if (b.id !== blockId) return b;
+        return {
+          ...b,
+          style: {
+            ...b.style,
+            ...newStyle,
+          },
+        };
+      })
+    );
+  };
+
+  const applyFormatToSelection = (
+    blockId: string,
+    format: "bold" | "italic" | "underline" | "code" | "highlight" | "strike"
+  ) => {
+    if (format === "highlight") {
+      applyHighlight(blockId);
+      return;
+    }
+
+    const sel = typeof window !== "undefined" ? window.getSelection() : null;
+    if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
+      if (format === "bold") {
+        document.execCommand("bold", false);
+      } else if (format === "italic") {
+        document.execCommand("italic", false);
+      } else if (format === "underline") {
+        document.execCommand("underline", false);
+      } else if (format === "strike") {
+        document.execCommand("strikeThrough", false);
+      } else if (format === "code") {
+        try {
+          const range = sel.getRangeAt(0);
+          const codeEl = document.createElement("code");
+          codeEl.style.backgroundColor = "#f1f5f9";
+          codeEl.style.color = "#0f766e";
+          codeEl.style.padding = "2px 5px";
+          codeEl.style.borderRadius = "4px";
+          codeEl.style.fontFamily = "monospace";
+          codeEl.style.fontSize = "0.9em";
+          range.surroundContents(codeEl);
+        } catch (_) {}
+      }
+
+      const el = document.getElementById(`editor-${blockId}`);
+      if (el) {
+        updateBlockContent(blockId, el.innerHTML);
+      }
+      return;
+    }
+
+    // Fallback: format full block content
     setBlocks((prev) =>
       prev.map((b) => {
         if (b.id !== blockId) return b;
         const text = b.content || "";
+        if (!text) return b;
         let newContent = text;
         if (format === "bold") newContent = `<strong>${text}</strong>`;
         else if (format === "italic") newContent = `<em>${text}</em>`;
         else if (format === "underline") newContent = `<u>${text}</u>`;
-        else if (format === "code") newContent = `<code>${text}</code>`;
-        else if (format === "highlight")
-          newContent = `<mark style="background-color: #fef08a; padding: 2px 6px; border-radius: 4px;">${text}</mark>`;
+        else if (format === "strike") newContent = `<s>${text}</s>`;
+        else if (format === "code")
+          newContent = `<code style="background:#f1f5f9;color:#0f766e;padding:2px 5px;border-radius:4px;font-family:monospace;">${text}</code>`;
         return { ...b, content: newContent };
       })
     );
@@ -1337,6 +1733,69 @@ export default function ITBlogsPage() {
         ),
         createBlock("link", "Explore complete bank rate comparison matrix and partner discounts"),
         createBlock("button", "Apply With Partner Rate Discount"),
+      ];
+    } else if (templateKey === "iphone_deal") {
+      setBlogTitle("Apple iPhone Air price drops by over Rs 30,000 after recent price hike: Check platform and deal");
+      setBlogSubtitle("Following official price hikes in India, Amazon has rolled out limited-time massive discounts of nearly ₹50,000 off revised retail prices.");
+      setBlogCategory("Tech Deals");
+      setCoverImage("https://images.unsplash.com/photo-1510557880182-3d4d3cba35a5?q=80&w=1200");
+      setBlogTags(["iPhoneAir", "AppleIndia", "AmazonDeals", "PriceDrop", "FestiveSale", "Smartphones"]);
+      tBlocks = [
+        createBlock("table_of_contents"),
+        createBlock("alert", "Limited-Time Flash Deal: Amazon India has dropped prices by over ₹30,000 below original launch levels with instant bank card discounts while stocks last."),
+        createBlock("heading", "Apple iPhone Air: Price Drop & Deal Breakdown"),
+        createBlock(
+          "text",
+          "Following the launch of Apple's latest generation flagship devices, retail prices in India saw sharp revisions. The <strong>iPhone Air</strong>, which saw one of the steepest hikes, had its official retail price raised by <strong>Rs 30,000</strong>, reaching <strong>Rs 1,49,900</strong> for the base variant. However, in a surprising festive concession, e-commerce giant <mark style=\"background-color: #fef08a; color: #854d0e; padding: 2px 6px; border-radius: 4px; font-weight: 600;\">Amazon has dropped the price by over Rs 30,000</mark>, bringing the net deal price to just <strong>Rs 99,990</strong>!"
+        ),
+        createBlock("image", "https://images.unsplash.com/photo-1592750475338-74b7b21085ab?q=80&w=1200"),
+        createBlock("heading", "Official MRP vs. Amazon Deal Price Comparison"),
+        {
+          ...createBlock("table"),
+          tableData: {
+            headers: ["Platform / Offer Type", "Official Listed MRP", "Deal Effective Price", "Total Savings"],
+            rows: [
+              ["Official Apple Store India", "₹1,49,900", "₹1,49,900", "Standard Official MRP"],
+              ["Amazon India Flash Deal", "₹1,49,900", "₹99,990", "₹49,910 Flat Price Drop"],
+              ["Select Bank Credit Cards", "₹99,990", "₹96,990", "Extra ₹3,000 Instant Off"],
+              ["Old Device Trade-In (Max)", "₹96,990", "Up to ₹63,790", "Up to ₹33,200 Exchange Value"],
+            ],
+            hasHeader: true,
+            isStriped: true,
+          }
+        },
+        createBlock("heading", "Why Did the Price Spike & What Prompted the Discount?"),
+        createBlock(
+          "text",
+          "The initial price surge was driven by rising global component costs, especially high-bandwidth memory chips and camera optics, compounded by import duties. Nevertheless, strong festive competition between Amazon and Flipkart has motivated aggressive promotional subsidies to retain premium smartphone buyers."
+        ),
+        {
+          ...createBlock("icon_list"),
+          title: "Key Deal Takeaways & Buying Advice",
+          items: [
+            { id: "1", title: "Flat price reduction of nearly ₹50,000 below revised retail MRP on Amazon", icon: "check_circle" },
+            { id: "2", title: "Additional ₹3,000 instant discount on select HDFC, ICICI & SBI cards", icon: "credit_card" },
+            { id: "3", title: "Exchange trade-in bonuses available up to ₹33,200 for eligible phones", icon: "swap_horiz" },
+            { id: "4", title: "No-cost EMI plans available for up to 12 months with ₹0 down payment", icon: "payments" },
+          ]
+        },
+        {
+          ...createBlock("cta", "E-commerce platform inventory fluctuates rapidly during flash promotions. Secure your order before pricing reverts to standard retail rates."),
+          title: "Ready to Claim the iPhone Air Deal?",
+          buttonText: "Check Live Deal on Amazon ↗",
+          url: "https://www.amazon.in",
+          openInNewTab: true,
+        },
+        {
+          ...createBlock("sidebar"),
+          title: "Study Abroad Tech & Device Financing",
+          content: "Heading abroad for your degree? VidyaLoan provides zero-collateral student technology grants and living allowance financing.",
+        },
+        {
+          ...createBlock("tags"),
+          title: "Article Tags & Topics",
+          tags: ["iPhoneAir", "AppleIndia", "AmazonDeals", "PriceDrop", "FestiveSale", "Smartphones2026"],
+        }
       ];
     } else if (templateKey === "visa_checklist") {
       tBlocks = [
@@ -2584,93 +3043,6 @@ export default function ITBlogsPage() {
             </div>
           </div>
 
-          {/* DYNAMIC #TAGS INTERACTIVE BAR */}
-          <div className="bg-[#18181f] text-white px-4 py-2 border-b border-slate-800 flex items-center justify-between gap-3 text-xs flex-wrap z-10 shrink-0">
-            <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
-              <div className="flex items-center gap-1 text-slate-400 font-bold uppercase tracking-wider text-[10px] shrink-0">
-                <span className="material-symbols-outlined text-[15px] text-[#E21B5A]">tag</span>
-                <span>#Tags ({blogTags.length}):</span>
-              </div>
-
-              {/* Render Current Tag Chips */}
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {blogTags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-slate-800 hover:bg-slate-700 text-rose-300 rounded-full text-[11px] font-bold border border-rose-500/30 transition-all shadow-xs"
-                  >
-                    <span>#{tag}</span>
-                    <button
-                      type="button"
-                      onClick={() => removeTag(tag)}
-                      className="w-3.5 h-3.5 rounded-full hover:bg-rose-500 hover:text-white flex items-center justify-center text-[10px] text-slate-400 transition-colors cursor-pointer"
-                      title="Remove tag"
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
-
-              {/* Tag Input Field */}
-              <div className="flex items-center gap-1 bg-slate-900 border border-slate-700 rounded-full px-2.5 py-0.5 focus-within:border-rose-400">
-                <span className="text-slate-500 text-[11px] font-bold">#</span>
-                <input
-                  type="text"
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === ",") {
-                      e.preventDefault();
-                      addTag(tagInput);
-                    }
-                  }}
-                  placeholder="Type #tag & Enter..."
-                  className="bg-transparent text-[11px] text-white placeholder-slate-500 focus:outline-none w-32"
-                />
-                {tagInput && (
-                  <button
-                    type="button"
-                    onClick={() => addTag(tagInput)}
-                    className="text-[10px] bg-[#E21B5A] hover:bg-[#C9134D] text-white px-2 py-0.5 rounded-full font-bold cursor-pointer"
-                  >
-                    Add
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Quick Popular Tag Presets */}
-            <div className="hidden lg:flex items-center gap-1.5 text-[10px] text-slate-400 shrink-0">
-              <span className="text-slate-500 font-bold uppercase tracking-wider text-[9px]">Popular:</span>
-              {[
-                "EducationLoan",
-                "StudyAbroad",
-                "VisaGuidance",
-                "HDFCBank",
-                "SBILoans",
-                "Scholarships",
-                "TaxBenefits",
-              ].map((preset) => {
-                const isAdded = blogTags.includes(preset);
-                return (
-                  <button
-                    key={preset}
-                    type="button"
-                    onClick={() => (isAdded ? removeTag(preset) : addTag(preset))}
-                    className={`px-2 py-0.5 rounded-md transition-all cursor-pointer font-semibold ${
-                      isAdded
-                        ? "bg-rose-500/20 text-rose-300 border border-rose-500/40"
-                        : "bg-slate-800 text-slate-400 hover:text-white border border-slate-700"
-                    }`}
-                  >
-                    {isAdded ? "✓" : "+"} #{preset}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
           {/* CONTEXTUAL ELEMENTOR 3-TAB INSPECTOR BAR */}
           <div className="bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between gap-4 overflow-x-auto shadow-xs shrink-0 z-10">
             {selectedBlock ? (
@@ -3468,6 +3840,21 @@ export default function ITBlogsPage() {
                 {leftDockTab === "templates" && (
                   <div className="space-y-3">
                     <div
+                      onClick={() => applyTemplate("iphone_deal")}
+                      className="p-3.5 bg-gradient-to-br from-rose-50 via-amber-50 to-orange-50 border border-rose-200 hover:border-rose-500 rounded-2xl cursor-pointer transition-all hover:shadow-md group"
+                    >
+                      <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 bg-[#E21B5A] text-white rounded">
+                        Hot Deal Kit
+                      </span>
+                      <h5 className="text-xs font-bold text-slate-900 mt-1.5 group-hover:text-rose-600">
+                        Apple iPhone Air Price Drop Deal
+                      </h5>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Breakdown + Pricing Table + Amazon Live CTA + Dynamic Tags
+                      </p>
+                    </div>
+
+                    <div
                       onClick={() => applyTemplate("education_guide")}
                       className="p-3.5 bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-200 hover:border-indigo-500 rounded-2xl cursor-pointer transition-all hover:shadow-md group"
                     >
@@ -3904,16 +4291,171 @@ export default function ITBlogsPage() {
                                   {block.url || "/apply"} &rarr;
                                 </span>
                               </div>
-                            ) : /* BLOCK TYPE: BUTTON WITH LINK */
-                            block.type === "button" ? (
-                                <div className="my-2 flex flex-col sm:flex-row sm:items-center gap-2">
-                                  <button
-                                    type="button"
-                                    className="px-6 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl font-bold text-xs shadow-md transition-all cursor-pointer"
-                                  >
-                                    {block.content || "Click Here"}
-                                  </button>
+                            ) : /* BLOCK TYPE: DEDICATED TAGS / TOPICS WIDGET */
+                            block.type === "tags" ? (
+                              <div className="p-4 my-2 rounded-2xl border border-slate-200 bg-slate-50/70 space-y-3">
+                                <div className="flex items-center justify-between border-b border-slate-200/80 pb-2 flex-wrap gap-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="material-symbols-outlined text-[18px] text-[#E21B5A]">label</span>
+                                    <input
+                                      type="text"
+                                      value={block.title || "Related Topics & Keywords"}
+                                      onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
+                                      className="font-black text-xs text-slate-800 bg-transparent border-none focus:outline-none"
+                                      placeholder="Widget Title (e.g. Tags & Topics)..."
+                                    />
+                                  </div>
+                                  <div className="flex items-center gap-1.5 text-[10px]">
+                                    <span className="text-slate-400 font-semibold font-mono">{(block.tags || []).length} tags</span>
+                                  </div>
                                 </div>
+
+                                {/* Interactive Tag Pills */}
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  {(block.tags || []).map((tag, tagIdx) => (
+                                    <span
+                                      key={tag + tagIdx}
+                                      className="inline-flex items-center gap-1 px-3 py-1 bg-white hover:bg-slate-100 text-slate-800 rounded-full text-xs font-bold border border-slate-200 shadow-2xs transition-all group/tag"
+                                    >
+                                      <span className="text-indigo-600 font-black">#</span>
+                                      <span>{tag}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => removeBlockTag(block.id, tag)}
+                                        className="w-3.5 h-3.5 rounded-full hover:bg-rose-500 hover:text-white flex items-center justify-center text-[10px] text-slate-400 transition-colors cursor-pointer ml-0.5"
+                                        title="Remove tag"
+                                      >
+                                        ×
+                                      </button>
+                                    </span>
+                                  ))}
+
+                                  {/* Add new tag inline */}
+                                  <div className="inline-flex items-center gap-1 bg-white border border-dashed border-slate-300 rounded-full px-2.5 py-0.5 focus-within:border-indigo-500">
+                                    <span className="text-indigo-400 text-xs font-bold">#</span>
+                                    <input
+                                      type="text"
+                                      placeholder="Add tag & Enter..."
+                                      className="bg-transparent text-xs text-slate-800 placeholder-slate-400 focus:outline-none w-28 py-0.5"
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter" || e.key === ",") {
+                                          e.preventDefault();
+                                          const val = e.currentTarget.value.trim();
+                                          if (val) {
+                                            addBlockTag(block.id, val);
+                                            e.currentTarget.value = "";
+                                          }
+                                        }
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+
+                                {/* Popular Tag Suggestions */}
+                                <div className="pt-1 flex items-center gap-1.5 text-[10px] text-slate-500 flex-wrap">
+                                  <span className="font-bold text-[9px] uppercase tracking-wider text-slate-400">Suggestions:</span>
+                                  {[
+                                    "iPhoneAir",
+                                    "AppleIndia",
+                                    "AmazonDeals",
+                                    "PriceDrop",
+                                    "TechNews",
+                                    "EducationLoan",
+                                    "StudyAbroad",
+                                    "Smartphones2026",
+                                  ].map((preset) => {
+                                    const hasIt = (block.tags || []).includes(preset);
+                                    return (
+                                      <button
+                                        key={preset}
+                                        type="button"
+                                        onClick={() => (hasIt ? removeBlockTag(block.id, preset) : addBlockTag(block.id, preset))}
+                                        className={`px-2 py-0.5 rounded-md font-semibold text-[10px] transition-all cursor-pointer ${
+                                          hasIt
+                                            ? "bg-indigo-100 text-indigo-700 border border-indigo-300"
+                                            : "bg-white text-slate-600 hover:text-slate-900 border border-slate-200"
+                                        }`}
+                                      >
+                                        {hasIt ? "✓" : "+"} #{preset}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            ) : /* BLOCK TYPE: BUTTON WITH LINK (FULLY DYNAMIC) */
+                            block.type === "button" ? (
+                              <div className="my-2 p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
+                                <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                                  <input
+                                    type="text"
+                                    value={block.content || ""}
+                                    onChange={(e) => updateBlockContent(block.id, e.target.value)}
+                                    placeholder="Button Label (e.g. Check Live Deal on Amazon)..."
+                                    className="flex-1 font-bold text-xs text-slate-800 bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-indigo-500"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={block.url || ""}
+                                    onChange={(e) => updateBlockData(block.id, { url: e.target.value, link: e.target.value })}
+                                    placeholder="https://... or /apply"
+                                    className="w-full sm:w-48 font-mono text-xs text-indigo-700 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-indigo-500"
+                                  />
+                                </div>
+                                <div className="flex items-center justify-between gap-2 flex-wrap text-[11px]">
+                                  <div className="flex items-center gap-2">
+                                    <label className="flex items-center gap-1 font-medium text-slate-600 cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={block.openInNewTab !== false}
+                                        onChange={(e) => updateBlockData(block.id, { openInNewTab: e.target.checked })}
+                                        className="rounded text-indigo-600 cursor-pointer"
+                                      />
+                                      <span>Open in new tab (↗)</span>
+                                    </label>
+                                  </div>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-slate-400 font-bold uppercase text-[9px]">Style:</span>
+                                    {[
+                                      { key: "gradient", label: "Gradient", cls: "bg-gradient-to-r from-indigo-600 to-purple-600 text-white" },
+                                      { key: "deal", label: "Deal Flash", cls: "bg-gradient-to-r from-[#E21B5A] to-rose-600 text-white" },
+                                      { key: "emerald", label: "Emerald", cls: "bg-emerald-600 text-white" },
+                                      { key: "outline", label: "Outline", cls: "border-2 border-indigo-600 text-indigo-600 bg-transparent" },
+                                    ].map((st) => (
+                                      <button
+                                        key={st.key}
+                                        type="button"
+                                        onClick={() => updateBlockData(block.id, { linkStyle: st.key as any })}
+                                        className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-all ${
+                                          (block.linkStyle || "gradient") === st.key ? "ring-2 ring-indigo-500 font-black shadow-2xs" : "opacity-70 hover:opacity-100"
+                                        } ${st.cls}`}
+                                      >
+                                        {st.label}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                                {/* Live Preview of the Button */}
+                                <div className="pt-1 flex items-center justify-start">
+                                  <a
+                                    href={block.url || "#"}
+                                    target={block.openInNewTab !== false ? "_blank" : "_self"}
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.preventDefault()}
+                                    className={`px-6 py-2.5 rounded-xl font-bold text-xs shadow-md transition-all inline-flex items-center gap-1.5 cursor-pointer ${
+                                      block.linkStyle === "deal"
+                                        ? "bg-gradient-to-r from-[#E21B5A] to-rose-600 text-white hover:from-rose-600 hover:to-rose-700"
+                                        : block.linkStyle === "emerald"
+                                        ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                                        : block.linkStyle === "outline"
+                                        ? "border-2 border-indigo-600 text-indigo-600 bg-white hover:bg-indigo-50"
+                                        : "bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700"
+                                    }`}
+                                  >
+                                    <span>{block.content || "Click Here"}</span>
+                                    <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                                  </a>
+                                </div>
+                              </div>
                             ) : /* BLOCK TYPE: CALL TO ACTION (CTA CARD) */
                             block.type === "cta" ? (
                               <div className="p-6 my-2 bg-gradient-to-r from-indigo-50 via-purple-50 to-rose-50 border border-indigo-200 rounded-2xl shadow-xs space-y-3">
@@ -4453,23 +4995,67 @@ export default function ITBlogsPage() {
                                   />
                                 </div>
                               </div>
-                            ) : /* BLOCK TYPE: SOCIAL ICONS */
+                            ) : /* BLOCK TYPE: SOCIAL ICONS (DYNAMIC) */
                             block.type === "social_icons" ? (
-                              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
-                                <input
-                                  type="text"
-                                  value={block.title || "Follow Us"}
-                                  onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
-                                  className="text-xs font-bold text-slate-700 bg-transparent border-none focus:outline-none"
-                                />
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  {(block.items || []).map((item, i) => (
-                                    <div
-                                      key={item.id || i}
-                                      className="px-3 py-1.5 bg-white border border-slate-200 hover:border-indigo-400 rounded-xl text-xs font-bold text-slate-800 flex items-center gap-1.5 shadow-2xs hover:text-indigo-600 transition-colors"
-                                    >
-                                      <span className="material-symbols-outlined text-[16px] text-indigo-600">{item.icon || "share"}</span>
-                                      <span>{item.title}</span>
+                              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                                <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
+                                  <input
+                                    type="text"
+                                    value={block.title || "Follow Us & Share"}
+                                    onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
+                                    className="text-xs font-bold text-slate-800 bg-transparent border-none focus:outline-none"
+                                    placeholder="Section Title..."
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const next = [...(block.items || []), { id: Date.now().toString(), title: "X (Twitter)", url: "https://x.com", icon: "share" }];
+                                      updateBlockData(block.id, { items: next });
+                                    }}
+                                    className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                                  >
+                                    + Add Platform
+                                  </button>
+                                </div>
+                                <div className="space-y-2">
+                                  {(block.items || [
+                                    { id: "1", title: "X (Twitter)", url: "https://x.com", icon: "share" },
+                                    { id: "2", title: "LinkedIn", url: "https://linkedin.com", icon: "share" }
+                                  ]).map((item, i) => (
+                                    <div key={item.id || i} className="flex items-center gap-2 bg-white p-2 rounded-xl border border-slate-200 shadow-2xs">
+                                      <span className="material-symbols-outlined text-[16px] text-indigo-600 shrink-0">{item.icon || "share"}</span>
+                                      <input
+                                        type="text"
+                                        value={item.title}
+                                        onChange={(e) => {
+                                          const next = [...(block.items || [])];
+                                          next[i] = { ...next[i], title: e.target.value };
+                                          updateBlockData(block.id, { items: next });
+                                        }}
+                                        className="font-bold text-xs text-slate-800 bg-transparent border-none focus:outline-none w-28"
+                                        placeholder="Platform Name..."
+                                      />
+                                      <input
+                                        type="text"
+                                        value={item.url || ""}
+                                        onChange={(e) => {
+                                          const next = [...(block.items || [])];
+                                          next[i] = { ...next[i], url: e.target.value };
+                                          updateBlockData(block.id, { items: next });
+                                        }}
+                                        className="flex-1 font-mono text-[11px] text-slate-600 bg-slate-50 px-2 py-1 rounded border border-slate-100 focus:outline-none"
+                                        placeholder="Profile or Page URL..."
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const next = (block.items || []).filter((_, idx) => idx !== i);
+                                          updateBlockData(block.id, { items: next });
+                                        }}
+                                        className="text-slate-400 hover:text-rose-600 p-1 cursor-pointer"
+                                      >
+                                        <span className="material-symbols-outlined text-[14px]">close</span>
+                                      </button>
                                     </div>
                                   ))}
                                 </div>
@@ -4526,31 +5112,123 @@ export default function ITBlogsPage() {
                                   ))}
                                 </div>
                               </div>
-                            ) : /* BLOCK TYPE: IMAGE CAROUSEL */
+                            ) : /* BLOCK TYPE: IMAGE CAROUSEL (FULLY DYNAMIC) */
                             block.type === "image_carousel" ? (
                               <div className="p-4 bg-slate-900 text-white rounded-2xl space-y-3 shadow-md">
                                 <div className="flex items-center justify-between text-xs font-bold text-slate-300">
-                                  <span className="flex items-center gap-1">
+                                  <div className="flex items-center gap-1.5">
                                     <span className="material-symbols-outlined text-[16px] text-rose-400">view_carousel</span>
-                                    {block.title || "Rotating Image Carousel"}
-                                  </span>
-                                  <span className="text-[10px] text-slate-400 font-mono">{(block.items || []).length} Slides</span>
-                                </div>
-                                {(block.items || []).length > 0 && (
-                                  <div className="relative rounded-xl overflow-hidden aspect-21/9 bg-slate-800">
-                                    <img
-                                      src={block.items?.[0]?.url || "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?q=80&w=800"}
-                                      alt="Carousel"
-                                      className="w-full h-full object-cover"
+                                    <input
+                                      type="text"
+                                      value={block.title || "Rotating Image Carousel"}
+                                      onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
+                                      className="font-bold text-xs text-white bg-transparent border-none focus:outline-none"
                                     />
-                                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent flex items-end p-4">
-                                      <div>
-                                        <p className="text-sm font-bold text-white">{block.items?.[0]?.title}</p>
-                                        <p className="text-xs text-slate-300">{block.items?.[0]?.content}</p>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const curItems = block.items && block.items.length > 0 ? block.items : [{ id: "1", title: "Slide 1", content: "Details", url: "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?q=80&w=800" }];
+                                        const next = [...curItems, { id: Date.now().toString(), title: `Slide ${curItems.length + 1}`, content: "Description", url: "https://images.unsplash.com/photo-1523240795612-9a054b0db644?q=80&w=800" }];
+                                        updateBlockData(block.id, { items: next, activeSlideIndex: next.length - 1 });
+                                      }}
+                                      className="px-2 py-0.5 bg-rose-600 hover:bg-rose-700 text-white rounded text-[10px] font-bold cursor-pointer"
+                                    >
+                                      + Add Slide
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {(() => {
+                                  const slides = (block.items && block.items.length > 0) ? block.items : [
+                                    { id: "1", title: "Global Campus View", content: "World-class university infrastructure", url: "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?q=80&w=800" },
+                                    { id: "2", title: "Advanced Research Labs", content: "Cutting edge technology facilities", url: "https://images.unsplash.com/photo-1523240795612-9a054b0db644?q=80&w=800" }
+                                  ];
+                                  const curIdx = Math.min(Math.max(0, block.activeSlideIndex || 0), slides.length - 1);
+                                  const curSlide = slides[curIdx];
+
+                                  return (
+                                    <div className="space-y-3">
+                                      <div className="relative rounded-xl overflow-hidden aspect-21/9 bg-slate-800">
+                                        <img src={curSlide.url} alt={curSlide.title} className="w-full h-full object-cover" />
+                                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/20 to-transparent flex items-end justify-between p-4">
+                                          <div className="flex-1 mr-4">
+                                            <input
+                                              type="text"
+                                              value={curSlide.title}
+                                              onChange={(e) => {
+                                                const next = [...slides];
+                                                next[curIdx] = { ...next[curIdx], title: e.target.value };
+                                                updateBlockData(block.id, { items: next });
+                                              }}
+                                              className="text-sm font-bold text-white bg-transparent border-none focus:outline-none w-full mb-1"
+                                              placeholder="Slide Headline..."
+                                            />
+                                            <input
+                                              type="text"
+                                              value={curSlide.content || ""}
+                                              onChange={(e) => {
+                                                const next = [...slides];
+                                                next[curIdx] = { ...next[curIdx], content: e.target.value };
+                                                updateBlockData(block.id, { items: next });
+                                              }}
+                                              className="text-xs text-slate-300 bg-transparent border-none focus:outline-none w-full"
+                                              placeholder="Slide Subtitle..."
+                                            />
+                                          </div>
+                                          {/* Slide Controls */}
+                                          <div className="flex items-center gap-1.5 shrink-0 bg-black/40 backdrop-blur-xs p-1 rounded-xl">
+                                            <button
+                                              type="button"
+                                              onClick={() => updateBlockData(block.id, { activeSlideIndex: (curIdx - 1 + slides.length) % slides.length })}
+                                              className="w-7 h-7 rounded-lg bg-white/20 hover:bg-white/40 flex items-center justify-center cursor-pointer transition-colors"
+                                              title="Previous Slide"
+                                            >
+                                              <span className="material-symbols-outlined text-sm">arrow_back</span>
+                                            </button>
+                                            <span className="text-[10px] font-mono px-1 font-bold">{curIdx + 1} / {slides.length}</span>
+                                            <button
+                                              type="button"
+                                              onClick={() => updateBlockData(block.id, { activeSlideIndex: (curIdx + 1) % slides.length })}
+                                              className="w-7 h-7 rounded-lg bg-white/20 hover:bg-white/40 flex items-center justify-center cursor-pointer transition-colors"
+                                              title="Next Slide"
+                                            >
+                                              <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      {/* Slide Image URL & Delete controls */}
+                                      <div className="flex items-center gap-2 text-xs">
+                                        <input
+                                          type="text"
+                                          value={curSlide.url}
+                                          onChange={(e) => {
+                                            const next = [...slides];
+                                            next[curIdx] = { ...next[curIdx], url: e.target.value };
+                                            updateBlockData(block.id, { items: next });
+                                          }}
+                                          className="flex-1 font-mono text-[11px] px-2.5 py-1 bg-slate-800 border border-slate-700 rounded-lg text-slate-300 focus:outline-none"
+                                          placeholder="Image URL for this slide..."
+                                        />
+                                        {slides.length > 1 && (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const next = slides.filter((_, i) => i !== curIdx);
+                                              updateBlockData(block.id, { items: next, activeSlideIndex: Math.max(0, curIdx - 1) });
+                                            }}
+                                            className="px-2 py-1 bg-rose-600/30 hover:bg-rose-600 text-rose-200 hover:text-white rounded-lg text-[10px] font-bold transition-colors cursor-pointer"
+                                          >
+                                            Delete Slide
+                                          </button>
+                                        )}
                                       </div>
                                     </div>
-                                  </div>
-                                )}
+                                  );
+                                })()}
                               </div>
                             ) : /* BLOCK TYPE: ICON LIST */
                             block.type === "icon_list" ? (
@@ -4630,73 +5308,160 @@ export default function ITBlogsPage() {
                                   />
                                 )}
                               </div>
-                            ) : /* BLOCK TYPE: NESTED TABS */
+                            ) : /* BLOCK TYPE: NESTED TABS (FULLY DYNAMIC) */
                             block.type === "nested_tabs" ? (
                               <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
-                                <div className="flex items-center gap-1.5 border-b border-slate-200 pb-2 overflow-x-auto">
-                                  {(block.items || []).map((tab, idx) => (
-                                    <button
-                                      key={tab.id || idx}
-                                      type="button"
-                                      onClick={() => updateBlockData(block.id, { value: idx })}
-                                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
-                                        (Number(block.value) || 0) === idx
-                                          ? "bg-indigo-600 text-white shadow-xs"
-                                          : "bg-white text-slate-700 hover:bg-slate-100"
-                                      }`}
-                                    >
-                                      {tab.title}
-                                    </button>
-                                  ))}
-                                </div>
-                                <div className="p-3 bg-white border border-slate-200 rounded-xl">
-                                  <textarea
-                                    value={block.items?.[Number(block.value) || 0]?.content || ""}
-                                    onChange={(e) => {
-                                      const curIdx = Number(block.value) || 0;
-                                      const nextItems = [...(block.items || [])];
-                                      if (nextItems[curIdx]) {
-                                        nextItems[curIdx] = { ...nextItems[curIdx], content: e.target.value };
-                                        updateBlockData(block.id, { items: nextItems });
-                                      }
-                                    }}
-                                    rows={3}
-                                    className="w-full text-xs text-slate-700 bg-transparent border-none focus:outline-none resize-y leading-relaxed"
-                                    placeholder="Tab content..."
-                                  />
-                                </div>
-                              </div>
-                            ) : /* BLOCK TYPE: NESTED ACCORDION */
-                            block.type === "nested_accordion" ? (
-                              <div className="p-4 bg-white border border-slate-200 rounded-2xl space-y-2">
-                                <input
-                                  type="text"
-                                  value={block.title || "FAQ Accordion"}
-                                  onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
-                                  className="text-xs font-bold text-slate-800 bg-transparent border-none focus:outline-none"
-                                />
-                                <div className="space-y-2">
-                                  {(block.items || []).map((acc, idx) => (
-                                    <details key={acc.id || idx} className="group border border-slate-200 rounded-xl bg-slate-50/50 overflow-hidden" open={idx === 0}>
-                                      <summary className="p-3 text-xs font-bold text-slate-800 cursor-pointer flex items-center justify-between">
-                                        <span>{acc.title}</span>
-                                        <span className="material-symbols-outlined text-[16px] group-open:rotate-180 transition-transform">
-                                          expand_more
-                                        </span>
-                                      </summary>
-                                      <div className="p-3 pt-0 text-xs text-slate-600 border-t border-slate-100 bg-white">
+                                {(() => {
+                                  const tabs = (block.items && block.items.length > 0) ? block.items : [
+                                    { id: "1", title: "Overview", content: "Comprehensive overview of the deal structure and bank rate terms." },
+                                    { id: "2", title: "Eligibility", content: "Minimum qualification, co-applicant documentation and approval process." }
+                                  ];
+                                  const activeIdx = Math.min(Math.max(0, Number(block.value) || 0), tabs.length - 1);
+
+                                  return (
+                                    <>
+                                      <div className="flex items-center justify-between border-b border-slate-200 pb-2 gap-2 flex-wrap">
+                                        <div className="flex items-center gap-1.5 overflow-x-auto flex-1">
+                                          {tabs.map((tab, idx) => (
+                                            <button
+                                              key={tab.id || idx}
+                                              type="button"
+                                              onClick={() => updateBlockData(block.id, { value: idx, items: tabs })}
+                                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                                                activeIdx === idx
+                                                  ? "bg-indigo-600 text-white shadow-xs"
+                                                  : "bg-white text-slate-700 hover:bg-slate-100 border border-slate-200"
+                                              }`}
+                                            >
+                                              {tab.title}
+                                            </button>
+                                          ))}
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const next = [...tabs, { id: Date.now().toString(), title: `Tab ${tabs.length + 1}`, content: "New tab content..." }];
+                                              updateBlockData(block.id, { items: next, value: next.length - 1 });
+                                            }}
+                                            className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[10px] font-bold cursor-pointer"
+                                          >
+                                            + Add Tab
+                                          </button>
+                                          {tabs.length > 1 && (
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                const next = tabs.filter((_, i) => i !== activeIdx);
+                                                updateBlockData(block.id, { items: next, value: Math.max(0, activeIdx - 1) });
+                                              }}
+                                              className="px-2 py-1 bg-rose-50 text-rose-600 border border-rose-200 rounded text-[10px] font-bold hover:bg-rose-100 cursor-pointer"
+                                            >
+                                              Delete Tab
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-2">
+                                        <div className="flex items-center gap-2 border-b border-slate-100 pb-1.5">
+                                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Tab Title:</span>
+                                          <input
+                                            type="text"
+                                            value={tabs[activeIdx]?.title || ""}
+                                            onChange={(e) => {
+                                              const next = [...tabs];
+                                              next[activeIdx] = { ...next[activeIdx], title: e.target.value };
+                                              updateBlockData(block.id, { items: next });
+                                            }}
+                                            className="font-bold text-xs text-indigo-700 bg-transparent border-none focus:outline-none flex-1"
+                                          />
+                                        </div>
                                         <textarea
-                                          value={acc.content || ""}
+                                          value={tabs[activeIdx]?.content || ""}
                                           onChange={(e) => {
-                                            const nextItems = [...(block.items || [])];
-                                            nextItems[idx] = { ...nextItems[idx], content: e.target.value };
-                                            updateBlockData(block.id, { items: nextItems });
+                                            const next = [...tabs];
+                                            next[activeIdx] = { ...next[activeIdx], content: e.target.value };
+                                            updateBlockData(block.id, { items: next });
                                           }}
-                                          rows={2}
-                                          className="w-full bg-transparent border-none focus:outline-none text-xs resize-y"
+                                          rows={3}
+                                          className="w-full text-xs text-slate-700 bg-transparent border-none focus:outline-none resize-y leading-relaxed"
+                                          placeholder="Enter tab description content..."
                                         />
                                       </div>
-                                    </details>
+                                    </>
+                                  );
+                                })()}
+                              </div>
+                            ) : /* BLOCK TYPE: NESTED ACCORDION (DYNAMIC) */
+                            block.type === "nested_accordion" ? (
+                              <div className="p-4 bg-white border border-slate-200 rounded-2xl space-y-3">
+                                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                                  <input
+                                    type="text"
+                                    value={block.title || "Frequently Asked Questions"}
+                                    onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
+                                    className="text-xs font-bold text-slate-800 bg-transparent border-none focus:outline-none flex-1"
+                                    placeholder="Accordion Section Title..."
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const curItems = block.items && block.items.length > 0 ? block.items : [
+                                        { id: "1", title: "Is this deal available on all colors?", content: "Yes, standard titanium and silver variants qualify for the instant bank discount." }
+                                      ];
+                                      const next = [...curItems, { id: Date.now().toString(), title: "New Question / Topic", content: "Detailed explanation or answer..." }];
+                                      updateBlockData(block.id, { items: next });
+                                    }}
+                                    className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[10px] font-bold cursor-pointer"
+                                  >
+                                    + Add Item
+                                  </button>
+                                </div>
+                                <div className="space-y-2">
+                                  {((block.items && block.items.length > 0) ? block.items : [
+                                    { id: "1", title: "How long is this limited deal active?", content: "The flash pricing is subject to stock quotas on Amazon India and may conclude without advance notice." },
+                                    { id: "2", title: "Can I combine credit card discounts with exchange?", content: "Yes, Amazon allows combining select bank card instant discounts with eligible exchange bonuses." }
+                                  ]).map((acc, idx) => (
+                                    <div key={acc.id || idx} className="border border-slate-200 rounded-xl bg-slate-50/50 p-2.5 space-y-1.5">
+                                      <div className="flex items-center justify-between gap-2">
+                                        <input
+                                          type="text"
+                                          value={acc.title}
+                                          onChange={(e) => {
+                                            const items = block.items || [];
+                                            const next = [...items];
+                                            next[idx] = { ...next[idx], title: e.target.value };
+                                            updateBlockData(block.id, { items: next });
+                                          }}
+                                          className="font-bold text-xs text-slate-900 bg-transparent border-none focus:outline-none flex-1"
+                                          placeholder="Question title..."
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const items = block.items || [];
+                                            const next = items.filter((_, i) => i !== idx);
+                                            updateBlockData(block.id, { items: next });
+                                          }}
+                                          className="text-slate-400 hover:text-rose-600 p-0.5 cursor-pointer"
+                                        >
+                                          <span className="material-symbols-outlined text-[13px]">close</span>
+                                        </button>
+                                      </div>
+                                      <textarea
+                                        value={acc.content || ""}
+                                        onChange={(e) => {
+                                          const items = block.items || [];
+                                          const next = [...items];
+                                          next[idx] = { ...next[idx], content: e.target.value };
+                                          updateBlockData(block.id, { items: next });
+                                        }}
+                                        rows={2}
+                                        className="w-full bg-white p-2 rounded-lg border border-slate-200 text-xs text-slate-700 resize-y focus:outline-none focus:border-indigo-400"
+                                        placeholder="Answer content..."
+                                      />
+                                    </div>
                                   ))}
                                 </div>
                               </div>
@@ -4754,12 +5519,80 @@ export default function ITBlogsPage() {
                                 <span className="material-symbols-outlined text-[16px] text-indigo-600">anchor</span>
                                 <span>#{block.content || "menu-anchor"}</span>
                               </div>
-                            ) : /* BLOCK TYPE: SIDEBAR */
+                            ) : /* BLOCK TYPE: SIDEBAR (DYNAMIC) */
                             block.type === "sidebar" ? (
-                              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
-                                <span className="text-[10px] font-black uppercase text-indigo-600 tracking-wider">Page Sidebar Mock</span>
-                                <h5 className="text-xs font-bold text-slate-900">{block.title || "Helpful Student Resources"}</h5>
-                                <p className="text-[11px] text-slate-500">{block.content}</p>
+                              <div className="p-4 bg-gradient-to-br from-indigo-50/60 to-purple-50/40 border border-indigo-200 rounded-2xl space-y-3">
+                                <div className="flex items-center justify-between border-b border-indigo-100 pb-2">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="material-symbols-outlined text-indigo-600 text-[18px]">view_sidebar</span>
+                                    <input
+                                      type="text"
+                                      value={block.title || "Sidebar Callout"}
+                                      onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
+                                      className="font-black text-xs text-slate-900 bg-transparent border-none focus:outline-none"
+                                      placeholder="Sidebar Title..."
+                                    />
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const next = [...(block.items || []), { id: Date.now().toString(), title: "Live Deal Page", url: "https://amazon.in" }];
+                                      updateBlockData(block.id, { items: next });
+                                    }}
+                                    className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[10px] font-bold cursor-pointer"
+                                  >
+                                    + Add Link
+                                  </button>
+                                </div>
+                                <textarea
+                                  value={block.content}
+                                  onChange={(e) => updateBlockContent(block.id, e.target.value)}
+                                  rows={2}
+                                  className="w-full text-xs text-slate-600 bg-white/70 p-2 rounded-xl border border-indigo-100 focus:outline-none resize-y"
+                                  placeholder="Sidebar overview or summary note..."
+                                />
+                                <div className="space-y-1.5">
+                                  {(block.items || [
+                                    { id: "1", title: "Compare Bank Rates", url: "/banks" },
+                                    { id: "2", title: "Calculate Monthly EMI", url: "/emi-calculator" }
+                                  ]).map((item, i) => (
+                                    <div key={item.id || i} className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-indigo-100">
+                                      <span className="text-indigo-600 text-xs">🔗</span>
+                                      <input
+                                        type="text"
+                                        value={item.title}
+                                        onChange={(e) => {
+                                          const next = [...(block.items || [])];
+                                          next[i] = { ...next[i], title: e.target.value };
+                                          updateBlockData(block.id, { items: next });
+                                        }}
+                                        className="font-bold text-xs text-slate-800 bg-transparent border-none focus:outline-none flex-1"
+                                        placeholder="Link Title..."
+                                      />
+                                      <input
+                                        type="text"
+                                        value={item.url || ""}
+                                        onChange={(e) => {
+                                          const next = [...(block.items || [])];
+                                          next[i] = { ...next[i], url: e.target.value };
+                                          updateBlockData(block.id, { items: next });
+                                        }}
+                                        className="font-mono text-[10px] text-indigo-600 bg-slate-50 px-2 py-0.5 rounded border border-slate-200 w-36 focus:outline-none"
+                                        placeholder="URL..."
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const next = (block.items || []).filter((_, idx) => idx !== i);
+                                          updateBlockData(block.id, { items: next });
+                                        }}
+                                        className="text-slate-400 hover:text-rose-600 p-0.5 cursor-pointer"
+                                      >
+                                        <span className="material-symbols-outlined text-[13px]">close</span>
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
                             ) : /* BLOCK TYPE: GOOGLE MAPS */
                             block.type === "google_maps" ? (
@@ -5085,76 +5918,400 @@ export default function ITBlogsPage() {
                                 </div>
                               </div>
                             ) : (
-                              /* DEFAULT: REAL-TIME TEXT EDITOR WITH INLINE FORMATTING */
+                              /* DEFAULT: REAL-TIME RICH TEXT & LIVE FORMATTING WYSIWYG EDITOR */
                               <div className="space-y-2">
                                 <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1.5 flex-wrap">
                                   <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
                                     <button
                                       type="button"
-                                      onClick={() => applyFormatToBlock(block.id, "bold")}
-                                      className="px-2 py-0.5 text-xs font-black text-slate-700 hover:bg-white rounded transition-colors cursor-pointer"
-                                      title="Bold (**text**)"
+                                      onMouseDown={(e) => e.preventDefault()}
+                                      onClick={() => applyFormatToSelection(block.id, "bold")}
+                                      className="px-2 py-0.5 text-xs font-black text-slate-800 hover:bg-white rounded transition-colors cursor-pointer"
+                                      title="Bold (Ctrl+B) - Formats selected text"
                                     >
                                       B
                                     </button>
                                     <button
                                       type="button"
-                                      onClick={() => applyFormatToBlock(block.id, "italic")}
-                                      className="px-2 py-0.5 text-xs italic font-serif text-slate-700 hover:bg-white rounded transition-colors cursor-pointer"
-                                      title="Italic (*text*)"
+                                      onMouseDown={(e) => e.preventDefault()}
+                                      onClick={() => applyFormatToSelection(block.id, "italic")}
+                                      className="px-2 py-0.5 text-xs italic font-serif text-slate-800 hover:bg-white rounded transition-colors cursor-pointer"
+                                      title="Italic (Ctrl+I)"
                                     >
                                       I
                                     </button>
                                     <button
                                       type="button"
-                                      onClick={() => applyFormatToBlock(block.id, "underline")}
-                                      className="px-2 py-0.5 text-xs underline font-semibold text-slate-700 hover:bg-white rounded transition-colors cursor-pointer"
-                                      title="Underline (<u>text</u>)"
+                                      onMouseDown={(e) => e.preventDefault()}
+                                      onClick={() => applyFormatToSelection(block.id, "underline")}
+                                      className="px-2 py-0.5 text-xs underline font-semibold text-slate-800 hover:bg-white rounded transition-colors cursor-pointer"
+                                      title="Underline (Ctrl+U)"
                                     >
                                       U
                                     </button>
                                     <button
                                       type="button"
-                                      onClick={() => applyFormatToBlock(block.id, "code")}
+                                      onMouseDown={(e) => e.preventDefault()}
+                                      onClick={() => applyFormatToSelection(block.id, "strike")}
+                                      className="px-2 py-0.5 text-xs line-through text-slate-600 hover:bg-white rounded transition-colors cursor-pointer"
+                                      title="Strikethrough"
+                                    >
+                                      S
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onMouseDown={(e) => e.preventDefault()}
+                                      onClick={() => applyFormatToSelection(block.id, "code")}
                                       className="px-2 py-0.5 text-xs font-mono text-emerald-700 hover:bg-white rounded transition-colors cursor-pointer"
                                       title="Inline Code (`code`)"
                                     >
                                       &lt;/&gt;
                                     </button>
+                                    {/* Auto-closing Multi-color Highlight Tool with Quick Split Button */}
+                                    <div className="relative inline-flex items-center">
+                                      <button
+                                        type="button"
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => applyHighlight(block.id, "#fef08a", "#854d0e")}
+                                        className="px-2 py-0.5 text-xs font-black text-amber-900 bg-amber-200 hover:bg-amber-300 rounded-l transition-colors cursor-pointer shadow-2xs flex items-center gap-1 border-r border-amber-300/80"
+                                        title="Quick Highlight in Yellow Marker (or toggle off)"
+                                      >
+                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                                        Highlight
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() =>
+                                          setActiveHighlightPicker(activeHighlightPicker === block.id ? null : block.id)
+                                        }
+                                        className="px-1 py-0.5 text-xs text-amber-900 bg-amber-200 hover:bg-amber-300 rounded-r transition-colors cursor-pointer flex items-center"
+                                        title="Choose Highlight Color or Remove"
+                                      >
+                                        <span className="material-symbols-outlined text-[13px]">arrow_drop_down</span>
+                                      </button>
+
+                                      {/* Auto-closing Highlight Dropdown Popover */}
+                                      {activeHighlightPicker === block.id && (
+                                        <div
+                                          onMouseDown={(e) => e.preventDefault()}
+                                          className="absolute top-full left-0 mt-1 z-30 bg-white p-2 rounded-xl shadow-xl border border-slate-200 flex flex-col gap-1.5 min-w-[210px] animate-in fade-in zoom-in-95 duration-100"
+                                        >
+                                          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1 flex items-center justify-between">
+                                            <span>Highlight Colors</span>
+                                            <button
+                                              type="button"
+                                              onClick={() => setActiveHighlightPicker(null)}
+                                              className="text-slate-400 hover:text-slate-700 cursor-pointer"
+                                            >
+                                              <span className="material-symbols-outlined text-[13px]">close</span>
+                                            </button>
+                                          </div>
+                                          <div className="grid grid-cols-3 gap-1">
+                                            {HIGHLIGHT_SWATCHES.map((swatch) => (
+                                              <button
+                                                key={swatch.name}
+                                                type="button"
+                                                onMouseDown={(e) => e.preventDefault()}
+                                                onClick={() => applyHighlight(block.id, swatch.bg, swatch.text)}
+                                                className="px-2 py-1 text-[11px] font-bold rounded-lg transition-transform hover:scale-105 cursor-pointer text-center"
+                                                style={{
+                                                  backgroundColor: swatch.bg,
+                                                  color: swatch.text,
+                                                  border: `1px solid ${swatch.border}`,
+                                                }}
+                                              >
+                                                {swatch.name}
+                                              </button>
+                                            ))}
+                                          </div>
+                                          <div className="border-t border-slate-100 pt-1">
+                                            <button
+                                              type="button"
+                                              onMouseDown={(e) => e.preventDefault()}
+                                              onClick={() => removeHighlight(block.id)}
+                                              className="w-full px-2 py-1 text-[11px] font-bold text-slate-700 hover:bg-rose-50 hover:text-rose-700 rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                                            >
+                                              <span className="material-symbols-outlined text-[13px]">
+                                                format_color_reset
+                                              </span>
+                                              Remove Highlight
+                                            </button>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+
                                     <button
                                       type="button"
-                                      onClick={() => applyFormatToBlock(block.id, "highlight")}
-                                      className="px-2 py-0.5 text-xs font-bold text-amber-800 bg-amber-200/60 hover:bg-amber-200 rounded transition-colors cursor-pointer"
-                                      title="Highlight text"
-                                    >
-                                      Highlight
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => openHyperlinkDialog(block.id, block.content?.slice(0, 30), block.url || block.link)}
-                                      className="px-2 py-0.5 text-xs font-bold text-indigo-700 hover:bg-white rounded transition-colors flex items-center gap-0.5 cursor-pointer"
-                                      title="Add Hyperlink"
+                                      onMouseDown={(e) => e.preventDefault()}
+                                      onClick={() => {
+                                        let selText = "";
+                                        if (typeof window !== "undefined") {
+                                          const sel = window.getSelection();
+                                          if (sel && !sel.isCollapsed) selText = sel.toString().trim();
+                                        }
+                                        openHyperlinkDialog(block.id, selText, block.url || block.link);
+                                      }}
+                                      className="px-2.5 py-0.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-white rounded transition-colors flex items-center gap-1 cursor-pointer border border-indigo-200"
+                                      title="Add Hyperlink to selected text"
                                     >
                                       <span className="material-symbols-outlined text-[13px]">link</span>
                                       <span>Link</span>
                                     </button>
                                   </div>
 
-                                  <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono">
-                                    <span>{block.content ? block.content.trim().split(/\s+/).filter(Boolean).length : 0} words</span>
-                                    <span>•</span>
-                                    <span>{block.content ? block.content.length : 0} chars</span>
+                                  <div className="flex items-center gap-2">
+                                    {/* Mode switcher: Visual WYSIWYG vs HTML Source */}
+                                    <div className="flex items-center bg-slate-200/80 p-0.5 rounded-md text-[10px] font-bold">
+                                      <button
+                                        type="button"
+                                        onClick={() => setEditorModes((prev) => ({ ...prev, [block.id]: "visual" }))}
+                                        className={`px-2 py-0.5 rounded cursor-pointer ${
+                                          (editorModes[block.id] || "visual") === "visual"
+                                            ? "bg-white text-indigo-600 shadow-2xs"
+                                            : "text-slate-500 hover:text-slate-900"
+                                        }`}
+                                      >
+                                        Visual
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setEditorModes((prev) => ({ ...prev, [block.id]: "html" }))}
+                                        className={`px-2 py-0.5 rounded cursor-pointer ${
+                                          editorModes[block.id] === "html"
+                                            ? "bg-white text-indigo-600 shadow-2xs"
+                                            : "text-slate-500 hover:text-slate-900"
+                                        }`}
+                                      >
+                                        HTML
+                                      </button>
+                                    </div>
+
+                                    <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-mono">
+                                      <span>
+                                        {block.content
+                                          ? block.content.replace(/<[^>]+>/g, " ").trim().split(/\s+/).filter(Boolean).length
+                                          : 0}{" "}
+                                        words
+                                      </span>
+                                      <span>•</span>
+                                      <span>{block.content ? block.content.length : 0} chars</span>
+                                    </div>
                                   </div>
                                 </div>
 
-                                <textarea
-                                  value={block.content}
-                                  onChange={(e) => updateBlockContent(block.id, e.target.value)}
-                                  rows={3}
-                                  className="w-full bg-transparent border-none focus:outline-none resize-y text-slate-800 text-sm leading-relaxed"
-                                  style={{ fontSize: block.style?.fontSize || "14px" }}
-                                  placeholder="Enter paragraph text... Select text or use format buttons above to style or link."
-                                />
+                                {/* Dynamic Text & Live Editor Widget Controls Bar */}
+                                <div className="flex items-center gap-1.5 flex-wrap bg-slate-50/90 p-1.5 rounded-lg border border-slate-200/80 text-[11px]">
+                                  {/* Dynamic Typography Presets */}
+                                  <div className="flex items-center gap-1 flex-wrap">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-0.5">
+                                      Preset:
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => applyTextPreset(block.id, "body")}
+                                      className="px-2 py-0.5 rounded text-[11px] font-semibold bg-white text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 border border-slate-200 transition-colors cursor-pointer"
+                                      title="Standard 15px reading body text"
+                                    >
+                                      Body
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => applyTextPreset(block.id, "lead")}
+                                      className="px-2 py-0.5 rounded text-[11px] font-bold bg-white text-indigo-700 hover:bg-indigo-100/60 border border-indigo-200 transition-colors cursor-pointer"
+                                      title="19px bold article lead / subhead"
+                                    >
+                                      Lead
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => applyTextPreset(block.id, "editorial")}
+                                      className="px-2 py-0.5 rounded text-[11px] font-serif italic bg-white text-slate-800 hover:bg-amber-50 hover:text-amber-900 border border-slate-200 transition-colors cursor-pointer"
+                                      title="Editorial classic serif typography"
+                                    >
+                                      Editorial
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => applyTextPreset(block.id, "tip")}
+                                      className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 transition-colors cursor-pointer"
+                                      title="Green Deal / Pro Tip Callout Box"
+                                    >
+                                      Deal Tip
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => applyTextPreset(block.id, "alert")}
+                                      className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-300 transition-colors cursor-pointer"
+                                      title="Amber Alert Notice Box"
+                                    >
+                                      Notice
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => applyTextPreset(block.id, "card")}
+                                      className="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-700 hover:bg-white border border-slate-300 transition-colors cursor-pointer"
+                                      title="Subtle Boxed Card Container"
+                                    >
+                                      Card
+                                    </button>
+                                  </div>
+
+                                  <span className="text-slate-300 mx-0.5">|</span>
+
+                                  {/* Dynamic Text Alignment */}
+                                  <div className="flex items-center gap-0.5 bg-white p-0.5 rounded border border-slate-200">
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        updateBlockData(block.id, {
+                                          style: { ...block.style, textAlign: "left" },
+                                        })
+                                      }
+                                      className={`p-1 rounded cursor-pointer ${
+                                        !block.style?.textAlign || block.style?.textAlign === "left"
+                                          ? "bg-indigo-50 text-indigo-600 font-bold"
+                                          : "text-slate-500 hover:text-slate-900"
+                                      }`}
+                                      title="Align Left"
+                                    >
+                                      <span className="material-symbols-outlined text-[13px]">format_align_left</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        updateBlockData(block.id, {
+                                          style: { ...block.style, textAlign: "center" },
+                                        })
+                                      }
+                                      className={`p-1 rounded cursor-pointer ${
+                                        block.style?.textAlign === "center"
+                                          ? "bg-indigo-50 text-indigo-600 font-bold"
+                                          : "text-slate-500 hover:text-slate-900"
+                                      }`}
+                                      title="Align Center"
+                                    >
+                                      <span className="material-symbols-outlined text-[13px]">format_align_center</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        updateBlockData(block.id, {
+                                          style: { ...block.style, textAlign: "right" },
+                                        })
+                                      }
+                                      className={`p-1 rounded cursor-pointer ${
+                                        block.style?.textAlign === "right"
+                                          ? "bg-indigo-50 text-indigo-600 font-bold"
+                                          : "text-slate-500 hover:text-slate-900"
+                                      }`}
+                                      title="Align Right"
+                                    >
+                                      <span className="material-symbols-outlined text-[13px]">format_align_right</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        updateBlockData(block.id, {
+                                          style: { ...block.style, textAlign: "justify" },
+                                        })
+                                      }
+                                      className={`p-1 rounded cursor-pointer ${
+                                        block.style?.textAlign === "justify"
+                                          ? "bg-indigo-50 text-indigo-600 font-bold"
+                                          : "text-slate-500 hover:text-slate-900"
+                                      }`}
+                                      title="Align Justify"
+                                    >
+                                      <span className="material-symbols-outlined text-[13px]">format_align_justify</span>
+                                    </button>
+                                  </div>
+
+                                  <span className="text-slate-300 mx-0.5">|</span>
+
+                                  {/* Dynamic Font Size Selector */}
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-[10px] font-bold text-slate-400">Size:</span>
+                                    <select
+                                      value={block.style?.fontSize || "15px"}
+                                      onChange={(e) =>
+                                        updateBlockData(block.id, {
+                                          style: { ...block.style, fontSize: e.target.value },
+                                        })
+                                      }
+                                      className="bg-white border border-slate-200 text-slate-700 text-[11px] font-semibold rounded px-1.5 py-0.5 focus:outline-none cursor-pointer"
+                                    >
+                                      <option value="12px">12px - Small</option>
+                                      <option value="15px">15px - Body</option>
+                                      <option value="17px">17px - Medium</option>
+                                      <option value="19px">19px - Lead</option>
+                                      <option value="22px">22px - Display</option>
+                                    </select>
+                                  </div>
+
+                                  <span className="text-slate-300 mx-0.5">|</span>
+
+                                  {/* Dynamic Color Quick Swatches */}
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-[10px] font-bold text-slate-400">Color:</span>
+                                    {[
+                                      { label: "Dark Slate", color: "#1e293b" },
+                                      { label: "Indigo Navy", color: "#1e1b4b" },
+                                      { label: "Emerald", color: "#064e3b" },
+                                      { label: "Amber Crimson", color: "#7f1d1d" },
+                                      { label: "Muted Gray", color: "#64748b" },
+                                    ].map((c) => (
+                                      <button
+                                        key={c.color}
+                                        type="button"
+                                        onClick={() =>
+                                          updateBlockData(block.id, {
+                                            style: { ...block.style, color: c.color },
+                                          })
+                                        }
+                                        className={`w-3.5 h-3.5 rounded-full border border-slate-300 transition-transform hover:scale-125 cursor-pointer ${
+                                          block.style?.color === c.color ? "ring-2 ring-indigo-400 scale-110" : ""
+                                        }`}
+                                        style={{ backgroundColor: c.color }}
+                                        title={c.label}
+                                      />
+                                    ))}
+                                  </div>
+                                </div>
+
+                                {(editorModes[block.id] || "visual") === "visual" ? (
+                                  <div
+                                    id={`editor-${block.id}`}
+                                    contentEditable
+                                    suppressContentEditableWarning
+                                    onMouseUp={() => handleTextSelectionChange(block.id)}
+                                    onKeyUp={() => handleTextSelectionChange(block.id)}
+                                    onBlur={(e) => updateBlockContent(block.id, e.currentTarget.innerHTML)}
+                                    dangerouslySetInnerHTML={{ __html: block.content || "" }}
+                                    className="w-full min-h-[4.5rem] bg-transparent border-none focus:outline-none text-slate-800 text-sm leading-relaxed max-w-none transition-all"
+                                    style={{
+                                      fontSize: block.style?.fontSize || "15px",
+                                      textAlign: block.style?.textAlign || "left",
+                                      fontFamily: block.style?.fontFamily,
+                                      color: block.style?.color,
+                                      backgroundColor: block.style?.backgroundColor,
+                                      padding: block.style?.padding,
+                                      borderRadius: block.style?.borderRadius,
+                                      borderLeft: (block.style as any)?.borderLeft,
+                                      border: (block.style as any)?.border,
+                                      lineHeight: block.style?.lineHeight || "1.65",
+                                    }}
+                                  />
+                                ) : (
+                                  <textarea
+                                    value={block.content}
+                                    onChange={(e) => updateBlockContent(block.id, e.target.value)}
+                                    rows={4}
+                                    className="w-full font-mono text-xs p-2 bg-slate-900 text-emerald-400 rounded-lg border border-slate-800 focus:outline-none resize-y leading-relaxed"
+                                    placeholder="<p>Raw HTML or formatted text...</p>"
+                                  />
+                                )}
                               </div>
                             )}
                           </div>

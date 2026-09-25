@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const baseApiUrl = process.env.NEXT_PUBLIC_API_URL || process.env.BACKEND_URL || 'http://localhost:5000';
+    const baseApiUrl = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
     const apiUrl = baseApiUrl.endsWith('/api') ? baseApiUrl.slice(0, -4) : baseApiUrl;
     const response = await fetch(
       `${apiUrl}/api/ai/compare-shortlist`,

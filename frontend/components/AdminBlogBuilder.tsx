@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { adminApi } from "@/lib/api";
 
-type BlockType = "heading" | "container" | "text" | "image" | "video" | "button" | "list" | "quote" | "code" | "divider" | "spacer";
+type BlockType = "heading" | "container" | "text" | "image" | "video" | "button" | "list" | "quote" | "code" | "divider" | "spacer" | "tags";
 
 interface Block {
     id: string;
@@ -15,17 +15,22 @@ interface Block {
     style?: {
         fontSize?: string;
         fontFamily?: string;
+        fontWeight?: string;
+        lineHeight?: string;
         color?: string;
         backgroundColor?: string;
         textAlign?: "left" | "center" | "right";
         padding?: string;
+        borderRadius?: string;
+        border?: string;
+        borderLeft?: string;
     };
 }
 
 const ELEMENT_TYPES: { type: BlockType; label: string; icon: string; color: string; desc: string }[] = [
     { type: "heading", label: "Heading", icon: "title", color: "blue", desc: "Drag to add" },
     { type: "container", label: "Container", icon: "view_agenda", color: "purple", desc: "Drag to add" },
-    { type: "text", label: "Text Box", icon: "text_fields", color: "green", desc: "Drag to add" },
+    { type: "text", label: "Text & Live Editor", icon: "text_fields", color: "green", desc: "Drag to add" },
     { type: "image", label: "Image", icon: "image", color: "orange", desc: "Drag to add" },
     { type: "video", label: "Video", icon: "videocam", color: "red", desc: "Drag to add" },
     { type: "button", label: "Button", icon: "smart_button", color: "indigo", desc: "Drag to add" },
@@ -34,6 +39,7 @@ const ELEMENT_TYPES: { type: BlockType; label: string; icon: string; color: stri
     { type: "code", label: "Code Block", icon: "code", color: "gray", desc: "Drag to add" },
     { type: "divider", label: "Divider", icon: "horizontal_rule", color: "pink", desc: "Drag to add" },
     { type: "spacer", label: "Spacer", icon: "unfold_more", color: "cyan", desc: "Drag to add" },
+    { type: "tags", label: "Tags Cloud", icon: "label", color: "purple", desc: "Drag to add" },
 ];
 
 const COLOR_MAP: Record<string, string> = {
@@ -83,6 +89,7 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
     const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
     const [draggingBlockId, setDraggingBlockId] = useState<string | null>(null);
     const [saveStatus, setSaveStatus] = useState("Saved");
+    const [activeHighlightPicker, setActiveHighlightPicker] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
 
     // Modal state
@@ -105,6 +112,172 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
         year: "numeric",
     });
 
+    const HIGHLIGHT_SWATCHES = [
+        { name: "Yellow", bg: "#fef08a", text: "#854d0e", border: "#fde047" },
+        { name: "Mint", bg: "#bbf7d0", text: "#14532d", border: "#86efac" },
+        { name: "Sky", bg: "#bae6fd", text: "#0369a1", border: "#7dd3fc" },
+        { name: "Pink", bg: "#fbcfe8", text: "#9d174d", border: "#f472b6" },
+        { name: "Purple", bg: "#e9d5ff", text: "#6b21a8", border: "#d8b4fe" },
+        { name: "Orange", bg: "#fed7aa", text: "#9a3412", border: "#fdba74" },
+    ];
+
+    const applyHighlight = (blockId: string, bg: string = "#fef08a", textColor: string = "#854d0e") => {
+        const sel = window.getSelection();
+        if (sel && !sel.isCollapsed && sel.rangeCount > 0) {
+            try {
+                const range = sel.getRangeAt(0);
+                let node: Node | null = range.commonAncestorContainer;
+                if (node.nodeType === Node.TEXT_NODE) {
+                    node = node.parentNode;
+                }
+                const existingMark =
+                    (node as HTMLElement)?.closest?.("mark") ||
+                    ((node as HTMLElement)?.tagName === "MARK" ? (node as HTMLElement) : null);
+
+                if (existingMark) {
+                    const isSame = existingMark.style.backgroundColor === bg;
+                    if (isSame) {
+                        const textNode = document.createTextNode(existingMark.textContent || "");
+                        existingMark.parentNode?.replaceChild(textNode, existingMark);
+                    } else {
+                        existingMark.style.backgroundColor = bg;
+                        existingMark.style.color = textColor;
+                    }
+                } else {
+                    const mark = document.createElement("mark");
+                    mark.style.backgroundColor = bg;
+                    mark.style.color = textColor;
+                    mark.style.padding = "2px 5px";
+                    mark.style.borderRadius = "4px";
+                    mark.style.fontWeight = "600";
+                    try {
+                        range.surroundContents(mark);
+                    } catch {
+                        const frag = range.extractContents();
+                        mark.appendChild(frag);
+                        range.insertNode(mark);
+                    }
+                }
+                sel.collapseToEnd();
+            } catch {
+                try {
+                    document.execCommand("hiliteColor", false, bg);
+                } catch (_) {}
+                sel.collapseToEnd();
+            }
+        }
+        setActiveHighlightPicker(null);
+    };
+
+    const removeHighlight = (blockId: string) => {
+        const sel = window.getSelection();
+        if (sel && !sel.isCollapsed && sel.rangeCount > 0) {
+            try {
+                const range = sel.getRangeAt(0);
+                let node: Node | null = range.commonAncestorContainer;
+                if (node.nodeType === Node.TEXT_NODE) {
+                    node = node.parentNode;
+                }
+                const existingMark =
+                    (node as HTMLElement)?.closest?.("mark") ||
+                    ((node as HTMLElement)?.tagName === "MARK" ? (node as HTMLElement) : null);
+                if (existingMark) {
+                    const textNode = document.createTextNode(existingMark.textContent || "");
+                    existingMark.parentNode?.replaceChild(textNode, existingMark);
+                } else {
+                    document.execCommand("hiliteColor", false, "transparent");
+                }
+                sel.collapseToEnd();
+            } catch {
+                try {
+                    document.execCommand("hiliteColor", false, "transparent");
+                } catch {}
+                sel?.collapseToEnd();
+            }
+        }
+        setActiveHighlightPicker(null);
+    };
+
+    const applyTextPreset = (
+        blockId: string,
+        preset: "body" | "lead" | "editorial" | "tip" | "alert" | "card"
+    ) => {
+        const presets: Record<string, Partial<Block["style"]>> = {
+            body: {
+                fontSize: "16px",
+                textAlign: "left",
+                color: "#374151",
+                backgroundColor: "transparent",
+                padding: "0",
+                borderRadius: "0",
+                border: "none",
+                borderLeft: "none",
+                lineHeight: "1.65",
+            },
+            lead: {
+                fontSize: "20px",
+                textAlign: "left",
+                color: "#111827",
+                fontWeight: "600",
+                backgroundColor: "transparent",
+                padding: "0",
+                borderRadius: "0",
+                border: "none",
+                borderLeft: "none",
+                lineHeight: "1.75",
+            },
+            editorial: {
+                fontSize: "17px",
+                textAlign: "left",
+                color: "#1f2937",
+                fontFamily: "'Merriweather', 'Georgia', serif",
+                backgroundColor: "transparent",
+                padding: "0",
+                borderRadius: "0",
+                border: "none",
+                borderLeft: "none",
+                lineHeight: "1.8",
+            },
+            tip: {
+                fontSize: "15px",
+                textAlign: "left",
+                color: "#064e3b",
+                backgroundColor: "#f0fdf4",
+                padding: "14px 18px",
+                borderRadius: "0 10px 10px 0",
+                borderLeft: "4px solid #10b981",
+                border: "none",
+                lineHeight: "1.65",
+            },
+            alert: {
+                fontSize: "15px",
+                textAlign: "left",
+                color: "#78350f",
+                backgroundColor: "#fffbeb",
+                padding: "14px 18px",
+                borderRadius: "0 10px 10px 0",
+                borderLeft: "4px solid #f59e0b",
+                border: "none",
+                lineHeight: "1.65",
+            },
+            card: {
+                fontSize: "15px",
+                textAlign: "left",
+                color: "#374151",
+                backgroundColor: "#f9fafb",
+                padding: "16px 20px",
+                borderRadius: "12px",
+                border: "1px solid #e5e7eb",
+                borderLeft: "none",
+                lineHeight: "1.65",
+            },
+        };
+        const newStyle = presets[preset] || presets.body;
+        setBlocks((prev) =>
+            prev.map((b) => (b.id === blockId ? { ...b, style: { ...b.style, ...newStyle } } : b))
+        );
+    };
+
     // Create new block
     const createBlock = (type: BlockType): Block => {
         const defaults: Record<BlockType, string> = {
@@ -119,6 +292,7 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
             code: "// Your code here\nconsole.log('Hello World');",
             divider: "",
             spacer: "",
+            tags: "iPhoneAir, PriceDrop, AmazonDeals, TechNews",
         };
         return {
             id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
@@ -304,6 +478,11 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
                             return `<div class="h-12"></div>`;
                         case "container":
                             return `<div class="p-6 bg-gray-50 rounded-xl my-6">${b.content}</div>`;
+                        case "tags": {
+                            const tagList = (b.content || "").split(",").map((t) => t.trim()).filter(Boolean);
+                            const pills = tagList.map((t) => `<span class="inline-block px-3 py-1 bg-purple-50 text-purple-700 text-xs font-bold rounded-full mr-2 mb-2 border border-purple-200">#${t.replace(/^#/, "")}</span>`).join("");
+                            return `<div class="my-6 pt-4 border-t border-gray-100"><p class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Topics & Tags</p><div class="flex flex-wrap gap-1">${pills}</div></div>`;
+                        }
                         default:
                             return "";
                     }
@@ -358,14 +537,191 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
                 );
             case "text":
                 return (
-                    <p
-                        contentEditable
-                        suppressContentEditableWarning
-                        onBlur={(e) => updateBlock(block.id, e.currentTarget.textContent || "")}
-                        className="text-lg leading-relaxed text-gray-700 outline-none"
-                    >
-                        {block.content}
-                    </p>
+                    <div className="space-y-2 group/textblock">
+                        {/* Interactive WYSIWYG & Dynamic Formatting Toolbar */}
+                        <div className="flex items-center justify-between gap-2 flex-wrap bg-slate-100 p-1.5 rounded-xl border border-slate-200">
+                            <div className="flex items-center gap-1">
+                                <button
+                                    type="button"
+                                    onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        document.execCommand("bold");
+                                    }}
+                                    className="px-2 py-0.5 text-xs font-black text-slate-700 hover:bg-white rounded cursor-pointer"
+                                    title="Bold (Ctrl+B)"
+                                >
+                                    B
+                                </button>
+                                <button
+                                    type="button"
+                                    onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        document.execCommand("italic");
+                                    }}
+                                    className="px-2 py-0.5 text-xs italic font-serif text-slate-700 hover:bg-white rounded cursor-pointer"
+                                    title="Italic (Ctrl+I)"
+                                >
+                                    I
+                                </button>
+                                <button
+                                    type="button"
+                                    onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        document.execCommand("underline");
+                                    }}
+                                    className="px-2 py-0.5 text-xs underline font-semibold text-slate-700 hover:bg-white rounded cursor-pointer"
+                                    title="Underline (Ctrl+U)"
+                                >
+                                    U
+                                </button>
+
+                                {/* Auto-closing Highlight Picker */}
+                                <div className="relative inline-flex items-center">
+                                    <button
+                                        type="button"
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => applyHighlight(block.id, "#fef08a", "#854d0e")}
+                                        className="px-2 py-0.5 text-xs font-black text-amber-900 bg-amber-200 hover:bg-amber-300 rounded-l cursor-pointer shadow-2xs border-r border-amber-300/80"
+                                        title="Quick Yellow Highlight (or toggle off)"
+                                    >
+                                        Highlight
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() =>
+                                            setActiveHighlightPicker(activeHighlightPicker === block.id ? null : block.id)
+                                        }
+                                        className="px-1 py-0.5 text-xs text-amber-900 bg-amber-200 hover:bg-amber-300 rounded-r cursor-pointer"
+                                        title="Choose Highlight Color or Remove"
+                                    >
+                                        ▾
+                                    </button>
+                                    {activeHighlightPicker === block.id && (
+                                        <div
+                                            onMouseDown={(e) => e.preventDefault()}
+                                            className="absolute top-full left-0 mt-1 z-30 bg-white p-2 rounded-xl shadow-xl border border-slate-200 flex flex-col gap-1.5 min-w-[200px]"
+                                        >
+                                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1 flex items-center justify-between">
+                                                <span>Highlight Colors</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setActiveHighlightPicker(null)}
+                                                    className="text-slate-400 hover:text-slate-700 cursor-pointer"
+                                                >
+                                                    ×
+                                                </button>
+                                            </div>
+                                            <div className="grid grid-cols-3 gap-1">
+                                                {HIGHLIGHT_SWATCHES.map((swatch) => (
+                                                    <button
+                                                        key={swatch.name}
+                                                        type="button"
+                                                        onMouseDown={(e) => e.preventDefault()}
+                                                        onClick={() => applyHighlight(block.id, swatch.bg, swatch.text)}
+                                                        className="px-2 py-1 text-[11px] font-bold rounded-lg cursor-pointer text-center"
+                                                        style={{
+                                                            backgroundColor: swatch.bg,
+                                                            color: swatch.text,
+                                                            border: `1px solid ${swatch.border}`,
+                                                        }}
+                                                    >
+                                                        {swatch.name}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                            <div className="border-t border-slate-100 pt-1">
+                                                <button
+                                                    type="button"
+                                                    onMouseDown={(e) => e.preventDefault()}
+                                                    onClick={() => removeHighlight(block.id)}
+                                                    className="w-full px-2 py-1 text-[11px] font-bold text-slate-700 hover:bg-rose-50 hover:text-rose-700 rounded-lg cursor-pointer flex items-center justify-center gap-1"
+                                                >
+                                                    Remove Highlight
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        const url = prompt("Enter hyperlink URL:", "https://");
+                                        if (url) {
+                                            document.execCommand("createLink", false, url);
+                                        }
+                                    }}
+                                    className="px-2 py-0.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-white rounded cursor-pointer border border-indigo-200"
+                                    title="Add Hyperlink"
+                                >
+                                    Link
+                                </button>
+                            </div>
+
+                            {/* Dynamic Presets */}
+                            <div className="flex items-center gap-1 text-[11px]">
+                                <span className="text-[10px] font-bold text-slate-400">Preset:</span>
+                                <button
+                                    type="button"
+                                    onClick={() => applyTextPreset(block.id, "body")}
+                                    className="px-1.5 py-0.5 rounded font-semibold bg-white text-slate-700 hover:bg-indigo-50 border border-slate-200 cursor-pointer"
+                                >
+                                    Body
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => applyTextPreset(block.id, "lead")}
+                                    className="px-1.5 py-0.5 rounded font-bold bg-white text-indigo-700 hover:bg-indigo-50 border border-indigo-200 cursor-pointer"
+                                >
+                                    Lead
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => applyTextPreset(block.id, "editorial")}
+                                    className="px-1.5 py-0.5 rounded font-serif italic bg-white text-slate-800 hover:bg-amber-50 border border-slate-200 cursor-pointer"
+                                >
+                                    Editorial
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => applyTextPreset(block.id, "tip")}
+                                    className="px-1.5 py-0.5 rounded font-bold bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 cursor-pointer"
+                                >
+                                    Deal Tip
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => applyTextPreset(block.id, "card")}
+                                    className="px-1.5 py-0.5 rounded font-bold bg-slate-100 text-slate-700 hover:bg-white border border-slate-300 cursor-pointer"
+                                >
+                                    Card
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* ContentEditable Live Dynamic Editor */}
+                        <div
+                            contentEditable
+                            suppressContentEditableWarning
+                            dangerouslySetInnerHTML={{ __html: block.content }}
+                            onBlur={(e) => updateBlock(block.id, e.currentTarget.innerHTML || "")}
+                            className="outline-none min-h-[3rem] transition-all"
+                            style={{
+                                fontSize: block.style?.fontSize || "16px",
+                                textAlign: block.style?.textAlign || "left",
+                                fontFamily: block.style?.fontFamily,
+                                color: block.style?.color || "#374151",
+                                backgroundColor: block.style?.backgroundColor,
+                                padding: block.style?.padding,
+                                borderRadius: block.style?.borderRadius,
+                                border: block.style?.border,
+                                borderLeft: block.style?.borderLeft,
+                                lineHeight: block.style?.lineHeight || "1.65",
+                            }}
+                        />
+                    </div>
                 );
             case "image":
                 return (
@@ -390,14 +746,23 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
                 );
             case "button":
                 return (
-                    <button
-                        contentEditable
-                        suppressContentEditableWarning
-                        onBlur={(e) => updateBlock(block.id, e.currentTarget.textContent || "")}
-                        className="px-8 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold rounded-xl outline-none"
-                    >
-                        {block.content}
-                    </button>
+                    <div className="my-2 p-3 bg-gray-50 rounded-xl border border-gray-200 space-y-2 max-w-md">
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="text"
+                                value={block.content}
+                                onChange={(e) => updateBlock(block.id, e.target.value)}
+                                placeholder="Button label..."
+                                className="flex-1 font-bold text-xs px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-gray-800 focus:outline-none"
+                            />
+                        </div>
+                        <button
+                            type="button"
+                            className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold rounded-xl text-xs shadow-md"
+                        >
+                            {block.content || "Click Here"}
+                        </button>
+                    </div>
                 );
             case "list":
                 return (
@@ -444,6 +809,44 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
                         <p className="text-gray-400 text-sm">Container - Drop elements here</p>
                     </div>
                 );
+            case "tags": {
+                const tagList = (block.content || "").split(",").map((t) => t.trim()).filter(Boolean);
+                return (
+                    <div className="p-4 bg-purple-50/50 rounded-2xl border border-purple-100 space-y-2">
+                        <div className="flex items-center justify-between text-xs font-bold text-purple-900">
+                            <span className="flex items-center gap-1">
+                                <span className="material-symbols-outlined text-[16px]">label</span>
+                                Tags Cloud Widget
+                            </span>
+                            <span className="text-[10px] text-purple-600 font-mono">{tagList.length} tags</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                            {tagList.map((tag, idx) => (
+                                <span key={idx} className="inline-flex items-center gap-1 px-3 py-1 bg-white text-purple-700 font-bold text-xs rounded-full border border-purple-200 shadow-2xs">
+                                    <span>#{tag}</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const next = tagList.filter((_, i) => i !== idx).join(", ");
+                                            updateBlock(block.id, next);
+                                        }}
+                                        className="text-purple-400 hover:text-rose-600 cursor-pointer ml-1"
+                                    >
+                                        ×
+                                    </button>
+                                </span>
+                            ))}
+                        </div>
+                        <input
+                            type="text"
+                            placeholder="Add tags comma separated (e.g. iPhoneAir, PriceDrop, AmazonDeals)..."
+                            value={block.content}
+                            onChange={(e) => updateBlock(block.id, e.target.value)}
+                            className="w-full text-xs px-3 py-1.5 bg-white border border-purple-200 rounded-lg text-slate-800 focus:outline-none"
+                        />
+                    </div>
+                );
+            }
             default:
                 return null;
         }

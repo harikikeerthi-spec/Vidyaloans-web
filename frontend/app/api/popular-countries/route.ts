@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function GET(request: NextRequest) {
   try {
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL || process.env.BACKEND_URL || 'http://localhost:5000'}/ai/popular-countries`,
+      `${process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000'}/ai/popular-countries`,
       {
         method: 'GET',
         headers: {

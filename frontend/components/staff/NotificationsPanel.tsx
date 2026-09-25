@@ -223,8 +223,8 @@ const NotificationsPanel = ({
 
   useEffect(() => {
     const baseApiUrl = typeof window !== 'undefined' && (window.location.hostname.includes('localhost') || window.location.hostname.includes('127.0.0.1'))
-      ? 'http://localhost:5000'
-      : (process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5000'));
+      ? 'http://127.0.0.1:5000'
+      : (process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://127.0.0.1:5000'));
     // Use portal-specific token keys (staff portal uses "staffAccessToken")
     const token =
       localStorage.getItem("staffAccessToken") ||

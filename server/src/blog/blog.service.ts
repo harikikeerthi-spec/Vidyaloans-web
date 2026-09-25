@@ -269,6 +269,15 @@ export class BlogService {
             const bioLinks = (block.items || []).map((it: any) => `<a href="${it.url || '/apply'}" class="block py-2.5 px-4 bg-white border border-indigo-200 rounded-xl text-xs font-bold text-indigo-700 shadow-xs mb-2">${it.title}</a>`).join('');
             return `<div class="blog-link-in-bio my-6 p-6 bg-gradient-to-b from-indigo-50 to-purple-50 rounded-3xl text-center max-w-md mx-auto border border-indigo-200"${styleAttr}><h3 class="font-extrabold text-lg text-slate-900 mb-1">${block.title || ''}</h3><p class="text-xs text-slate-500 mb-4">${block.subtitle || ''}</p><div>${bioLinks}</div></div>`;
           }
+          case 'tags': {
+            const rawTags = Array.isArray(block.tags) && block.tags.length > 0
+              ? block.tags
+              : (Array.isArray(block.items) && block.items.length > 0
+                  ? block.items.map((it: any) => it.title || it)
+                  : (block.content ? block.content.split(',').map((s: string) => s.trim()).filter(Boolean) : []));
+            const pills = rawTags.map((t: string) => `<span class="inline-flex items-center px-3 py-1 bg-slate-100 hover:bg-purple-100 text-slate-700 hover:text-purple-800 text-xs font-bold rounded-full mr-2 mb-2 transition-colors border border-slate-200">#${t.replace(/^#/, '')}</span>`).join('');
+            return `<div class="blog-tags-widget my-6 pt-4 border-t border-slate-100"${styleAttr}><p class="text-xs font-black uppercase tracking-wider text-slate-400 mb-2">${block.title || 'Tags & Topics'}</p><div class="flex flex-wrap gap-1">${pills}</div></div>`;
+          }
           case 'divider':
             return `<hr${styleAttr} />`;
           case 'spacer':

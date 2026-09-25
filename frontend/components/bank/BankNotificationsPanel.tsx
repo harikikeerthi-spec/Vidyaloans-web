@@ -262,11 +262,11 @@ export default function BankNotificationsPanel({
       typeof window !== "undefined" &&
         (window.location.hostname.includes("localhost") ||
           window.location.hostname.includes("127.0.0.1"))
-        ? "http://localhost:5000"
+        ? "http://127.0.0.1:5000"
         : process.env.NEXT_PUBLIC_API_URL ||
         (typeof window !== "undefined"
           ? window.location.origin
-          : "http://localhost:5000");
+          : "http://127.0.0.1:5000");
 
     const token =
       localStorage.getItem("bankAccessToken") ||

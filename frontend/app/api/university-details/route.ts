@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     }
 
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL || process.env.BACKEND_URL || 'http://localhost:5000'}/ai/university-details/${encodeURIComponent(name)}/${encodeURIComponent(country)}`,
+      `${process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000'}/ai/university-details/${encodeURIComponent(name)}/${encodeURIComponent(country)}`,
       {
         method: 'GET',
         headers: {
