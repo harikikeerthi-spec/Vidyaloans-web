@@ -644,6 +644,16 @@ export class MailService {
       // Merge persistent per-user email state from DB if userId is available
       if (userId) {
         try {
+          // Auto-purge trash emails older than 60 days
+          const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+          await this.prisma.staffEmailState.deleteMany({
+            where: {
+              userId,
+              isTrashed: true,
+              updatedAt: { lt: sixtyDaysAgo },
+            },
+          }).catch(() => {});
+
           const userStates = await this.prisma.staffEmailState.findMany({
             where: { userId },
           });
@@ -691,6 +701,12 @@ export class MailService {
       const spam = emails.filter((e) => e.isSpam && !e.trashed).length;
       const trash = emails.filter((e) => e.trashed).length;
 
+      const totalBytes = emails.reduce((acc, e) => acc + (e.size || 0), 0);
+      const trashBytes = emails.filter((e) => e.trashed).reduce((acc, e) => acc + (e.size || 0), 0);
+      const spamBytes = emails.filter((e) => e.isSpam && !e.trashed).reduce((acc, e) => acc + (e.size || 0), 0);
+      const inboxBytes = emails.filter((e) => !e.trashed && !e.isSpam).reduce((acc, e) => acc + (e.size || 0), 0);
+      const quotaBytes = 15 * 1024 * 1024 * 1024; // 15 GB default enterprise mailbox quota
+
       return {
         total: emails.length,
         unread,
@@ -698,6 +714,15 @@ export class MailService {
         starred,
         spam,
         trash,
+        storage: {
+          usedBytes: totalBytes,
+          quotaBytes,
+          inboxBytes,
+          spamBytes,
+          trashBytes,
+          percentage: Number(((totalBytes / quotaBytes) * 100).toFixed(2)),
+          bucketName: this.bucketName,
+        },
       };
     } catch (err: any) {
       this.logger.warn(`[MailService.getMailStats] Could not compute mail stats: ${err.message}`);
@@ -708,6 +733,15 @@ export class MailService {
         starred: 0,
         spam: 0,
         trash: 0,
+        storage: {
+          usedBytes: 0,
+          quotaBytes: 15 * 1024 * 1024 * 1024,
+          inboxBytes: 0,
+          spamBytes: 0,
+          trashBytes: 0,
+          percentage: 0,
+          bucketName: this.bucketName,
+        },
       };
     }
   }
@@ -1139,6 +1173,27 @@ export class MailService {
     });
 
     return updated;
+  }
+
+  /**
+   * Daily Cron: Automatically purge trash emails older than 60 days across all users
+   */
+  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
+  async purgeExpiredTrashEmails() {
+    try {
+      const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+      const res = await this.prisma.staffEmailState.deleteMany({
+        where: {
+          isTrashed: true,
+          updatedAt: { lt: sixtyDaysAgo },
+        },
+      });
+      if (res.count > 0) {
+        this.logger.log(`[MailService.purgeExpiredTrashEmails] Automatically purged ${res.count} trash email records older than 60 days.`);
+      }
+    } catch (err: any) {
+      this.logger.warn(`[MailService.purgeExpiredTrashEmails] Error purging expired trash: ${err.message}`);
+    }
   }
 }
 

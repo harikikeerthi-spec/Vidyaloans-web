@@ -55,6 +55,11 @@ interface BlockItem {
   url?: string;
   icon?: string;
   badge?: string;
+  salary?: string;
+  requirements?: string;
+  caption?: string;
+  credit?: string;
+  details?: string[];
 }
 
 interface Block {
@@ -144,7 +149,7 @@ const ELEMENTOR_WIDGETS: ElementorWidget[] = [
   // 2. Media & Visuals
   { type: "image_box", label: "Image Box", icon: "featured_video", category: "media", desc: "A box with image, headline and text." },
   { type: "image_gallery", label: "Image Gallery", icon: "grid_view", category: "media", desc: "Display your images in a grid." },
-  { type: "image_carousel", label: "Image Carousel", icon: "view_carousel", category: "media", desc: "Create rotating carousels or sliders for chosen images." },
+  { type: "image_carousel", label: "Story Slideshow (MSN Style)", icon: "view_carousel", category: "media", badge: "Interactive", desc: "Multi-image story gallery with sidebar navigation, salary badges, duties, and smooth slide transitions." },
   { type: "icon", label: "Icon", icon: "sentiment_satisfied", category: "media", desc: "Place one or more of 600+ icons available." },
   { type: "icon_box", label: "Icon Box", icon: "inventory_2", category: "media", desc: "An icon, headline, and text with one widget." },
   { type: "icon_list", label: "Icon List", icon: "checklist", category: "media", desc: "Use any icon to create a bullet list." },
@@ -189,7 +194,7 @@ function parseHtmlOrTextToBlocks(rawContent: string): Block[] {
     try {
       const parsed = JSON.parse(match[1]);
       if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-    } catch {}
+    } catch { }
   }
 
   // 2. Direct JSON string array
@@ -197,7 +202,7 @@ function parseHtmlOrTextToBlocks(rawContent: string): Block[] {
     try {
       const parsed = JSON.parse(trimmed);
       if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-    } catch {}
+    } catch { }
   }
 
   // 3. HTML parsing via browser DOMParser
@@ -567,8 +572,10 @@ export default function ITBlogsPage() {
   const [viewMode, setViewMode] = useState<"edit" | "preview" | "mobile">("edit");
   const [leftDockTab, setLeftDockTab] = useState<"elements" | "templates" | "uploads">("elements");
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
-  const [dockSearch, setDockSearch] = useState("");
   const [savedDraftNotice, setSavedDraftNotice] = useState<{ title: string; savedAt: string } | null>(null);
+  const [bulkImageModalBlockId, setBulkImageModalBlockId] = useState<string | null>(null);
+  const [bulkImageUrlsText, setBulkImageUrlsText] = useState("");
+  const [dockSearch, setDockSearch] = useState("");
 
   const loadBlogs = useCallback(async () => {
     setLoading(true);
@@ -598,7 +605,7 @@ export default function ITBlogsPage() {
           });
         }
       }
-    } catch (_) {}
+    } catch (_) { }
   }, []);
 
   useEffect(() => {
@@ -610,11 +617,11 @@ export default function ITBlogsPage() {
       if (editId) {
         blogApi.getById(editId).then((res: any) => {
           if (res?.data) handleEditBlog(res.data);
-        }).catch(() => {});
+        }).catch(() => { });
       } else if (editSlug) {
         blogApi.getBySlug(editSlug).then((res: any) => {
           if (res?.data) handleEditBlog(res.data);
-        }).catch(() => {});
+        }).catch(() => { });
       }
     }
   }, [action, searchParams]);
@@ -875,9 +882,45 @@ export default function ITBlogsPage() {
         ];
         break;
       case "image_carousel":
+        block.title = "High-Paying Careers That Don't Require a Bachelor's Degree";
+        block.subtitle = "Explore lucrative technical and aviation professions with great salary growth";
         block.items = [
-          { id: "1", title: "Harvard University", content: "Rank #1 Global • ₹80L+ Sanctions", url: "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?q=80&w=800" },
-          { id: "2", title: "Oxford University", content: "Top UK Destination • 0 Margin Money", url: "https://images.unsplash.com/photo-1523240795612-9a054b0db644?q=80&w=800" },
+          {
+            id: "1",
+            title: "Commercial & Regional Pilot",
+            salary: "$148,900 / year",
+            requirements: "Commercial Certificate & Flight Hours (No Degree)",
+            badge: "Aviation",
+            content: "Commercial pilots fly chartered flights, corporate executive jets, and regional cargo routes. Airline entry depends on FAA flight certification and logged flight hours rather than a 4-year degree.",
+            url: "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?q=80&w=1000",
+            caption: "Flight deck instrumentation and simulator training",
+            credit: "Photo: Aviation Archive",
+            details: ["12-18 month flight school timeline", "High demand with senior airline retirements", "Over $200,000+ earning potential for captains"],
+          },
+          {
+            id: "2",
+            title: "Air Traffic Controller",
+            salary: "$132,250 / year",
+            requirements: "High School + FAA Academy Certification",
+            badge: "Federal",
+            content: "Air traffic controllers coordinate aircraft movement to maintain safe separation distances. Selected candidates receive paid training at the FAA Academy in Oklahoma City.",
+            url: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?q=80&w=1000",
+            caption: "Tower and radar controllers coordinate safe flight corridors",
+            credit: "Photo: FAA Operations",
+            details: ["Full federal pension and medical benefits", "Paid training at FAA Academy", "Median salary exceeds $130,000"],
+          },
+          {
+            id: "3",
+            title: "Power Plant Operator",
+            salary: "$97,000 / year",
+            requirements: "On-The-Job Apprenticeship & NRC License",
+            badge: "Energy",
+            content: "Operators control the systems that generate and distribute electric power across nuclear, hydro, and natural gas facilities. Training is almost entirely paid on-site.",
+            url: "https://images.unsplash.com/photo-1581092160607-ee22621dd758?q=80&w=1000",
+            caption: "Control room operators manage generation grids with rigorous safety protocols",
+            credit: "Photo: Industrial Systems",
+            details: ["100% employer-paid licensing", "Overtime regularly pushes pay over $115k", "Recession-resilient utility sector"],
+          },
         ];
         break;
       case "icon_list":
@@ -1340,9 +1383,8 @@ export default function ITBlogsPage() {
           link: targetUrl,
           openInNewTab: hyperlinkTargetBlank,
         };
-        const linkHtml = `<a href="${targetUrl}" ${
-          hyperlinkTargetBlank ? 'target="_blank" rel="noopener noreferrer"' : ""
-        } style="color: #4f46e5; font-weight: 700; text-decoration: underline;">${displayText}</a>`;
+        const linkHtml = `<a href="${targetUrl}" ${hyperlinkTargetBlank ? 'target="_blank" rel="noopener noreferrer"' : ""
+          } style="color: #4f46e5; font-weight: 700; text-decoration: underline;">${displayText}</a>`;
 
         if (b.type === "link" || b.type === "button") {
           updated.content = displayText;
@@ -1426,7 +1468,7 @@ export default function ITBlogsPage() {
         console.warn("Highlight fallback", err);
         try {
           document.execCommand("hiliteColor", false, bg);
-        } catch (_) {}
+        } catch (_) { }
         sel?.collapseToEnd();
       }
 
@@ -1482,7 +1524,7 @@ export default function ITBlogsPage() {
       } catch (_) {
         try {
           document.execCommand("hiliteColor", false, "transparent");
-        } catch {}
+        } catch { }
         sel?.collapseToEnd();
       }
 
@@ -1644,7 +1686,7 @@ export default function ITBlogsPage() {
           codeEl.style.fontFamily = "monospace";
           codeEl.style.fontSize = "0.9em";
           range.surroundContents(codeEl);
-        } catch (_) {}
+        } catch (_) { }
       }
 
       const el = document.getElementById(`editor-${blockId}`);
@@ -1691,7 +1733,151 @@ export default function ITBlogsPage() {
 
   const applyTemplate = (templateKey: string) => {
     let tBlocks: Block[] = [];
-    if (templateKey === "education_guide") {
+    if (templateKey === "high_paying_jobs_slideshow") {
+      setBlogTitle("High-Paying Jobs That Require No College Degree (2026)");
+      setBlogSubtitle("Explore top-earning career paths where hands-on training, industry certifications, and FAA licenses out-earn traditional four-year degrees.");
+      setBlogCategory("Career & Education");
+      setCoverImage("https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?q=80&w=1200");
+      setBlogTags(["HighPayingJobs", "NoDegreeNeeded", "CareerGuide", "Apprenticeships", "VocationalSkills", "SalaryGrowth"]);
+      tBlocks = [
+        createBlock("heading", "The Skills Revolution: Earning Six Figures Without a Degree"),
+        createBlock(
+          "text",
+          "For decades, high school graduates were told that a four-year bachelor's degree was the only reliable ticket to a secure, upper-middle-class income. But with soaring university tuition debts and intense market demand for specialized technical expertise, that consensus has shattered. Today, commercial pilots, air traffic controllers, and power plant technicians command salaries exceeding $100,000 to $145,000 per year—all without ever setting foot in a four-year lecture hall."
+        ),
+        createBlock("alert", "Interactive Gallery: Browse through the slides below or click any job in the sidebar to jump directly to its salary benchmarks, duties, and entry paths."),
+        {
+          ...createBlock("image_carousel"),
+          title: "High-Paying Careers That Don't Require a Bachelor's Degree",
+          subtitle: "Use the sidebar or arrows to navigate through top-earning positions",
+          items: [
+            {
+              id: "job-1",
+              title: "Commercial & Regional Pilot",
+              badge: "Highest Earning",
+              salary: "$148,900 / year (Median)",
+              requirements: "Commercial Pilot Certificate + Instrument Rating (No 4-Year Degree)",
+              url: "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?q=80&w=1000",
+              content: "Commercial pilots operate aircraft for charter flights, cargo delivery, aerial photography, and corporate travel. While major international airlines historically favored bachelor degrees, regional carriers and corporate fleets now hire based strictly on flight hours, FAA commercial certification, and multi-engine ratings. As thousands of senior pilots reach mandatory retirement, hiring bonuses and hourly pay have surged to historic highs.",
+              caption: "Modern flight deck navigation systems require precision training rather than academic coursework.",
+              credit: "Photo: Unsplash / Aviation Media",
+              details: [
+                "Average Training Timeline: 12 to 18 months at an FAA-certified flight school",
+                "Flight Hour Milestones: 250 hours for Commercial License, 1,500 hours for ATP",
+                "Top Earning Potential: Up to $220,000+ per year with seniority and captain rank",
+              ]
+            },
+            {
+              id: "job-2",
+              title: "Air Traffic Controller",
+              badge: "Top Federal Pay",
+              salary: "$132,250 / year (Median)",
+              requirements: "High School Diploma + FAA Academy Graduation (Under Age 31)",
+              url: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?q=80&w=1000",
+              content: "Air traffic controllers coordinate the safe, orderly movement of aircraft across national airspace and terminal radar approach zones. The Federal Aviation Administration (FAA) hires candidates with a high school diploma and three years of progressive work experience. Selected candidates attend the intense FAA Academy in Oklahoma City, receiving full training and federal pay.",
+              caption: "Controllers maintain 24/7 radar contact with commercial and cargo aircraft.",
+              credit: "Photo: Unsplash / FAA Operations",
+              details: [
+                "FAA Academy Training: Several months of intensive radar and tower simulation",
+                "Federal Benefits: Comprehensive federal retirement pension and medical coverage",
+                "Top 10% Earning Range: More than $185,000 per year at major hub towers",
+              ]
+            },
+            {
+              id: "job-3",
+              title: "Nuclear & Power Plant Operator",
+              badge: "Energy Sector",
+              salary: "$97,000 / year (Median)",
+              requirements: "High School Diploma + On-Site Apprenticeship & NRC License",
+              url: "https://images.unsplash.com/photo-1581092160607-ee22621dd758?q=80&w=1000",
+              content: "Power plant operators control the machinery, turbines, and generators that generate electric power across nuclear, hydroelectric, and natural gas facilities. Nuclear plant operators must obtain a license from the Nuclear Regulatory Commission (NRC) through employer-sponsored on-the-job training and simulator exams. The role demands high reliability and problem-solving skills.",
+              caption: "Control room operators manage generation grids with rigorous safety protocols.",
+              credit: "Photo: Unsplash / Industrial Archive",
+              details: [
+                "Training Model: 100% paid on-the-job training with licensing incentives",
+                "Overtime & Shift Bonuses: Can push annual compensation past $120,000+",
+                "Stability: Vital infrastructure with near-zero layoff volatility",
+              ]
+            },
+            {
+              id: "job-4",
+              title: "Elevator & Escalator Installer / Repairer",
+              badge: "Union Trade",
+              salary: "$99,000 / year (Median)",
+              requirements: "High School Diploma + 4-Year Paid Union Apprenticeship",
+              url: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?q=80&w=1000",
+              content: "Elevator installers assemble, install, maintain, and repair elevators, escalators, moving walkways, and chairlifts. This is widely considered the highest-paid non-degree construction trade. Trainees enter a paid four-year apprenticeship through the International Union of Elevator Constructors (IUEC), earning competitive hourly wages while learning electrical and hydraulic systems.",
+              caption: "Elevator mechanics handle complex electrical circuits and hydraulic hoisting systems.",
+              credit: "Photo: Unsplash / Construction Tech",
+              details: [
+                "Zero Debt Model: Apprentices earn while they learn with zero student loans",
+                "Top Market Wages: Exceeds $130,000 per year in metropolitan high-rise markets",
+                "Long-term Demand: Modern smart elevators require specialized mechanical expertise",
+              ]
+            },
+            {
+              id: "job-5",
+              title: "Radiation Therapist",
+              badge: "Healthcare",
+              salary: "$89,500 / year (Median)",
+              requirements: "12-24 Month ARRT Certification (No 4-Year University Degree)",
+              url: "https://images.unsplash.com/photo-1516549655169-df83a0774514?q=80&w=1000",
+              content: "Radiation therapists administer targeted radiation treatments to cancer patients in hospitals and oncology clinics under the guidance of oncologists and medical physicists. Entering this high-demand healthcare career requires an accredited 1-to-2 year certificate program and ARRT board certification, bypassing the exorbitant tuition and length of medical school or four-year degrees.",
+              caption: "Therapists operate linear accelerators with precise digital targeting.",
+              credit: "Photo: Unsplash / Health Imaging",
+              details: [
+                "Fast Completion: Start working in as little as 18 to 24 months",
+                "Job Outlook: Fast-growing demand driven by an aging demographic",
+                "Predictable Schedule: Clinic-based hours with limited night shifts",
+              ]
+            },
+            {
+              id: "job-6",
+              title: "Police Detective & First-Line Supervisor",
+              badge: "Public Service",
+              salary: "$92,970 / year (Median)",
+              requirements: "High School Diploma + Police Academy & Promotional Merit",
+              url: "https://images.unsplash.com/photo-1453873531674-2151abc01707?q=80&w=1000",
+              content: "Police detectives and precinct supervisors conduct investigations, interview witnesses, analyze evidence, and direct patrol teams. Most municipal and state police agencies require only a high school diploma and graduation from an agency training academy. Career detectives earn promotions through field merit and departmental exams, pairing substantial base pay with lucrative pensions.",
+              caption: "Detectives lead complex criminal investigations and evidentiary analysis.",
+              credit: "Photo: Unsplash / Investigative Bureau",
+              details: [
+                "Retirement: 20-to-25 year retirement pensions with early pension access",
+                "Overtime Earning: Top supervisors regularly earn over $130,000 with overtime",
+                "Comprehensive Benefits: Lifetime healthcare and family coverage packages",
+              ]
+            }
+          ]
+        },
+        createBlock("heading", "Degree vs. Specialized Skills: Financial Comparison"),
+        {
+          ...createBlock("table"),
+          tableData: {
+            headers: ["Career Track", "Typical Debt at Entry", "Training Duration", "Median 5-Year Earnings"],
+            rows: [
+              ["Four-Year Liberal Arts Degree", "$38,000 - $85,000 Debt", "4 to 5 Years", "$55,000 - $65,000 / yr"],
+              ["Commercial Pilot Track", "$45,000 (Flight Training)", "14 to 18 Months", "$110,000 - $150,000 / yr"],
+              ["Union Elevator Apprenticeship", "$0 (Earn While Learning)", "4 Years (Paid)", "$90,000 - $115,000 / yr"],
+              ["Air Traffic Control Academy", "$0 (Paid Academy Training)", "1 to 2 Years", "$120,000 - $140,000 / yr"],
+            ],
+            hasHeader: true,
+            isStriped: true,
+          }
+        },
+        {
+          ...createBlock("cta", "Planning to pursue specialized vocational certification, pilot flight hours, or healthcare licensing? VidyaLoans provides targeted skill financing with zero collateral."),
+          title: "Finance Your Specialized Career Certification",
+          buttonText: "Check Skill Loan Eligibility →",
+          url: "/apply",
+          openInNewTab: true,
+        },
+        {
+          ...createBlock("tags"),
+          title: "Related Career Topics",
+          tags: ["HighPayingJobs", "NoDegreeNeeded", "CommercialPilot", "AirTrafficController", "UnionTrades", "VocationalSkills2026"],
+        }
+      ];
+    } else if (templateKey === "education_guide") {
       tBlocks = [
         createBlock("heading", "Complete Guide to Education Loans for Abroad Studies (2026)"),
         createBlock(
@@ -2006,7 +2192,7 @@ export default function ITBlogsPage() {
           title: blogTitle || "Current Draft",
           savedAt: new Date().toLocaleTimeString(),
         });
-      } catch (_) {}
+      } catch (_) { }
 
       const errMsg = e?.message || String(e || "");
       if (
@@ -2058,7 +2244,7 @@ export default function ITBlogsPage() {
       try {
         const parsed = JSON.parse(blog.blocks);
         if (Array.isArray(parsed)) return parsed;
-      } catch {}
+      } catch { }
     }
     const rawContent = blog.content || "";
     if (rawContent) {
@@ -2388,11 +2574,10 @@ export default function ITBlogsPage() {
                           </td>
                           <td className="px-6 py-4">
                             <span
-                              className={`px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider ${
-                                blog.published
+                              className={`px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider ${blog.published
                                   ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                                   : "bg-amber-50 text-amber-700 border border-amber-200"
-                              }`}
+                                }`}
                             >
                               {blog.published ? "Published" : "Draft"}
                             </span>
@@ -2514,27 +2699,24 @@ export default function ITBlogsPage() {
                       <button
                         type="button"
                         onClick={() => setCompareTab("overview")}
-                        className={`px-3 py-1 rounded-lg transition-all ${
-                          compareTab === "overview" ? "bg-indigo-600 text-white shadow-xs" : "text-slate-400 hover:text-white"
-                        }`}
+                        className={`px-3 py-1 rounded-lg transition-all ${compareTab === "overview" ? "bg-indigo-600 text-white shadow-xs" : "text-slate-400 hover:text-white"
+                          }`}
                       >
                         Metrics & Stats
                       </button>
                       <button
                         type="button"
                         onClick={() => setCompareTab("content")}
-                        className={`px-3 py-1 rounded-lg transition-all ${
-                          compareTab === "content" ? "bg-indigo-600 text-white shadow-xs" : "text-slate-400 hover:text-white"
-                        }`}
+                        className={`px-3 py-1 rounded-lg transition-all ${compareTab === "content" ? "bg-indigo-600 text-white shadow-xs" : "text-slate-400 hover:text-white"
+                          }`}
                       >
                         Content Preview
                       </button>
                       <button
                         type="button"
                         onClick={() => setCompareTab("architecture")}
-                        className={`px-3 py-1 rounded-lg transition-all ${
-                          compareTab === "architecture" ? "bg-indigo-600 text-white shadow-xs" : "text-slate-400 hover:text-white"
-                        }`}
+                        className={`px-3 py-1 rounded-lg transition-all ${compareTab === "architecture" ? "bg-indigo-600 text-white shadow-xs" : "text-slate-400 hover:text-white"
+                          }`}
                       >
                         Widget Architecture
                       </button>
@@ -2982,9 +3164,8 @@ export default function ITBlogsPage() {
               <button
                 type="button"
                 onClick={() => setViewMode("edit")}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                  viewMode === "edit" ? "bg-[#E21B5A] text-white shadow-sm" : "text-slate-400 hover:text-white"
-                }`}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${viewMode === "edit" ? "bg-[#E21B5A] text-white shadow-sm" : "text-slate-400 hover:text-white"
+                  }`}
                 title="Elementor Canvas"
               >
                 <span className="material-symbols-outlined text-[15px]">draw</span>
@@ -2993,9 +3174,8 @@ export default function ITBlogsPage() {
               <button
                 type="button"
                 onClick={() => setViewMode("preview")}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                  viewMode === "preview" ? "bg-[#E21B5A] text-white shadow-sm" : "text-slate-400 hover:text-white"
-                }`}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${viewMode === "preview" ? "bg-[#E21B5A] text-white shadow-sm" : "text-slate-400 hover:text-white"
+                  }`}
               >
                 <span className="material-symbols-outlined text-[15px]">visibility</span>
                 <span>Preview</span>
@@ -3003,9 +3183,8 @@ export default function ITBlogsPage() {
               <button
                 type="button"
                 onClick={() => setViewMode("mobile")}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                  viewMode === "mobile" ? "bg-[#E21B5A] text-white shadow-sm" : "text-slate-400 hover:text-white"
-                }`}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${viewMode === "mobile" ? "bg-[#E21B5A] text-white shadow-sm" : "text-slate-400 hover:text-white"
+                  }`}
               >
                 <span className="material-symbols-outlined text-[15px]">smartphone</span>
                 <span>Mobile</span>
@@ -3053,9 +3232,8 @@ export default function ITBlogsPage() {
                     <button
                       type="button"
                       onClick={() => setElementorInspectorTab("content")}
-                      className={`px-3 py-1 rounded-lg text-xs font-black transition-all flex items-center gap-1 ${
-                        elementorInspectorTab === "content" ? "bg-white text-indigo-700 shadow-2xs" : "text-slate-500 hover:text-slate-800"
-                      }`}
+                      className={`px-3 py-1 rounded-lg text-xs font-black transition-all flex items-center gap-1 ${elementorInspectorTab === "content" ? "bg-white text-indigo-700 shadow-2xs" : "text-slate-500 hover:text-slate-800"
+                        }`}
                     >
                       <span className="material-symbols-outlined text-[14px]">tune</span>
                       Content & Link
@@ -3063,9 +3241,8 @@ export default function ITBlogsPage() {
                     <button
                       type="button"
                       onClick={() => setElementorInspectorTab("style")}
-                      className={`px-3 py-1 rounded-lg text-xs font-black transition-all flex items-center gap-1 ${
-                        elementorInspectorTab === "style" ? "bg-white text-indigo-700 shadow-2xs" : "text-slate-500 hover:text-slate-800"
-                      }`}
+                      className={`px-3 py-1 rounded-lg text-xs font-black transition-all flex items-center gap-1 ${elementorInspectorTab === "style" ? "bg-white text-indigo-700 shadow-2xs" : "text-slate-500 hover:text-slate-800"
+                        }`}
                     >
                       <span className="material-symbols-outlined text-[14px]">palette</span>
                       Style & Dimensions
@@ -3073,9 +3250,8 @@ export default function ITBlogsPage() {
                     <button
                       type="button"
                       onClick={() => setElementorInspectorTab("advanced")}
-                      className={`px-3 py-1 rounded-lg text-xs font-black transition-all flex items-center gap-1 ${
-                        elementorInspectorTab === "advanced" ? "bg-white text-indigo-700 shadow-2xs" : "text-slate-500 hover:text-slate-800"
-                      }`}
+                      className={`px-3 py-1 rounded-lg text-xs font-black transition-all flex items-center gap-1 ${elementorInspectorTab === "advanced" ? "bg-white text-indigo-700 shadow-2xs" : "text-slate-500 hover:text-slate-800"
+                        }`}
                     >
                       <span className="material-symbols-outlined text-[14px]">settings</span>
                       Advanced
@@ -3109,11 +3285,10 @@ export default function ITBlogsPage() {
                                     style: { ...(selectedBlock.style || {}), fontSize: fontSizes[lvl] },
                                   });
                                 }}
-                                className={`px-2 py-0.5 rounded text-xs font-black transition-all cursor-pointer ${
-                                  isCurrent
+                                className={`px-2 py-0.5 rounded text-xs font-black transition-all cursor-pointer ${isCurrent
                                     ? "bg-[#E21B5A] text-white shadow-xs"
                                     : "text-slate-600 hover:text-slate-900 hover:bg-slate-200"
-                                }`}
+                                  }`}
                               >
                                 H{lvl}
                               </button>
@@ -3279,11 +3454,10 @@ export default function ITBlogsPage() {
                       <button
                         type="button"
                         onClick={() => openHyperlinkDialog(selectedBlock.id, selectedBlock.content?.slice(0, 30), selectedBlock.url || selectedBlock.link)}
-                        className={`px-3 py-1 text-xs font-bold rounded-xl transition-all flex items-center gap-1 cursor-pointer ${
-                          selectedBlock.url || selectedBlock.link
+                        className={`px-3 py-1 text-xs font-bold rounded-xl transition-all flex items-center gap-1 cursor-pointer ${selectedBlock.url || selectedBlock.link
                             ? "bg-indigo-600 text-white"
                             : "bg-slate-100 hover:bg-slate-200 text-slate-700"
-                        }`}
+                          }`}
                         title="Hyperlink Modal & Preset Selector"
                       >
                         <span className="material-symbols-outlined text-[14px]">link</span>
@@ -3331,11 +3505,10 @@ export default function ITBlogsPage() {
                                     style: { ...(selectedBlock.style || {}), fontSize: fontSizes[lvl] },
                                   });
                                 }}
-                                className={`px-2 py-0.5 rounded text-xs font-black transition-all cursor-pointer ${
-                                  isCurrent
+                                className={`px-2 py-0.5 rounded text-xs font-black transition-all cursor-pointer ${isCurrent
                                     ? "bg-[#E21B5A] text-white shadow-xs"
                                     : "text-slate-600 hover:text-slate-900 hover:bg-slate-200"
-                                }`}
+                                  }`}
                               >
                                 H{lvl}
                               </button>
@@ -3388,11 +3561,10 @@ export default function ITBlogsPage() {
                             key={w}
                             type="button"
                             onClick={() => updateBlockDimensions(selectedBlock.id, { width: w, maxWidth: w })}
-                            className={`px-1.5 py-0.5 rounded text-[10px] font-black cursor-pointer transition-all ${
-                              (selectedBlock.style?.width || "100%") === w
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-black cursor-pointer transition-all ${(selectedBlock.style?.width || "100%") === w
                                 ? "bg-[#E21B5A] text-white shadow-xs"
                                 : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                            }`}
+                              }`}
                           >
                             {w}
                           </button>
@@ -3412,11 +3584,10 @@ export default function ITBlogsPage() {
                             key={h.val}
                             type="button"
                             onClick={() => updateBlockDimensions(selectedBlock.id, { height: h.val })}
-                            className={`px-1.5 py-0.5 rounded text-[10px] font-black cursor-pointer transition-all ${
-                              (selectedBlock.style?.height || "auto") === h.val
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-black cursor-pointer transition-all ${(selectedBlock.style?.height || "auto") === h.val
                                 ? "bg-indigo-600 text-white shadow-xs"
                                 : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                            }`}
+                              }`}
                           >
                             {h.label}
                           </button>
@@ -3430,11 +3601,10 @@ export default function ITBlogsPage() {
                             key={align}
                             type="button"
                             onClick={() => updateBlockDimensions(selectedBlock.id, { textAlign: align })}
-                            className={`p-1 rounded-md text-slate-600 transition-all cursor-pointer ${
-                              (selectedBlock.style?.textAlign || "left") === align
+                            className={`p-1 rounded-md text-slate-600 transition-all cursor-pointer ${(selectedBlock.style?.textAlign || "left") === align
                                 ? "bg-white text-indigo-600 shadow-2xs font-bold"
                                 : "hover:bg-slate-200/50"
-                            }`}
+                              }`}
                             title={`Align ${align}`}
                           >
                             <span className="material-symbols-outlined text-[16px]">format_align_{align}</span>
@@ -3456,11 +3626,10 @@ export default function ITBlogsPage() {
                             key={c.name}
                             type="button"
                             onClick={() => updateBlockStyle(selectedBlock.id, { color: c.color })}
-                            className={`w-5 h-5 rounded-full border transition-transform hover:scale-110 cursor-pointer ${
-                              (selectedBlock.style?.color || "#1e293b") === c.color
+                            className={`w-5 h-5 rounded-full border transition-transform hover:scale-110 cursor-pointer ${(selectedBlock.style?.color || "#1e293b") === c.color
                                 ? "ring-2 ring-indigo-500 ring-offset-1 border-white"
                                 : "border-slate-200"
-                            }`}
+                              }`}
                             style={{ backgroundColor: c.color }}
                             title={c.name}
                           />
@@ -3490,11 +3659,10 @@ export default function ITBlogsPage() {
                             key={bg.name}
                             type="button"
                             onClick={() => updateBlockStyle(selectedBlock.id, { backgroundColor: bg.color })}
-                            className={`w-4 h-4 rounded border text-[9px] flex items-center justify-center transition-transform hover:scale-110 cursor-pointer ${
-                              (selectedBlock.style?.backgroundColor || "transparent") === bg.color
+                            className={`w-4 h-4 rounded border text-[9px] flex items-center justify-center transition-transform hover:scale-110 cursor-pointer ${(selectedBlock.style?.backgroundColor || "transparent") === bg.color
                                 ? "ring-2 ring-indigo-500 border-white"
                                 : "border-slate-300"
-                            }`}
+                              }`}
                             style={{ backgroundColor: bg.color === "transparent" ? "#ffffff" : bg.color }}
                             title={bg.name}
                           >
@@ -3642,11 +3810,10 @@ export default function ITBlogsPage() {
                           key={preset.url}
                           type="button"
                           onClick={() => updateBlockData(selectedBlock.id, { url: preset.url, link: preset.url })}
-                          className={`p-2 rounded-xl text-left transition-all cursor-pointer border ${
-                            selectedBlock.url === preset.url
+                          className={`p-2 rounded-xl text-left transition-all cursor-pointer border ${selectedBlock.url === preset.url
                               ? "bg-rose-950/80 border-rose-500 text-rose-200"
                               : "bg-slate-900/80 hover:bg-slate-700 border-slate-700 text-slate-300"
-                          }`}
+                            }`}
                         >
                           <div className="text-xs font-bold">{preset.label}</div>
                           <div className="text-[10px] font-mono text-slate-400">{preset.url}</div>
@@ -3684,11 +3851,10 @@ export default function ITBlogsPage() {
                 <button
                   type="button"
                   onClick={() => setLeftDockTab("elements")}
-                  className={`flex-1 py-3 text-xs font-black transition-all flex items-center justify-center gap-1.5 border-b-2 cursor-pointer ${
-                    leftDockTab === "elements"
+                  className={`flex-1 py-3 text-xs font-black transition-all flex items-center justify-center gap-1.5 border-b-2 cursor-pointer ${leftDockTab === "elements"
                       ? "border-[#E21B5A] text-[#E21B5A] bg-white"
                       : "border-transparent text-slate-500 hover:text-slate-800"
-                  }`}
+                    }`}
                 >
                   <span className="material-symbols-outlined text-[18px]">widgets</span>
                   Widgets
@@ -3696,11 +3862,10 @@ export default function ITBlogsPage() {
                 <button
                   type="button"
                   onClick={() => setLeftDockTab("templates")}
-                  className={`flex-1 py-3 text-xs font-black transition-all flex items-center justify-center gap-1.5 border-b-2 cursor-pointer ${
-                    leftDockTab === "templates"
+                  className={`flex-1 py-3 text-xs font-black transition-all flex items-center justify-center gap-1.5 border-b-2 cursor-pointer ${leftDockTab === "templates"
                       ? "border-[#E21B5A] text-[#E21B5A] bg-white"
                       : "border-transparent text-slate-500 hover:text-slate-800"
-                  }`}
+                    }`}
                 >
                   <span className="material-symbols-outlined text-[18px]">auto_awesome</span>
                   Templates
@@ -3708,11 +3873,10 @@ export default function ITBlogsPage() {
                 <button
                   type="button"
                   onClick={() => setLeftDockTab("uploads")}
-                  className={`flex-1 py-3 text-xs font-black transition-all flex items-center justify-center gap-1.5 border-b-2 cursor-pointer ${
-                    leftDockTab === "uploads"
+                  className={`flex-1 py-3 text-xs font-black transition-all flex items-center justify-center gap-1.5 border-b-2 cursor-pointer ${leftDockTab === "uploads"
                       ? "border-[#E21B5A] text-[#E21B5A] bg-white"
                       : "border-transparent text-slate-500 hover:text-slate-800"
-                  }`}
+                    }`}
                 >
                   <span className="material-symbols-outlined text-[18px]">cloud_upload</span>
                   Uploads
@@ -3739,45 +3903,40 @@ export default function ITBlogsPage() {
                     <button
                       type="button"
                       onClick={() => setElementorCategoryTab("all")}
-                      className={`px-2 py-1 rounded-md transition-all shrink-0 ${
-                        elementorCategoryTab === "all" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-500"
-                      }`}
+                      className={`px-2 py-1 rounded-md transition-all shrink-0 ${elementorCategoryTab === "all" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-500"
+                        }`}
                     >
                       All (30)
                     </button>
                     <button
                       type="button"
                       onClick={() => setElementorCategoryTab("basic")}
-                      className={`px-2 py-1 rounded-md transition-all shrink-0 ${
-                        elementorCategoryTab === "basic" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-500"
-                      }`}
+                      className={`px-2 py-1 rounded-md transition-all shrink-0 ${elementorCategoryTab === "basic" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-500"
+                        }`}
                     >
                       Basic
                     </button>
                     <button
                       type="button"
                       onClick={() => setElementorCategoryTab("media")}
-                      className={`px-2 py-1 rounded-md transition-all shrink-0 ${
-                        elementorCategoryTab === "media" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-500"
-                      }`}
+                      className={`px-2 py-1 rounded-md transition-all shrink-0 ${elementorCategoryTab === "media" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-500"
+                        }`}
                     >
                       Media
                     </button>
                     <button
                       type="button"
                       onClick={() => setElementorCategoryTab("interactive")}
-                      className={`px-2 py-1 rounded-md transition-all shrink-0 ${
-                        elementorCategoryTab === "interactive" ? "bg-white text-rose-600 shadow-2xs" : "text-slate-500"
-                      }`}
+                      className={`px-2 py-1 rounded-md transition-all shrink-0 ${elementorCategoryTab === "interactive" ? "bg-white text-rose-600 shadow-2xs" : "text-slate-500"
+                        }`}
                     >
                       Interactive
                     </button>
                     <button
                       type="button"
                       onClick={() => setElementorCategoryTab("advanced")}
-                      className={`px-2 py-1 rounded-md transition-all shrink-0 ${
-                        elementorCategoryTab === "advanced" ? "bg-white text-indigo-600 shadow-2xs" : "text-slate-500"
-                      }`}
+                      className={`px-2 py-1 rounded-md transition-all shrink-0 ${elementorCategoryTab === "advanced" ? "bg-white text-indigo-600 shadow-2xs" : "text-slate-500"
+                        }`}
                     >
                       Advanced
                     </button>
@@ -3808,11 +3967,10 @@ export default function ITBlogsPage() {
                       >
                         {elem.badge && (
                           <span
-                            className={`absolute top-2 right-2 text-[8px] font-black uppercase px-1.5 py-0.5 rounded ${
-                              elem.badge === "Link"
+                            className={`absolute top-2 right-2 text-[8px] font-black uppercase px-1.5 py-0.5 rounded ${elem.badge === "Link"
                                 ? "bg-indigo-100 text-indigo-700"
                                 : "bg-rose-100 text-rose-700"
-                            }`}
+                              }`}
                           >
                             {elem.badge}
                           </span>
@@ -3839,6 +3997,24 @@ export default function ITBlogsPage() {
                 {/* TAB B: TEMPLATES */}
                 {leftDockTab === "templates" && (
                   <div className="space-y-3">
+                    <div
+                      onClick={() => applyTemplate("high_paying_jobs_slideshow")}
+                      className="p-3.5 bg-gradient-to-br from-indigo-900 via-slate-900 to-indigo-950 text-white border border-indigo-500/50 hover:border-indigo-400 rounded-2xl cursor-pointer transition-all hover:shadow-xl group"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 bg-rose-500 text-white rounded">
+                          MSN Story Gallery
+                        </span>
+                        <span className="text-[10px] text-indigo-300 font-bold">Interactive</span>
+                      </div>
+                      <h5 className="text-xs font-black text-white mt-2 group-hover:text-rose-400 transition-colors">
+                        High-Paying Jobs That Require No Degree
+                      </h5>
+                      <p className="text-[11px] text-slate-300 mt-1 leading-snug">
+                        Multi-Image Story Deck + Side Navigation Bar + Salary Badges + Career Comparison Table
+                      </p>
+                    </div>
+
                     <div
                       onClick={() => applyTemplate("iphone_deal")}
                       className="p-3.5 bg-gradient-to-br from-rose-50 via-amber-50 to-orange-50 border border-rose-200 hover:border-rose-500 rounded-2xl cursor-pointer transition-all hover:shadow-md group"
@@ -3975,9 +4151,8 @@ export default function ITBlogsPage() {
                 onDragOver={(e) => handleCanvasDragOver(e)}
                 onDragLeave={handleCanvasDragLeave}
                 onDrop={(e) => handleCanvasDrop(e)}
-                className={`w-full transition-all duration-300 bg-white shadow-xl rounded-2xl p-6 md:p-12 border border-slate-200 flex flex-col relative h-fit min-h-[500px] ${
-                  viewMode === "mobile" ? "max-w-[420px]" : "max-w-[840px]"
-                } ${isDraggingFile || draggedType ? "ring-4 ring-rose-500/50 bg-rose-50/10" : ""}`}
+                className={`w-full transition-all duration-300 bg-white shadow-xl rounded-2xl p-6 md:p-12 border border-slate-200 flex flex-col relative h-fit min-h-[500px] ${viewMode === "mobile" ? "max-w-[420px]" : "max-w-[840px]"
+                  } ${isDraggingFile || draggedType ? "ring-4 ring-rose-500/50 bg-rose-50/10" : ""}`}
               >
                 {/* Saved Draft Recovery Banner */}
                 {savedDraftNotice && (
@@ -4201,11 +4376,10 @@ export default function ITBlogsPage() {
                             onDragEnd={handleBlockDragEnd}
                             onDragOver={(e) => handleCanvasDragOver(e, index)}
                             onDrop={(e) => handleCanvasDrop(e, index)}
-                            className={`group relative rounded-xl p-3 transition-all cursor-pointer ${
-                              isSelected
+                            className={`group relative rounded-xl p-3 transition-all cursor-pointer ${isSelected
                                 ? "ring-2 ring-[#E21B5A] ring-offset-2 bg-rose-50/10 shadow-sm"
                                 : "hover:ring-1 hover:ring-slate-300"
-                            }`}
+                              }`}
                             style={{
                               color: block.style?.color || "#1e293b",
                               backgroundColor: block.style?.backgroundColor || "transparent",
@@ -4252,19 +4426,18 @@ export default function ITBlogsPage() {
                                   type="text"
                                   value={block.content}
                                   onChange={(e) => updateBlockContent(block.id, e.target.value)}
-                                  className={`w-full bg-transparent border-none focus:outline-none placeholder:text-slate-300 transition-all ${
-                                    (block.level || 2) === 1
+                                  className={`w-full bg-transparent border-none focus:outline-none placeholder:text-slate-300 transition-all ${(block.level || 2) === 1
                                       ? "text-2xl md:text-3xl font-black"
                                       : (block.level || 2) === 2
-                                      ? "text-xl md:text-2xl font-extrabold"
-                                      : (block.level || 2) === 3
-                                      ? "text-lg md:text-xl font-bold"
-                                      : (block.level || 2) === 4
-                                      ? "text-base font-bold text-slate-800"
-                                      : (block.level || 2) === 5
-                                      ? "text-sm font-semibold text-slate-800"
-                                      : "text-xs font-semibold text-slate-700 uppercase tracking-wider"
-                                  }`}
+                                        ? "text-xl md:text-2xl font-extrabold"
+                                        : (block.level || 2) === 3
+                                          ? "text-lg md:text-xl font-bold"
+                                          : (block.level || 2) === 4
+                                            ? "text-base font-bold text-slate-800"
+                                            : (block.level || 2) === 5
+                                              ? "text-sm font-semibold text-slate-800"
+                                              : "text-xs font-semibold text-slate-700 uppercase tracking-wider"
+                                    }`}
                                   style={{
                                     fontSize: block.style?.fontSize,
                                     fontWeight: block.style?.fontWeight,
@@ -4275,2045 +4448,2332 @@ export default function ITBlogsPage() {
                                 />
                               </div>
                             ) : /* BLOCK TYPE: DEDICATED HYPERLINK WIDGET */
-                            block.type === "link" ? (
-                              <div className="p-3 my-1 bg-indigo-50/70 border border-indigo-200 rounded-xl flex items-center justify-between gap-3">
-                                <div className="flex items-center gap-2 flex-1">
-                                  <span className="material-symbols-outlined text-indigo-600">link</span>
-                                  <input
-                                    type="text"
-                                    value={block.content}
-                                    onChange={(e) => updateBlockContent(block.id, e.target.value)}
-                                    className="font-bold text-indigo-700 hover:underline bg-transparent border-none focus:outline-none flex-1 text-sm"
-                                    placeholder="Anchor link label..."
-                                  />
-                                </div>
-                                <span className="text-xs font-mono font-bold text-indigo-500 bg-white px-2 py-0.5 rounded border border-indigo-200">
-                                  {block.url || "/apply"} &rarr;
-                                </span>
-                              </div>
-                            ) : /* BLOCK TYPE: DEDICATED TAGS / TOPICS WIDGET */
-                            block.type === "tags" ? (
-                              <div className="p-4 my-2 rounded-2xl border border-slate-200 bg-slate-50/70 space-y-3">
-                                <div className="flex items-center justify-between border-b border-slate-200/80 pb-2 flex-wrap gap-2">
-                                  <div className="flex items-center gap-2">
-                                    <span className="material-symbols-outlined text-[18px] text-[#E21B5A]">label</span>
+                              block.type === "link" ? (
+                                <div className="p-3 my-1 bg-indigo-50/70 border border-indigo-200 rounded-xl flex items-center justify-between gap-3">
+                                  <div className="flex items-center gap-2 flex-1">
+                                    <span className="material-symbols-outlined text-indigo-600">link</span>
                                     <input
                                       type="text"
-                                      value={block.title || "Related Topics & Keywords"}
-                                      onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
-                                      className="font-black text-xs text-slate-800 bg-transparent border-none focus:outline-none"
-                                      placeholder="Widget Title (e.g. Tags & Topics)..."
+                                      value={block.content}
+                                      onChange={(e) => updateBlockContent(block.id, e.target.value)}
+                                      className="font-bold text-indigo-700 hover:underline bg-transparent border-none focus:outline-none flex-1 text-sm"
+                                      placeholder="Anchor link label..."
                                     />
                                   </div>
-                                  <div className="flex items-center gap-1.5 text-[10px]">
-                                    <span className="text-slate-400 font-semibold font-mono">{(block.tags || []).length} tags</span>
-                                  </div>
-                                </div>
-
-                                {/* Interactive Tag Pills */}
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  {(block.tags || []).map((tag, tagIdx) => (
-                                    <span
-                                      key={tag + tagIdx}
-                                      className="inline-flex items-center gap-1 px-3 py-1 bg-white hover:bg-slate-100 text-slate-800 rounded-full text-xs font-bold border border-slate-200 shadow-2xs transition-all group/tag"
-                                    >
-                                      <span className="text-indigo-600 font-black">#</span>
-                                      <span>{tag}</span>
-                                      <button
-                                        type="button"
-                                        onClick={() => removeBlockTag(block.id, tag)}
-                                        className="w-3.5 h-3.5 rounded-full hover:bg-rose-500 hover:text-white flex items-center justify-center text-[10px] text-slate-400 transition-colors cursor-pointer ml-0.5"
-                                        title="Remove tag"
-                                      >
-                                        ×
-                                      </button>
-                                    </span>
-                                  ))}
-
-                                  {/* Add new tag inline */}
-                                  <div className="inline-flex items-center gap-1 bg-white border border-dashed border-slate-300 rounded-full px-2.5 py-0.5 focus-within:border-indigo-500">
-                                    <span className="text-indigo-400 text-xs font-bold">#</span>
-                                    <input
-                                      type="text"
-                                      placeholder="Add tag & Enter..."
-                                      className="bg-transparent text-xs text-slate-800 placeholder-slate-400 focus:outline-none w-28 py-0.5"
-                                      onKeyDown={(e) => {
-                                        if (e.key === "Enter" || e.key === ",") {
-                                          e.preventDefault();
-                                          const val = e.currentTarget.value.trim();
-                                          if (val) {
-                                            addBlockTag(block.id, val);
-                                            e.currentTarget.value = "";
-                                          }
-                                        }
-                                      }}
-                                    />
-                                  </div>
-                                </div>
-
-                                {/* Popular Tag Suggestions */}
-                                <div className="pt-1 flex items-center gap-1.5 text-[10px] text-slate-500 flex-wrap">
-                                  <span className="font-bold text-[9px] uppercase tracking-wider text-slate-400">Suggestions:</span>
-                                  {[
-                                    "iPhoneAir",
-                                    "AppleIndia",
-                                    "AmazonDeals",
-                                    "PriceDrop",
-                                    "TechNews",
-                                    "EducationLoan",
-                                    "StudyAbroad",
-                                    "Smartphones2026",
-                                  ].map((preset) => {
-                                    const hasIt = (block.tags || []).includes(preset);
-                                    return (
-                                      <button
-                                        key={preset}
-                                        type="button"
-                                        onClick={() => (hasIt ? removeBlockTag(block.id, preset) : addBlockTag(block.id, preset))}
-                                        className={`px-2 py-0.5 rounded-md font-semibold text-[10px] transition-all cursor-pointer ${
-                                          hasIt
-                                            ? "bg-indigo-100 text-indigo-700 border border-indigo-300"
-                                            : "bg-white text-slate-600 hover:text-slate-900 border border-slate-200"
-                                        }`}
-                                      >
-                                        {hasIt ? "✓" : "+"} #{preset}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            ) : /* BLOCK TYPE: BUTTON WITH LINK (FULLY DYNAMIC) */
-                            block.type === "button" ? (
-                              <div className="my-2 p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
-                                <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-                                  <input
-                                    type="text"
-                                    value={block.content || ""}
-                                    onChange={(e) => updateBlockContent(block.id, e.target.value)}
-                                    placeholder="Button Label (e.g. Check Live Deal on Amazon)..."
-                                    className="flex-1 font-bold text-xs text-slate-800 bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-indigo-500"
-                                  />
-                                  <input
-                                    type="text"
-                                    value={block.url || ""}
-                                    onChange={(e) => updateBlockData(block.id, { url: e.target.value, link: e.target.value })}
-                                    placeholder="https://... or /apply"
-                                    className="w-full sm:w-48 font-mono text-xs text-indigo-700 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-indigo-500"
-                                  />
-                                </div>
-                                <div className="flex items-center justify-between gap-2 flex-wrap text-[11px]">
-                                  <div className="flex items-center gap-2">
-                                    <label className="flex items-center gap-1 font-medium text-slate-600 cursor-pointer">
-                                      <input
-                                        type="checkbox"
-                                        checked={block.openInNewTab !== false}
-                                        onChange={(e) => updateBlockData(block.id, { openInNewTab: e.target.checked })}
-                                        className="rounded text-indigo-600 cursor-pointer"
-                                      />
-                                      <span>Open in new tab (↗)</span>
-                                    </label>
-                                  </div>
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="text-slate-400 font-bold uppercase text-[9px]">Style:</span>
-                                    {[
-                                      { key: "gradient", label: "Gradient", cls: "bg-gradient-to-r from-indigo-600 to-purple-600 text-white" },
-                                      { key: "deal", label: "Deal Flash", cls: "bg-gradient-to-r from-[#E21B5A] to-rose-600 text-white" },
-                                      { key: "emerald", label: "Emerald", cls: "bg-emerald-600 text-white" },
-                                      { key: "outline", label: "Outline", cls: "border-2 border-indigo-600 text-indigo-600 bg-transparent" },
-                                    ].map((st) => (
-                                      <button
-                                        key={st.key}
-                                        type="button"
-                                        onClick={() => updateBlockData(block.id, { linkStyle: st.key as any })}
-                                        className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-all ${
-                                          (block.linkStyle || "gradient") === st.key ? "ring-2 ring-indigo-500 font-black shadow-2xs" : "opacity-70 hover:opacity-100"
-                                        } ${st.cls}`}
-                                      >
-                                        {st.label}
-                                      </button>
-                                    ))}
-                                  </div>
-                                </div>
-                                {/* Live Preview of the Button */}
-                                <div className="pt-1 flex items-center justify-start">
-                                  <a
-                                    href={block.url || "#"}
-                                    target={block.openInNewTab !== false ? "_blank" : "_self"}
-                                    rel="noopener noreferrer"
-                                    onClick={(e) => e.preventDefault()}
-                                    className={`px-6 py-2.5 rounded-xl font-bold text-xs shadow-md transition-all inline-flex items-center gap-1.5 cursor-pointer ${
-                                      block.linkStyle === "deal"
-                                        ? "bg-gradient-to-r from-[#E21B5A] to-rose-600 text-white hover:from-rose-600 hover:to-rose-700"
-                                        : block.linkStyle === "emerald"
-                                        ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                                        : block.linkStyle === "outline"
-                                        ? "border-2 border-indigo-600 text-indigo-600 bg-white hover:bg-indigo-50"
-                                        : "bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700"
-                                    }`}
-                                  >
-                                    <span>{block.content || "Click Here"}</span>
-                                    <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
-                                  </a>
-                                </div>
-                              </div>
-                            ) : /* BLOCK TYPE: CALL TO ACTION (CTA CARD) */
-                            block.type === "cta" ? (
-                              <div className="p-6 my-2 bg-gradient-to-r from-indigo-50 via-purple-50 to-rose-50 border border-indigo-200 rounded-2xl shadow-xs space-y-3">
-                                <input
-                                  type="text"
-                                  value={block.title || "Ready to Apply?"}
-                                  onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
-                                  className="text-lg font-black text-indigo-950 bg-transparent border-none focus:outline-none w-full"
-                                  placeholder="CTA Headline..."
-                                />
-                                <textarea
-                                  value={block.content}
-                                  onChange={(e) => updateBlockContent(block.id, e.target.value)}
-                                  rows={2}
-                                  className="w-full text-xs text-slate-600 bg-transparent border-none focus:outline-none resize-y leading-relaxed"
-                                  placeholder="CTA Description..."
-                                />
-                                <div className="flex items-center gap-3 pt-1">
-                                  <button
-                                    type="button"
-                                    className="px-5 py-2.5 bg-indigo-600 text-white font-black text-xs rounded-xl shadow-md cursor-pointer hover:bg-indigo-700"
-                                  >
-                                    {block.buttonText || "Apply Now &rarr;"}
-                                  </button>
-                                  <span className="text-[10px] font-mono text-indigo-600 font-semibold">
-                                    🔗 {block.url || "/apply"}
+                                  <span className="text-xs font-mono font-bold text-indigo-500 bg-white px-2 py-0.5 rounded border border-indigo-200">
+                                    {block.url || "/apply"} &rarr;
                                   </span>
                                 </div>
-                              </div>
-                            ) : /* BLOCK TYPE: NOTICE / ALERT BOX */
-                            block.type === "alert" ? (
-                              <div className="p-4 my-2 rounded-xl border border-amber-200 bg-amber-50/80 text-amber-950 flex items-start gap-3">
-                                <span className="material-symbols-outlined text-amber-600 text-lg shrink-0 mt-0.5">
-                                  notification_important
-                                </span>
-                                <div className="flex-1 space-y-1">
-                                  <input
-                                    type="text"
-                                    value={block.title || "Important Note"}
-                                    onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
-                                    className="font-black text-xs text-amber-950 bg-transparent border-none focus:outline-none w-full"
-                                  />
-                                  <textarea
-                                    value={block.content}
-                                    onChange={(e) => updateBlockContent(block.id, e.target.value)}
-                                    rows={2}
-                                    className="text-xs text-amber-900 bg-transparent border-none focus:outline-none w-full resize-y"
-                                  />
-                                </div>
-                              </div>
-                            ) : /* BLOCK TYPE: IMAGE */
-                            block.type === "image" ? (
-                              <div
-                                className="space-y-2.5"
-                                onDragOver={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                }}
-                                onDrop={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  const file = e.dataTransfer.files?.[0];
-                                  if (file && file.type.startsWith("image/")) {
-                                    const reader = new FileReader();
-                                    reader.onload = (evt) => {
-                                      const dataUrl = evt.target?.result as string;
-                                      if (dataUrl) updateBlockContent(block.id, dataUrl);
-                                    };
-                                    reader.readAsDataURL(file);
-                                  }
-                                }}
-                              >
-                                {block.content ? (
-                                  <div className="relative group/img rounded-xl overflow-hidden border border-slate-200 shadow-xs bg-slate-50">
-                                    <img
-                                      src={block.content}
-                                      alt="Blog asset"
-                                      className="max-h-80 w-full object-cover rounded-xl"
-                                    />
-                                    {/* Quick floating actions on hover */}
-                                    <div className="absolute top-2 right-2 flex items-center gap-1.5 opacity-0 group-hover/img:opacity-100 transition-opacity bg-slate-900/85 backdrop-blur-xs p-1 rounded-xl shadow-lg z-10">
-                                      <label
-                                        className="px-2 py-1 hover:bg-slate-700 text-white rounded-lg cursor-pointer flex items-center gap-1 text-[11px] font-bold transition-colors"
-                                        title="Replace image from file"
-                                      >
-                                        <span className="material-symbols-outlined text-[14px]">upload_file</span>
-                                        <span>Replace</span>
-                                        <input
-                                          type="file"
-                                          accept="image/*"
-                                          className="hidden"
-                                          onChange={(e) => {
-                                            const file = e.target.files?.[0];
-                                            if (file) {
-                                              const reader = new FileReader();
-                                              reader.onload = (evt) => {
-                                                const dataUrl = evt.target?.result as string;
-                                                if (dataUrl) updateBlockContent(block.id, dataUrl);
-                                              };
-                                              reader.readAsDataURL(file);
-                                            }
-                                          }}
-                                        />
-                                      </label>
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          updateBlockContent(block.id, "");
-                                        }}
-                                        className="p-1 hover:bg-rose-600/80 text-white rounded-lg cursor-pointer flex items-center transition-colors"
-                                        title="Remove image"
-                                      >
-                                        <span className="material-symbols-outlined text-[14px]">delete</span>
-                                      </button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  /* Empty Image Dropzone with File Upload & Link Upload */
-                                  <div className="p-6 border-2 border-dashed border-rose-300 hover:border-rose-500 rounded-2xl bg-rose-50/20 text-center transition-all">
-                                    <div className="w-12 h-12 rounded-xl bg-rose-100 text-[#E21B5A] flex items-center justify-center mx-auto mb-2 shadow-xs">
-                                      <span className="material-symbols-outlined text-2xl">image</span>
-                                    </div>
-                                    <p className="text-xs font-bold text-slate-800">Add Image to Block</p>
-                                    <p className="text-[11px] text-slate-400 mb-3">Upload a file from your computer or paste an image link</p>
-                                    <div className="flex flex-col sm:flex-row items-center justify-center gap-2 max-w-lg mx-auto">
-                                      <label className="w-full sm:w-auto px-4 py-2 bg-[#E21B5A] hover:bg-[#C9134D] text-white text-xs font-bold rounded-xl cursor-pointer shadow-sm flex items-center justify-center gap-1.5 transition-all shrink-0">
-                                        <span className="material-symbols-outlined text-[16px]">upload_file</span>
-                                        <span>Upload File</span>
-                                        <input
-                                          type="file"
-                                          accept="image/*"
-                                          className="hidden"
-                                          onChange={(e) => {
-                                            const file = e.target.files?.[0];
-                                            if (file) {
-                                              const reader = new FileReader();
-                                              reader.onload = (evt) => {
-                                                const dataUrl = evt.target?.result as string;
-                                                if (dataUrl) updateBlockContent(block.id, dataUrl);
-                                              };
-                                              reader.readAsDataURL(file);
-                                            }
-                                          }}
-                                        />
-                                      </label>
-                                      <span className="text-xs text-slate-400 font-semibold">or</span>
-                                      <div className="flex items-center gap-1 w-full sm:flex-1">
+                              ) : /* BLOCK TYPE: DEDICATED TAGS / TOPICS WIDGET */
+                                block.type === "tags" ? (
+                                  <div className="p-4 my-2 rounded-2xl border border-slate-200 bg-slate-50/70 space-y-3">
+                                    <div className="flex items-center justify-between border-b border-slate-200/80 pb-2 flex-wrap gap-2">
+                                      <div className="flex items-center gap-2">
+                                        <span className="material-symbols-outlined text-[18px] text-[#E21B5A]">label</span>
                                         <input
                                           type="text"
-                                          id={`img-url-input-${block.id}`}
-                                          placeholder="Paste image URL (https://...)"
-                                          className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-mono text-slate-800 focus:outline-none focus:border-rose-400"
-                                          onKeyDown={(e) => {
-                                            if (e.key === "Enter") {
-                                              const val = (e.target as HTMLInputElement).value.trim();
-                                              if (val) updateBlockContent(block.id, val);
-                                            }
-                                          }}
+                                          value={block.title || "Related Topics & Keywords"}
+                                          onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
+                                          className="font-black text-xs text-slate-800 bg-transparent border-none focus:outline-none"
+                                          placeholder="Widget Title (e.g. Tags & Topics)..."
                                         />
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            const input = document.getElementById(`img-url-input-${block.id}`) as HTMLInputElement | null;
-                                            if (input && input.value.trim()) {
-                                              updateBlockContent(block.id, input.value.trim());
-                                            }
-                                          }}
-                                          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold cursor-pointer"
+                                      </div>
+                                      <div className="flex items-center gap-1.5 text-[10px]">
+                                        <span className="text-slate-400 font-semibold font-mono">{(block.tags || []).length} tags</span>
+                                      </div>
+                                    </div>
+
+                                    {/* Interactive Tag Pills */}
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      {(block.tags || []).map((tag, tagIdx) => (
+                                        <span
+                                          key={tag + tagIdx}
+                                          className="inline-flex items-center gap-1 px-3 py-1 bg-white hover:bg-slate-100 text-slate-800 rounded-full text-xs font-bold border border-slate-200 shadow-2xs transition-all group/tag"
                                         >
-                                          Apply
-                                        </button>
-                                      </div>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            ) : /* BLOCK TYPE: VIDEO (FILE UPLOAD OR YOUTUBE / VIMEO / LINK) */
-                            block.type === "video" ? (
-                              <div
-                                className="space-y-2.5"
-                                onDragOver={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                }}
-                                onDrop={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  const file = e.dataTransfer.files?.[0];
-                                  if (file && file.type.startsWith("video/")) {
-                                    if (file.size > 50 * 1024 * 1024) {
-                                      alert("Video exceeds 50MB. For larger videos, please paste a YouTube or Vimeo link.");
-                                      return;
-                                    }
-                                    const reader = new FileReader();
-                                    reader.onload = (evt) => {
-                                      const dataUrl = evt.target?.result as string;
-                                      if (dataUrl) updateBlockContent(block.id, dataUrl);
-                                    };
-                                    reader.readAsDataURL(file);
-                                  }
-                                }}
-                              >
-                                {(() => {
-                                  const parsed = parseVideoSource(block.content);
-                                  if (parsed.type === "video" && parsed.src) {
-                                    return (
-                                      <div className="relative group/vid rounded-xl overflow-hidden border border-slate-200 shadow-xs bg-black">
-                                        <video
-                                          controls
-                                          src={parsed.src}
-                                          className="w-full max-h-80 object-contain rounded-xl"
-                                        />
-                                        <div className="absolute top-2 right-2 flex items-center gap-1.5 opacity-0 group-hover/vid:opacity-100 transition-opacity bg-slate-900/85 backdrop-blur-xs p-1 rounded-xl shadow-lg z-10">
-                                          <label
-                                            className="px-2 py-1 hover:bg-slate-700 text-white rounded-lg cursor-pointer flex items-center gap-1 text-[11px] font-bold transition-colors"
-                                            title="Replace video file"
-                                          >
-                                            <span className="material-symbols-outlined text-[14px]">upload_file</span>
-                                            <span>Replace</span>
-                                            <input
-                                              type="file"
-                                              accept="video/*"
-                                              className="hidden"
-                                              onChange={(e) => {
-                                                const file = e.target.files?.[0];
-                                                if (file) {
-                                                  if (file.size > 50 * 1024 * 1024) {
-                                                    alert("Video exceeds 50MB. For larger videos, please paste a YouTube or Vimeo link.");
-                                                    return;
-                                                  }
-                                                  const reader = new FileReader();
-                                                  reader.onload = (evt) => {
-                                                    const dataUrl = evt.target?.result as string;
-                                                    if (dataUrl) updateBlockContent(block.id, dataUrl);
-                                                  };
-                                                  reader.readAsDataURL(file);
-                                                }
-                                              }}
-                                            />
-                                          </label>
+                                          <span className="text-indigo-600 font-black">#</span>
+                                          <span>{tag}</span>
                                           <button
                                             type="button"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              updateBlockContent(block.id, "");
-                                            }}
-                                            className="p-1 hover:bg-rose-600/80 text-white rounded-lg cursor-pointer flex items-center transition-colors"
-                                            title="Remove video"
+                                            onClick={() => removeBlockTag(block.id, tag)}
+                                            className="w-3.5 h-3.5 rounded-full hover:bg-rose-500 hover:text-white flex items-center justify-center text-[10px] text-slate-400 transition-colors cursor-pointer ml-0.5"
+                                            title="Remove tag"
                                           >
-                                            <span className="material-symbols-outlined text-[14px]">delete</span>
+                                            ×
                                           </button>
-                                        </div>
-                                      </div>
-                                    );
-                                  } else if (parsed.type === "iframe" && parsed.src) {
-                                    return (
-                                      <div className="relative aspect-video w-full rounded-xl overflow-hidden bg-black shadow-xs border border-slate-200 group/vid">
-                                        <iframe
-                                          src={parsed.src}
-                                          className="w-full h-full"
-                                          allowFullScreen
-                                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                        />
-                                        <div className="absolute top-2 right-2 flex items-center gap-1.5 opacity-0 group-hover/vid:opacity-100 transition-opacity bg-slate-900/85 backdrop-blur-xs p-1 rounded-xl shadow-lg z-10">
-                                          <label
-                                            className="px-2 py-1 hover:bg-slate-700 text-white rounded-lg cursor-pointer flex items-center gap-1 text-[11px] font-bold transition-colors"
-                                            title="Upload video from file"
-                                          >
-                                            <span className="material-symbols-outlined text-[14px]">upload_file</span>
-                                            <span>Upload File</span>
-                                            <input
-                                              type="file"
-                                              accept="video/*"
-                                              className="hidden"
-                                              onChange={(e) => {
-                                                const file = e.target.files?.[0];
-                                                if (file) {
-                                                  if (file.size > 50 * 1024 * 1024) {
-                                                    alert("Video exceeds 50MB. For larger videos, please paste a YouTube or Vimeo link.");
-                                                    return;
-                                                  }
-                                                  const reader = new FileReader();
-                                                  reader.onload = (evt) => {
-                                                    const dataUrl = evt.target?.result as string;
-                                                    if (dataUrl) updateBlockContent(block.id, dataUrl);
-                                                  };
-                                                  reader.readAsDataURL(file);
-                                                }
-                                              }}
-                                            />
-                                          </label>
-                                          <button
-                                            type="button"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              updateBlockContent(block.id, "");
-                                            }}
-                                            className="p-1 hover:bg-rose-600/80 text-white rounded-lg cursor-pointer flex items-center transition-colors"
-                                            title="Remove video"
-                                          >
-                                            <span className="material-symbols-outlined text-[14px]">delete</span>
-                                          </button>
-                                        </div>
-                                      </div>
-                                    );
-                                  } else {
-                                    /* Empty Video Dropzone */
-                                    return (
-                                      <div className="p-6 border-2 border-dashed border-indigo-300 hover:border-indigo-500 rounded-2xl bg-indigo-50/20 text-center transition-all">
-                                        <div className="w-12 h-12 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center mx-auto mb-2 shadow-xs">
-                                          <span className="material-symbols-outlined text-2xl">videocam</span>
-                                        </div>
-                                        <p className="text-xs font-bold text-slate-800">Add Video to Block</p>
-                                        <p className="text-[11px] text-slate-400 mb-3">Upload a video file from your computer or paste a video link</p>
-                                        <div className="flex flex-col sm:flex-row items-center justify-center gap-2 max-w-lg mx-auto">
-                                          <label className="w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl cursor-pointer shadow-sm flex items-center justify-center gap-1.5 transition-all shrink-0">
-                                            <span className="material-symbols-outlined text-[16px]">upload_file</span>
-                                            <span>Upload Video File</span>
-                                            <input
-                                              type="file"
-                                              accept="video/*"
-                                              className="hidden"
-                                              onChange={(e) => {
-                                                const file = e.target.files?.[0];
-                                                if (file) {
-                                                  if (file.size > 50 * 1024 * 1024) {
-                                                    alert("Video exceeds 50MB. For larger videos, please paste a YouTube or Vimeo link.");
-                                                    return;
-                                                  }
-                                                  const reader = new FileReader();
-                                                  reader.onload = (evt) => {
-                                                    const dataUrl = evt.target?.result as string;
-                                                    if (dataUrl) updateBlockContent(block.id, dataUrl);
-                                                  };
-                                                  reader.readAsDataURL(file);
-                                                }
-                                              }}
-                                            />
-                                          </label>
-                                          <span className="text-xs text-slate-400 font-semibold">or</span>
-                                          <div className="flex items-center gap-1 w-full sm:flex-1">
-                                            <input
-                                              type="text"
-                                              id={`vid-url-input-${block.id}`}
-                                              placeholder="YouTube / Vimeo / MP4 URL"
-                                              className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-mono text-slate-800 focus:outline-none focus:border-indigo-400"
-                                              onKeyDown={(e) => {
-                                                if (e.key === "Enter") {
-                                                  const val = (e.target as HTMLInputElement).value.trim();
-                                                  if (val) updateBlockContent(block.id, val);
-                                                }
-                                              }}
-                                            />
-                                            <button
-                                              type="button"
-                                              onClick={() => {
-                                                const input = document.getElementById(`vid-url-input-${block.id}`) as HTMLInputElement | null;
-                                                if (input && input.value.trim()) {
-                                                  updateBlockContent(block.id, input.value.trim());
-                                                }
-                                              }}
-                                              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold cursor-pointer"
-                                            >
-                                              Apply
-                                            </button>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    );
-                                  }
-                                })()}
-                              </div>
-                            ) : /* BLOCK TYPE: DIVIDER */
-                            block.type === "divider" ? (
-                              <hr className="border-t-2 border-slate-300 my-2" />
-                            ) : /* BLOCK TYPE: BLOCKQUOTE */
-                            block.type === "quote" ? (
-                              <div className="border-l-4 border-[#E21B5A] pl-4 py-2 bg-rose-50/30 rounded-r-xl my-2">
-                                <textarea
-                                  value={block.content}
-                                  onChange={(e) => updateBlockContent(block.id, e.target.value)}
-                                  rows={2}
-                                  className="w-full font-semibold italic text-slate-900 bg-transparent border-none focus:outline-none resize-y text-sm"
-                                />
-                              </div>
-                            ) : /* BLOCK TYPE: CODE */
-                            block.type === "code" ? (
-                              <div className="bg-slate-900 text-emerald-400 p-3.5 rounded-xl font-mono text-xs my-2">
-                                <textarea
-                                  value={block.content}
-                                  onChange={(e) => updateBlockContent(block.id, e.target.value)}
-                                  rows={3}
-                                  className="w-full bg-transparent text-emerald-400 border-none focus:outline-none font-mono text-xs resize-y"
-                                />
-                              </div>
-                            ) : /* BLOCK TYPE: SPACER */
-                            block.type === "spacer" ? (
-                              <div
-                                className="py-2 flex items-center justify-center border border-dashed border-slate-300 rounded-lg bg-slate-50/50 text-slate-400 text-xs font-mono select-none"
-                                style={{ height: `${Number(block.value) || 32}px` }}
-                              >
-                                <span className="material-symbols-outlined text-[14px] mr-1">unfold_more</span>
-                                Spacer ({block.value || "32"}px)
-                              </div>
-                            ) : /* BLOCK TYPE: READ MORE */
-                            block.type === "read_more" ? (
-                              <div className="my-3 flex items-center gap-3 select-none">
-                                <div className="flex-1 border-t-2 border-dashed border-rose-300" />
-                                <span className="px-3 py-1 bg-rose-50 border border-rose-200 text-rose-700 text-[10px] font-black uppercase tracking-wider rounded-full shadow-2xs flex items-center gap-1">
-                                  <span className="material-symbols-outlined text-[13px]">read_more</span>
-                                  Read More Archive Cut-off
-                                </span>
-                                <div className="flex-1 border-t-2 border-dashed border-rose-300" />
-                              </div>
-                            ) : /* BLOCK TYPE: IMAGE BOX */
-                            block.type === "image_box" ? (
-                              <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs space-y-3">
-                                {block.url ? (
-                                  <div className="relative rounded-xl overflow-hidden max-h-56 bg-slate-100 border border-slate-200">
-                                    <img src={block.url} alt={block.title || "Image Box"} className="w-full h-full object-cover" />
-                                    <button
-                                      type="button"
-                                      onClick={() => updateBlockData(block.id, { url: "" })}
-                                      className="absolute top-2 right-2 p-1 bg-slate-900/80 hover:bg-rose-600 text-white rounded-lg text-xs"
-                                    >
-                                      <span className="material-symbols-outlined text-xs">close</span>
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <div className="p-4 border-2 border-dashed border-slate-200 rounded-xl text-center">
-                                    <label className="text-xs font-bold text-indigo-600 hover:underline cursor-pointer flex items-center justify-center gap-1">
-                                      <span className="material-symbols-outlined text-[16px]">upload_file</span>
-                                      Choose Image File or Enter URL
-                                      <input
-                                        type="file"
-                                        accept="image/*"
-                                        className="hidden"
-                                        onChange={(e) => {
-                                          const f = e.target.files?.[0];
-                                          if (f) {
-                                            const r = new FileReader();
-                                            r.onload = (ev) => updateBlockData(block.id, { url: ev.target?.result as string });
-                                            r.readAsDataURL(f);
-                                          }
-                                        }}
-                                      />
-                                    </label>
-                                  </div>
-                                )}
-                                <input
-                                  type="text"
-                                  value={block.title || ""}
-                                  onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
-                                  placeholder="Image Box Title..."
-                                  className="text-base font-bold text-slate-900 bg-transparent border-none focus:outline-none w-full"
-                                />
-                                <textarea
-                                  value={block.content}
-                                  onChange={(e) => updateBlockContent(block.id, e.target.value)}
-                                  rows={2}
-                                  placeholder="Image Box Description text..."
-                                  className="text-xs text-slate-600 bg-transparent border-none focus:outline-none w-full resize-y"
-                                />
-                              </div>
-                            ) : /* BLOCK TYPE: TESTIMONIAL */
-                            block.type === "testimonial" ? (
-                              <div className="p-5 bg-gradient-to-br from-purple-50/50 to-indigo-50/40 border border-purple-100 rounded-2xl space-y-3 shadow-xs">
-                                <div className="flex items-center gap-1 text-amber-400">
-                                  {[1, 2, 3, 4, 5].map((star) => (
-                                    <span key={star} className="material-symbols-outlined text-lg fill-current">star</span>
-                                  ))}
-                                </div>
-                                <textarea
-                                  value={block.content}
-                                  onChange={(e) => updateBlockContent(block.id, e.target.value)}
-                                  rows={3}
-                                  placeholder="Customer testimonial quote..."
-                                  className="w-full text-xs font-medium text-slate-700 italic bg-transparent border-none focus:outline-none resize-y leading-relaxed"
-                                />
-                                <div className="flex items-center gap-3 pt-2 border-t border-purple-100/80">
-                                  <div className="w-10 h-10 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shrink-0">
-                                    {(block.title || "A")[0]}
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <input
-                                      type="text"
-                                      value={block.title || ""}
-                                      onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
-                                      placeholder="Student / Reviewer Name..."
-                                      className="text-xs font-bold text-slate-900 bg-transparent border-none focus:outline-none w-full"
-                                    />
-                                    <input
-                                      type="text"
-                                      value={block.subtitle || ""}
-                                      onChange={(e) => updateBlockData(block.id, { subtitle: e.target.value })}
-                                      placeholder="Program / University (e.g. MS in CS, Columbia)..."
-                                      className="text-[11px] text-slate-500 bg-transparent border-none focus:outline-none w-full"
-                                    />
-                                  </div>
-                                </div>
-                              </div>
-                            ) : /* BLOCK TYPE: ICON */
-                            block.type === "icon" ? (
-                              <div className="p-4 my-1 flex flex-col items-center justify-center text-center space-y-2 bg-slate-50/60 border border-slate-200/80 rounded-2xl">
-                                <span className="material-symbols-outlined text-4xl text-[#E21B5A]">
-                                  {block.iconName || "verified_user"}
-                                </span>
-                                <input
-                                  type="text"
-                                  value={block.title || ""}
-                                  onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
-                                  placeholder="Icon Title / Description..."
-                                  className="text-xs font-bold text-slate-800 text-center bg-transparent border-none focus:outline-none w-full"
-                                />
-                                </div>
-                            ) : /* BLOCK TYPE: ICON BOX */
-                            block.type === "icon_box" ? (
-                              <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs flex items-start gap-4">
-                                <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
-                                  <span className="material-symbols-outlined text-2xl">{block.iconName || "account_balance"}</span>
-                                </div>
-                                <div className="flex-1 space-y-1">
-                                  <input
-                                    type="text"
-                                    value={block.title || ""}
-                                    onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
-                                    placeholder="Icon Box Heading..."
-                                    className="text-sm font-bold text-slate-900 bg-transparent border-none focus:outline-none w-full"
-                                  />
-                                  <textarea
-                                    value={block.content}
-                                    onChange={(e) => updateBlockContent(block.id, e.target.value)}
-                                    rows={2}
-                                    placeholder="Icon Box description..."
-                                    className="text-xs text-slate-600 bg-transparent border-none focus:outline-none w-full resize-y"
-                                  />
-                                </div>
-                              </div>
-                            ) : /* BLOCK TYPE: SOCIAL ICONS (DYNAMIC) */
-                            block.type === "social_icons" ? (
-                              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
-                                <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
-                                  <input
-                                    type="text"
-                                    value={block.title || "Follow Us & Share"}
-                                    onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
-                                    className="text-xs font-bold text-slate-800 bg-transparent border-none focus:outline-none"
-                                    placeholder="Section Title..."
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const next = [...(block.items || []), { id: Date.now().toString(), title: "X (Twitter)", url: "https://x.com", icon: "share" }];
-                                      updateBlockData(block.id, { items: next });
-                                    }}
-                                    className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[10px] font-bold flex items-center gap-1 cursor-pointer"
-                                  >
-                                    + Add Platform
-                                  </button>
-                                </div>
-                                <div className="space-y-2">
-                                  {(block.items || [
-                                    { id: "1", title: "X (Twitter)", url: "https://x.com", icon: "share" },
-                                    { id: "2", title: "LinkedIn", url: "https://linkedin.com", icon: "share" }
-                                  ]).map((item, i) => (
-                                    <div key={item.id || i} className="flex items-center gap-2 bg-white p-2 rounded-xl border border-slate-200 shadow-2xs">
-                                      <span className="material-symbols-outlined text-[16px] text-indigo-600 shrink-0">{item.icon || "share"}</span>
-                                      <input
-                                        type="text"
-                                        value={item.title}
-                                        onChange={(e) => {
-                                          const next = [...(block.items || [])];
-                                          next[i] = { ...next[i], title: e.target.value };
-                                          updateBlockData(block.id, { items: next });
-                                        }}
-                                        className="font-bold text-xs text-slate-800 bg-transparent border-none focus:outline-none w-28"
-                                        placeholder="Platform Name..."
-                                      />
-                                      <input
-                                        type="text"
-                                        value={item.url || ""}
-                                        onChange={(e) => {
-                                          const next = [...(block.items || [])];
-                                          next[i] = { ...next[i], url: e.target.value };
-                                          updateBlockData(block.id, { items: next });
-                                        }}
-                                        className="flex-1 font-mono text-[11px] text-slate-600 bg-slate-50 px-2 py-1 rounded border border-slate-100 focus:outline-none"
-                                        placeholder="Profile or Page URL..."
-                                      />
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          const next = (block.items || []).filter((_, idx) => idx !== i);
-                                          updateBlockData(block.id, { items: next });
-                                        }}
-                                        className="text-slate-400 hover:text-rose-600 p-1 cursor-pointer"
-                                      >
-                                        <span className="material-symbols-outlined text-[14px]">close</span>
-                                      </button>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            ) : /* BLOCK TYPE: IMAGE GALLERY */
-                            block.type === "image_gallery" ? (
-                              <div className="p-4 bg-slate-50/70 border border-slate-200 rounded-2xl space-y-3">
-                                <div className="flex items-center justify-between">
-                                  <input
-                                    type="text"
-                                    value={block.title || "Image Gallery"}
-                                    onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
-                                    className="text-xs font-bold text-slate-800 bg-transparent border-none focus:outline-none"
-                                  />
-                                  <label className="text-[11px] font-bold text-indigo-600 hover:underline cursor-pointer flex items-center gap-1">
-                                    <span className="material-symbols-outlined text-[14px]">add_photo_alternate</span>
-                                    Add Photo
-                                    <input
-                                      type="file"
-                                      accept="image/*"
-                                      className="hidden"
-                                      onChange={(e) => {
-                                        const file = e.target.files?.[0];
-                                        if (file) {
-                                          const reader = new FileReader();
-                                          reader.onload = (evt) => {
-                                            const url = evt.target?.result as string;
-                                            if (url) {
-                                              const newItems = [...(block.items || []), { id: Date.now().toString(), title: "Photo", url }];
-                                              updateBlockData(block.id, { items: newItems });
-                                            }
-                                          };
-                                          reader.readAsDataURL(file);
-                                        }
-                                      }}
-                                    />
-                                  </label>
-                                </div>
-                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                                  {(block.items || []).map((it, i) => (
-                                    <div key={it.id || i} className="relative group/gal rounded-xl overflow-hidden aspect-4/3 bg-slate-200">
-                                      <img src={it.url} alt={it.title} className="w-full h-full object-cover" />
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          const updated = (block.items || []).filter((_, idx) => idx !== i);
-                                          updateBlockData(block.id, { items: updated });
-                                        }}
-                                        className="absolute top-1.5 right-1.5 p-1 bg-slate-900/80 text-white rounded-md opacity-0 group-hover/gal:opacity-100 transition-opacity"
-                                      >
-                                        <span className="material-symbols-outlined text-xs">close</span>
-                                      </button>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            ) : /* BLOCK TYPE: IMAGE CAROUSEL (FULLY DYNAMIC) */
-                            block.type === "image_carousel" ? (
-                              <div className="p-4 bg-slate-900 text-white rounded-2xl space-y-3 shadow-md">
-                                <div className="flex items-center justify-between text-xs font-bold text-slate-300">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="material-symbols-outlined text-[16px] text-rose-400">view_carousel</span>
-                                    <input
-                                      type="text"
-                                      value={block.title || "Rotating Image Carousel"}
-                                      onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
-                                      className="font-bold text-xs text-white bg-transparent border-none focus:outline-none"
-                                    />
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        const curItems = block.items && block.items.length > 0 ? block.items : [{ id: "1", title: "Slide 1", content: "Details", url: "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?q=80&w=800" }];
-                                        const next = [...curItems, { id: Date.now().toString(), title: `Slide ${curItems.length + 1}`, content: "Description", url: "https://images.unsplash.com/photo-1523240795612-9a054b0db644?q=80&w=800" }];
-                                        updateBlockData(block.id, { items: next, activeSlideIndex: next.length - 1 });
-                                      }}
-                                      className="px-2 py-0.5 bg-rose-600 hover:bg-rose-700 text-white rounded text-[10px] font-bold cursor-pointer"
-                                    >
-                                      + Add Slide
-                                    </button>
-                                  </div>
-                                </div>
-
-                                {(() => {
-                                  const slides = (block.items && block.items.length > 0) ? block.items : [
-                                    { id: "1", title: "Global Campus View", content: "World-class university infrastructure", url: "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?q=80&w=800" },
-                                    { id: "2", title: "Advanced Research Labs", content: "Cutting edge technology facilities", url: "https://images.unsplash.com/photo-1523240795612-9a054b0db644?q=80&w=800" }
-                                  ];
-                                  const curIdx = Math.min(Math.max(0, block.activeSlideIndex || 0), slides.length - 1);
-                                  const curSlide = slides[curIdx];
-
-                                  return (
-                                    <div className="space-y-3">
-                                      <div className="relative rounded-xl overflow-hidden aspect-21/9 bg-slate-800">
-                                        <img src={curSlide.url} alt={curSlide.title} className="w-full h-full object-cover" />
-                                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/20 to-transparent flex items-end justify-between p-4">
-                                          <div className="flex-1 mr-4">
-                                            <input
-                                              type="text"
-                                              value={curSlide.title}
-                                              onChange={(e) => {
-                                                const next = [...slides];
-                                                next[curIdx] = { ...next[curIdx], title: e.target.value };
-                                                updateBlockData(block.id, { items: next });
-                                              }}
-                                              className="text-sm font-bold text-white bg-transparent border-none focus:outline-none w-full mb-1"
-                                              placeholder="Slide Headline..."
-                                            />
-                                            <input
-                                              type="text"
-                                              value={curSlide.content || ""}
-                                              onChange={(e) => {
-                                                const next = [...slides];
-                                                next[curIdx] = { ...next[curIdx], content: e.target.value };
-                                                updateBlockData(block.id, { items: next });
-                                              }}
-                                              className="text-xs text-slate-300 bg-transparent border-none focus:outline-none w-full"
-                                              placeholder="Slide Subtitle..."
-                                            />
-                                          </div>
-                                          {/* Slide Controls */}
-                                          <div className="flex items-center gap-1.5 shrink-0 bg-black/40 backdrop-blur-xs p-1 rounded-xl">
-                                            <button
-                                              type="button"
-                                              onClick={() => updateBlockData(block.id, { activeSlideIndex: (curIdx - 1 + slides.length) % slides.length })}
-                                              className="w-7 h-7 rounded-lg bg-white/20 hover:bg-white/40 flex items-center justify-center cursor-pointer transition-colors"
-                                              title="Previous Slide"
-                                            >
-                                              <span className="material-symbols-outlined text-sm">arrow_back</span>
-                                            </button>
-                                            <span className="text-[10px] font-mono px-1 font-bold">{curIdx + 1} / {slides.length}</span>
-                                            <button
-                                              type="button"
-                                              onClick={() => updateBlockData(block.id, { activeSlideIndex: (curIdx + 1) % slides.length })}
-                                              className="w-7 h-7 rounded-lg bg-white/20 hover:bg-white/40 flex items-center justify-center cursor-pointer transition-colors"
-                                              title="Next Slide"
-                                            >
-                                              <span className="material-symbols-outlined text-sm">arrow_forward</span>
-                                            </button>
-                                          </div>
-                                        </div>
-                                      </div>
-
-                                      {/* Slide Image URL & Delete controls */}
-                                      <div className="flex items-center gap-2 text-xs">
-                                        <input
-                                          type="text"
-                                          value={curSlide.url}
-                                          onChange={(e) => {
-                                            const next = [...slides];
-                                            next[curIdx] = { ...next[curIdx], url: e.target.value };
-                                            updateBlockData(block.id, { items: next });
-                                          }}
-                                          className="flex-1 font-mono text-[11px] px-2.5 py-1 bg-slate-800 border border-slate-700 rounded-lg text-slate-300 focus:outline-none"
-                                          placeholder="Image URL for this slide..."
-                                        />
-                                        {slides.length > 1 && (
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              const next = slides.filter((_, i) => i !== curIdx);
-                                              updateBlockData(block.id, { items: next, activeSlideIndex: Math.max(0, curIdx - 1) });
-                                            }}
-                                            className="px-2 py-1 bg-rose-600/30 hover:bg-rose-600 text-rose-200 hover:text-white rounded-lg text-[10px] font-bold transition-colors cursor-pointer"
-                                          >
-                                            Delete Slide
-                                          </button>
-                                        )}
-                                      </div>
-                                    </div>
-                                  );
-                                })()}
-                              </div>
-                            ) : /* BLOCK TYPE: ICON LIST */
-                            block.type === "icon_list" ? (
-                              <div className="p-4 bg-white border border-slate-200 rounded-2xl space-y-2">
-                                <input
-                                  type="text"
-                                  value={block.title || "Key Highlights"}
-                                  onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
-                                  className="text-xs font-bold text-slate-700 bg-transparent border-none focus:outline-none"
-                                />
-                                <div className="space-y-1.5">
-                                  {(block.items || []).map((it, i) => (
-                                    <div key={it.id || i} className="flex items-center gap-2 text-xs text-slate-700 font-medium">
-                                      <span className="material-symbols-outlined text-[16px] text-emerald-600 shrink-0">
-                                        {it.icon || "check_circle"}
-                                      </span>
-                                      <input
-                                        type="text"
-                                        value={it.title}
-                                        onChange={(e) => {
-                                          const nextItems = [...(block.items || [])];
-                                          nextItems[i] = { ...nextItems[i], title: e.target.value };
-                                          updateBlockData(block.id, { items: nextItems });
-                                        }}
-                                        className="flex-1 bg-transparent border-none focus:outline-none text-xs text-slate-800"
-                                      />
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            ) : /* BLOCK TYPE: COUNTER */
-                            block.type === "counter" ? (
-                              <div className="p-5 bg-gradient-to-br from-indigo-50 to-slate-50 border border-indigo-200 rounded-2xl text-center space-y-1">
-                                <div className="text-3xl md:text-4xl font-black text-indigo-700 font-mono tracking-tight flex items-center justify-center gap-0.5">
-                                  <span>{block.prefix || ""}</span>
-                                  <input
-                                    type="text"
-                                    value={block.value !== undefined ? String(block.value) : "75"}
-                                    onChange={(e) => updateBlockData(block.id, { value: e.target.value })}
-                                    className="w-20 text-center font-black bg-transparent border-none focus:outline-none text-indigo-700"
-                                  />
-                                  <span>{block.suffix || ""}</span>
-                                </div>
-                                <input
-                                  type="text"
-                                  value={block.title || "Counter Metric"}
-                                  onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
-                                  className="text-xs font-bold text-slate-700 text-center bg-transparent border-none focus:outline-none w-full"
-                                />
-                              </div>
-                            ) : /* BLOCK TYPE: PROGRESS BAR */
-                            block.type === "progress_bar" ? (
-                              <div className="p-4 bg-white border border-slate-200 rounded-2xl space-y-2">
-                                <div className="flex items-center justify-between text-xs font-bold text-slate-800">
-                                  <input
-                                    type="text"
-                                    value={block.title || "Approval Rate"}
-                                    onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
-                                    className="bg-transparent border-none focus:outline-none font-bold"
-                                  />
-                                  <span className="font-mono text-indigo-600">{block.value || 94}%</span>
-                                </div>
-                                <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
-                                  <div
-                                    className="bg-gradient-to-r from-indigo-600 to-[#E21B5A] h-full rounded-full transition-all"
-                                    style={{ width: `${Math.min(100, Math.max(0, Number(block.value) || 94))}%` }}
-                                  />
-                                </div>
-                                {isSelected && (
-                                  <input
-                                    type="range"
-                                    min="0"
-                                    max="100"
-                                    value={Number(block.value) || 94}
-                                    onChange={(e) => updateBlockData(block.id, { value: Number(e.target.value) })}
-                                    className="w-full accent-indigo-600 cursor-pointer"
-                                  />
-                                )}
-                              </div>
-                            ) : /* BLOCK TYPE: NESTED TABS (FULLY DYNAMIC) */
-                            block.type === "nested_tabs" ? (
-                              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
-                                {(() => {
-                                  const tabs = (block.items && block.items.length > 0) ? block.items : [
-                                    { id: "1", title: "Overview", content: "Comprehensive overview of the deal structure and bank rate terms." },
-                                    { id: "2", title: "Eligibility", content: "Minimum qualification, co-applicant documentation and approval process." }
-                                  ];
-                                  const activeIdx = Math.min(Math.max(0, Number(block.value) || 0), tabs.length - 1);
-
-                                  return (
-                                    <>
-                                      <div className="flex items-center justify-between border-b border-slate-200 pb-2 gap-2 flex-wrap">
-                                        <div className="flex items-center gap-1.5 overflow-x-auto flex-1">
-                                          {tabs.map((tab, idx) => (
-                                            <button
-                                              key={tab.id || idx}
-                                              type="button"
-                                              onClick={() => updateBlockData(block.id, { value: idx, items: tabs })}
-                                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
-                                                activeIdx === idx
-                                                  ? "bg-indigo-600 text-white shadow-xs"
-                                                  : "bg-white text-slate-700 hover:bg-slate-100 border border-slate-200"
-                                              }`}
-                                            >
-                                              {tab.title}
-                                            </button>
-                                          ))}
-                                        </div>
-                                        <div className="flex items-center gap-1.5">
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              const next = [...tabs, { id: Date.now().toString(), title: `Tab ${tabs.length + 1}`, content: "New tab content..." }];
-                                              updateBlockData(block.id, { items: next, value: next.length - 1 });
-                                            }}
-                                            className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[10px] font-bold cursor-pointer"
-                                          >
-                                            + Add Tab
-                                          </button>
-                                          {tabs.length > 1 && (
-                                            <button
-                                              type="button"
-                                              onClick={() => {
-                                                const next = tabs.filter((_, i) => i !== activeIdx);
-                                                updateBlockData(block.id, { items: next, value: Math.max(0, activeIdx - 1) });
-                                              }}
-                                              className="px-2 py-1 bg-rose-50 text-rose-600 border border-rose-200 rounded text-[10px] font-bold hover:bg-rose-100 cursor-pointer"
-                                            >
-                                              Delete Tab
-                                            </button>
-                                          )}
-                                        </div>
-                                      </div>
-
-                                      <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-2">
-                                        <div className="flex items-center gap-2 border-b border-slate-100 pb-1.5">
-                                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Tab Title:</span>
-                                          <input
-                                            type="text"
-                                            value={tabs[activeIdx]?.title || ""}
-                                            onChange={(e) => {
-                                              const next = [...tabs];
-                                              next[activeIdx] = { ...next[activeIdx], title: e.target.value };
-                                              updateBlockData(block.id, { items: next });
-                                            }}
-                                            className="font-bold text-xs text-indigo-700 bg-transparent border-none focus:outline-none flex-1"
-                                          />
-                                        </div>
-                                        <textarea
-                                          value={tabs[activeIdx]?.content || ""}
-                                          onChange={(e) => {
-                                            const next = [...tabs];
-                                            next[activeIdx] = { ...next[activeIdx], content: e.target.value };
-                                            updateBlockData(block.id, { items: next });
-                                          }}
-                                          rows={3}
-                                          className="w-full text-xs text-slate-700 bg-transparent border-none focus:outline-none resize-y leading-relaxed"
-                                          placeholder="Enter tab description content..."
-                                        />
-                                      </div>
-                                    </>
-                                  );
-                                })()}
-                              </div>
-                            ) : /* BLOCK TYPE: NESTED ACCORDION (DYNAMIC) */
-                            block.type === "nested_accordion" ? (
-                              <div className="p-4 bg-white border border-slate-200 rounded-2xl space-y-3">
-                                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                                  <input
-                                    type="text"
-                                    value={block.title || "Frequently Asked Questions"}
-                                    onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
-                                    className="text-xs font-bold text-slate-800 bg-transparent border-none focus:outline-none flex-1"
-                                    placeholder="Accordion Section Title..."
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const curItems = block.items && block.items.length > 0 ? block.items : [
-                                        { id: "1", title: "Is this deal available on all colors?", content: "Yes, standard titanium and silver variants qualify for the instant bank discount." }
-                                      ];
-                                      const next = [...curItems, { id: Date.now().toString(), title: "New Question / Topic", content: "Detailed explanation or answer..." }];
-                                      updateBlockData(block.id, { items: next });
-                                    }}
-                                    className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[10px] font-bold cursor-pointer"
-                                  >
-                                    + Add Item
-                                  </button>
-                                </div>
-                                <div className="space-y-2">
-                                  {((block.items && block.items.length > 0) ? block.items : [
-                                    { id: "1", title: "How long is this limited deal active?", content: "The flash pricing is subject to stock quotas on Amazon India and may conclude without advance notice." },
-                                    { id: "2", title: "Can I combine credit card discounts with exchange?", content: "Yes, Amazon allows combining select bank card instant discounts with eligible exchange bonuses." }
-                                  ]).map((acc, idx) => (
-                                    <div key={acc.id || idx} className="border border-slate-200 rounded-xl bg-slate-50/50 p-2.5 space-y-1.5">
-                                      <div className="flex items-center justify-between gap-2">
-                                        <input
-                                          type="text"
-                                          value={acc.title}
-                                          onChange={(e) => {
-                                            const items = block.items || [];
-                                            const next = [...items];
-                                            next[idx] = { ...next[idx], title: e.target.value };
-                                            updateBlockData(block.id, { items: next });
-                                          }}
-                                          className="font-bold text-xs text-slate-900 bg-transparent border-none focus:outline-none flex-1"
-                                          placeholder="Question title..."
-                                        />
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            const items = block.items || [];
-                                            const next = items.filter((_, i) => i !== idx);
-                                            updateBlockData(block.id, { items: next });
-                                          }}
-                                          className="text-slate-400 hover:text-rose-600 p-0.5 cursor-pointer"
-                                        >
-                                          <span className="material-symbols-outlined text-[13px]">close</span>
-                                        </button>
-                                      </div>
-                                      <textarea
-                                        value={acc.content || ""}
-                                        onChange={(e) => {
-                                          const items = block.items || [];
-                                          const next = [...items];
-                                          next[idx] = { ...next[idx], content: e.target.value };
-                                          updateBlockData(block.id, { items: next });
-                                        }}
-                                        rows={2}
-                                        className="w-full bg-white p-2 rounded-lg border border-slate-200 text-xs text-slate-700 resize-y focus:outline-none focus:border-indigo-400"
-                                        placeholder="Answer content..."
-                                      />
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            ) : /* BLOCK TYPE: RATING */
-                            block.type === "rating" ? (
-                              <div className="p-4 bg-amber-50/40 border border-amber-200 rounded-2xl text-center space-y-1">
-                                <div className="flex items-center justify-center gap-1 text-amber-500">
-                                  {[1, 2, 3, 4, 5].map((s) => (
-                                    <span key={s} className="material-symbols-outlined text-2xl fill-current">star</span>
-                                  ))}
-                                </div>
-                                <input
-                                  type="text"
-                                  value={block.title || "4.9 / 5 Rating"}
-                                  onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
-                                  className="text-sm font-bold text-slate-900 text-center bg-transparent border-none focus:outline-none w-full"
-                                />
-                                <input
-                                  type="text"
-                                  value={block.subtitle || "Based on 12,400+ Verified Student Loan Reviews"}
-                                  onChange={(e) => updateBlockData(block.id, { subtitle: e.target.value })}
-                                  className="text-xs text-slate-500 text-center bg-transparent border-none focus:outline-none w-full"
-                                />
-                              </div>
-                            ) : /* BLOCK TYPE: HTML */
-                            block.type === "html" ? (
-                              <div className="p-3 bg-slate-900 rounded-2xl space-y-2 border border-slate-800">
-                                <div className="flex items-center justify-between text-[11px] font-mono font-bold text-slate-400">
-                                  <span>&lt;HTML Code /&gt;</span>
-                                  <span className="text-[10px] text-emerald-400">Live Embed</span>
-                                </div>
-                                <textarea
-                                  value={block.content}
-                                  onChange={(e) => updateBlockContent(block.id, e.target.value)}
-                                  rows={3}
-                                  className="w-full bg-slate-950 p-2.5 rounded-xl text-emerald-400 font-mono text-xs border border-slate-800 focus:outline-none resize-y"
-                                  placeholder="<div>Custom HTML</div>"
-                                />
-                              </div>
-                            ) : /* BLOCK TYPE: SHORTCODE */
-                            block.type === "shortcode" ? (
-                              <div className="p-3 bg-indigo-50/50 border border-indigo-200 rounded-2xl flex items-center gap-3">
-                                <span className="material-symbols-outlined text-indigo-600 text-xl">integration_instructions</span>
-                                <input
-                                  type="text"
-                                  value={block.content}
-                                  onChange={(e) => updateBlockContent(block.id, e.target.value)}
-                                  placeholder='[plugin_shortcode id="..."]'
-                                  className="flex-1 font-mono text-xs font-bold text-indigo-900 bg-transparent border-none focus:outline-none"
-                                />
-                              </div>
-                            ) : /* BLOCK TYPE: MENU ANCHOR */
-                            block.type === "menu_anchor" ? (
-                              <div className="py-2 px-3 bg-slate-100 border border-dashed border-slate-300 rounded-xl flex items-center gap-2 text-slate-600 text-xs font-mono font-bold select-none">
-                                <span className="material-symbols-outlined text-[16px] text-indigo-600">anchor</span>
-                                <span>#{block.content || "menu-anchor"}</span>
-                              </div>
-                            ) : /* BLOCK TYPE: SIDEBAR (DYNAMIC) */
-                            block.type === "sidebar" ? (
-                              <div className="p-4 bg-gradient-to-br from-indigo-50/60 to-purple-50/40 border border-indigo-200 rounded-2xl space-y-3">
-                                <div className="flex items-center justify-between border-b border-indigo-100 pb-2">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="material-symbols-outlined text-indigo-600 text-[18px]">view_sidebar</span>
-                                    <input
-                                      type="text"
-                                      value={block.title || "Sidebar Callout"}
-                                      onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
-                                      className="font-black text-xs text-slate-900 bg-transparent border-none focus:outline-none"
-                                      placeholder="Sidebar Title..."
-                                    />
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const next = [...(block.items || []), { id: Date.now().toString(), title: "Live Deal Page", url: "https://amazon.in" }];
-                                      updateBlockData(block.id, { items: next });
-                                    }}
-                                    className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[10px] font-bold cursor-pointer"
-                                  >
-                                    + Add Link
-                                  </button>
-                                </div>
-                                <textarea
-                                  value={block.content}
-                                  onChange={(e) => updateBlockContent(block.id, e.target.value)}
-                                  rows={2}
-                                  className="w-full text-xs text-slate-600 bg-white/70 p-2 rounded-xl border border-indigo-100 focus:outline-none resize-y"
-                                  placeholder="Sidebar overview or summary note..."
-                                />
-                                <div className="space-y-1.5">
-                                  {(block.items || [
-                                    { id: "1", title: "Compare Bank Rates", url: "/banks" },
-                                    { id: "2", title: "Calculate Monthly EMI", url: "/emi-calculator" }
-                                  ]).map((item, i) => (
-                                    <div key={item.id || i} className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-indigo-100">
-                                      <span className="text-indigo-600 text-xs">🔗</span>
-                                      <input
-                                        type="text"
-                                        value={item.title}
-                                        onChange={(e) => {
-                                          const next = [...(block.items || [])];
-                                          next[i] = { ...next[i], title: e.target.value };
-                                          updateBlockData(block.id, { items: next });
-                                        }}
-                                        className="font-bold text-xs text-slate-800 bg-transparent border-none focus:outline-none flex-1"
-                                        placeholder="Link Title..."
-                                      />
-                                      <input
-                                        type="text"
-                                        value={item.url || ""}
-                                        onChange={(e) => {
-                                          const next = [...(block.items || [])];
-                                          next[i] = { ...next[i], url: e.target.value };
-                                          updateBlockData(block.id, { items: next });
-                                        }}
-                                        className="font-mono text-[10px] text-indigo-600 bg-slate-50 px-2 py-0.5 rounded border border-slate-200 w-36 focus:outline-none"
-                                        placeholder="URL..."
-                                      />
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          const next = (block.items || []).filter((_, idx) => idx !== i);
-                                          updateBlockData(block.id, { items: next });
-                                        }}
-                                        className="text-slate-400 hover:text-rose-600 p-0.5 cursor-pointer"
-                                      >
-                                        <span className="material-symbols-outlined text-[13px]">close</span>
-                                      </button>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            ) : /* BLOCK TYPE: GOOGLE MAPS */
-                            block.type === "google_maps" ? (
-                              <div className="p-4 bg-white border border-slate-200 rounded-2xl space-y-2">
-                                <div className="flex items-center gap-2">
-                                  <span className="material-symbols-outlined text-rose-500">map</span>
-                                  <input
-                                    type="text"
-                                    value={block.content}
-                                    onChange={(e) => updateBlockContent(block.id, e.target.value)}
-                                    placeholder="Location query (e.g. Harvard University, Cambridge, MA)..."
-                                    className="text-xs font-bold text-slate-800 flex-1 bg-slate-50 px-2 py-1 rounded-lg border border-slate-200 focus:outline-none"
-                                  />
-                                </div>
-                                <div className="w-full aspect-video rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
-                                  <iframe
-                                    src={`https://maps.google.com/maps?q=${encodeURIComponent(block.content || "London")}&t=&z=13&ie=UTF8&iwloc=&output=embed`}
-                                    className="w-full h-full border-0"
-                                    loading="lazy"
-                                  />
-                                </div>
-                              </div>
-                            ) : /* BLOCK TYPE: SOUNDCLOUD */
-                            block.type === "soundcloud" ? (
-                              <div className="p-4 bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-2xl space-y-2">
-                                <div className="flex items-center gap-2 text-orange-600">
-                                  <span className="material-symbols-outlined">graphic_eq</span>
-                                  <span className="text-xs font-bold">{block.title || "SoundCloud Audio Track"}</span>
-                                </div>
-                                <input
-                                  type="text"
-                                  value={block.content}
-                                  onChange={(e) => updateBlockContent(block.id, e.target.value)}
-                                  placeholder="SoundCloud track URL..."
-                                  className="w-full text-xs font-mono px-3 py-1.5 bg-white border border-orange-200 rounded-lg text-slate-800 focus:outline-none"
-                                />
-                              </div>
-                            ) : /* BLOCK TYPE: TEXT PATH */
-                            block.type === "text_path" ? (
-                              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-center space-y-2">
-                                <svg viewBox="0 0 500 100" className="w-full max-h-24">
-                                  <path id={`path-${block.id}`} d="M 10 80 Q 250 10 490 80" fill="transparent" stroke="#E2E8F0" strokeWidth="2" />
-                                  <text className="text-xs font-black fill-indigo-600 font-sans tracking-widest">
-                                    <textPath href={`#path-${block.id}`} startOffset="50%" textAnchor="middle">
-                                      {block.title || "VidyaLoan • Study Abroad • Dream Higher • "}
-                                    </textPath>
-                                  </text>
-                                </svg>
-                                <input
-                                  type="text"
-                                  value={block.title || ""}
-                                  onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
-                                  placeholder="Curved Path Text..."
-                                  className="text-xs font-bold text-slate-800 text-center bg-transparent border-none focus:outline-none w-full"
-                                />
-                              </div>
-                            ) : /* BLOCK TYPE: LINK IN BIO */
-                            block.type === "link_bio" ? (
-                              <div className="p-6 bg-gradient-to-b from-indigo-50/60 to-purple-50/40 border border-indigo-200 rounded-3xl text-center space-y-4 max-w-md mx-auto">
-                                <div className="w-16 h-16 rounded-full bg-indigo-600 text-white flex items-center justify-center mx-auto text-xl font-bold shadow-md">
-                                  {(block.title || "V")[0]}
-                                </div>
-                                <div>
-                                  <input
-                                    type="text"
-                                    value={block.title || "VidyaLoan Advisor"}
-                                    onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
-                                    className="text-sm font-black text-slate-900 text-center bg-transparent border-none focus:outline-none w-full"
-                                  />
-                                  <input
-                                    type="text"
-                                    value={block.subtitle || "Helping students fund studies abroad"}
-                                    onChange={(e) => updateBlockData(block.id, { subtitle: e.target.value })}
-                                    className="text-[11px] text-slate-500 text-center bg-transparent border-none focus:outline-none w-full"
-                                  />
-                                </div>
-                                <div className="space-y-2">
-                                  {(block.items || []).map((item, idx) => (
-                                    <div
-                                      key={item.id || idx}
-                                      className="w-full py-2.5 px-4 bg-white hover:bg-indigo-50 border border-indigo-100 hover:border-indigo-400 rounded-xl text-xs font-bold text-indigo-950 flex items-center justify-between shadow-2xs transition-all"
-                                    >
-                                      <span>{item.title}</span>
-                                      {item.badge && (
-                                        <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-md">
-                                          {item.badge}
                                         </span>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            ) : /* BLOCK TYPE: TABLE OF CONTENTS (TOC) */
-                            block.type === "table_of_contents" ? (
-                              <div className="p-5 bg-gradient-to-br from-slate-50 to-indigo-50/40 rounded-2xl border border-indigo-100 shadow-xs space-y-3">
-                                <div className="flex items-center justify-between border-b border-indigo-100/80 pb-2">
-                                  <div className="flex items-center gap-2">
-                                    <span className="material-symbols-outlined text-indigo-600 text-lg">toc</span>
-                                    <input
-                                      type="text"
-                                      value={block.title || "Table of Contents"}
-                                      onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
-                                      className="font-black text-sm text-slate-900 bg-transparent border-none focus:outline-none"
-                                      placeholder="TOC Heading..."
-                                    />
-                                  </div>
-                                  <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
-                                    Auto-Indexed from H1–H6
-                                  </span>
-                                </div>
+                                      ))}
 
-                                {(() => {
-                                  const headings = blocks.filter((b) => b.type === "heading" && b.content?.trim());
-                                  if (headings.length === 0) {
-                                    return (
-                                      <div className="py-4 text-center text-slate-400">
-                                        <p className="text-xs font-semibold">No headings found yet.</p>
-                                        <p className="text-[11px] text-slate-400">
-                                          Add H1–H6 heading blocks to your blog to automatically generate chapter links here!
-                                        </p>
+                                      {/* Add new tag inline */}
+                                      <div className="inline-flex items-center gap-1 bg-white border border-dashed border-slate-300 rounded-full px-2.5 py-0.5 focus-within:border-indigo-500">
+                                        <span className="text-indigo-400 text-xs font-bold">#</span>
+                                        <input
+                                          type="text"
+                                          placeholder="Add tag & Enter..."
+                                          className="bg-transparent text-xs text-slate-800 placeholder-slate-400 focus:outline-none w-28 py-0.5"
+                                          onKeyDown={(e) => {
+                                            if (e.key === "Enter" || e.key === ",") {
+                                              e.preventDefault();
+                                              const val = e.currentTarget.value.trim();
+                                              if (val) {
+                                                addBlockTag(block.id, val);
+                                                e.currentTarget.value = "";
+                                              }
+                                            }
+                                          }}
+                                        />
                                       </div>
-                                    );
-                                  }
+                                    </div>
 
-                                  return (
-                                    <ul className="space-y-1.5 list-none pl-0">
-                                      {headings.map((h, i) => {
-                                        const lvl = Number(h.level || 2);
-                                        const paddingClass =
-                                          lvl === 1 ? "pl-0 font-bold text-slate-900 text-sm" :
-                                          lvl === 2 ? "pl-3 font-semibold text-slate-800 text-xs" :
-                                          lvl === 3 ? "pl-6 font-medium text-slate-700 text-xs" :
-                                          lvl === 4 ? "pl-9 font-medium text-slate-600 text-xs" :
-                                          "pl-12 text-slate-500 text-[11px]";
-                                        const slug = (h.content || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-
+                                    {/* Popular Tag Suggestions */}
+                                    <div className="pt-1 flex items-center gap-1.5 text-[10px] text-slate-500 flex-wrap">
+                                      <span className="font-bold text-[9px] uppercase tracking-wider text-slate-400">Suggestions:</span>
+                                      {[
+                                        "iPhoneAir",
+                                        "AppleIndia",
+                                        "AmazonDeals",
+                                        "PriceDrop",
+                                        "TechNews",
+                                        "EducationLoan",
+                                        "StudyAbroad",
+                                        "Smartphones2026",
+                                      ].map((preset) => {
+                                        const hasIt = (block.tags || []).includes(preset);
                                         return (
-                                          <li key={h.id || i} className={`flex items-center gap-2 ${paddingClass}`}>
-                                            <span className="text-indigo-400 font-mono text-[10px]">{i + 1}.</span>
-                                            <a
-                                              href={`#${slug}`}
-                                              onClick={(e) => e.preventDefault()}
-                                              className="hover:text-indigo-600 hover:underline flex items-center gap-1 flex-1 truncate"
-                                            >
-                                              <span>{h.content}</span>
-                                              <span className="text-[9px] font-mono text-slate-400 bg-slate-100 px-1 rounded">H{lvl}</span>
-                                            </a>
-                                          </li>
+                                          <button
+                                            key={preset}
+                                            type="button"
+                                            onClick={() => (hasIt ? removeBlockTag(block.id, preset) : addBlockTag(block.id, preset))}
+                                            className={`px-2 py-0.5 rounded-md font-semibold text-[10px] transition-all cursor-pointer ${hasIt
+                                                ? "bg-indigo-100 text-indigo-700 border border-indigo-300"
+                                                : "bg-white text-slate-600 hover:text-slate-900 border border-slate-200"
+                                              }`}
+                                          >
+                                            {hasIt ? "✓" : "+"} #{preset}
+                                          </button>
                                         );
                                       })}
-                                    </ul>
-                                  );
-                                })()}
-                              </div>
-                            ) : /* BLOCK TYPE: RESPONSIVE DATA TABLE */
-                            block.type === "table" ? (
-                              <div className="space-y-2.5">
-                                {/* Table Toolbar */}
-                                <div className="flex items-center justify-between gap-2 flex-wrap text-xs bg-slate-50 p-2 rounded-xl border border-slate-200">
-                                  <div className="flex items-center gap-1.5 flex-wrap">
-                                    <span className="material-symbols-outlined text-indigo-600 text-sm">table_chart</span>
-                                    <span className="font-bold text-slate-800 text-xs">Table Matrix:</span>
-                                    <button
-                                      type="button"
-                                      onClick={() => addTableRow(block.id)}
-                                      className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded font-bold text-[10px] cursor-pointer"
-                                    >
-                                      + Row
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => deleteTableRow(block.id)}
-                                      className="px-2 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded font-bold text-[10px] border border-rose-200 cursor-pointer"
-                                    >
-                                      - Row
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => addTableColumn(block.id)}
-                                      className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded font-bold text-[10px] cursor-pointer"
-                                    >
-                                      + Col
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => deleteTableColumn(block.id)}
-                                      className="px-2 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded font-bold text-[10px] border border-rose-200 cursor-pointer"
-                                    >
-                                      - Col
-                                    </button>
-                                  </div>
-
-                                  <div className="flex items-center gap-1.5">
-                                    <button
-                                      type="button"
-                                      onClick={() => toggleTableHeader(block.id)}
-                                      className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
-                                        block.tableData?.hasHeader !== false
-                                          ? "bg-slate-800 text-white"
-                                          : "bg-white text-slate-600 border border-slate-200"
-                                      }`}
-                                    >
-                                      Header: {block.tableData?.hasHeader !== false ? "ON" : "OFF"}
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => toggleTableStriped(block.id)}
-                                      className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
-                                        block.tableData?.isStriped
-                                          ? "bg-indigo-600 text-white"
-                                          : "bg-white text-slate-600 border border-slate-200"
-                                      }`}
-                                    >
-                                      Striped: {block.tableData?.isStriped ? "ON" : "OFF"}
-                                    </button>
-                                  </div>
-                                </div>
-
-                                {/* Table Grid */}
-                                <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-2xs">
-                                  <table className="w-full text-left border-collapse">
-                                    {block.tableData?.hasHeader !== false && (
-                                      <thead className="bg-slate-100 text-slate-800 text-xs font-bold uppercase tracking-wider border-b border-slate-200">
-                                        <tr>
-                                          {(block.tableData?.headers || ["Feature", "Rate", "Details"]).map((h, colIdx) => (
-                                            <th key={colIdx} className="p-2 border-r border-slate-200 last:border-r-0">
-                                              <input
-                                                type="text"
-                                                value={h}
-                                                onChange={(e) => updateTableHeader(block.id, colIdx, e.target.value)}
-                                                className="w-full bg-transparent font-bold text-xs text-slate-900 border-none focus:outline-none"
-                                              />
-                                            </th>
-                                          ))}
-                                        </tr>
-                                      </thead>
-                                    )}
-                                    <tbody className="divide-y divide-slate-100">
-                                      {(block.tableData?.rows || [
-                                        ["Collateral-Free Limit", "Up to ₹75 Lakhs", "Instant pre-approval"],
-                                        ["Interest Rate", "From 8.5% p.a.", "Tax benefit under 80E"],
-                                      ]).map((row, rowIdx) => (
-                                        <tr
-                                          key={rowIdx}
-                                          className={`${
-                                            block.tableData?.isStriped && rowIdx % 2 === 1
-                                              ? "bg-slate-50/70"
-                                              : "bg-white"
-                                          } hover:bg-indigo-50/30 transition-colors`}
-                                        >
-                                          {row.map((cell, colIdx) => (
-                                            <td key={colIdx} className="p-2 border-r border-slate-100 last:border-r-0">
-                                              <input
-                                                type="text"
-                                                value={cell}
-                                                onChange={(e) => updateTableCell(block.id, rowIdx, colIdx, e.target.value)}
-                                                className="w-full bg-transparent text-xs text-slate-700 border-none focus:outline-none"
-                                              />
-                                            </td>
-                                          ))}
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
-                                </div>
-                              </div>
-                            ) : /* BLOCK TYPE: LIST (ORDERED / UNORDERED) */
-                            block.type === "list" ? (
-                              <div className="space-y-2 p-3 bg-slate-50/60 rounded-xl border border-slate-200">
-                                <div className="flex items-center justify-between gap-2 border-b border-slate-200 pb-2 flex-wrap">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="material-symbols-outlined text-indigo-600 text-sm">
-                                      {block.listType === "ordered" ? "format_list_numbered" : "format_list_bulleted"}
-                                    </span>
-                                    <span className="text-xs font-bold text-slate-800">
-                                      {block.listType === "ordered" ? "Numbered List (<ol>)" : "Bulleted List (<ul>)"}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center gap-1">
-                                    <button
-                                      type="button"
-                                      onClick={() => toggleListType(block.id)}
-                                      className="px-2 py-0.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 rounded text-[10px] font-bold cursor-pointer transition-colors"
-                                    >
-                                      Switch to {block.listType === "ordered" ? "Bulleted (•)" : "Numbered (1.)"}
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => addListItem(block.id)}
-                                      className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[10px] font-bold cursor-pointer"
-                                    >
-                                      + Add Item
-                                    </button>
-                                  </div>
-                                </div>
-
-                                <div className="space-y-1.5">
-                                  {((block.items && block.items.length > 0)
-                                    ? block.items
-                                    : (block.content || "First item\nSecond item\nThird item").split("\n").map((s, idx) => ({ id: String(idx), title: s }))
-                                  ).map((item, itemIdx) => (
-                                    <div key={item.id || itemIdx} className="flex items-center gap-2">
-                                      <span className="w-5 text-center font-mono text-xs font-bold text-indigo-600 shrink-0 select-none">
-                                        {block.listType === "ordered" ? `${itemIdx + 1}.` : "•"}
-                                      </span>
-                                      <input
-                                        type="text"
-                                        value={item.title || ""}
-                                        onChange={(e) => updateListItem(block.id, itemIdx, e.target.value)}
-                                        className="flex-1 bg-white px-2 py-1 rounded-lg border border-slate-200 text-xs text-slate-800 focus:outline-none focus:border-indigo-400"
-                                        placeholder={`List item ${itemIdx + 1}...`}
-                                      />
-                                      <button
-                                        type="button"
-                                        onClick={() => removeListItem(block.id, itemIdx)}
-                                        className="p-1 text-slate-400 hover:text-rose-600 rounded cursor-pointer"
-                                        title="Delete item"
-                                      >
-                                        <span className="material-symbols-outlined text-[14px]">close</span>
-                                      </button>
                                     </div>
-                                  ))}
-                                </div>
-                              </div>
-                            ) : (
-                              /* DEFAULT: REAL-TIME RICH TEXT & LIVE FORMATTING WYSIWYG EDITOR */
-                              <div className="space-y-2">
-                                <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1.5 flex-wrap">
-                                  <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
-                                    <button
-                                      type="button"
-                                      onMouseDown={(e) => e.preventDefault()}
-                                      onClick={() => applyFormatToSelection(block.id, "bold")}
-                                      className="px-2 py-0.5 text-xs font-black text-slate-800 hover:bg-white rounded transition-colors cursor-pointer"
-                                      title="Bold (Ctrl+B) - Formats selected text"
-                                    >
-                                      B
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onMouseDown={(e) => e.preventDefault()}
-                                      onClick={() => applyFormatToSelection(block.id, "italic")}
-                                      className="px-2 py-0.5 text-xs italic font-serif text-slate-800 hover:bg-white rounded transition-colors cursor-pointer"
-                                      title="Italic (Ctrl+I)"
-                                    >
-                                      I
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onMouseDown={(e) => e.preventDefault()}
-                                      onClick={() => applyFormatToSelection(block.id, "underline")}
-                                      className="px-2 py-0.5 text-xs underline font-semibold text-slate-800 hover:bg-white rounded transition-colors cursor-pointer"
-                                      title="Underline (Ctrl+U)"
-                                    >
-                                      U
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onMouseDown={(e) => e.preventDefault()}
-                                      onClick={() => applyFormatToSelection(block.id, "strike")}
-                                      className="px-2 py-0.5 text-xs line-through text-slate-600 hover:bg-white rounded transition-colors cursor-pointer"
-                                      title="Strikethrough"
-                                    >
-                                      S
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onMouseDown={(e) => e.preventDefault()}
-                                      onClick={() => applyFormatToSelection(block.id, "code")}
-                                      className="px-2 py-0.5 text-xs font-mono text-emerald-700 hover:bg-white rounded transition-colors cursor-pointer"
-                                      title="Inline Code (`code`)"
-                                    >
-                                      &lt;/&gt;
-                                    </button>
-                                    {/* Auto-closing Multi-color Highlight Tool with Quick Split Button */}
-                                    <div className="relative inline-flex items-center">
-                                      <button
-                                        type="button"
-                                        onMouseDown={(e) => e.preventDefault()}
-                                        onClick={() => applyHighlight(block.id, "#fef08a", "#854d0e")}
-                                        className="px-2 py-0.5 text-xs font-black text-amber-900 bg-amber-200 hover:bg-amber-300 rounded-l transition-colors cursor-pointer shadow-2xs flex items-center gap-1 border-r border-amber-300/80"
-                                        title="Quick Highlight in Yellow Marker (or toggle off)"
-                                      >
-                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                                        Highlight
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onMouseDown={(e) => e.preventDefault()}
-                                        onClick={() =>
-                                          setActiveHighlightPicker(activeHighlightPicker === block.id ? null : block.id)
-                                        }
-                                        className="px-1 py-0.5 text-xs text-amber-900 bg-amber-200 hover:bg-amber-300 rounded-r transition-colors cursor-pointer flex items-center"
-                                        title="Choose Highlight Color or Remove"
-                                      >
-                                        <span className="material-symbols-outlined text-[13px]">arrow_drop_down</span>
-                                      </button>
-
-                                      {/* Auto-closing Highlight Dropdown Popover */}
-                                      {activeHighlightPicker === block.id && (
-                                        <div
-                                          onMouseDown={(e) => e.preventDefault()}
-                                          className="absolute top-full left-0 mt-1 z-30 bg-white p-2 rounded-xl shadow-xl border border-slate-200 flex flex-col gap-1.5 min-w-[210px] animate-in fade-in zoom-in-95 duration-100"
+                                  </div>
+                                ) : /* BLOCK TYPE: BUTTON WITH LINK (FULLY DYNAMIC) */
+                                  block.type === "button" ? (
+                                    <div className="my-2 p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
+                                      <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                                        <input
+                                          type="text"
+                                          value={block.content || ""}
+                                          onChange={(e) => updateBlockContent(block.id, e.target.value)}
+                                          placeholder="Button Label (e.g. Check Live Deal on Amazon)..."
+                                          className="flex-1 font-bold text-xs text-slate-800 bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-indigo-500"
+                                        />
+                                        <input
+                                          type="text"
+                                          value={block.url || ""}
+                                          onChange={(e) => updateBlockData(block.id, { url: e.target.value, link: e.target.value })}
+                                          placeholder="https://... or /apply"
+                                          className="w-full sm:w-48 font-mono text-xs text-indigo-700 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-indigo-500"
+                                        />
+                                      </div>
+                                      <div className="flex items-center justify-between gap-2 flex-wrap text-[11px]">
+                                        <div className="flex items-center gap-2">
+                                          <label className="flex items-center gap-1 font-medium text-slate-600 cursor-pointer">
+                                            <input
+                                              type="checkbox"
+                                              checked={block.openInNewTab !== false}
+                                              onChange={(e) => updateBlockData(block.id, { openInNewTab: e.target.checked })}
+                                              className="rounded text-indigo-600 cursor-pointer"
+                                            />
+                                            <span>Open in new tab (↗)</span>
+                                          </label>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="text-slate-400 font-bold uppercase text-[9px]">Style:</span>
+                                          {[
+                                            { key: "gradient", label: "Gradient", cls: "bg-gradient-to-r from-indigo-600 to-purple-600 text-white" },
+                                            { key: "deal", label: "Deal Flash", cls: "bg-gradient-to-r from-[#E21B5A] to-rose-600 text-white" },
+                                            { key: "emerald", label: "Emerald", cls: "bg-emerald-600 text-white" },
+                                            { key: "outline", label: "Outline", cls: "border-2 border-indigo-600 text-indigo-600 bg-transparent" },
+                                          ].map((st) => (
+                                            <button
+                                              key={st.key}
+                                              type="button"
+                                              onClick={() => updateBlockData(block.id, { linkStyle: st.key as any })}
+                                              className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-all ${(block.linkStyle || "gradient") === st.key ? "ring-2 ring-indigo-500 font-black shadow-2xs" : "opacity-70 hover:opacity-100"
+                                                } ${st.cls}`}
+                                            >
+                                              {st.label}
+                                            </button>
+                                          ))}
+                                        </div>
+                                      </div>
+                                      {/* Live Preview of the Button */}
+                                      <div className="pt-1 flex items-center justify-start">
+                                        <a
+                                          href={block.url || "#"}
+                                          target={block.openInNewTab !== false ? "_blank" : "_self"}
+                                          rel="noopener noreferrer"
+                                          onClick={(e) => e.preventDefault()}
+                                          className={`px-6 py-2.5 rounded-xl font-bold text-xs shadow-md transition-all inline-flex items-center gap-1.5 cursor-pointer ${block.linkStyle === "deal"
+                                              ? "bg-gradient-to-r from-[#E21B5A] to-rose-600 text-white hover:from-rose-600 hover:to-rose-700"
+                                              : block.linkStyle === "emerald"
+                                                ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                                                : block.linkStyle === "outline"
+                                                  ? "border-2 border-indigo-600 text-indigo-600 bg-white hover:bg-indigo-50"
+                                                  : "bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700"
+                                            }`}
                                         >
-                                          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1 flex items-center justify-between">
-                                            <span>Highlight Colors</span>
-                                            <button
-                                              type="button"
-                                              onClick={() => setActiveHighlightPicker(null)}
-                                              className="text-slate-400 hover:text-slate-700 cursor-pointer"
-                                            >
-                                              <span className="material-symbols-outlined text-[13px]">close</span>
-                                            </button>
-                                          </div>
-                                          <div className="grid grid-cols-3 gap-1">
-                                            {HIGHLIGHT_SWATCHES.map((swatch) => (
-                                              <button
-                                                key={swatch.name}
-                                                type="button"
-                                                onMouseDown={(e) => e.preventDefault()}
-                                                onClick={() => applyHighlight(block.id, swatch.bg, swatch.text)}
-                                                className="px-2 py-1 text-[11px] font-bold rounded-lg transition-transform hover:scale-105 cursor-pointer text-center"
-                                                style={{
-                                                  backgroundColor: swatch.bg,
-                                                  color: swatch.text,
-                                                  border: `1px solid ${swatch.border}`,
-                                                }}
-                                              >
-                                                {swatch.name}
-                                              </button>
-                                            ))}
-                                          </div>
-                                          <div className="border-t border-slate-100 pt-1">
-                                            <button
-                                              type="button"
-                                              onMouseDown={(e) => e.preventDefault()}
-                                              onClick={() => removeHighlight(block.id)}
-                                              className="w-full px-2 py-1 text-[11px] font-bold text-slate-700 hover:bg-rose-50 hover:text-rose-700 rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1.5"
-                                            >
-                                              <span className="material-symbols-outlined text-[13px]">
-                                                format_color_reset
-                                              </span>
-                                              Remove Highlight
-                                            </button>
+                                          <span>{block.content || "Click Here"}</span>
+                                          <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                                        </a>
+                                      </div>
+                                    </div>
+                                  ) : /* BLOCK TYPE: CALL TO ACTION (CTA CARD) */
+                                    block.type === "cta" ? (
+                                      <div className="p-6 my-2 bg-gradient-to-r from-indigo-50 via-purple-50 to-rose-50 border border-indigo-200 rounded-2xl shadow-xs space-y-3">
+                                        <input
+                                          type="text"
+                                          value={block.title || "Ready to Apply?"}
+                                          onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
+                                          className="text-lg font-black text-indigo-950 bg-transparent border-none focus:outline-none w-full"
+                                          placeholder="CTA Headline..."
+                                        />
+                                        <textarea
+                                          value={block.content}
+                                          onChange={(e) => updateBlockContent(block.id, e.target.value)}
+                                          rows={2}
+                                          className="w-full text-xs text-slate-600 bg-transparent border-none focus:outline-none resize-y leading-relaxed"
+                                          placeholder="CTA Description..."
+                                        />
+                                        <div className="flex items-center gap-3 pt-1">
+                                          <button
+                                            type="button"
+                                            className="px-5 py-2.5 bg-indigo-600 text-white font-black text-xs rounded-xl shadow-md cursor-pointer hover:bg-indigo-700"
+                                          >
+                                            {block.buttonText || "Apply Now &rarr;"}
+                                          </button>
+                                          <span className="text-[10px] font-mono text-indigo-600 font-semibold">
+                                            🔗 {block.url || "/apply"}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    ) : /* BLOCK TYPE: NOTICE / ALERT BOX */
+                                      block.type === "alert" ? (
+                                        <div className="p-4 my-2 rounded-xl border border-amber-200 bg-amber-50/80 text-amber-950 flex items-start gap-3">
+                                          <span className="material-symbols-outlined text-amber-600 text-lg shrink-0 mt-0.5">
+                                            notification_important
+                                          </span>
+                                          <div className="flex-1 space-y-1">
+                                            <input
+                                              type="text"
+                                              value={block.title || "Important Note"}
+                                              onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
+                                              className="font-black text-xs text-amber-950 bg-transparent border-none focus:outline-none w-full"
+                                            />
+                                            <textarea
+                                              value={block.content}
+                                              onChange={(e) => updateBlockContent(block.id, e.target.value)}
+                                              rows={2}
+                                              className="text-xs text-amber-900 bg-transparent border-none focus:outline-none w-full resize-y"
+                                            />
                                           </div>
                                         </div>
-                                      )}
-                                    </div>
+                                      ) : /* BLOCK TYPE: IMAGE */
+                                        block.type === "image" ? (
+                                          <div
+                                            className="space-y-2.5"
+                                            onDragOver={(e) => {
+                                              e.preventDefault();
+                                              e.stopPropagation();
+                                            }}
+                                            onDrop={(e) => {
+                                              e.preventDefault();
+                                              e.stopPropagation();
+                                              const file = e.dataTransfer.files?.[0];
+                                              if (file && file.type.startsWith("image/")) {
+                                                const reader = new FileReader();
+                                                reader.onload = (evt) => {
+                                                  const dataUrl = evt.target?.result as string;
+                                                  if (dataUrl) updateBlockContent(block.id, dataUrl);
+                                                };
+                                                reader.readAsDataURL(file);
+                                              }
+                                            }}
+                                          >
+                                            {block.content ? (
+                                              <div className="relative group/img rounded-xl overflow-hidden border border-slate-200 shadow-xs bg-slate-50">
+                                                <img
+                                                  src={block.content}
+                                                  alt="Blog asset"
+                                                  className="max-h-80 w-full object-cover rounded-xl"
+                                                />
+                                                {/* Quick floating actions on hover */}
+                                                <div className="absolute top-2 right-2 flex items-center gap-1.5 opacity-0 group-hover/img:opacity-100 transition-opacity bg-slate-900/85 backdrop-blur-xs p-1 rounded-xl shadow-lg z-10">
+                                                  <label
+                                                    className="px-2 py-1 hover:bg-slate-700 text-white rounded-lg cursor-pointer flex items-center gap-1 text-[11px] font-bold transition-colors"
+                                                    title="Replace image from file"
+                                                  >
+                                                    <span className="material-symbols-outlined text-[14px]">upload_file</span>
+                                                    <span>Replace</span>
+                                                    <input
+                                                      type="file"
+                                                      accept="image/*"
+                                                      className="hidden"
+                                                      onChange={(e) => {
+                                                        const file = e.target.files?.[0];
+                                                        if (file) {
+                                                          const reader = new FileReader();
+                                                          reader.onload = (evt) => {
+                                                            const dataUrl = evt.target?.result as string;
+                                                            if (dataUrl) updateBlockContent(block.id, dataUrl);
+                                                          };
+                                                          reader.readAsDataURL(file);
+                                                        }
+                                                      }}
+                                                    />
+                                                  </label>
+                                                  <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      updateBlockContent(block.id, "");
+                                                    }}
+                                                    className="p-1 hover:bg-rose-600/80 text-white rounded-lg cursor-pointer flex items-center transition-colors"
+                                                    title="Remove image"
+                                                  >
+                                                    <span className="material-symbols-outlined text-[14px]">delete</span>
+                                                  </button>
+                                                </div>
+                                              </div>
+                                            ) : (
+                                              /* Empty Image Dropzone with File Upload & Link Upload */
+                                              <div className="p-6 border-2 border-dashed border-rose-300 hover:border-rose-500 rounded-2xl bg-rose-50/20 text-center transition-all">
+                                                <div className="w-12 h-12 rounded-xl bg-rose-100 text-[#E21B5A] flex items-center justify-center mx-auto mb-2 shadow-xs">
+                                                  <span className="material-symbols-outlined text-2xl">image</span>
+                                                </div>
+                                                <p className="text-xs font-bold text-slate-800">Add Image to Block</p>
+                                                <p className="text-[11px] text-slate-400 mb-3">Upload a file from your computer or paste an image link</p>
+                                                <div className="flex flex-col sm:flex-row items-center justify-center gap-2 max-w-lg mx-auto">
+                                                  <label className="w-full sm:w-auto px-4 py-2 bg-[#E21B5A] hover:bg-[#C9134D] text-white text-xs font-bold rounded-xl cursor-pointer shadow-sm flex items-center justify-center gap-1.5 transition-all shrink-0">
+                                                    <span className="material-symbols-outlined text-[16px]">upload_file</span>
+                                                    <span>Upload File</span>
+                                                    <input
+                                                      type="file"
+                                                      accept="image/*"
+                                                      className="hidden"
+                                                      onChange={(e) => {
+                                                        const file = e.target.files?.[0];
+                                                        if (file) {
+                                                          const reader = new FileReader();
+                                                          reader.onload = (evt) => {
+                                                            const dataUrl = evt.target?.result as string;
+                                                            if (dataUrl) updateBlockContent(block.id, dataUrl);
+                                                          };
+                                                          reader.readAsDataURL(file);
+                                                        }
+                                                      }}
+                                                    />
+                                                  </label>
+                                                  <span className="text-xs text-slate-400 font-semibold">or</span>
+                                                  <div className="flex items-center gap-1 w-full sm:flex-1">
+                                                    <input
+                                                      type="text"
+                                                      id={`img-url-input-${block.id}`}
+                                                      placeholder="Paste image URL (https://...)"
+                                                      className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-mono text-slate-800 focus:outline-none focus:border-rose-400"
+                                                      onKeyDown={(e) => {
+                                                        if (e.key === "Enter") {
+                                                          const val = (e.target as HTMLInputElement).value.trim();
+                                                          if (val) updateBlockContent(block.id, val);
+                                                        }
+                                                      }}
+                                                    />
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => {
+                                                        const input = document.getElementById(`img-url-input-${block.id}`) as HTMLInputElement | null;
+                                                        if (input && input.value.trim()) {
+                                                          updateBlockContent(block.id, input.value.trim());
+                                                        }
+                                                      }}
+                                                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold cursor-pointer"
+                                                    >
+                                                      Apply
+                                                    </button>
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            )}
+                                          </div>
+                                        ) : /* BLOCK TYPE: VIDEO (FILE UPLOAD OR YOUTUBE / VIMEO / LINK) */
+                                          block.type === "video" ? (
+                                            <div
+                                              className="space-y-2.5"
+                                              onDragOver={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                              }}
+                                              onDrop={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                const file = e.dataTransfer.files?.[0];
+                                                if (file && file.type.startsWith("video/")) {
+                                                  if (file.size > 50 * 1024 * 1024) {
+                                                    alert("Video exceeds 50MB. For larger videos, please paste a YouTube or Vimeo link.");
+                                                    return;
+                                                  }
+                                                  const reader = new FileReader();
+                                                  reader.onload = (evt) => {
+                                                    const dataUrl = evt.target?.result as string;
+                                                    if (dataUrl) updateBlockContent(block.id, dataUrl);
+                                                  };
+                                                  reader.readAsDataURL(file);
+                                                }
+                                              }}
+                                            >
+                                              {(() => {
+                                                const parsed = parseVideoSource(block.content);
+                                                if (parsed.type === "video" && parsed.src) {
+                                                  return (
+                                                    <div className="relative group/vid rounded-xl overflow-hidden border border-slate-200 shadow-xs bg-black">
+                                                      <video
+                                                        controls
+                                                        src={parsed.src}
+                                                        className="w-full max-h-80 object-contain rounded-xl"
+                                                      />
+                                                      <div className="absolute top-2 right-2 flex items-center gap-1.5 opacity-0 group-hover/vid:opacity-100 transition-opacity bg-slate-900/85 backdrop-blur-xs p-1 rounded-xl shadow-lg z-10">
+                                                        <label
+                                                          className="px-2 py-1 hover:bg-slate-700 text-white rounded-lg cursor-pointer flex items-center gap-1 text-[11px] font-bold transition-colors"
+                                                          title="Replace video file"
+                                                        >
+                                                          <span className="material-symbols-outlined text-[14px]">upload_file</span>
+                                                          <span>Replace</span>
+                                                          <input
+                                                            type="file"
+                                                            accept="video/*"
+                                                            className="hidden"
+                                                            onChange={(e) => {
+                                                              const file = e.target.files?.[0];
+                                                              if (file) {
+                                                                if (file.size > 50 * 1024 * 1024) {
+                                                                  alert("Video exceeds 50MB. For larger videos, please paste a YouTube or Vimeo link.");
+                                                                  return;
+                                                                }
+                                                                const reader = new FileReader();
+                                                                reader.onload = (evt) => {
+                                                                  const dataUrl = evt.target?.result as string;
+                                                                  if (dataUrl) updateBlockContent(block.id, dataUrl);
+                                                                };
+                                                                reader.readAsDataURL(file);
+                                                              }
+                                                            }}
+                                                          />
+                                                        </label>
+                                                        <button
+                                                          type="button"
+                                                          onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            updateBlockContent(block.id, "");
+                                                          }}
+                                                          className="p-1 hover:bg-rose-600/80 text-white rounded-lg cursor-pointer flex items-center transition-colors"
+                                                          title="Remove video"
+                                                        >
+                                                          <span className="material-symbols-outlined text-[14px]">delete</span>
+                                                        </button>
+                                                      </div>
+                                                    </div>
+                                                  );
+                                                } else if (parsed.type === "iframe" && parsed.src) {
+                                                  return (
+                                                    <div className="relative aspect-video w-full rounded-xl overflow-hidden bg-black shadow-xs border border-slate-200 group/vid">
+                                                      <iframe
+                                                        src={parsed.src}
+                                                        className="w-full h-full"
+                                                        allowFullScreen
+                                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                                      />
+                                                      <div className="absolute top-2 right-2 flex items-center gap-1.5 opacity-0 group-hover/vid:opacity-100 transition-opacity bg-slate-900/85 backdrop-blur-xs p-1 rounded-xl shadow-lg z-10">
+                                                        <label
+                                                          className="px-2 py-1 hover:bg-slate-700 text-white rounded-lg cursor-pointer flex items-center gap-1 text-[11px] font-bold transition-colors"
+                                                          title="Upload video from file"
+                                                        >
+                                                          <span className="material-symbols-outlined text-[14px]">upload_file</span>
+                                                          <span>Upload File</span>
+                                                          <input
+                                                            type="file"
+                                                            accept="video/*"
+                                                            className="hidden"
+                                                            onChange={(e) => {
+                                                              const file = e.target.files?.[0];
+                                                              if (file) {
+                                                                if (file.size > 50 * 1024 * 1024) {
+                                                                  alert("Video exceeds 50MB. For larger videos, please paste a YouTube or Vimeo link.");
+                                                                  return;
+                                                                }
+                                                                const reader = new FileReader();
+                                                                reader.onload = (evt) => {
+                                                                  const dataUrl = evt.target?.result as string;
+                                                                  if (dataUrl) updateBlockContent(block.id, dataUrl);
+                                                                };
+                                                                reader.readAsDataURL(file);
+                                                              }
+                                                            }}
+                                                          />
+                                                        </label>
+                                                        <button
+                                                          type="button"
+                                                          onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            updateBlockContent(block.id, "");
+                                                          }}
+                                                          className="p-1 hover:bg-rose-600/80 text-white rounded-lg cursor-pointer flex items-center transition-colors"
+                                                          title="Remove video"
+                                                        >
+                                                          <span className="material-symbols-outlined text-[14px]">delete</span>
+                                                        </button>
+                                                      </div>
+                                                    </div>
+                                                  );
+                                                } else {
+                                                  /* Empty Video Dropzone */
+                                                  return (
+                                                    <div className="p-6 border-2 border-dashed border-indigo-300 hover:border-indigo-500 rounded-2xl bg-indigo-50/20 text-center transition-all">
+                                                      <div className="w-12 h-12 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center mx-auto mb-2 shadow-xs">
+                                                        <span className="material-symbols-outlined text-2xl">videocam</span>
+                                                      </div>
+                                                      <p className="text-xs font-bold text-slate-800">Add Video to Block</p>
+                                                      <p className="text-[11px] text-slate-400 mb-3">Upload a video file from your computer or paste a video link</p>
+                                                      <div className="flex flex-col sm:flex-row items-center justify-center gap-2 max-w-lg mx-auto">
+                                                        <label className="w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl cursor-pointer shadow-sm flex items-center justify-center gap-1.5 transition-all shrink-0">
+                                                          <span className="material-symbols-outlined text-[16px]">upload_file</span>
+                                                          <span>Upload Video File</span>
+                                                          <input
+                                                            type="file"
+                                                            accept="video/*"
+                                                            className="hidden"
+                                                            onChange={(e) => {
+                                                              const file = e.target.files?.[0];
+                                                              if (file) {
+                                                                if (file.size > 50 * 1024 * 1024) {
+                                                                  alert("Video exceeds 50MB. For larger videos, please paste a YouTube or Vimeo link.");
+                                                                  return;
+                                                                }
+                                                                const reader = new FileReader();
+                                                                reader.onload = (evt) => {
+                                                                  const dataUrl = evt.target?.result as string;
+                                                                  if (dataUrl) updateBlockContent(block.id, dataUrl);
+                                                                };
+                                                                reader.readAsDataURL(file);
+                                                              }
+                                                            }}
+                                                          />
+                                                        </label>
+                                                        <span className="text-xs text-slate-400 font-semibold">or</span>
+                                                        <div className="flex items-center gap-1 w-full sm:flex-1">
+                                                          <input
+                                                            type="text"
+                                                            id={`vid-url-input-${block.id}`}
+                                                            placeholder="YouTube / Vimeo / MP4 URL"
+                                                            className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-mono text-slate-800 focus:outline-none focus:border-indigo-400"
+                                                            onKeyDown={(e) => {
+                                                              if (e.key === "Enter") {
+                                                                const val = (e.target as HTMLInputElement).value.trim();
+                                                                if (val) updateBlockContent(block.id, val);
+                                                              }
+                                                            }}
+                                                          />
+                                                          <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                              const input = document.getElementById(`vid-url-input-${block.id}`) as HTMLInputElement | null;
+                                                              if (input && input.value.trim()) {
+                                                                updateBlockContent(block.id, input.value.trim());
+                                                              }
+                                                            }}
+                                                            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold cursor-pointer"
+                                                          >
+                                                            Apply
+                                                          </button>
+                                                        </div>
+                                                      </div>
+                                                    </div>
+                                                  );
+                                                }
+                                              })()}
+                                            </div>
+                                          ) : /* BLOCK TYPE: DIVIDER */
+                                            block.type === "divider" ? (
+                                              <hr className="border-t-2 border-slate-300 my-2" />
+                                            ) : /* BLOCK TYPE: BLOCKQUOTE */
+                                              block.type === "quote" ? (
+                                                <div className="border-l-4 border-[#E21B5A] pl-4 py-2 bg-rose-50/30 rounded-r-xl my-2">
+                                                  <textarea
+                                                    value={block.content}
+                                                    onChange={(e) => updateBlockContent(block.id, e.target.value)}
+                                                    rows={2}
+                                                    className="w-full font-semibold italic text-slate-900 bg-transparent border-none focus:outline-none resize-y text-sm"
+                                                  />
+                                                </div>
+                                              ) : /* BLOCK TYPE: CODE */
+                                                block.type === "code" ? (
+                                                  <div className="bg-slate-900 text-emerald-400 p-3.5 rounded-xl font-mono text-xs my-2">
+                                                    <textarea
+                                                      value={block.content}
+                                                      onChange={(e) => updateBlockContent(block.id, e.target.value)}
+                                                      rows={3}
+                                                      className="w-full bg-transparent text-emerald-400 border-none focus:outline-none font-mono text-xs resize-y"
+                                                    />
+                                                  </div>
+                                                ) : /* BLOCK TYPE: SPACER */
+                                                  block.type === "spacer" ? (
+                                                    <div
+                                                      className="py-2 flex items-center justify-center border border-dashed border-slate-300 rounded-lg bg-slate-50/50 text-slate-400 text-xs font-mono select-none"
+                                                      style={{ height: `${Number(block.value) || 32}px` }}
+                                                    >
+                                                      <span className="material-symbols-outlined text-[14px] mr-1">unfold_more</span>
+                                                      Spacer ({block.value || "32"}px)
+                                                    </div>
+                                                  ) : /* BLOCK TYPE: READ MORE */
+                                                    block.type === "read_more" ? (
+                                                      <div className="my-3 flex items-center gap-3 select-none">
+                                                        <div className="flex-1 border-t-2 border-dashed border-rose-300" />
+                                                        <span className="px-3 py-1 bg-rose-50 border border-rose-200 text-rose-700 text-[10px] font-black uppercase tracking-wider rounded-full shadow-2xs flex items-center gap-1">
+                                                          <span className="material-symbols-outlined text-[13px]">read_more</span>
+                                                          Read More Archive Cut-off
+                                                        </span>
+                                                        <div className="flex-1 border-t-2 border-dashed border-rose-300" />
+                                                      </div>
+                                                    ) : /* BLOCK TYPE: IMAGE BOX */
+                                                      block.type === "image_box" ? (
+                                                        <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs space-y-3">
+                                                          {block.url ? (
+                                                            <div className="relative rounded-xl overflow-hidden max-h-56 bg-slate-100 border border-slate-200">
+                                                              <img src={block.url} alt={block.title || "Image Box"} className="w-full h-full object-cover" />
+                                                              <button
+                                                                type="button"
+                                                                onClick={() => updateBlockData(block.id, { url: "" })}
+                                                                className="absolute top-2 right-2 p-1 bg-slate-900/80 hover:bg-rose-600 text-white rounded-lg text-xs"
+                                                              >
+                                                                <span className="material-symbols-outlined text-xs">close</span>
+                                                              </button>
+                                                            </div>
+                                                          ) : (
+                                                            <div className="p-4 border-2 border-dashed border-slate-200 rounded-xl text-center">
+                                                              <label className="text-xs font-bold text-indigo-600 hover:underline cursor-pointer flex items-center justify-center gap-1">
+                                                                <span className="material-symbols-outlined text-[16px]">upload_file</span>
+                                                                Choose Image File or Enter URL
+                                                                <input
+                                                                  type="file"
+                                                                  accept="image/*"
+                                                                  className="hidden"
+                                                                  onChange={(e) => {
+                                                                    const f = e.target.files?.[0];
+                                                                    if (f) {
+                                                                      const r = new FileReader();
+                                                                      r.onload = (ev) => updateBlockData(block.id, { url: ev.target?.result as string });
+                                                                      r.readAsDataURL(f);
+                                                                    }
+                                                                  }}
+                                                                />
+                                                              </label>
+                                                            </div>
+                                                          )}
+                                                          <input
+                                                            type="text"
+                                                            value={block.title || ""}
+                                                            onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
+                                                            placeholder="Image Box Title..."
+                                                            className="text-base font-bold text-slate-900 bg-transparent border-none focus:outline-none w-full"
+                                                          />
+                                                          <textarea
+                                                            value={block.content}
+                                                            onChange={(e) => updateBlockContent(block.id, e.target.value)}
+                                                            rows={2}
+                                                            placeholder="Image Box Description text..."
+                                                            className="text-xs text-slate-600 bg-transparent border-none focus:outline-none w-full resize-y"
+                                                          />
+                                                        </div>
+                                                      ) : /* BLOCK TYPE: TESTIMONIAL */
+                                                        block.type === "testimonial" ? (
+                                                          <div className="p-5 bg-gradient-to-br from-purple-50/50 to-indigo-50/40 border border-purple-100 rounded-2xl space-y-3 shadow-xs">
+                                                            <div className="flex items-center gap-1 text-amber-400">
+                                                              {[1, 2, 3, 4, 5].map((star) => (
+                                                                <span key={star} className="material-symbols-outlined text-lg fill-current">star</span>
+                                                              ))}
+                                                            </div>
+                                                            <textarea
+                                                              value={block.content}
+                                                              onChange={(e) => updateBlockContent(block.id, e.target.value)}
+                                                              rows={3}
+                                                              placeholder="Customer testimonial quote..."
+                                                              className="w-full text-xs font-medium text-slate-700 italic bg-transparent border-none focus:outline-none resize-y leading-relaxed"
+                                                            />
+                                                            <div className="flex items-center gap-3 pt-2 border-t border-purple-100/80">
+                                                              <div className="w-10 h-10 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shrink-0">
+                                                                {(block.title || "A")[0]}
+                                                              </div>
+                                                              <div className="flex-1 min-w-0">
+                                                                <input
+                                                                  type="text"
+                                                                  value={block.title || ""}
+                                                                  onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
+                                                                  placeholder="Student / Reviewer Name..."
+                                                                  className="text-xs font-bold text-slate-900 bg-transparent border-none focus:outline-none w-full"
+                                                                />
+                                                                <input
+                                                                  type="text"
+                                                                  value={block.subtitle || ""}
+                                                                  onChange={(e) => updateBlockData(block.id, { subtitle: e.target.value })}
+                                                                  placeholder="Program / University (e.g. MS in CS, Columbia)..."
+                                                                  className="text-[11px] text-slate-500 bg-transparent border-none focus:outline-none w-full"
+                                                                />
+                                                              </div>
+                                                            </div>
+                                                          </div>
+                                                        ) : /* BLOCK TYPE: ICON */
+                                                          block.type === "icon" ? (
+                                                            <div className="p-4 my-1 flex flex-col items-center justify-center text-center space-y-2 bg-slate-50/60 border border-slate-200/80 rounded-2xl">
+                                                              <span className="material-symbols-outlined text-4xl text-[#E21B5A]">
+                                                                {block.iconName || "verified_user"}
+                                                              </span>
+                                                              <input
+                                                                type="text"
+                                                                value={block.title || ""}
+                                                                onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
+                                                                placeholder="Icon Title / Description..."
+                                                                className="text-xs font-bold text-slate-800 text-center bg-transparent border-none focus:outline-none w-full"
+                                                              />
+                                                            </div>
+                                                          ) : /* BLOCK TYPE: ICON BOX */
+                                                            block.type === "icon_box" ? (
+                                                              <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs flex items-start gap-4">
+                                                                <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
+                                                                  <span className="material-symbols-outlined text-2xl">{block.iconName || "account_balance"}</span>
+                                                                </div>
+                                                                <div className="flex-1 space-y-1">
+                                                                  <input
+                                                                    type="text"
+                                                                    value={block.title || ""}
+                                                                    onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
+                                                                    placeholder="Icon Box Heading..."
+                                                                    className="text-sm font-bold text-slate-900 bg-transparent border-none focus:outline-none w-full"
+                                                                  />
+                                                                  <textarea
+                                                                    value={block.content}
+                                                                    onChange={(e) => updateBlockContent(block.id, e.target.value)}
+                                                                    rows={2}
+                                                                    placeholder="Icon Box description..."
+                                                                    className="text-xs text-slate-600 bg-transparent border-none focus:outline-none w-full resize-y"
+                                                                  />
+                                                                </div>
+                                                              </div>
+                                                            ) : /* BLOCK TYPE: SOCIAL ICONS (DYNAMIC) */
+                                                              block.type === "social_icons" ? (
+                                                                <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                                                                  <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
+                                                                    <input
+                                                                      type="text"
+                                                                      value={block.title || "Follow Us & Share"}
+                                                                      onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
+                                                                      className="text-xs font-bold text-slate-800 bg-transparent border-none focus:outline-none"
+                                                                      placeholder="Section Title..."
+                                                                    />
+                                                                    <button
+                                                                      type="button"
+                                                                      onClick={() => {
+                                                                        const next = [...(block.items || []), { id: Date.now().toString(), title: "X (Twitter)", url: "https://x.com", icon: "share" }];
+                                                                        updateBlockData(block.id, { items: next });
+                                                                      }}
+                                                                      className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                                                                    >
+                                                                      + Add Platform
+                                                                    </button>
+                                                                  </div>
+                                                                  <div className="space-y-2">
+                                                                    {(block.items || [
+                                                                      { id: "1", title: "X (Twitter)", url: "https://x.com", icon: "share" },
+                                                                      { id: "2", title: "LinkedIn", url: "https://linkedin.com", icon: "share" }
+                                                                    ]).map((item, i) => (
+                                                                      <div key={item.id || i} className="flex items-center gap-2 bg-white p-2 rounded-xl border border-slate-200 shadow-2xs">
+                                                                        <span className="material-symbols-outlined text-[16px] text-indigo-600 shrink-0">{item.icon || "share"}</span>
+                                                                        <input
+                                                                          type="text"
+                                                                          value={item.title}
+                                                                          onChange={(e) => {
+                                                                            const next = [...(block.items || [])];
+                                                                            next[i] = { ...next[i], title: e.target.value };
+                                                                            updateBlockData(block.id, { items: next });
+                                                                          }}
+                                                                          className="font-bold text-xs text-slate-800 bg-transparent border-none focus:outline-none w-28"
+                                                                          placeholder="Platform Name..."
+                                                                        />
+                                                                        <input
+                                                                          type="text"
+                                                                          value={item.url || ""}
+                                                                          onChange={(e) => {
+                                                                            const next = [...(block.items || [])];
+                                                                            next[i] = { ...next[i], url: e.target.value };
+                                                                            updateBlockData(block.id, { items: next });
+                                                                          }}
+                                                                          className="flex-1 font-mono text-[11px] text-slate-600 bg-slate-50 px-2 py-1 rounded border border-slate-100 focus:outline-none"
+                                                                          placeholder="Profile or Page URL..."
+                                                                        />
+                                                                        <button
+                                                                          type="button"
+                                                                          onClick={() => {
+                                                                            const next = (block.items || []).filter((_, idx) => idx !== i);
+                                                                            updateBlockData(block.id, { items: next });
+                                                                          }}
+                                                                          className="text-slate-400 hover:text-rose-600 p-1 cursor-pointer"
+                                                                        >
+                                                                          <span className="material-symbols-outlined text-[14px]">close</span>
+                                                                        </button>
+                                                                      </div>
+                                                                    ))}
+                                                                  </div>
+                                                                </div>
+                                                              ) : /* BLOCK TYPE: IMAGE GALLERY */
+                                                                block.type === "image_gallery" ? (
+                                                                  <div className="p-4 bg-slate-50/70 border border-slate-200 rounded-2xl space-y-3">
+                                                                    <div className="flex items-center justify-between">
+                                                                      <input
+                                                                        type="text"
+                                                                        value={block.title || "Image Gallery"}
+                                                                        onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
+                                                                        className="text-xs font-bold text-slate-800 bg-transparent border-none focus:outline-none"
+                                                                      />
+                                                                      <label className="text-[11px] font-bold text-indigo-600 hover:underline cursor-pointer flex items-center gap-1">
+                                                                        <span className="material-symbols-outlined text-[14px]">add_photo_alternate</span>
+                                                                        Add Photo
+                                                                        <input
+                                                                          type="file"
+                                                                          accept="image/*"
+                                                                          className="hidden"
+                                                                          onChange={(e) => {
+                                                                            const file = e.target.files?.[0];
+                                                                            if (file) {
+                                                                              const reader = new FileReader();
+                                                                              reader.onload = (evt) => {
+                                                                                const url = evt.target?.result as string;
+                                                                                if (url) {
+                                                                                  const newItems = [...(block.items || []), { id: Date.now().toString(), title: "Photo", url }];
+                                                                                  updateBlockData(block.id, { items: newItems });
+                                                                                }
+                                                                              };
+                                                                              reader.readAsDataURL(file);
+                                                                            }
+                                                                          }}
+                                                                        />
+                                                                      </label>
+                                                                    </div>
+                                                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                                                                      {(block.items || []).map((it, i) => (
+                                                                        <div key={it.id || i} className="relative group/gal rounded-xl overflow-hidden aspect-4/3 bg-slate-200">
+                                                                          <img src={it.url} alt={it.title} className="w-full h-full object-cover" />
+                                                                          <button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                              const updated = (block.items || []).filter((_, idx) => idx !== i);
+                                                                              updateBlockData(block.id, { items: updated });
+                                                                            }}
+                                                                            className="absolute top-1.5 right-1.5 p-1 bg-slate-900/80 text-white rounded-md opacity-0 group-hover/gal:opacity-100 transition-opacity"
+                                                                          >
+                                                                            <span className="material-symbols-outlined text-xs">close</span>
+                                                                          </button>
+                                                                        </div>
+                                                                      ))}
+                                                                    </div>
+                                                                  </div>
+                                                                ) : /* BLOCK TYPE: IMAGE CAROUSEL (FULLY DYNAMIC) */
+                                                                  block.type === "image_carousel" ? (
+                                                                    <div className="p-4 sm:p-5 bg-slate-900 text-white rounded-3xl space-y-4 shadow-xl border border-slate-800">
+                                                                      {/* Slideshow Header */}
+                                                                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                                                                        <div className="flex items-center gap-2">
+                                                                          <span className="material-symbols-outlined text-[20px] text-rose-500">view_carousel</span>
+                                                                          <div className="flex-1">
+                                                                            <input
+                                                                              type="text"
+                                                                              value={block.title || "Interactive Story Slideshow"}
+                                                                              onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
+                                                                              className="font-bold text-sm text-white bg-transparent border-none focus:outline-none w-full"
+                                                                              placeholder="Gallery Title (e.g. High-Paying Jobs That Require No Degree)..."
+                                                                            />
+                                                                            <input
+                                                                              type="text"
+                                                                              value={block.subtitle || ""}
+                                                                              onChange={(e) => updateBlockData(block.id, { subtitle: e.target.value })}
+                                                                              className="text-[11px] text-slate-400 bg-transparent border-none focus:outline-none w-full"
+                                                                              placeholder="Subtitle: Use the sidebar or arrows to navigate through slides..."
+                                                                            />
+                                                                          </div>
+                                                                        </div>
+                                                                        <div className="flex items-center gap-2 shrink-0">
+                                                                          <button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                              setBulkImageModalBlockId(block.id);
+                                                                              setBulkImageUrlsText("");
+                                                                            }}
+                                                                            className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-indigo-300 hover:text-white border border-slate-700 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                                                                            title="Add multiple images at once by pasting URLs"
+                                                                          >
+                                                                            <span className="material-symbols-outlined text-[14px]">auto_stories</span>
+                                                                            + Bulk Add Images
+                                                                          </button>
+                                                                          <button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                              const curItems = block.items && block.items.length > 0 ? block.items : [];
+                                                                              const next = [
+                                                                                ...curItems,
+                                                                                {
+                                                                                  id: Date.now().toString(),
+                                                                                  title: `New Career / Slide ${curItems.length + 1}`,
+                                                                                  salary: "$95,000 / year",
+                                                                                  requirements: "Industry Certification (No Degree)",
+                                                                                  badge: "High Growth",
+                                                                                  content: "Detailed overview explaining why this role pays well and how candidates can qualify without a degree...",
+                                                                                  url: "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?q=80&w=1000",
+                                                                                  caption: "Practical training and specialized skills provide strong earning leverage.",
+                                                                                  credit: "Photo: Editorial Stock",
+                                                                                  details: ["Hands-on certification path", "Strong regional hiring demand", "Comprehensive benefits and pension packages"],
+                                                                                },
+                                                                              ];
+                                                                              updateBlockData(block.id, { items: next, activeSlideIndex: next.length - 1 });
+                                                                            }}
+                                                                            className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold cursor-pointer transition-colors"
+                                                                          >
+                                                                            + Add Slide
+                                                                          </button>
+                                                                        </div>
+                                                                      </div>
 
-                                    <button
-                                      type="button"
-                                      onMouseDown={(e) => e.preventDefault()}
-                                      onClick={() => {
-                                        let selText = "";
-                                        if (typeof window !== "undefined") {
-                                          const sel = window.getSelection();
-                                          if (sel && !sel.isCollapsed) selText = sel.toString().trim();
-                                        }
-                                        openHyperlinkDialog(block.id, selText, block.url || block.link);
-                                      }}
-                                      className="px-2.5 py-0.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-white rounded transition-colors flex items-center gap-1 cursor-pointer border border-indigo-200"
-                                      title="Add Hyperlink to selected text"
-                                    >
-                                      <span className="material-symbols-outlined text-[13px]">link</span>
-                                      <span>Link</span>
-                                    </button>
-                                  </div>
+                                                                      {(() => {
+                                                                        const slides = (block.items && block.items.length > 0) ? block.items : [
+                                                                          {
+                                                                            id: "1",
+                                                                            title: "Commercial & Regional Pilot",
+                                                                            salary: "$148,900 / year",
+                                                                            requirements: "Commercial Certificate & Flight Hours (No Degree)",
+                                                                            badge: "Highest Earning",
+                                                                            content: "Commercial pilots fly charter flights, cargo delivery, and corporate executive jets. Entry depends strictly on FAA certificates and flight hours rather than a 4-year degree.",
+                                                                            url: "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?q=80&w=1000",
+                                                                            caption: "Flight deck instrumentation and simulator training",
+                                                                            credit: "Photo: Aviation Archive",
+                                                                            details: ["12-18 month flight academy timeline", "High demand with senior airline retirements", "Over $200,000+ potential for captains"],
+                                                                          },
+                                                                          {
+                                                                            id: "2",
+                                                                            title: "Air Traffic Controller",
+                                                                            salary: "$132,250 / year",
+                                                                            requirements: "High School + FAA Academy Certification",
+                                                                            badge: "Federal",
+                                                                            content: "Air traffic controllers coordinate aircraft movement to maintain safe separation distances. Selected candidates receive paid training at the FAA Academy in Oklahoma City.",
+                                                                            url: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?q=80&w=1000",
+                                                                            caption: "Tower and radar controllers coordinate safe flight corridors",
+                                                                            credit: "Photo: FAA Operations",
+                                                                            details: ["Full federal pension and medical benefits", "Paid training at FAA Academy", "Median salary exceeds $130,000"],
+                                                                          },
+                                                                        ];
+                                                                        const curIdx = Math.min(Math.max(0, block.activeSlideIndex || 0), slides.length - 1);
+                                                                        const curSlide = slides[curIdx];
 
-                                  <div className="flex items-center gap-2">
-                                    {/* Mode switcher: Visual WYSIWYG vs HTML Source */}
-                                    <div className="flex items-center bg-slate-200/80 p-0.5 rounded-md text-[10px] font-bold">
-                                      <button
-                                        type="button"
-                                        onClick={() => setEditorModes((prev) => ({ ...prev, [block.id]: "visual" }))}
-                                        className={`px-2 py-0.5 rounded cursor-pointer ${
-                                          (editorModes[block.id] || "visual") === "visual"
-                                            ? "bg-white text-indigo-600 shadow-2xs"
-                                            : "text-slate-500 hover:text-slate-900"
-                                        }`}
-                                      >
-                                        Visual
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => setEditorModes((prev) => ({ ...prev, [block.id]: "html" }))}
-                                        className={`px-2 py-0.5 rounded cursor-pointer ${
-                                          editorModes[block.id] === "html"
-                                            ? "bg-white text-indigo-600 shadow-2xs"
-                                            : "text-slate-500 hover:text-slate-900"
-                                        }`}
-                                      >
-                                        HTML
-                                      </button>
-                                    </div>
+                                                                        const updateCurSlide = (fields: Partial<BlockItem>) => {
+                                                                          const next = [...slides];
+                                                                          next[curIdx] = { ...next[curIdx], ...fields };
+                                                                          updateBlockData(block.id, { items: next });
+                                                                        };
 
-                                    <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-mono">
-                                      <span>
-                                        {block.content
-                                          ? block.content.replace(/<[^>]+>/g, " ").trim().split(/\s+/).filter(Boolean).length
-                                          : 0}{" "}
-                                        words
-                                      </span>
-                                      <span>•</span>
-                                      <span>{block.content ? block.content.length : 0} chars</span>
-                                    </div>
-                                  </div>
-                                </div>
+                                                                        return (
+                                                                          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                                                                            {/* LEFT / CENTER: MAIN HERO SLIDE VIEWPORT (65% width) */}
+                                                                            <div className="lg:col-span-8 flex flex-col space-y-3">
+                                                                              {/* Slide Status & Progress Bar */}
+                                                                              <div className="flex items-center justify-between text-xs font-mono font-bold text-slate-400">
+                                                                                <span className="flex items-center gap-1.5 text-white">
+                                                                                  <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+                                                                                  SLIDE {curIdx + 1} OF {slides.length}
+                                                                                </span>
+                                                                                <div className="flex items-center gap-2">
+                                                                                  <div className="w-28 bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                                                                                    <div
+                                                                                      className="bg-rose-500 h-full transition-all duration-300"
+                                                                                      style={{ width: `${((curIdx + 1) / slides.length) * 100}%` }}
+                                                                                    />
+                                                                                  </div>
+                                                                                  <span className="text-[10px] text-slate-500">{Math.round(((curIdx + 1) / slides.length) * 100)}%</span>
+                                                                                </div>
+                                                                              </div>
 
-                                {/* Dynamic Text & Live Editor Widget Controls Bar */}
-                                <div className="flex items-center gap-1.5 flex-wrap bg-slate-50/90 p-1.5 rounded-lg border border-slate-200/80 text-[11px]">
-                                  {/* Dynamic Typography Presets */}
-                                  <div className="flex items-center gap-1 flex-wrap">
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-0.5">
-                                      Preset:
-                                    </span>
-                                    <button
-                                      type="button"
-                                      onClick={() => applyTextPreset(block.id, "body")}
-                                      className="px-2 py-0.5 rounded text-[11px] font-semibold bg-white text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 border border-slate-200 transition-colors cursor-pointer"
-                                      title="Standard 15px reading body text"
-                                    >
-                                      Body
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => applyTextPreset(block.id, "lead")}
-                                      className="px-2 py-0.5 rounded text-[11px] font-bold bg-white text-indigo-700 hover:bg-indigo-100/60 border border-indigo-200 transition-colors cursor-pointer"
-                                      title="19px bold article lead / subhead"
-                                    >
-                                      Lead
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => applyTextPreset(block.id, "editorial")}
-                                      className="px-2 py-0.5 rounded text-[11px] font-serif italic bg-white text-slate-800 hover:bg-amber-50 hover:text-amber-900 border border-slate-200 transition-colors cursor-pointer"
-                                      title="Editorial classic serif typography"
-                                    >
-                                      Editorial
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => applyTextPreset(block.id, "tip")}
-                                      className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 transition-colors cursor-pointer"
-                                      title="Green Deal / Pro Tip Callout Box"
-                                    >
-                                      Deal Tip
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => applyTextPreset(block.id, "alert")}
-                                      className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-300 transition-colors cursor-pointer"
-                                      title="Amber Alert Notice Box"
-                                    >
-                                      Notice
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => applyTextPreset(block.id, "card")}
-                                      className="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-700 hover:bg-white border border-slate-300 transition-colors cursor-pointer"
-                                      title="Subtle Boxed Card Container"
-                                    >
-                                      Card
-                                    </button>
-                                  </div>
+                                                                              {/* Large Hero Image Container */}
+                                                                              <div className="relative rounded-2xl overflow-hidden aspect-16/9 sm:aspect-21/9 bg-black border border-slate-800 shadow-inner group">
+                                                                                <img
+                                                                                  src={curSlide.url}
+                                                                                  alt={curSlide.title}
+                                                                                  className="w-full h-full object-cover transition-transform duration-500"
+                                                                                />
 
-                                  <span className="text-slate-300 mx-0.5">|</span>
+                                                                                {/* Overlay Prev & Next Navigation Arrows */}
+                                                                                <button
+                                                                                  type="button"
+                                                                                  onClick={() => updateBlockData(block.id, { activeSlideIndex: (curIdx - 1 + slides.length) % slides.length })}
+                                                                                  className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/60 hover:bg-black/90 backdrop-blur-xs text-white flex items-center justify-center transition-all cursor-pointer hover:scale-110 border border-white/20 shadow-lg"
+                                                                                  title="Previous Image / Slide"
+                                                                                >
+                                                                                  <span className="material-symbols-outlined text-lg">chevron_left</span>
+                                                                                </button>
+                                                                                <button
+                                                                                  type="button"
+                                                                                  onClick={() => updateBlockData(block.id, { activeSlideIndex: (curIdx + 1) % slides.length })}
+                                                                                  className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/60 hover:bg-black/90 backdrop-blur-xs text-white flex items-center justify-center transition-all cursor-pointer hover:scale-110 border border-white/20 shadow-lg"
+                                                                                  title="Next Image / Slide"
+                                                                                >
+                                                                                  <span className="material-symbols-outlined text-lg">chevron_right</span>
+                                                                                </button>
 
-                                  {/* Dynamic Text Alignment */}
-                                  <div className="flex items-center gap-0.5 bg-white p-0.5 rounded border border-slate-200">
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        updateBlockData(block.id, {
-                                          style: { ...block.style, textAlign: "left" },
-                                        })
-                                      }
-                                      className={`p-1 rounded cursor-pointer ${
-                                        !block.style?.textAlign || block.style?.textAlign === "left"
-                                          ? "bg-indigo-50 text-indigo-600 font-bold"
-                                          : "text-slate-500 hover:text-slate-900"
-                                      }`}
-                                      title="Align Left"
-                                    >
-                                      <span className="material-symbols-outlined text-[13px]">format_align_left</span>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        updateBlockData(block.id, {
-                                          style: { ...block.style, textAlign: "center" },
-                                        })
-                                      }
-                                      className={`p-1 rounded cursor-pointer ${
-                                        block.style?.textAlign === "center"
-                                          ? "bg-indigo-50 text-indigo-600 font-bold"
-                                          : "text-slate-500 hover:text-slate-900"
-                                      }`}
-                                      title="Align Center"
-                                    >
-                                      <span className="material-symbols-outlined text-[13px]">format_align_center</span>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        updateBlockData(block.id, {
-                                          style: { ...block.style, textAlign: "right" },
-                                        })
-                                      }
-                                      className={`p-1 rounded cursor-pointer ${
-                                        block.style?.textAlign === "right"
-                                          ? "bg-indigo-50 text-indigo-600 font-bold"
-                                          : "text-slate-500 hover:text-slate-900"
-                                      }`}
-                                      title="Align Right"
-                                    >
-                                      <span className="material-symbols-outlined text-[13px]">format_align_right</span>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        updateBlockData(block.id, {
-                                          style: { ...block.style, textAlign: "justify" },
-                                        })
-                                      }
-                                      className={`p-1 rounded cursor-pointer ${
-                                        block.style?.textAlign === "justify"
-                                          ? "bg-indigo-50 text-indigo-600 font-bold"
-                                          : "text-slate-500 hover:text-slate-900"
-                                      }`}
-                                      title="Align Justify"
-                                    >
-                                      <span className="material-symbols-outlined text-[13px]">format_align_justify</span>
-                                    </button>
-                                  </div>
+                                                                                {/* Caption & Photo Credit Bar */}
+                                                                                <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-3 pt-6 flex items-center justify-between text-[11px] text-slate-300">
+                                                                                  <input
+                                                                                    type="text"
+                                                                                    value={curSlide.caption || ""}
+                                                                                    onChange={(e) => updateCurSlide({ caption: e.target.value })}
+                                                                                    placeholder="Photo caption (e.g. Modern radar control room)..."
+                                                                                    className="bg-transparent border-none text-white/90 text-[11px] focus:outline-none flex-1 truncate mr-2"
+                                                                                  />
+                                                                                  <input
+                                                                                    type="text"
+                                                                                    value={curSlide.credit || ""}
+                                                                                    onChange={(e) => updateCurSlide({ credit: e.target.value })}
+                                                                                    placeholder="Credit: Photo by Unsplash"
+                                                                                    className="bg-transparent border-none text-slate-400 text-[10px] focus:outline-none shrink-0 text-right w-40"
+                                                                                  />
+                                                                                </div>
+                                                                              </div>
 
-                                  <span className="text-slate-300 mx-0.5">|</span>
+                                                                              {/* Image URL & File Upload Row */}
+                                                                              <div className="flex items-center gap-2">
+                                                                                <input
+                                                                                  type="text"
+                                                                                  value={curSlide.url}
+                                                                                  onChange={(e) => updateCurSlide({ url: e.target.value })}
+                                                                                  className="flex-1 font-mono text-[11px] px-3 py-1.5 bg-slate-800/80 border border-slate-700 rounded-xl text-slate-200 focus:outline-none focus:border-rose-500"
+                                                                                  placeholder="Image URL for this slide..."
+                                                                                />
+                                                                                <label className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 rounded-xl text-xs font-bold cursor-pointer transition-colors flex items-center gap-1 shrink-0">
+                                                                                  <span className="material-symbols-outlined text-[14px]">upload</span>
+                                                                                  Upload
+                                                                                  <input
+                                                                                    type="file"
+                                                                                    accept="image/*"
+                                                                                    className="hidden"
+                                                                                    onChange={(e) => {
+                                                                                      const file = e.target.files?.[0];
+                                                                                      if (file) {
+                                                                                        const reader = new FileReader();
+                                                                                        reader.onload = (evt) => {
+                                                                                          const url = evt.target?.result as string;
+                                                                                          if (url) updateCurSlide({ url });
+                                                                                        };
+                                                                                        reader.readAsDataURL(file);
+                                                                                      }
+                                                                                    }}
+                                                                                  />
+                                                                                </label>
+                                                                              </div>
 
-                                  {/* Dynamic Font Size Selector */}
-                                  <div className="flex items-center gap-1">
-                                    <span className="text-[10px] font-bold text-slate-400">Size:</span>
-                                    <select
-                                      value={block.style?.fontSize || "15px"}
-                                      onChange={(e) =>
-                                        updateBlockData(block.id, {
-                                          style: { ...block.style, fontSize: e.target.value },
-                                        })
-                                      }
-                                      className="bg-white border border-slate-200 text-slate-700 text-[11px] font-semibold rounded px-1.5 py-0.5 focus:outline-none cursor-pointer"
-                                    >
-                                      <option value="12px">12px - Small</option>
-                                      <option value="15px">15px - Body</option>
-                                      <option value="17px">17px - Medium</option>
-                                      <option value="19px">19px - Lead</option>
-                                      <option value="22px">22px - Display</option>
-                                    </select>
-                                  </div>
+                                                                              {/* Story Narrative & Career Details Card */}
+                                                                              <div className="p-4 sm:p-5 rounded-2xl bg-white text-slate-800 shadow-md border border-slate-200 space-y-3">
+                                                                                {/* Headline & Badges */}
+                                                                                <div className="space-y-2">
+                                                                                  <div className="flex flex-wrap items-center gap-2">
+                                                                                    <input
+                                                                                      type="text"
+                                                                                      value={curSlide.badge || ""}
+                                                                                      onChange={(e) => updateCurSlide({ badge: e.target.value })}
+                                                                                      placeholder="Category Badge (e.g. Aviation, Energy)..."
+                                                                                      className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-600 border border-rose-200 focus:outline-none"
+                                                                                    />
+                                                                                    <input
+                                                                                      type="text"
+                                                                                      value={curSlide.salary || ""}
+                                                                                      onChange={(e) => updateCurSlide({ salary: e.target.value })}
+                                                                                      placeholder="💰 Salary (e.g. $132,250 / year)..."
+                                                                                      className="text-xs font-black px-2.5 py-0.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 focus:outline-none"
+                                                                                    />
+                                                                                    <input
+                                                                                      type="text"
+                                                                                      value={curSlide.requirements || ""}
+                                                                                      onChange={(e) => updateCurSlide({ requirements: e.target.value })}
+                                                                                      placeholder="🎓 Requirement (e.g. FAA Academy • No 4-Year Degree)..."
+                                                                                      className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-xl border border-slate-200 focus:outline-none flex-1 min-w-[200px]"
+                                                                                    />
+                                                                                  </div>
 
-                                  <span className="text-slate-300 mx-0.5">|</span>
+                                                                                  <input
+                                                                                    type="text"
+                                                                                    value={curSlide.title}
+                                                                                    onChange={(e) => updateCurSlide({ title: e.target.value })}
+                                                                                    className="text-lg sm:text-xl font-black text-slate-900 bg-transparent border-none focus:outline-none w-full"
+                                                                                    placeholder="Job Title / Story Headline (e.g. Air Traffic Controller)..."
+                                                                                  />
+                                                                                </div>
 
-                                  {/* Dynamic Color Quick Swatches */}
-                                  <div className="flex items-center gap-1">
-                                    <span className="text-[10px] font-bold text-slate-400">Color:</span>
-                                    {[
-                                      { label: "Dark Slate", color: "#1e293b" },
-                                      { label: "Indigo Navy", color: "#1e1b4b" },
-                                      { label: "Emerald", color: "#064e3b" },
-                                      { label: "Amber Crimson", color: "#7f1d1d" },
-                                      { label: "Muted Gray", color: "#64748b" },
-                                    ].map((c) => (
-                                      <button
-                                        key={c.color}
-                                        type="button"
-                                        onClick={() =>
-                                          updateBlockData(block.id, {
-                                            style: { ...block.style, color: c.color },
-                                          })
-                                        }
-                                        className={`w-3.5 h-3.5 rounded-full border border-slate-300 transition-transform hover:scale-125 cursor-pointer ${
-                                          block.style?.color === c.color ? "ring-2 ring-indigo-400 scale-110" : ""
-                                        }`}
-                                        style={{ backgroundColor: c.color }}
-                                        title={c.label}
-                                      />
-                                    ))}
-                                  </div>
-                                </div>
+                                                                                {/* Narrative Body */}
+                                                                                <textarea
+                                                                                  value={curSlide.content || ""}
+                                                                                  onChange={(e) => updateCurSlide({ content: e.target.value })}
+                                                                                  rows={4}
+                                                                                  className="w-full text-xs sm:text-sm text-slate-700 leading-relaxed p-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-y"
+                                                                                  placeholder="Write the in-depth story explaining the career, work duties, why it does not require a degree, and how to get started..."
+                                                                                />
 
-                                {(editorModes[block.id] || "visual") === "visual" ? (
-                                  <div
-                                    id={`editor-${block.id}`}
-                                    contentEditable
-                                    suppressContentEditableWarning
-                                    onMouseUp={() => handleTextSelectionChange(block.id)}
-                                    onKeyUp={() => handleTextSelectionChange(block.id)}
-                                    onBlur={(e) => updateBlockContent(block.id, e.currentTarget.innerHTML)}
-                                    dangerouslySetInnerHTML={{ __html: block.content || "" }}
-                                    className="w-full min-h-[4.5rem] bg-transparent border-none focus:outline-none text-slate-800 text-sm leading-relaxed max-w-none transition-all"
-                                    style={{
-                                      fontSize: block.style?.fontSize || "15px",
-                                      textAlign: block.style?.textAlign || "left",
-                                      fontFamily: block.style?.fontFamily,
-                                      color: block.style?.color,
-                                      backgroundColor: block.style?.backgroundColor,
-                                      padding: block.style?.padding,
-                                      borderRadius: block.style?.borderRadius,
-                                      borderLeft: (block.style as any)?.borderLeft,
-                                      border: (block.style as any)?.border,
-                                      lineHeight: block.style?.lineHeight || "1.65",
-                                    }}
-                                  />
-                                ) : (
-                                  <textarea
-                                    value={block.content}
-                                    onChange={(e) => updateBlockContent(block.id, e.target.value)}
-                                    rows={4}
-                                    className="w-full font-mono text-xs p-2 bg-slate-900 text-emerald-400 rounded-lg border border-slate-800 focus:outline-none resize-y leading-relaxed"
-                                    placeholder="<p>Raw HTML or formatted text...</p>"
-                                  />
-                                )}
-                              </div>
-                            )}
+                                                                                {/* Key Highlights / Bullet Points */}
+                                                                                <div className="pt-2 border-t border-slate-100 space-y-2">
+                                                                                  <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                                                                                    <span>Key Duties & Entry Highlights</span>
+                                                                                    <button
+                                                                                      type="button"
+                                                                                      onClick={() => {
+                                                                                        const curDetails = curSlide.details || [];
+                                                                                        updateCurSlide({ details: [...curDetails, "New highlight or requirement"] });
+                                                                                      }}
+                                                                                      className="text-[11px] text-indigo-600 hover:text-indigo-800 font-bold cursor-pointer"
+                                                                                    >
+                                                                                      + Add Bullet Point
+                                                                                    </button>
+                                                                                  </div>
+                                                                                  <div className="space-y-1.5">
+                                                                                    {(curSlide.details || []).map((detail, dIdx) => (
+                                                                                      <div key={dIdx} className="flex items-center gap-2">
+                                                                                        <span className="text-emerald-500 font-bold text-xs shrink-0">✓</span>
+                                                                                        <input
+                                                                                          type="text"
+                                                                                          value={detail}
+                                                                                          onChange={(e) => {
+                                                                                            const nextDetails = [...(curSlide.details || [])];
+                                                                                            nextDetails[dIdx] = e.target.value;
+                                                                                            updateCurSlide({ details: nextDetails });
+                                                                                          }}
+                                                                                          className="flex-1 text-xs text-slate-700 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none"
+                                                                                        />
+                                                                                        <button
+                                                                                          type="button"
+                                                                                          onClick={() => {
+                                                                                            const nextDetails = (curSlide.details || []).filter((_, i) => i !== dIdx);
+                                                                                            updateCurSlide({ details: nextDetails });
+                                                                                          }}
+                                                                                          className="text-slate-400 hover:text-rose-600 p-0.5 cursor-pointer"
+                                                                                        >
+                                                                                          <span className="material-symbols-outlined text-sm">close</span>
+                                                                                        </button>
+                                                                                      </div>
+                                                                                    ))}
+                                                                                  </div>
+                                                                                </div>
+                                                                              </div>
+                                                                            </div>
+
+                                                                            {/* RIGHT: INTERACTIVE SLIDE NAVIGATION SIDEBAR (35% width) */}
+                                                                            <div className="lg:col-span-4 flex flex-col space-y-2">
+                                                                              <div className="flex items-center justify-between px-1 text-xs font-bold text-slate-300">
+                                                                                <span className="flex items-center gap-1.5">
+                                                                                  <span className="material-symbols-outlined text-[15px] text-indigo-400">view_sidebar</span>
+                                                                                  <span>Story Slides ({slides.length})</span>
+                                                                                </span>
+                                                                                <div className="flex items-center gap-1">
+                                                                                  <button
+                                                                                    type="button"
+                                                                                    onClick={() => updateBlockData(block.id, { activeSlideIndex: (curIdx - 1 + slides.length) % slides.length })}
+                                                                                    className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center cursor-pointer transition-colors"
+                                                                                    title="Previous Slide"
+                                                                                  >
+                                                                                    &#10094;
+                                                                                  </button>
+                                                                                  <button
+                                                                                    type="button"
+                                                                                    onClick={() => updateBlockData(block.id, { activeSlideIndex: (curIdx + 1) % slides.length })}
+                                                                                    className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center cursor-pointer transition-colors"
+                                                                                    title="Next Slide"
+                                                                                  >
+                                                                                    &#10095;
+                                                                                  </button>
+                                                                                </div>
+                                                                              </div>
+
+                                                                              {/* Scrollable list of slide cards */}
+                                                                              <div className="space-y-2 max-h-[580px] overflow-y-auto pr-1">
+                                                                                {slides.map((s, idx) => {
+                                                                                  const isActive = idx === curIdx;
+                                                                                  return (
+                                                                                    <div
+                                                                                      key={s.id || idx}
+                                                                                      onClick={() => updateBlockData(block.id, { activeSlideIndex: idx })}
+                                                                                      className={`p-2.5 rounded-2xl border transition-all cursor-pointer flex items-center gap-3 group/slide ${
+                                                                                        isActive
+                                                                                          ? "bg-slate-800/95 border-rose-500 ring-2 ring-rose-500/20 shadow-md"
+                                                                                          : "bg-slate-900 hover:bg-slate-800/70 border-slate-800"
+                                                                                      }`}
+                                                                                    >
+                                                                                      <span className={`text-[10px] font-mono font-black w-4 text-center shrink-0 ${isActive ? "text-rose-400" : "text-slate-500"}`}>
+                                                                                        {String(idx + 1).padStart(2, "0")}
+                                                                                      </span>
+
+                                                                                      {/* Thumbnail */}
+                                                                                      <div className="w-14 h-11 rounded-xl overflow-hidden shrink-0 bg-slate-800 border border-slate-700 relative">
+                                                                                        <img
+                                                                                          src={s.url}
+                                                                                          alt={s.title}
+                                                                                          className="w-full h-full object-cover"
+                                                                                        />
+                                                                                        {isActive && (
+                                                                                          <span className="absolute bottom-1 right-1 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-slate-900" />
+                                                                                        )}
+                                                                                      </div>
+
+                                                                                      {/* Meta */}
+                                                                                      <div className="min-w-0 flex-1">
+                                                                                        <p className={`text-xs font-bold truncate ${isActive ? "text-white" : "text-slate-300 group-hover/slide:text-white"}`}>
+                                                                                          {s.title || `Slide ${idx + 1}`}
+                                                                                        </p>
+                                                                                        {s.salary && (
+                                                                                          <p className="text-[10px] font-semibold text-emerald-400 truncate mt-0.5">
+                                                                                            {s.salary}
+                                                                                          </p>
+                                                                                        )}
+                                                                                      </div>
+
+                                                                                      {/* Actions (Move & Delete) */}
+                                                                                      <div className="flex items-center gap-0.5 opacity-0 group-hover/slide:opacity-100 transition-opacity">
+                                                                                        {idx > 0 && (
+                                                                                          <button
+                                                                                            type="button"
+                                                                                            onClick={(e) => {
+                                                                                              e.stopPropagation();
+                                                                                              const next = [...slides];
+                                                                                              const temp = next[idx - 1];
+                                                                                              next[idx - 1] = next[idx];
+                                                                                              next[idx] = temp;
+                                                                                              updateBlockData(block.id, { items: next, activeSlideIndex: idx - 1 });
+                                                                                            }}
+                                                                                            className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-700 cursor-pointer"
+                                                                                            title="Move Up"
+                                                                                          >
+                                                                                            <span className="material-symbols-outlined text-[13px]">arrow_upward</span>
+                                                                                          </button>
+                                                                                        )}
+                                                                                        {idx < slides.length - 1 && (
+                                                                                          <button
+                                                                                            type="button"
+                                                                                            onClick={(e) => {
+                                                                                              e.stopPropagation();
+                                                                                              const next = [...slides];
+                                                                                              const temp = next[idx + 1];
+                                                                                              next[idx + 1] = next[idx];
+                                                                                              next[idx] = temp;
+                                                                                              updateBlockData(block.id, { items: next, activeSlideIndex: idx + 1 });
+                                                                                            }}
+                                                                                            className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-700 cursor-pointer"
+                                                                                            title="Move Down"
+                                                                                          >
+                                                                                            <span className="material-symbols-outlined text-[13px]">arrow_downward</span>
+                                                                                          </button>
+                                                                                        )}
+                                                                                        {slides.length > 1 && (
+                                                                                          <button
+                                                                                            type="button"
+                                                                                            onClick={(e) => {
+                                                                                              e.stopPropagation();
+                                                                                              const next = slides.filter((_, i) => i !== idx);
+                                                                                              updateBlockData(block.id, { items: next, activeSlideIndex: Math.max(0, idx - 1) });
+                                                                                            }}
+                                                                                            className="p-1 text-slate-400 hover:text-rose-400 rounded hover:bg-slate-700 cursor-pointer"
+                                                                                            title="Delete Slide"
+                                                                                          >
+                                                                                            <span className="material-symbols-outlined text-[13px]">close</span>
+                                                                                          </button>
+                                                                                        )}
+                                                                                      </div>
+                                                                                    </div>
+                                                                                  );
+                                                                                })}
+                                                                              </div>
+                                                                            </div>
+                                                                          </div>
+                                                                        );
+                                                                      })()}
+                                                                    </div>
+                                                                  ) : /* BLOCK TYPE: ICON LIST */
+                                                                    block.type === "icon_list" ? (
+                                                                      <div className="p-4 bg-white border border-slate-200 rounded-2xl space-y-2">
+                                                                        <input
+                                                                          type="text"
+                                                                          value={block.title || "Key Highlights"}
+                                                                          onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
+                                                                          className="text-xs font-bold text-slate-700 bg-transparent border-none focus:outline-none"
+                                                                        />
+                                                                        <div className="space-y-1.5">
+                                                                          {(block.items || []).map((it, i) => (
+                                                                            <div key={it.id || i} className="flex items-center gap-2 text-xs text-slate-700 font-medium">
+                                                                              <span className="material-symbols-outlined text-[16px] text-emerald-600 shrink-0">
+                                                                                {it.icon || "check_circle"}
+                                                                              </span>
+                                                                              <input
+                                                                                type="text"
+                                                                                value={it.title}
+                                                                                onChange={(e) => {
+                                                                                  const nextItems = [...(block.items || [])];
+                                                                                  nextItems[i] = { ...nextItems[i], title: e.target.value };
+                                                                                  updateBlockData(block.id, { items: nextItems });
+                                                                                }}
+                                                                                className="flex-1 bg-transparent border-none focus:outline-none text-xs text-slate-800"
+                                                                              />
+                                                                            </div>
+                                                                          ))}
+                                                                        </div>
+                                                                      </div>
+                                                                    ) : /* BLOCK TYPE: COUNTER */
+                                                                      block.type === "counter" ? (
+                                                                        <div className="p-5 bg-gradient-to-br from-indigo-50 to-slate-50 border border-indigo-200 rounded-2xl text-center space-y-1">
+                                                                          <div className="text-3xl md:text-4xl font-black text-indigo-700 font-mono tracking-tight flex items-center justify-center gap-0.5">
+                                                                            <span>{block.prefix || ""}</span>
+                                                                            <input
+                                                                              type="text"
+                                                                              value={block.value !== undefined ? String(block.value) : "75"}
+                                                                              onChange={(e) => updateBlockData(block.id, { value: e.target.value })}
+                                                                              className="w-20 text-center font-black bg-transparent border-none focus:outline-none text-indigo-700"
+                                                                            />
+                                                                            <span>{block.suffix || ""}</span>
+                                                                          </div>
+                                                                          <input
+                                                                            type="text"
+                                                                            value={block.title || "Counter Metric"}
+                                                                            onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
+                                                                            className="text-xs font-bold text-slate-700 text-center bg-transparent border-none focus:outline-none w-full"
+                                                                          />
+                                                                        </div>
+                                                                      ) : /* BLOCK TYPE: PROGRESS BAR */
+                                                                        block.type === "progress_bar" ? (
+                                                                          <div className="p-4 bg-white border border-slate-200 rounded-2xl space-y-2">
+                                                                            <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+                                                                              <input
+                                                                                type="text"
+                                                                                value={block.title || "Approval Rate"}
+                                                                                onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
+                                                                                className="bg-transparent border-none focus:outline-none font-bold"
+                                                                              />
+                                                                              <span className="font-mono text-indigo-600">{block.value || 94}%</span>
+                                                                            </div>
+                                                                            <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                                                                              <div
+                                                                                className="bg-gradient-to-r from-indigo-600 to-[#E21B5A] h-full rounded-full transition-all"
+                                                                                style={{ width: `${Math.min(100, Math.max(0, Number(block.value) || 94))}%` }}
+                                                                              />
+                                                                            </div>
+                                                                            {isSelected && (
+                                                                              <input
+                                                                                type="range"
+                                                                                min="0"
+                                                                                max="100"
+                                                                                value={Number(block.value) || 94}
+                                                                                onChange={(e) => updateBlockData(block.id, { value: Number(e.target.value) })}
+                                                                                className="w-full accent-indigo-600 cursor-pointer"
+                                                                              />
+                                                                            )}
+                                                                          </div>
+                                                                        ) : /* BLOCK TYPE: NESTED TABS (FULLY DYNAMIC) */
+                                                                          block.type === "nested_tabs" ? (
+                                                                            <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                                                                              {(() => {
+                                                                                const tabs = (block.items && block.items.length > 0) ? block.items : [
+                                                                                  { id: "1", title: "Overview", content: "Comprehensive overview of the deal structure and bank rate terms." },
+                                                                                  { id: "2", title: "Eligibility", content: "Minimum qualification, co-applicant documentation and approval process." }
+                                                                                ];
+                                                                                const activeIdx = Math.min(Math.max(0, Number(block.value) || 0), tabs.length - 1);
+
+                                                                                return (
+                                                                                  <>
+                                                                                    <div className="flex items-center justify-between border-b border-slate-200 pb-2 gap-2 flex-wrap">
+                                                                                      <div className="flex items-center gap-1.5 overflow-x-auto flex-1">
+                                                                                        {tabs.map((tab, idx) => (
+                                                                                          <button
+                                                                                            key={tab.id || idx}
+                                                                                            type="button"
+                                                                                            onClick={() => updateBlockData(block.id, { value: idx, items: tabs })}
+                                                                                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${activeIdx === idx
+                                                                                                ? "bg-indigo-600 text-white shadow-xs"
+                                                                                                : "bg-white text-slate-700 hover:bg-slate-100 border border-slate-200"
+                                                                                              }`}
+                                                                                          >
+                                                                                            {tab.title}
+                                                                                          </button>
+                                                                                        ))}
+                                                                                      </div>
+                                                                                      <div className="flex items-center gap-1.5">
+                                                                                        <button
+                                                                                          type="button"
+                                                                                          onClick={() => {
+                                                                                            const next = [...tabs, { id: Date.now().toString(), title: `Tab ${tabs.length + 1}`, content: "New tab content..." }];
+                                                                                            updateBlockData(block.id, { items: next, value: next.length - 1 });
+                                                                                          }}
+                                                                                          className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[10px] font-bold cursor-pointer"
+                                                                                        >
+                                                                                          + Add Tab
+                                                                                        </button>
+                                                                                        {tabs.length > 1 && (
+                                                                                          <button
+                                                                                            type="button"
+                                                                                            onClick={() => {
+                                                                                              const next = tabs.filter((_, i) => i !== activeIdx);
+                                                                                              updateBlockData(block.id, { items: next, value: Math.max(0, activeIdx - 1) });
+                                                                                            }}
+                                                                                            className="px-2 py-1 bg-rose-50 text-rose-600 border border-rose-200 rounded text-[10px] font-bold hover:bg-rose-100 cursor-pointer"
+                                                                                          >
+                                                                                            Delete Tab
+                                                                                          </button>
+                                                                                        )}
+                                                                                      </div>
+                                                                                    </div>
+
+                                                                                    <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-2">
+                                                                                      <div className="flex items-center gap-2 border-b border-slate-100 pb-1.5">
+                                                                                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Tab Title:</span>
+                                                                                        <input
+                                                                                          type="text"
+                                                                                          value={tabs[activeIdx]?.title || ""}
+                                                                                          onChange={(e) => {
+                                                                                            const next = [...tabs];
+                                                                                            next[activeIdx] = { ...next[activeIdx], title: e.target.value };
+                                                                                            updateBlockData(block.id, { items: next });
+                                                                                          }}
+                                                                                          className="font-bold text-xs text-indigo-700 bg-transparent border-none focus:outline-none flex-1"
+                                                                                        />
+                                                                                      </div>
+                                                                                      <textarea
+                                                                                        value={tabs[activeIdx]?.content || ""}
+                                                                                        onChange={(e) => {
+                                                                                          const next = [...tabs];
+                                                                                          next[activeIdx] = { ...next[activeIdx], content: e.target.value };
+                                                                                          updateBlockData(block.id, { items: next });
+                                                                                        }}
+                                                                                        rows={3}
+                                                                                        className="w-full text-xs text-slate-700 bg-transparent border-none focus:outline-none resize-y leading-relaxed"
+                                                                                        placeholder="Enter tab description content..."
+                                                                                      />
+                                                                                    </div>
+                                                                                  </>
+                                                                                );
+                                                                              })()}
+                                                                            </div>
+                                                                          ) : /* BLOCK TYPE: NESTED ACCORDION (DYNAMIC) */
+                                                                            block.type === "nested_accordion" ? (
+                                                                              <div className="p-4 bg-white border border-slate-200 rounded-2xl space-y-3">
+                                                                                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                                                                                  <input
+                                                                                    type="text"
+                                                                                    value={block.title || "Frequently Asked Questions"}
+                                                                                    onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
+                                                                                    className="text-xs font-bold text-slate-800 bg-transparent border-none focus:outline-none flex-1"
+                                                                                    placeholder="Accordion Section Title..."
+                                                                                  />
+                                                                                  <button
+                                                                                    type="button"
+                                                                                    onClick={() => {
+                                                                                      const curItems = block.items && block.items.length > 0 ? block.items : [
+                                                                                        { id: "1", title: "Is this deal available on all colors?", content: "Yes, standard titanium and silver variants qualify for the instant bank discount." }
+                                                                                      ];
+                                                                                      const next = [...curItems, { id: Date.now().toString(), title: "New Question / Topic", content: "Detailed explanation or answer..." }];
+                                                                                      updateBlockData(block.id, { items: next });
+                                                                                    }}
+                                                                                    className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[10px] font-bold cursor-pointer"
+                                                                                  >
+                                                                                    + Add Item
+                                                                                  </button>
+                                                                                </div>
+                                                                                <div className="space-y-2">
+                                                                                  {((block.items && block.items.length > 0) ? block.items : [
+                                                                                    { id: "1", title: "How long is this limited deal active?", content: "The flash pricing is subject to stock quotas on Amazon India and may conclude without advance notice." },
+                                                                                    { id: "2", title: "Can I combine credit card discounts with exchange?", content: "Yes, Amazon allows combining select bank card instant discounts with eligible exchange bonuses." }
+                                                                                  ]).map((acc, idx) => (
+                                                                                    <div key={acc.id || idx} className="border border-slate-200 rounded-xl bg-slate-50/50 p-2.5 space-y-1.5">
+                                                                                      <div className="flex items-center justify-between gap-2">
+                                                                                        <input
+                                                                                          type="text"
+                                                                                          value={acc.title}
+                                                                                          onChange={(e) => {
+                                                                                            const items = block.items || [];
+                                                                                            const next = [...items];
+                                                                                            next[idx] = { ...next[idx], title: e.target.value };
+                                                                                            updateBlockData(block.id, { items: next });
+                                                                                          }}
+                                                                                          className="font-bold text-xs text-slate-900 bg-transparent border-none focus:outline-none flex-1"
+                                                                                          placeholder="Question title..."
+                                                                                        />
+                                                                                        <button
+                                                                                          type="button"
+                                                                                          onClick={() => {
+                                                                                            const items = block.items || [];
+                                                                                            const next = items.filter((_, i) => i !== idx);
+                                                                                            updateBlockData(block.id, { items: next });
+                                                                                          }}
+                                                                                          className="text-slate-400 hover:text-rose-600 p-0.5 cursor-pointer"
+                                                                                        >
+                                                                                          <span className="material-symbols-outlined text-[13px]">close</span>
+                                                                                        </button>
+                                                                                      </div>
+                                                                                      <textarea
+                                                                                        value={acc.content || ""}
+                                                                                        onChange={(e) => {
+                                                                                          const items = block.items || [];
+                                                                                          const next = [...items];
+                                                                                          next[idx] = { ...next[idx], content: e.target.value };
+                                                                                          updateBlockData(block.id, { items: next });
+                                                                                        }}
+                                                                                        rows={2}
+                                                                                        className="w-full bg-white p-2 rounded-lg border border-slate-200 text-xs text-slate-700 resize-y focus:outline-none focus:border-indigo-400"
+                                                                                        placeholder="Answer content..."
+                                                                                      />
+                                                                                    </div>
+                                                                                  ))}
+                                                                                </div>
+                                                                              </div>
+                                                                            ) : /* BLOCK TYPE: RATING */
+                                                                              block.type === "rating" ? (
+                                                                                <div className="p-4 bg-amber-50/40 border border-amber-200 rounded-2xl text-center space-y-1">
+                                                                                  <div className="flex items-center justify-center gap-1 text-amber-500">
+                                                                                    {[1, 2, 3, 4, 5].map((s) => (
+                                                                                      <span key={s} className="material-symbols-outlined text-2xl fill-current">star</span>
+                                                                                    ))}
+                                                                                  </div>
+                                                                                  <input
+                                                                                    type="text"
+                                                                                    value={block.title || "4.9 / 5 Rating"}
+                                                                                    onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
+                                                                                    className="text-sm font-bold text-slate-900 text-center bg-transparent border-none focus:outline-none w-full"
+                                                                                  />
+                                                                                  <input
+                                                                                    type="text"
+                                                                                    value={block.subtitle || "Based on 12,400+ Verified Student Loan Reviews"}
+                                                                                    onChange={(e) => updateBlockData(block.id, { subtitle: e.target.value })}
+                                                                                    className="text-xs text-slate-500 text-center bg-transparent border-none focus:outline-none w-full"
+                                                                                  />
+                                                                                </div>
+                                                                              ) : /* BLOCK TYPE: HTML */
+                                                                                block.type === "html" ? (
+                                                                                  <div className="p-3 bg-slate-900 rounded-2xl space-y-2 border border-slate-800">
+                                                                                    <div className="flex items-center justify-between text-[11px] font-mono font-bold text-slate-400">
+                                                                                      <span>&lt;HTML Code /&gt;</span>
+                                                                                      <span className="text-[10px] text-emerald-400">Live Embed</span>
+                                                                                    </div>
+                                                                                    <textarea
+                                                                                      value={block.content}
+                                                                                      onChange={(e) => updateBlockContent(block.id, e.target.value)}
+                                                                                      rows={3}
+                                                                                      className="w-full bg-slate-950 p-2.5 rounded-xl text-emerald-400 font-mono text-xs border border-slate-800 focus:outline-none resize-y"
+                                                                                      placeholder="<div>Custom HTML</div>"
+                                                                                    />
+                                                                                  </div>
+                                                                                ) : /* BLOCK TYPE: SHORTCODE */
+                                                                                  block.type === "shortcode" ? (
+                                                                                    <div className="p-3 bg-indigo-50/50 border border-indigo-200 rounded-2xl flex items-center gap-3">
+                                                                                      <span className="material-symbols-outlined text-indigo-600 text-xl">integration_instructions</span>
+                                                                                      <input
+                                                                                        type="text"
+                                                                                        value={block.content}
+                                                                                        onChange={(e) => updateBlockContent(block.id, e.target.value)}
+                                                                                        placeholder='[plugin_shortcode id="..."]'
+                                                                                        className="flex-1 font-mono text-xs font-bold text-indigo-900 bg-transparent border-none focus:outline-none"
+                                                                                      />
+                                                                                    </div>
+                                                                                  ) : /* BLOCK TYPE: MENU ANCHOR */
+                                                                                    block.type === "menu_anchor" ? (
+                                                                                      <div className="py-2 px-3 bg-slate-100 border border-dashed border-slate-300 rounded-xl flex items-center gap-2 text-slate-600 text-xs font-mono font-bold select-none">
+                                                                                        <span className="material-symbols-outlined text-[16px] text-indigo-600">anchor</span>
+                                                                                        <span>#{block.content || "menu-anchor"}</span>
+                                                                                      </div>
+                                                                                    ) : /* BLOCK TYPE: SIDEBAR (DYNAMIC) */
+                                                                                      block.type === "sidebar" ? (
+                                                                                        <div className="p-4 bg-gradient-to-br from-indigo-50/60 to-purple-50/40 border border-indigo-200 rounded-2xl space-y-3">
+                                                                                          <div className="flex items-center justify-between border-b border-indigo-100 pb-2">
+                                                                                            <div className="flex items-center gap-1.5">
+                                                                                              <span className="material-symbols-outlined text-indigo-600 text-[18px]">view_sidebar</span>
+                                                                                              <input
+                                                                                                type="text"
+                                                                                                value={block.title || "Sidebar Callout"}
+                                                                                                onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
+                                                                                                className="font-black text-xs text-slate-900 bg-transparent border-none focus:outline-none"
+                                                                                                placeholder="Sidebar Title..."
+                                                                                              />
+                                                                                            </div>
+                                                                                            <button
+                                                                                              type="button"
+                                                                                              onClick={() => {
+                                                                                                const next = [...(block.items || []), { id: Date.now().toString(), title: "Live Deal Page", url: "https://amazon.in" }];
+                                                                                                updateBlockData(block.id, { items: next });
+                                                                                              }}
+                                                                                              className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[10px] font-bold cursor-pointer"
+                                                                                            >
+                                                                                              + Add Link
+                                                                                            </button>
+                                                                                          </div>
+                                                                                          <textarea
+                                                                                            value={block.content}
+                                                                                            onChange={(e) => updateBlockContent(block.id, e.target.value)}
+                                                                                            rows={2}
+                                                                                            className="w-full text-xs text-slate-600 bg-white/70 p-2 rounded-xl border border-indigo-100 focus:outline-none resize-y"
+                                                                                            placeholder="Sidebar overview or summary note..."
+                                                                                          />
+                                                                                          <div className="space-y-1.5">
+                                                                                            {(block.items || [
+                                                                                              { id: "1", title: "Compare Bank Rates", url: "/banks" },
+                                                                                              { id: "2", title: "Calculate Monthly EMI", url: "/emi-calculator" }
+                                                                                            ]).map((item, i) => (
+                                                                                              <div key={item.id || i} className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-indigo-100">
+                                                                                                <span className="text-indigo-600 text-xs">🔗</span>
+                                                                                                <input
+                                                                                                  type="text"
+                                                                                                  value={item.title}
+                                                                                                  onChange={(e) => {
+                                                                                                    const next = [...(block.items || [])];
+                                                                                                    next[i] = { ...next[i], title: e.target.value };
+                                                                                                    updateBlockData(block.id, { items: next });
+                                                                                                  }}
+                                                                                                  className="font-bold text-xs text-slate-800 bg-transparent border-none focus:outline-none flex-1"
+                                                                                                  placeholder="Link Title..."
+                                                                                                />
+                                                                                                <input
+                                                                                                  type="text"
+                                                                                                  value={item.url || ""}
+                                                                                                  onChange={(e) => {
+                                                                                                    const next = [...(block.items || [])];
+                                                                                                    next[i] = { ...next[i], url: e.target.value };
+                                                                                                    updateBlockData(block.id, { items: next });
+                                                                                                  }}
+                                                                                                  className="font-mono text-[10px] text-indigo-600 bg-slate-50 px-2 py-0.5 rounded border border-slate-200 w-36 focus:outline-none"
+                                                                                                  placeholder="URL..."
+                                                                                                />
+                                                                                                <button
+                                                                                                  type="button"
+                                                                                                  onClick={() => {
+                                                                                                    const next = (block.items || []).filter((_, idx) => idx !== i);
+                                                                                                    updateBlockData(block.id, { items: next });
+                                                                                                  }}
+                                                                                                  className="text-slate-400 hover:text-rose-600 p-0.5 cursor-pointer"
+                                                                                                >
+                                                                                                  <span className="material-symbols-outlined text-[13px]">close</span>
+                                                                                                </button>
+                                                                                              </div>
+                                                                                            ))}
+                                                                                          </div>
+                                                                                        </div>
+                                                                                      ) : /* BLOCK TYPE: GOOGLE MAPS */
+                                                                                        block.type === "google_maps" ? (
+                                                                                          <div className="p-4 bg-white border border-slate-200 rounded-2xl space-y-2">
+                                                                                            <div className="flex items-center gap-2">
+                                                                                              <span className="material-symbols-outlined text-rose-500">map</span>
+                                                                                              <input
+                                                                                                type="text"
+                                                                                                value={block.content}
+                                                                                                onChange={(e) => updateBlockContent(block.id, e.target.value)}
+                                                                                                placeholder="Location query (e.g. Harvard University, Cambridge, MA)..."
+                                                                                                className="text-xs font-bold text-slate-800 flex-1 bg-slate-50 px-2 py-1 rounded-lg border border-slate-200 focus:outline-none"
+                                                                                              />
+                                                                                            </div>
+                                                                                            <div className="w-full aspect-video rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
+                                                                                              <iframe
+                                                                                                src={`https://maps.google.com/maps?q=${encodeURIComponent(block.content || "London")}&t=&z=13&ie=UTF8&iwloc=&output=embed`}
+                                                                                                className="w-full h-full border-0"
+                                                                                                loading="lazy"
+                                                                                              />
+                                                                                            </div>
+                                                                                          </div>
+                                                                                        ) : /* BLOCK TYPE: SOUNDCLOUD */
+                                                                                          block.type === "soundcloud" ? (
+                                                                                            <div className="p-4 bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-2xl space-y-2">
+                                                                                              <div className="flex items-center gap-2 text-orange-600">
+                                                                                                <span className="material-symbols-outlined">graphic_eq</span>
+                                                                                                <span className="text-xs font-bold">{block.title || "SoundCloud Audio Track"}</span>
+                                                                                              </div>
+                                                                                              <input
+                                                                                                type="text"
+                                                                                                value={block.content}
+                                                                                                onChange={(e) => updateBlockContent(block.id, e.target.value)}
+                                                                                                placeholder="SoundCloud track URL..."
+                                                                                                className="w-full text-xs font-mono px-3 py-1.5 bg-white border border-orange-200 rounded-lg text-slate-800 focus:outline-none"
+                                                                                              />
+                                                                                            </div>
+                                                                                          ) : /* BLOCK TYPE: TEXT PATH */
+                                                                                            block.type === "text_path" ? (
+                                                                                              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-center space-y-2">
+                                                                                                <svg viewBox="0 0 500 100" className="w-full max-h-24">
+                                                                                                  <path id={`path-${block.id}`} d="M 10 80 Q 250 10 490 80" fill="transparent" stroke="#E2E8F0" strokeWidth="2" />
+                                                                                                  <text className="text-xs font-black fill-indigo-600 font-sans tracking-widest">
+                                                                                                    <textPath href={`#path-${block.id}`} startOffset="50%" textAnchor="middle">
+                                                                                                      {block.title || "VidyaLoan • Study Abroad • Dream Higher • "}
+                                                                                                    </textPath>
+                                                                                                  </text>
+                                                                                                </svg>
+                                                                                                <input
+                                                                                                  type="text"
+                                                                                                  value={block.title || ""}
+                                                                                                  onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
+                                                                                                  placeholder="Curved Path Text..."
+                                                                                                  className="text-xs font-bold text-slate-800 text-center bg-transparent border-none focus:outline-none w-full"
+                                                                                                />
+                                                                                              </div>
+                                                                                            ) : /* BLOCK TYPE: LINK IN BIO */
+                                                                                              block.type === "link_bio" ? (
+                                                                                                <div className="p-6 bg-gradient-to-b from-indigo-50/60 to-purple-50/40 border border-indigo-200 rounded-3xl text-center space-y-4 max-w-md mx-auto">
+                                                                                                  <div className="w-16 h-16 rounded-full bg-indigo-600 text-white flex items-center justify-center mx-auto text-xl font-bold shadow-md">
+                                                                                                    {(block.title || "V")[0]}
+                                                                                                  </div>
+                                                                                                  <div>
+                                                                                                    <input
+                                                                                                      type="text"
+                                                                                                      value={block.title || "VidyaLoan Advisor"}
+                                                                                                      onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
+                                                                                                      className="text-sm font-black text-slate-900 text-center bg-transparent border-none focus:outline-none w-full"
+                                                                                                    />
+                                                                                                    <input
+                                                                                                      type="text"
+                                                                                                      value={block.subtitle || "Helping students fund studies abroad"}
+                                                                                                      onChange={(e) => updateBlockData(block.id, { subtitle: e.target.value })}
+                                                                                                      className="text-[11px] text-slate-500 text-center bg-transparent border-none focus:outline-none w-full"
+                                                                                                    />
+                                                                                                  </div>
+                                                                                                  <div className="space-y-2">
+                                                                                                    {(block.items || []).map((item, idx) => (
+                                                                                                      <div
+                                                                                                        key={item.id || idx}
+                                                                                                        className="w-full py-2.5 px-4 bg-white hover:bg-indigo-50 border border-indigo-100 hover:border-indigo-400 rounded-xl text-xs font-bold text-indigo-950 flex items-center justify-between shadow-2xs transition-all"
+                                                                                                      >
+                                                                                                        <span>{item.title}</span>
+                                                                                                        {item.badge && (
+                                                                                                          <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-md">
+                                                                                                            {item.badge}
+                                                                                                          </span>
+                                                                                                        )}
+                                                                                                      </div>
+                                                                                                    ))}
+                                                                                                  </div>
+                                                                                                </div>
+                                                                                              ) : /* BLOCK TYPE: TABLE OF CONTENTS (TOC) */
+                                                                                                block.type === "table_of_contents" ? (
+                                                                                                  <div className="p-5 bg-gradient-to-br from-slate-50 to-indigo-50/40 rounded-2xl border border-indigo-100 shadow-xs space-y-3">
+                                                                                                    <div className="flex items-center justify-between border-b border-indigo-100/80 pb-2">
+                                                                                                      <div className="flex items-center gap-2">
+                                                                                                        <span className="material-symbols-outlined text-indigo-600 text-lg">toc</span>
+                                                                                                        <input
+                                                                                                          type="text"
+                                                                                                          value={block.title || "Table of Contents"}
+                                                                                                          onChange={(e) => updateBlockData(block.id, { title: e.target.value })}
+                                                                                                          className="font-black text-sm text-slate-900 bg-transparent border-none focus:outline-none"
+                                                                                                          placeholder="TOC Heading..."
+                                                                                                        />
+                                                                                                      </div>
+                                                                                                      <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
+                                                                                                        Auto-Indexed from H1–H6
+                                                                                                      </span>
+                                                                                                    </div>
+
+                                                                                                    {(() => {
+                                                                                                      const headings = blocks.filter((b) => b.type === "heading" && b.content?.trim());
+                                                                                                      if (headings.length === 0) {
+                                                                                                        return (
+                                                                                                          <div className="py-4 text-center text-slate-400">
+                                                                                                            <p className="text-xs font-semibold">No headings found yet.</p>
+                                                                                                            <p className="text-[11px] text-slate-400">
+                                                                                                              Add H1–H6 heading blocks to your blog to automatically generate chapter links here!
+                                                                                                            </p>
+                                                                                                          </div>
+                                                                                                        );
+                                                                                                      }
+
+                                                                                                      return (
+                                                                                                        <ul className="space-y-1.5 list-none pl-0">
+                                                                                                          {headings.map((h, i) => {
+                                                                                                            const lvl = Number(h.level || 2);
+                                                                                                            const paddingClass =
+                                                                                                              lvl === 1 ? "pl-0 font-bold text-slate-900 text-sm" :
+                                                                                                                lvl === 2 ? "pl-3 font-semibold text-slate-800 text-xs" :
+                                                                                                                  lvl === 3 ? "pl-6 font-medium text-slate-700 text-xs" :
+                                                                                                                    lvl === 4 ? "pl-9 font-medium text-slate-600 text-xs" :
+                                                                                                                      "pl-12 text-slate-500 text-[11px]";
+                                                                                                            const slug = (h.content || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+
+                                                                                                            return (
+                                                                                                              <li key={h.id || i} className={`flex items-center gap-2 ${paddingClass}`}>
+                                                                                                                <span className="text-indigo-400 font-mono text-[10px]">{i + 1}.</span>
+                                                                                                                <a
+                                                                                                                  href={`#${slug}`}
+                                                                                                                  onClick={(e) => e.preventDefault()}
+                                                                                                                  className="hover:text-indigo-600 hover:underline flex items-center gap-1 flex-1 truncate"
+                                                                                                                >
+                                                                                                                  <span>{h.content}</span>
+                                                                                                                  <span className="text-[9px] font-mono text-slate-400 bg-slate-100 px-1 rounded">H{lvl}</span>
+                                                                                                                </a>
+                                                                                                              </li>
+                                                                                                            );
+                                                                                                          })}
+                                                                                                        </ul>
+                                                                                                      );
+                                                                                                    })()}
+                                                                                                  </div>
+                                                                                                ) : /* BLOCK TYPE: RESPONSIVE DATA TABLE */
+                                                                                                  block.type === "table" ? (
+                                                                                                    <div className="space-y-2.5">
+                                                                                                      {/* Table Toolbar */}
+                                                                                                      <div className="flex items-center justify-between gap-2 flex-wrap text-xs bg-slate-50 p-2 rounded-xl border border-slate-200">
+                                                                                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                                                                                          <span className="material-symbols-outlined text-indigo-600 text-sm">table_chart</span>
+                                                                                                          <span className="font-bold text-slate-800 text-xs">Table Matrix:</span>
+                                                                                                          <button
+                                                                                                            type="button"
+                                                                                                            onClick={() => addTableRow(block.id)}
+                                                                                                            className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded font-bold text-[10px] cursor-pointer"
+                                                                                                          >
+                                                                                                            + Row
+                                                                                                          </button>
+                                                                                                          <button
+                                                                                                            type="button"
+                                                                                                            onClick={() => deleteTableRow(block.id)}
+                                                                                                            className="px-2 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded font-bold text-[10px] border border-rose-200 cursor-pointer"
+                                                                                                          >
+                                                                                                            - Row
+                                                                                                          </button>
+                                                                                                          <button
+                                                                                                            type="button"
+                                                                                                            onClick={() => addTableColumn(block.id)}
+                                                                                                            className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded font-bold text-[10px] cursor-pointer"
+                                                                                                          >
+                                                                                                            + Col
+                                                                                                          </button>
+                                                                                                          <button
+                                                                                                            type="button"
+                                                                                                            onClick={() => deleteTableColumn(block.id)}
+                                                                                                            className="px-2 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded font-bold text-[10px] border border-rose-200 cursor-pointer"
+                                                                                                          >
+                                                                                                            - Col
+                                                                                                          </button>
+                                                                                                        </div>
+
+                                                                                                        <div className="flex items-center gap-1.5">
+                                                                                                          <button
+                                                                                                            type="button"
+                                                                                                            onClick={() => toggleTableHeader(block.id)}
+                                                                                                            className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${block.tableData?.hasHeader !== false
+                                                                                                                ? "bg-slate-800 text-white"
+                                                                                                                : "bg-white text-slate-600 border border-slate-200"
+                                                                                                              }`}
+                                                                                                          >
+                                                                                                            Header: {block.tableData?.hasHeader !== false ? "ON" : "OFF"}
+                                                                                                          </button>
+                                                                                                          <button
+                                                                                                            type="button"
+                                                                                                            onClick={() => toggleTableStriped(block.id)}
+                                                                                                            className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${block.tableData?.isStriped
+                                                                                                                ? "bg-indigo-600 text-white"
+                                                                                                                : "bg-white text-slate-600 border border-slate-200"
+                                                                                                              }`}
+                                                                                                          >
+                                                                                                            Striped: {block.tableData?.isStriped ? "ON" : "OFF"}
+                                                                                                          </button>
+                                                                                                        </div>
+                                                                                                      </div>
+
+                                                                                                      {/* Table Grid */}
+                                                                                                      <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-2xs">
+                                                                                                        <table className="w-full text-left border-collapse">
+                                                                                                          {block.tableData?.hasHeader !== false && (
+                                                                                                            <thead className="bg-slate-100 text-slate-800 text-xs font-bold uppercase tracking-wider border-b border-slate-200">
+                                                                                                              <tr>
+                                                                                                                {(block.tableData?.headers || ["Feature", "Rate", "Details"]).map((h, colIdx) => (
+                                                                                                                  <th key={colIdx} className="p-2 border-r border-slate-200 last:border-r-0">
+                                                                                                                    <input
+                                                                                                                      type="text"
+                                                                                                                      value={h}
+                                                                                                                      onChange={(e) => updateTableHeader(block.id, colIdx, e.target.value)}
+                                                                                                                      className="w-full bg-transparent font-bold text-xs text-slate-900 border-none focus:outline-none"
+                                                                                                                    />
+                                                                                                                  </th>
+                                                                                                                ))}
+                                                                                                              </tr>
+                                                                                                            </thead>
+                                                                                                          )}
+                                                                                                          <tbody className="divide-y divide-slate-100">
+                                                                                                            {(block.tableData?.rows || [
+                                                                                                              ["Collateral-Free Limit", "Up to ₹75 Lakhs", "Instant pre-approval"],
+                                                                                                              ["Interest Rate", "From 8.5% p.a.", "Tax benefit under 80E"],
+                                                                                                            ]).map((row, rowIdx) => (
+                                                                                                              <tr
+                                                                                                                key={rowIdx}
+                                                                                                                className={`${block.tableData?.isStriped && rowIdx % 2 === 1
+                                                                                                                    ? "bg-slate-50/70"
+                                                                                                                    : "bg-white"
+                                                                                                                  } hover:bg-indigo-50/30 transition-colors`}
+                                                                                                              >
+                                                                                                                {row.map((cell, colIdx) => (
+                                                                                                                  <td key={colIdx} className="p-2 border-r border-slate-100 last:border-r-0">
+                                                                                                                    <input
+                                                                                                                      type="text"
+                                                                                                                      value={cell}
+                                                                                                                      onChange={(e) => updateTableCell(block.id, rowIdx, colIdx, e.target.value)}
+                                                                                                                      className="w-full bg-transparent text-xs text-slate-700 border-none focus:outline-none"
+                                                                                                                    />
+                                                                                                                  </td>
+                                                                                                                ))}
+                                                                                                              </tr>
+                                                                                                            ))}
+                                                                                                          </tbody>
+                                                                                                        </table>
+                                                                                                      </div>
+                                                                                                    </div>
+                                                                                                  ) : /* BLOCK TYPE: LIST (ORDERED / UNORDERED) */
+                                                                                                    block.type === "list" ? (
+                                                                                                      <div className="space-y-2 p-3 bg-slate-50/60 rounded-xl border border-slate-200">
+                                                                                                        <div className="flex items-center justify-between gap-2 border-b border-slate-200 pb-2 flex-wrap">
+                                                                                                          <div className="flex items-center gap-1.5">
+                                                                                                            <span className="material-symbols-outlined text-indigo-600 text-sm">
+                                                                                                              {block.listType === "ordered" ? "format_list_numbered" : "format_list_bulleted"}
+                                                                                                            </span>
+                                                                                                            <span className="text-xs font-bold text-slate-800">
+                                                                                                              {block.listType === "ordered" ? "Numbered List (<ol>)" : "Bulleted List (<ul>)"}
+                                                                                                            </span>
+                                                                                                          </div>
+                                                                                                          <div className="flex items-center gap-1">
+                                                                                                            <button
+                                                                                                              type="button"
+                                                                                                              onClick={() => toggleListType(block.id)}
+                                                                                                              className="px-2 py-0.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 rounded text-[10px] font-bold cursor-pointer transition-colors"
+                                                                                                            >
+                                                                                                              Switch to {block.listType === "ordered" ? "Bulleted (•)" : "Numbered (1.)"}
+                                                                                                            </button>
+                                                                                                            <button
+                                                                                                              type="button"
+                                                                                                              onClick={() => addListItem(block.id)}
+                                                                                                              className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[10px] font-bold cursor-pointer"
+                                                                                                            >
+                                                                                                              + Add Item
+                                                                                                            </button>
+                                                                                                          </div>
+                                                                                                        </div>
+
+                                                                                                        <div className="space-y-1.5">
+                                                                                                          {((block.items && block.items.length > 0)
+                                                                                                            ? block.items
+                                                                                                            : (block.content || "First item\nSecond item\nThird item").split("\n").map((s, idx) => ({ id: String(idx), title: s }))
+                                                                                                          ).map((item, itemIdx) => (
+                                                                                                            <div key={item.id || itemIdx} className="flex items-center gap-2">
+                                                                                                              <span className="w-5 text-center font-mono text-xs font-bold text-indigo-600 shrink-0 select-none">
+                                                                                                                {block.listType === "ordered" ? `${itemIdx + 1}.` : "•"}
+                                                                                                              </span>
+                                                                                                              <input
+                                                                                                                type="text"
+                                                                                                                value={item.title || ""}
+                                                                                                                onChange={(e) => updateListItem(block.id, itemIdx, e.target.value)}
+                                                                                                                className="flex-1 bg-white px-2 py-1 rounded-lg border border-slate-200 text-xs text-slate-800 focus:outline-none focus:border-indigo-400"
+                                                                                                                placeholder={`List item ${itemIdx + 1}...`}
+                                                                                                              />
+                                                                                                              <button
+                                                                                                                type="button"
+                                                                                                                onClick={() => removeListItem(block.id, itemIdx)}
+                                                                                                                className="p-1 text-slate-400 hover:text-rose-600 rounded cursor-pointer"
+                                                                                                                title="Delete item"
+                                                                                                              >
+                                                                                                                <span className="material-symbols-outlined text-[14px]">close</span>
+                                                                                                              </button>
+                                                                                                            </div>
+                                                                                                          ))}
+                                                                                                        </div>
+                                                                                                      </div>
+                                                                                                    ) : (
+                                                                                                      /* DEFAULT: REAL-TIME RICH TEXT & LIVE FORMATTING WYSIWYG EDITOR */
+                                                                                                      <div className="space-y-2">
+                                                                                                        <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1.5 flex-wrap">
+                                                                                                          <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                                                                                                            <button
+                                                                                                              type="button"
+                                                                                                              onMouseDown={(e) => e.preventDefault()}
+                                                                                                              onClick={() => applyFormatToSelection(block.id, "bold")}
+                                                                                                              className="px-2 py-0.5 text-xs font-black text-slate-800 hover:bg-white rounded transition-colors cursor-pointer"
+                                                                                                              title="Bold (Ctrl+B) - Formats selected text"
+                                                                                                            >
+                                                                                                              B
+                                                                                                            </button>
+                                                                                                            <button
+                                                                                                              type="button"
+                                                                                                              onMouseDown={(e) => e.preventDefault()}
+                                                                                                              onClick={() => applyFormatToSelection(block.id, "italic")}
+                                                                                                              className="px-2 py-0.5 text-xs italic font-serif text-slate-800 hover:bg-white rounded transition-colors cursor-pointer"
+                                                                                                              title="Italic (Ctrl+I)"
+                                                                                                            >
+                                                                                                              I
+                                                                                                            </button>
+                                                                                                            <button
+                                                                                                              type="button"
+                                                                                                              onMouseDown={(e) => e.preventDefault()}
+                                                                                                              onClick={() => applyFormatToSelection(block.id, "underline")}
+                                                                                                              className="px-2 py-0.5 text-xs underline font-semibold text-slate-800 hover:bg-white rounded transition-colors cursor-pointer"
+                                                                                                              title="Underline (Ctrl+U)"
+                                                                                                            >
+                                                                                                              U
+                                                                                                            </button>
+                                                                                                            <button
+                                                                                                              type="button"
+                                                                                                              onMouseDown={(e) => e.preventDefault()}
+                                                                                                              onClick={() => applyFormatToSelection(block.id, "strike")}
+                                                                                                              className="px-2 py-0.5 text-xs line-through text-slate-600 hover:bg-white rounded transition-colors cursor-pointer"
+                                                                                                              title="Strikethrough"
+                                                                                                            >
+                                                                                                              S
+                                                                                                            </button>
+                                                                                                            <button
+                                                                                                              type="button"
+                                                                                                              onMouseDown={(e) => e.preventDefault()}
+                                                                                                              onClick={() => applyFormatToSelection(block.id, "code")}
+                                                                                                              className="px-2 py-0.5 text-xs font-mono text-emerald-700 hover:bg-white rounded transition-colors cursor-pointer"
+                                                                                                              title="Inline Code (`code`)"
+                                                                                                            >
+                                                                                                              &lt;/&gt;
+                                                                                                            </button>
+                                                                                                            {/* Auto-closing Multi-color Highlight Tool with Quick Split Button */}
+                                                                                                            <div className="relative inline-flex items-center">
+                                                                                                              <button
+                                                                                                                type="button"
+                                                                                                                onMouseDown={(e) => e.preventDefault()}
+                                                                                                                onClick={() => applyHighlight(block.id, "#fef08a", "#854d0e")}
+                                                                                                                className="px-2 py-0.5 text-xs font-black text-amber-900 bg-amber-200 hover:bg-amber-300 rounded-l transition-colors cursor-pointer shadow-2xs flex items-center gap-1 border-r border-amber-300/80"
+                                                                                                                title="Quick Highlight in Yellow Marker (or toggle off)"
+                                                                                                              >
+                                                                                                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                                                                                                                Highlight
+                                                                                                              </button>
+                                                                                                              <button
+                                                                                                                type="button"
+                                                                                                                onMouseDown={(e) => e.preventDefault()}
+                                                                                                                onClick={() =>
+                                                                                                                  setActiveHighlightPicker(activeHighlightPicker === block.id ? null : block.id)
+                                                                                                                }
+                                                                                                                className="px-1 py-0.5 text-xs text-amber-900 bg-amber-200 hover:bg-amber-300 rounded-r transition-colors cursor-pointer flex items-center"
+                                                                                                                title="Choose Highlight Color or Remove"
+                                                                                                              >
+                                                                                                                <span className="material-symbols-outlined text-[13px]">arrow_drop_down</span>
+                                                                                                              </button>
+
+                                                                                                              {/* Auto-closing Highlight Dropdown Popover */}
+                                                                                                              {activeHighlightPicker === block.id && (
+                                                                                                                <div
+                                                                                                                  onMouseDown={(e) => e.preventDefault()}
+                                                                                                                  className="absolute top-full left-0 mt-1 z-30 bg-white p-2 rounded-xl shadow-xl border border-slate-200 flex flex-col gap-1.5 min-w-[210px] animate-in fade-in zoom-in-95 duration-100"
+                                                                                                                >
+                                                                                                                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1 flex items-center justify-between">
+                                                                                                                    <span>Highlight Colors</span>
+                                                                                                                    <button
+                                                                                                                      type="button"
+                                                                                                                      onClick={() => setActiveHighlightPicker(null)}
+                                                                                                                      className="text-slate-400 hover:text-slate-700 cursor-pointer"
+                                                                                                                    >
+                                                                                                                      <span className="material-symbols-outlined text-[13px]">close</span>
+                                                                                                                    </button>
+                                                                                                                  </div>
+                                                                                                                  <div className="grid grid-cols-3 gap-1">
+                                                                                                                    {HIGHLIGHT_SWATCHES.map((swatch) => (
+                                                                                                                      <button
+                                                                                                                        key={swatch.name}
+                                                                                                                        type="button"
+                                                                                                                        onMouseDown={(e) => e.preventDefault()}
+                                                                                                                        onClick={() => applyHighlight(block.id, swatch.bg, swatch.text)}
+                                                                                                                        className="px-2 py-1 text-[11px] font-bold rounded-lg transition-transform hover:scale-105 cursor-pointer text-center"
+                                                                                                                        style={{
+                                                                                                                          backgroundColor: swatch.bg,
+                                                                                                                          color: swatch.text,
+                                                                                                                          border: `1px solid ${swatch.border}`,
+                                                                                                                        }}
+                                                                                                                      >
+                                                                                                                        {swatch.name}
+                                                                                                                      </button>
+                                                                                                                    ))}
+                                                                                                                  </div>
+                                                                                                                  <div className="border-t border-slate-100 pt-1">
+                                                                                                                    <button
+                                                                                                                      type="button"
+                                                                                                                      onMouseDown={(e) => e.preventDefault()}
+                                                                                                                      onClick={() => removeHighlight(block.id)}
+                                                                                                                      className="w-full px-2 py-1 text-[11px] font-bold text-slate-700 hover:bg-rose-50 hover:text-rose-700 rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                                                                                                                    >
+                                                                                                                      <span className="material-symbols-outlined text-[13px]">
+                                                                                                                        format_color_reset
+                                                                                                                      </span>
+                                                                                                                      Remove Highlight
+                                                                                                                    </button>
+                                                                                                                  </div>
+                                                                                                                </div>
+                                                                                                              )}
+                                                                                                            </div>
+
+                                                                                                            <button
+                                                                                                              type="button"
+                                                                                                              onMouseDown={(e) => e.preventDefault()}
+                                                                                                              onClick={() => {
+                                                                                                                let selText = "";
+                                                                                                                if (typeof window !== "undefined") {
+                                                                                                                  const sel = window.getSelection();
+                                                                                                                  if (sel && !sel.isCollapsed) selText = sel.toString().trim();
+                                                                                                                }
+                                                                                                                openHyperlinkDialog(block.id, selText, block.url || block.link);
+                                                                                                              }}
+                                                                                                              className="px-2.5 py-0.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-white rounded transition-colors flex items-center gap-1 cursor-pointer border border-indigo-200"
+                                                                                                              title="Add Hyperlink to selected text"
+                                                                                                            >
+                                                                                                              <span className="material-symbols-outlined text-[13px]">link</span>
+                                                                                                              <span>Link</span>
+                                                                                                            </button>
+                                                                                                          </div>
+
+                                                                                                          <div className="flex items-center gap-2">
+                                                                                                            {/* Mode switcher: Visual WYSIWYG vs HTML Source */}
+                                                                                                            <div className="flex items-center bg-slate-200/80 p-0.5 rounded-md text-[10px] font-bold">
+                                                                                                              <button
+                                                                                                                type="button"
+                                                                                                                onClick={() => setEditorModes((prev) => ({ ...prev, [block.id]: "visual" }))}
+                                                                                                                className={`px-2 py-0.5 rounded cursor-pointer ${(editorModes[block.id] || "visual") === "visual"
+                                                                                                                    ? "bg-white text-indigo-600 shadow-2xs"
+                                                                                                                    : "text-slate-500 hover:text-slate-900"
+                                                                                                                  }`}
+                                                                                                              >
+                                                                                                                Visual
+                                                                                                              </button>
+                                                                                                              <button
+                                                                                                                type="button"
+                                                                                                                onClick={() => setEditorModes((prev) => ({ ...prev, [block.id]: "html" }))}
+                                                                                                                className={`px-2 py-0.5 rounded cursor-pointer ${editorModes[block.id] === "html"
+                                                                                                                    ? "bg-white text-indigo-600 shadow-2xs"
+                                                                                                                    : "text-slate-500 hover:text-slate-900"
+                                                                                                                  }`}
+                                                                                                              >
+                                                                                                                HTML
+                                                                                                              </button>
+                                                                                                            </div>
+
+                                                                                                            <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-mono">
+                                                                                                              <span>
+                                                                                                                {block.content
+                                                                                                                  ? block.content.replace(/<[^>]+>/g, " ").trim().split(/\s+/).filter(Boolean).length
+                                                                                                                  : 0}{" "}
+                                                                                                                words
+                                                                                                              </span>
+                                                                                                              <span>•</span>
+                                                                                                              <span>{block.content ? block.content.length : 0} chars</span>
+                                                                                                            </div>
+                                                                                                          </div>
+                                                                                                        </div>
+
+                                                                                                        {/* Dynamic Text & Live Editor Widget Controls Bar */}
+                                                                                                        <div className="flex items-center gap-1.5 flex-wrap bg-slate-50/90 p-1.5 rounded-lg border border-slate-200/80 text-[11px]">
+                                                                                                          {/* Dynamic Typography Presets */}
+                                                                                                          <div className="flex items-center gap-1 flex-wrap">
+                                                                                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-0.5">
+                                                                                                              Preset:
+                                                                                                            </span>
+                                                                                                            <button
+                                                                                                              type="button"
+                                                                                                              onClick={() => applyTextPreset(block.id, "body")}
+                                                                                                              className="px-2 py-0.5 rounded text-[11px] font-semibold bg-white text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 border border-slate-200 transition-colors cursor-pointer"
+                                                                                                              title="Standard 15px reading body text"
+                                                                                                            >
+                                                                                                              Body
+                                                                                                            </button>
+                                                                                                            <button
+                                                                                                              type="button"
+                                                                                                              onClick={() => applyTextPreset(block.id, "lead")}
+                                                                                                              className="px-2 py-0.5 rounded text-[11px] font-bold bg-white text-indigo-700 hover:bg-indigo-100/60 border border-indigo-200 transition-colors cursor-pointer"
+                                                                                                              title="19px bold article lead / subhead"
+                                                                                                            >
+                                                                                                              Lead
+                                                                                                            </button>
+                                                                                                            <button
+                                                                                                              type="button"
+                                                                                                              onClick={() => applyTextPreset(block.id, "editorial")}
+                                                                                                              className="px-2 py-0.5 rounded text-[11px] font-serif italic bg-white text-slate-800 hover:bg-amber-50 hover:text-amber-900 border border-slate-200 transition-colors cursor-pointer"
+                                                                                                              title="Editorial classic serif typography"
+                                                                                                            >
+                                                                                                              Editorial
+                                                                                                            </button>
+                                                                                                            <button
+                                                                                                              type="button"
+                                                                                                              onClick={() => applyTextPreset(block.id, "tip")}
+                                                                                                              className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 transition-colors cursor-pointer"
+                                                                                                              title="Green Deal / Pro Tip Callout Box"
+                                                                                                            >
+                                                                                                              Deal Tip
+                                                                                                            </button>
+                                                                                                            <button
+                                                                                                              type="button"
+                                                                                                              onClick={() => applyTextPreset(block.id, "alert")}
+                                                                                                              className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-300 transition-colors cursor-pointer"
+                                                                                                              title="Amber Alert Notice Box"
+                                                                                                            >
+                                                                                                              Notice
+                                                                                                            </button>
+                                                                                                            <button
+                                                                                                              type="button"
+                                                                                                              onClick={() => applyTextPreset(block.id, "card")}
+                                                                                                              className="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-700 hover:bg-white border border-slate-300 transition-colors cursor-pointer"
+                                                                                                              title="Subtle Boxed Card Container"
+                                                                                                            >
+                                                                                                              Card
+                                                                                                            </button>
+                                                                                                          </div>
+
+                                                                                                          <span className="text-slate-300 mx-0.5">|</span>
+
+                                                                                                          {/* Dynamic Text Alignment */}
+                                                                                                          <div className="flex items-center gap-0.5 bg-white p-0.5 rounded border border-slate-200">
+                                                                                                            <button
+                                                                                                              type="button"
+                                                                                                              onClick={() =>
+                                                                                                                updateBlockData(block.id, {
+                                                                                                                  style: { ...block.style, textAlign: "left" },
+                                                                                                                })
+                                                                                                              }
+                                                                                                              className={`p-1 rounded cursor-pointer ${!block.style?.textAlign || block.style?.textAlign === "left"
+                                                                                                                  ? "bg-indigo-50 text-indigo-600 font-bold"
+                                                                                                                  : "text-slate-500 hover:text-slate-900"
+                                                                                                                }`}
+                                                                                                              title="Align Left"
+                                                                                                            >
+                                                                                                              <span className="material-symbols-outlined text-[13px]">format_align_left</span>
+                                                                                                            </button>
+                                                                                                            <button
+                                                                                                              type="button"
+                                                                                                              onClick={() =>
+                                                                                                                updateBlockData(block.id, {
+                                                                                                                  style: { ...block.style, textAlign: "center" },
+                                                                                                                })
+                                                                                                              }
+                                                                                                              className={`p-1 rounded cursor-pointer ${block.style?.textAlign === "center"
+                                                                                                                  ? "bg-indigo-50 text-indigo-600 font-bold"
+                                                                                                                  : "text-slate-500 hover:text-slate-900"
+                                                                                                                }`}
+                                                                                                              title="Align Center"
+                                                                                                            >
+                                                                                                              <span className="material-symbols-outlined text-[13px]">format_align_center</span>
+                                                                                                            </button>
+                                                                                                            <button
+                                                                                                              type="button"
+                                                                                                              onClick={() =>
+                                                                                                                updateBlockData(block.id, {
+                                                                                                                  style: { ...block.style, textAlign: "right" },
+                                                                                                                })
+                                                                                                              }
+                                                                                                              className={`p-1 rounded cursor-pointer ${block.style?.textAlign === "right"
+                                                                                                                  ? "bg-indigo-50 text-indigo-600 font-bold"
+                                                                                                                  : "text-slate-500 hover:text-slate-900"
+                                                                                                                }`}
+                                                                                                              title="Align Right"
+                                                                                                            >
+                                                                                                              <span className="material-symbols-outlined text-[13px]">format_align_right</span>
+                                                                                                            </button>
+                                                                                                            <button
+                                                                                                              type="button"
+                                                                                                              onClick={() =>
+                                                                                                                updateBlockData(block.id, {
+                                                                                                                  style: { ...block.style, textAlign: "justify" },
+                                                                                                                })
+                                                                                                              }
+                                                                                                              className={`p-1 rounded cursor-pointer ${block.style?.textAlign === "justify"
+                                                                                                                  ? "bg-indigo-50 text-indigo-600 font-bold"
+                                                                                                                  : "text-slate-500 hover:text-slate-900"
+                                                                                                                }`}
+                                                                                                              title="Align Justify"
+                                                                                                            >
+                                                                                                              <span className="material-symbols-outlined text-[13px]">format_align_justify</span>
+                                                                                                            </button>
+                                                                                                          </div>
+
+                                                                                                          <span className="text-slate-300 mx-0.5">|</span>
+
+                                                                                                          {/* Dynamic Font Size Selector */}
+                                                                                                          <div className="flex items-center gap-1">
+                                                                                                            <span className="text-[10px] font-bold text-slate-400">Size:</span>
+                                                                                                            <select
+                                                                                                              value={block.style?.fontSize || "15px"}
+                                                                                                              onChange={(e) =>
+                                                                                                                updateBlockData(block.id, {
+                                                                                                                  style: { ...block.style, fontSize: e.target.value },
+                                                                                                                })
+                                                                                                              }
+                                                                                                              className="bg-white border border-slate-200 text-slate-700 text-[11px] font-semibold rounded px-1.5 py-0.5 focus:outline-none cursor-pointer"
+                                                                                                            >
+                                                                                                              <option value="12px">12px - Small</option>
+                                                                                                              <option value="15px">15px - Body</option>
+                                                                                                              <option value="17px">17px - Medium</option>
+                                                                                                              <option value="19px">19px - Lead</option>
+                                                                                                              <option value="22px">22px - Display</option>
+                                                                                                            </select>
+                                                                                                          </div>
+
+                                                                                                          <span className="text-slate-300 mx-0.5">|</span>
+
+                                                                                                          {/* Dynamic Color Quick Swatches */}
+                                                                                                          <div className="flex items-center gap-1">
+                                                                                                            <span className="text-[10px] font-bold text-slate-400">Color:</span>
+                                                                                                            {[
+                                                                                                              { label: "Dark Slate", color: "#1e293b" },
+                                                                                                              { label: "Indigo Navy", color: "#1e1b4b" },
+                                                                                                              { label: "Emerald", color: "#064e3b" },
+                                                                                                              { label: "Amber Crimson", color: "#7f1d1d" },
+                                                                                                              { label: "Muted Gray", color: "#64748b" },
+                                                                                                            ].map((c) => (
+                                                                                                              <button
+                                                                                                                key={c.color}
+                                                                                                                type="button"
+                                                                                                                onClick={() =>
+                                                                                                                  updateBlockData(block.id, {
+                                                                                                                    style: { ...block.style, color: c.color },
+                                                                                                                  })
+                                                                                                                }
+                                                                                                                className={`w-3.5 h-3.5 rounded-full border border-slate-300 transition-transform hover:scale-125 cursor-pointer ${block.style?.color === c.color ? "ring-2 ring-indigo-400 scale-110" : ""
+                                                                                                                  }`}
+                                                                                                                style={{ backgroundColor: c.color }}
+                                                                                                                title={c.label}
+                                                                                                              />
+                                                                                                            ))}
+                                                                                                          </div>
+                                                                                                        </div>
+
+                                                                                                        {(editorModes[block.id] || "visual") === "visual" ? (
+                                                                                                          <div
+                                                                                                            id={`editor-${block.id}`}
+                                                                                                            contentEditable
+                                                                                                            suppressContentEditableWarning
+                                                                                                            onMouseUp={() => handleTextSelectionChange(block.id)}
+                                                                                                            onKeyUp={() => handleTextSelectionChange(block.id)}
+                                                                                                            onBlur={(e) => updateBlockContent(block.id, e.currentTarget.innerHTML)}
+                                                                                                            dangerouslySetInnerHTML={{ __html: block.content || "" }}
+                                                                                                            className="w-full min-h-[4.5rem] bg-transparent border-none focus:outline-none text-slate-800 text-sm leading-relaxed max-w-none transition-all"
+                                                                                                            style={{
+                                                                                                              fontSize: block.style?.fontSize || "15px",
+                                                                                                              textAlign: block.style?.textAlign || "left",
+                                                                                                              fontFamily: block.style?.fontFamily,
+                                                                                                              color: block.style?.color,
+                                                                                                              backgroundColor: block.style?.backgroundColor,
+                                                                                                              padding: block.style?.padding,
+                                                                                                              borderRadius: block.style?.borderRadius,
+                                                                                                              borderLeft: (block.style as any)?.borderLeft,
+                                                                                                              border: (block.style as any)?.border,
+                                                                                                              lineHeight: block.style?.lineHeight || "1.65",
+                                                                                                            }}
+                                                                                                          />
+                                                                                                        ) : (
+                                                                                                          <textarea
+                                                                                                            value={block.content}
+                                                                                                            onChange={(e) => updateBlockContent(block.id, e.target.value)}
+                                                                                                            rows={4}
+                                                                                                            className="w-full font-mono text-xs p-2 bg-slate-900 text-emerald-400 rounded-lg border border-slate-800 focus:outline-none resize-y leading-relaxed"
+                                                                                                            placeholder="<p>Raw HTML or formatted text...</p>"
+                                                                                                          />
+                                                                                                        )}
+                                                                                                      </div>
+                                                                                                    )}
                           </div>
                         </React.Fragment>
                       );
@@ -6438,6 +6898,134 @@ export default function ITBlogsPage() {
                 className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer"
               >
                 Apply Hyperlink
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Add Multiple Images Modal */}
+      {bulkImageModalBlockId && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-4 bg-gradient-to-r from-slate-900 to-indigo-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-rose-400">auto_stories</span>
+                <div>
+                  <h4 className="font-bold text-sm">Bulk Add Multiple Images to Slideshow</h4>
+                  <p className="text-[11px] text-slate-300">Paste multiple image URLs to generate numbered story slides</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBulkImageModalBlockId(null)}
+                className="p-1 hover:bg-white/20 rounded-lg transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-sm">close</span>
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Image URLs (One URL per line or separated by commas)
+                </label>
+                <textarea
+                  rows={6}
+                  value={bulkImageUrlsText}
+                  onChange={(e) => setBulkImageUrlsText(e.target.value)}
+                  placeholder="https://images.unsplash.com/photo-1540959733332-eab4deabeeaf&#10;https://images.unsplash.com/photo-1519085360753-af0119f7cbe7&#10;https://images.unsplash.com/photo-1581092160607-ee22621dd758"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-800 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <p className="text-[11px] font-bold text-slate-500 mb-2 uppercase tracking-wider">Or Load High-Resolution Curated Sets:</p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBulkImageUrlsText(
+                        "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?q=80&w=1000\n" +
+                        "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?q=80&w=1000\n" +
+                        "https://images.unsplash.com/photo-1581092160607-ee22621dd758?q=80&w=1000\n" +
+                        "https://images.unsplash.com/photo-1504307651254-35680f356dfd?q=80&w=1000\n" +
+                        "https://images.unsplash.com/photo-1516549655169-df83a0774514?q=80&w=1000\n" +
+                        "https://images.unsplash.com/photo-1453873531674-2151abc01707?q=80&w=1000"
+                      );
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold border border-indigo-200 cursor-pointer transition-colors"
+                  >
+                    ✈️ Aviation & Technical Careers (6 Images)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBulkImageUrlsText(
+                        "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?q=80&w=1000\n" +
+                        "https://images.unsplash.com/photo-1523240795612-9a054b0db644?q=80&w=1000\n" +
+                        "https://images.unsplash.com/photo-1498243691581-b145c3f54a5a?q=80&w=1000\n" +
+                        "https://images.unsplash.com/photo-1592280771190-3e2e4d571952?q=80&w=1000"
+                      );
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-semibold border border-purple-200 cursor-pointer transition-colors"
+                  >
+                    🎓 Global Universities (4 Images)
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setBulkImageModalBlockId(null)}
+                className="px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-bold border border-slate-200 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const targetBlock = blocks.find((b) => b.id === bulkImageModalBlockId);
+                  if (!targetBlock) {
+                    setBulkImageModalBlockId(null);
+                    return;
+                  }
+                  const urls = bulkImageUrlsText
+                    .split(/[\n,]+/)
+                    .map((u) => u.trim())
+                    .filter((u) => u.length > 5);
+
+                  if (urls.length === 0) {
+                    alert("Please enter at least one valid image URL");
+                    return;
+                  }
+
+                  const curItems = targetBlock.items || [];
+                  const newItems: BlockItem[] = urls.map((url, i) => ({
+                    id: Date.now().toString() + i,
+                    title: `Story Item ${curItems.length + i + 1}`,
+                    url,
+                    salary: "$100,000 / year",
+                    requirements: "Specialized Training & Certification",
+                    badge: "Top Choice",
+                    content: "Comprehensive career details and earnings outlook for this role...",
+                    caption: "High quality photo asset",
+                    credit: "Photo: Stock Media",
+                    details: ["Industry certified curriculum", "Rapid job placement", "Comprehensive health & retirement"],
+                  }));
+
+                  updateBlockData(targetBlock.id, {
+                    items: [...curItems, ...newItems],
+                    activeSlideIndex: curItems.length,
+                  });
+                  setBulkImageModalBlockId(null);
+                  setBulkImageUrlsText("");
+                }}
+                className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer transition-colors"
+              >
+                Import Images as Slides
               </button>
             </div>
           </div>

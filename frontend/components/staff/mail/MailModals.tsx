@@ -24,7 +24,13 @@ import {
     Trash2,
     Calendar,
     CheckCircle2,
-    AlertCircle
+    AlertCircle,
+    Cloud,
+    HardDrive,
+    Database,
+    Inbox,
+    Send,
+    Server
 } from "lucide-react";
 import { MailItemBase, generateEmailSummary } from "./mailUtils";
 
@@ -1095,4 +1101,323 @@ export function ConditionalFormattingModal({
         </div>
     );
 }
+
+// ── 12. STORAGE & QUOTA MANAGEMENT MODAL ──
+export interface StorageDetails {
+    usedBytes: number;
+    quotaBytes: number;
+    inboxBytes: number;
+    spamBytes: number;
+    trashBytes: number;
+    sentBytes?: number;
+    percentage: number;
+    totalEmails: number;
+    bucketName?: string;
+}
+
+function formatBytes(bytes: number): string {
+    if (!bytes || bytes <= 0) return "0 KB";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+export function StorageManagementModal({
+    isOpen,
+    onClose,
+    storage,
+    onEmptyTrash,
+    onEmptySpam,
+}: {
+    isOpen: boolean;
+    onClose: () => void;
+    storage: StorageDetails;
+    onEmptyTrash?: () => void;
+    onEmptySpam?: () => void;
+}) {
+    const [confirmAction, setConfirmAction] = useState<"trash" | "spam" | null>(null);
+
+    if (!isOpen) return null;
+
+    const usedFormatted = formatBytes(storage.usedBytes);
+    const quotaFormatted = formatBytes(storage.quotaBytes);
+    const freeBytes = Math.max(0, storage.quotaBytes - storage.usedBytes);
+    const freeFormatted = formatBytes(freeBytes);
+
+    // Calculate percentage breakdown for stacked progress bar
+    const inboxPct = Math.max(1, (storage.inboxBytes / storage.quotaBytes) * 100);
+    const sentPct = Math.max(0, ((storage.sentBytes || 0) / storage.quotaBytes) * 100);
+    const spamPct = (storage.spamBytes / storage.quotaBytes) * 100;
+    const trashPct = (storage.trashBytes / storage.quotaBytes) * 100;
+
+    return (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                {/* Modal Header */}
+                <div className="p-4 bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 text-white flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center border border-white/20 shadow-inner">
+                            <Cloud className="w-5 h-5 text-indigo-300" />
+                        </div>
+                        <div>
+                            <h3 className="font-bold text-sm tracking-tight text-white flex items-center gap-2">
+                                Mailbox Cloud Storage & Quota
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                    Healthy
+                                </span>
+                            </h3>
+                            <p className="text-[11px] text-indigo-200/80">
+                                AWS S3 Standard Storage &bull; Enterprise Mail Quota
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                    >
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+
+                <div className="p-5 space-y-5 max-h-[80vh] overflow-y-auto">
+                    {/* Storage Summary Gauge Card */}
+                    <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/90 shadow-2xs space-y-3">
+                        <div className="flex items-baseline justify-between">
+                            <div>
+                                <span className="text-2xl font-black text-slate-800 tracking-tight">
+                                    {usedFormatted}
+                                </span>
+                                <span className="text-xs font-semibold text-slate-500 ml-1.5">
+                                    of {quotaFormatted} used
+                                </span>
+                            </div>
+                            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                {storage.percentage.toFixed(1)}% Quota
+                            </span>
+                        </div>
+
+                        {/* Multi-segment Progress Bar */}
+                        <div className="w-full h-3 bg-slate-200 rounded-full overflow-hidden flex shadow-inner">
+                            <div
+                                style={{ width: `${Math.min(100, inboxPct)}%` }}
+                                className="bg-indigo-600 transition-all duration-500"
+                                title={`Inbox: ${formatBytes(storage.inboxBytes)}`}
+                            />
+                            <div
+                                style={{ width: `${Math.min(100, sentPct)}%` }}
+                                className="bg-blue-500 transition-all duration-500"
+                                title={`Sent: ${formatBytes(storage.sentBytes || 0)}`}
+                            />
+                            <div
+                                style={{ width: `${Math.min(100, spamPct)}%` }}
+                                className="bg-amber-500 transition-all duration-500"
+                                title={`Spam: ${formatBytes(storage.spamBytes)}`}
+                            />
+                            <div
+                                style={{ width: `${Math.min(100, trashPct)}%` }}
+                                className="bg-rose-500 transition-all duration-500"
+                                title={`Trash: ${formatBytes(storage.trashBytes)}`}
+                            />
+                        </div>
+
+                        {/* Legend */}
+                        <div className="flex flex-wrap items-center gap-3 pt-1 text-[11px] text-slate-600">
+                            <div className="flex items-center gap-1.5">
+                                <span className="w-2.5 h-2.5 rounded-full bg-indigo-600" />
+                                <span>Inbox ({formatBytes(storage.inboxBytes)})</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                                <span>Sent ({formatBytes(storage.sentBytes || 0)})</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                                <span>Spam ({formatBytes(storage.spamBytes)})</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+                                <span>Trash ({formatBytes(storage.trashBytes)})</span>
+                            </div>
+                            <div className="ml-auto text-slate-400 font-medium">
+                                {freeFormatted} available
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Breakdown & Cleanup Actions */}
+                    <div>
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2.5">
+                            Folder Breakdown & Space Recovery
+                        </h4>
+                        <div className="space-y-2">
+                            {/* Inbox */}
+                            <div className="flex items-center justify-between p-3 rounded-xl border border-slate-200/80 bg-white hover:bg-slate-50/50 transition-colors">
+                                <div className="flex items-center gap-2.5">
+                                    <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                                        <Inbox className="w-3.5 h-3.5" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-bold text-slate-800">Inbox & Archives</p>
+                                        <p className="text-[10px] text-slate-500">Active incoming conversations</p>
+                                    </div>
+                                </div>
+                                <span className="text-xs font-mono font-bold text-slate-700">
+                                    {formatBytes(storage.inboxBytes)}
+                                </span>
+                            </div>
+
+                            {/* Sent */}
+                            <div className="flex items-center justify-between p-3 rounded-xl border border-slate-200/80 bg-white hover:bg-slate-50/50 transition-colors">
+                                <div className="flex items-center gap-2.5">
+                                    <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                                        <Send className="w-3.5 h-3.5" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-bold text-slate-800">Sent Messages</p>
+                                        <p className="text-[10px] text-slate-500">Outbound dispatch via SES</p>
+                                    </div>
+                                </div>
+                                <span className="text-xs font-mono font-bold text-slate-700">
+                                    {formatBytes(storage.sentBytes || 0)}
+                                </span>
+                            </div>
+
+                            {/* Trash (With Clean up Action) */}
+                            <div className="flex items-center justify-between p-3 rounded-xl border border-rose-100 bg-rose-50/30">
+                                <div className="flex items-center gap-2.5">
+                                    <div className="w-7 h-7 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center">
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-bold text-slate-800">Deleted Items (Trash)</p>
+                                        <p className="text-[10px] text-slate-500">
+                                            {formatBytes(storage.trashBytes)} stored
+                                        </p>
+                                    </div>
+                                </div>
+                                {confirmAction === "trash" ? (
+                                    <div className="flex items-center gap-1.5">
+                                        <button
+                                            onClick={() => {
+                                                onEmptyTrash?.();
+                                                setConfirmAction(null);
+                                            }}
+                                            className="px-2.5 py-1 text-[11px] font-bold bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition-colors cursor-pointer shadow-2xs"
+                                        >
+                                            Confirm Empty
+                                        </button>
+                                        <button
+                                            onClick={() => setConfirmAction(null)}
+                                            className="px-2 py-1 text-[11px] text-slate-600 hover:bg-slate-200/70 rounded-lg cursor-pointer"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <button
+                                        onClick={() => setConfirmAction("trash")}
+                                        disabled={storage.trashBytes === 0}
+                                        className="px-2.5 py-1 text-[11px] font-bold text-rose-600 hover:bg-rose-100/70 rounded-lg border border-rose-200 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                                    >
+                                        Empty Trash
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Spam (With Clean up Action) */}
+                            <div className="flex items-center justify-between p-3 rounded-xl border border-amber-100 bg-amber-50/30">
+                                <div className="flex items-center gap-2.5">
+                                    <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center">
+                                        <ShieldAlert className="w-3.5 h-3.5" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-bold text-slate-800">Junk / Spam</p>
+                                        <p className="text-[10px] text-slate-500">
+                                            {formatBytes(storage.spamBytes)} stored
+                                        </p>
+                                    </div>
+                                </div>
+                                {confirmAction === "spam" ? (
+                                    <div className="flex items-center gap-1.5">
+                                        <button
+                                            onClick={() => {
+                                                onEmptySpam?.();
+                                                setConfirmAction(null);
+                                            }}
+                                            className="px-2.5 py-1 text-[11px] font-bold bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition-colors cursor-pointer shadow-2xs"
+                                        >
+                                            Confirm Clear
+                                        </button>
+                                        <button
+                                            onClick={() => setConfirmAction(null)}
+                                            className="px-2 py-1 text-[11px] text-slate-600 hover:bg-slate-200/70 rounded-lg cursor-pointer"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <button
+                                        onClick={() => setConfirmAction("spam")}
+                                        disabled={storage.spamBytes === 0}
+                                        className="px-2.5 py-1 text-[11px] font-bold text-amber-700 hover:bg-amber-100/70 rounded-lg border border-amber-200 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                                    >
+                                        Clear Spam
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Cloud Storage Infrastructure Card */}
+                    <div className="p-3.5 rounded-xl bg-slate-900 text-slate-200 text-xs space-y-2">
+                        <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                            <span className="font-bold text-white flex items-center gap-1.5">
+                                <Database className="w-3.5 h-3.5 text-indigo-400" />
+                                Cloud Storage Infrastructure
+                            </span>
+                            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                S3 Encrypted
+                            </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-300 pt-1">
+                            <div>
+                                <span className="text-slate-400 block text-[10px]">Bucket Name</span>
+                                <span className="font-mono font-semibold text-white truncate block">
+                                    {storage.bucketName || "vidyaloans-incoming-emails"}
+                                </span>
+                            </div>
+                            <div>
+                                <span className="text-slate-400 block text-[10px]">AWS Region</span>
+                                <span className="font-semibold text-white">ap-south-1 (Mumbai)</span>
+                            </div>
+                            <div>
+                                <span className="text-slate-400 block text-[10px]">Total Messages</span>
+                                <span className="font-semibold text-white">{storage.totalEmails} objects</span>
+                            </div>
+                            <div>
+                                <span className="text-slate-400 block text-[10px]">Auto-Retention</span>
+                                <span className="font-semibold text-white">Trash purged in 30 days</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Modal Footer */}
+                <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+                    <p className="text-[11px] text-slate-500">
+                        Need more storage? Contact system administrator.
+                    </p>
+                    <button
+                        onClick={onClose}
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all cursor-pointer"
+                    >
+                        Done
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 

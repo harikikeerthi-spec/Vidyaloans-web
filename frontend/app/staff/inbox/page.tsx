@@ -47,6 +47,9 @@ import {
     Calendar,
     PenTool,
     Flame,
+    Cloud,
+    HardDrive,
+    RotateCcw,
 } from "lucide-react";
 
 import { OutlookToolbar } from "@/components/staff/mail/OutlookToolbar";
@@ -62,7 +65,9 @@ import {
     OutOfOfficeModal,
     SignaturesModal,
     MailRulesModal,
-    ConditionalFormattingModal
+    ConditionalFormattingModal,
+    StorageManagementModal,
+    StorageDetails,
 } from "@/components/staff/mail/MailModals";
 import {
     exportEmailToEml,
@@ -322,7 +327,6 @@ function StaffInboxContent() {
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
     // Outlook view options
-    const [threadsEnabled, setThreadsEnabled] = useState(false);
     const [isCompactView, setIsCompactView] = useState(false);
     const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
     const [viewMode, setViewMode] = useState<"html" | "text">("html");
@@ -341,6 +345,7 @@ function StaffInboxContent() {
     const [showSignaturesModal, setShowSignaturesModal] = useState(false);
     const [showMailRulesModal, setShowMailRulesModal] = useState(false);
     const [showConditionalFormattingModal, setShowConditionalFormattingModal] = useState(false);
+    const [showStorageModal, setShowStorageModal] = useState(false);
     const [savedSignature, setSavedSignature] = useState<string>(
         `<div style="font-family: sans-serif; font-size: 13px; color: #334155; margin-top: 14px; border-left: 3px solid #4F46E5; padding-left: 10px;">` +
         `<strong>VidyaLoans Support Desk</strong><br/><span style="color: #64748b; font-size: 11px;">Education Lending Advisory &bull; vidyaloans.in</span></div>`
@@ -415,7 +420,34 @@ function StaffInboxContent() {
             if (savedStarred) setStarredIds(new Set(JSON.parse(savedStarred)));
 
             const savedTrashed = localStorage.getItem("vidya_mail_trashed_ids");
-            if (savedTrashed) setTrashedIds(new Set(JSON.parse(savedTrashed)));
+            if (savedTrashed) {
+                const parsedTrashed: string[] = JSON.parse(savedTrashed);
+                const savedTimes: Record<string, number> = JSON.parse(localStorage.getItem("vidya_mail_trash_times") || "{}");
+                const now = Date.now();
+                const SIXTY_DAYS_MS = 60 * 24 * 60 * 60 * 1000;
+
+                // 60-day auto-purge filter:
+                const validTrashed: string[] = [];
+                const updatedTimes: Record<string, number> = {};
+                let purgedCount = 0;
+
+                parsedTrashed.forEach((id) => {
+                    const trashedTime = savedTimes[id] || now;
+                    if (now - trashedTime < SIXTY_DAYS_MS) {
+                        validTrashed.push(id);
+                        updatedTimes[id] = trashedTime;
+                    } else {
+                        purgedCount++;
+                    }
+                });
+
+                setTrashedIds(new Set(validTrashed));
+                localStorage.setItem("vidya_mail_trashed_ids", JSON.stringify(validTrashed));
+                localStorage.setItem("vidya_mail_trash_times", JSON.stringify(updatedTimes));
+                if (purgedCount > 0) {
+                    console.log(`[Auto-Purge] Automatically permanently removed ${purgedCount} email(s) older than 60 days from Trash.`);
+                }
+            }
 
             const savedArchive = localStorage.getItem("vidya_mail_archive_ids");
             if (savedArchive) setArchiveIds(new Set(JSON.parse(savedArchive)));
@@ -753,6 +785,65 @@ function StaffInboxContent() {
         return list;
     }, [emails, activeTab, starredIds, trashedIds, archiveIds, sentEmails, draftEmails, scheduledEmails, showOnlyUnread, filterType, readIds, searchQuery, isEmailSpam, sortOrder]);
 
+    // ── Email Storage Metrics & Quota Computation ──
+    const storageDetails: StorageDetails = useMemo(() => {
+        const totalIncomingBytes = emails.reduce((acc, e) => acc + (e.size || 0), 0);
+        const trashBytes = emails.filter((e) => trashedIds.has(e.id)).reduce((acc, e) => acc + (e.size || 0), 0);
+        const spamBytes = emails.filter((e) => userSpamIds.has(e.id) || (isEmailSpam(e) && !userNotSpamIds.has(e.id))).reduce((acc, e) => acc + (e.size || 0), 0);
+        const sentBytes = sentEmails.reduce((acc, e) => acc + (e.size || 2500), 0);
+        const inboxBytes = Math.max(0, totalIncomingBytes - trashBytes - spamBytes);
+        const usedBytes = totalIncomingBytes + sentBytes;
+        const quotaBytes = 15 * 1024 * 1024 * 1024; // 15 GB Enterprise Quota
+        const percentage = Number(Math.min(100, Math.max(0.1, (usedBytes / quotaBytes) * 100)).toFixed(2));
+
+        return {
+            usedBytes,
+            quotaBytes,
+            inboxBytes,
+            spamBytes,
+            trashBytes,
+            sentBytes,
+            percentage,
+            totalEmails: emails.length + sentEmails.length,
+            bucketName: "vidyaloans-incoming-emails",
+        };
+    }, [emails, trashedIds, userSpamIds, userNotSpamIds, sentEmails, isEmailSpam]);
+
+    const formatBytes = (bytes: number): string => {
+        if (!bytes || bytes <= 0) return "0 KB";
+        if (bytes < 1024) return `${bytes} B`;
+        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+        if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+        return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+    };
+
+    const handleEmptyTrash = () => {
+        setEmails((prev) => prev.filter((e) => !trashedIds.has(e.id)));
+        setTrashedIds(new Set());
+        try {
+            localStorage.setItem("vidya_mail_trashed_ids", JSON.stringify([]));
+        } catch { }
+        setSelectedEmailId(null);
+        setActiveEmailDetail(null);
+        setFeedbackToast({ type: "success", message: "Trash emptied successfully. Storage recovered." });
+        setTimeout(() => setFeedbackToast(null), 3000);
+    };
+
+    const handleEmptySpam = () => {
+        const spamKeys = new Set(
+            emails.filter((e) => isEmailSpam(e) && !trashedIds.has(e.id)).map((e) => e.id)
+        );
+        setEmails((prev) => prev.filter((e) => !spamKeys.has(e.id)));
+        setUserSpamIds(new Set());
+        try {
+            localStorage.setItem("vidya_mail_user_spam_ids", JSON.stringify([]));
+        } catch { }
+        setSelectedEmailId(null);
+        setActiveEmailDetail(null);
+        setFeedbackToast({ type: "success", message: "Junk / Spam cleared successfully." });
+        setTimeout(() => setFeedbackToast(null), 3000);
+    };
+
     // Star toggle action
     const toggleStar = (e: React.MouseEvent, id: string) => {
         e.stopPropagation();
@@ -824,6 +915,9 @@ function StaffInboxContent() {
             next.add(id);
             try {
                 localStorage.setItem("vidya_mail_trashed_ids", JSON.stringify(Array.from(next)));
+                const times = JSON.parse(localStorage.getItem("vidya_mail_trash_times") || "{}");
+                times[id] = Date.now();
+                localStorage.setItem("vidya_mail_trash_times", JSON.stringify(times));
             } catch { }
             return next;
         });
@@ -832,8 +926,8 @@ function StaffInboxContent() {
             setSelectedEmailId(null);
             setActiveEmailDetail(null);
         }
-        setFeedbackToast({ type: "error", message: "Moved email to Trash." });
-        setTimeout(() => setFeedbackToast(null), 2500);
+        setFeedbackToast({ type: "error", message: "Moved email to Trash. (Retained up to 60 days)" });
+        setTimeout(() => setFeedbackToast(null), 3000);
     };
 
     // Bulk trash
@@ -845,12 +939,102 @@ function StaffInboxContent() {
             ids.forEach((id) => next.add(id));
             try {
                 localStorage.setItem("vidya_mail_trashed_ids", JSON.stringify(Array.from(next)));
+                const times = JSON.parse(localStorage.getItem("vidya_mail_trash_times") || "{}");
+                ids.forEach((id) => { times[id] = Date.now(); });
+                localStorage.setItem("vidya_mail_trash_times", JSON.stringify(times));
             } catch { }
             return next;
         });
         mailApi.batchUpdateState(ids, { isTrashed: true }).catch(() => { });
         setSelectedIds(new Set());
-        setFeedbackToast({ type: "error", message: `Moved ${ids.length} email(s) to Trash.` });
+        setFeedbackToast({ type: "error", message: `Moved ${ids.length} email(s) to Trash. (Retained up to 60 days)` });
+        setTimeout(() => setFeedbackToast(null), 3000);
+    };
+
+    // Restore single email from Trash back to Inbox
+    const restoreFromTrash = (id: string) => {
+        setTrashedIds((prev) => {
+            const next = new Set(prev);
+            next.delete(id);
+            try {
+                localStorage.setItem("vidya_mail_trashed_ids", JSON.stringify(Array.from(next)));
+                const times = JSON.parse(localStorage.getItem("vidya_mail_trash_times") || "{}");
+                delete times[id];
+                localStorage.setItem("vidya_mail_trash_times", JSON.stringify(times));
+            } catch { }
+            return next;
+        });
+        mailApi.updateState(id, { isTrashed: false }).catch(() => { });
+        setFeedbackToast({ type: "success", message: "Restored email to Inbox." });
+        setTimeout(() => setFeedbackToast(null), 3000);
+    };
+
+    // Bulk restore from Trash back to Inbox
+    const handleBulkRestore = () => {
+        const ids = selectedIds.size > 0 ? Array.from(selectedIds) : (activeEmailDetail ? [activeEmailDetail.id] : []);
+        if (ids.length === 0) return;
+        setTrashedIds((prev) => {
+            const next = new Set(prev);
+            ids.forEach((id) => next.delete(id));
+            try {
+                localStorage.setItem("vidya_mail_trashed_ids", JSON.stringify(Array.from(next)));
+                const times = JSON.parse(localStorage.getItem("vidya_mail_trash_times") || "{}");
+                ids.forEach((id) => delete times[id]);
+                localStorage.setItem("vidya_mail_trash_times", JSON.stringify(times));
+            } catch { }
+            return next;
+        });
+        mailApi.batchUpdateState(ids, { isTrashed: false }).catch(() => { });
+        setSelectedIds(new Set());
+        setFeedbackToast({ type: "success", message: `Restored ${ids.length} email(s) to Inbox.` });
+        setTimeout(() => setFeedbackToast(null), 3000);
+    };
+
+    // Permanently delete single email forever
+    const permanentlyDeleteEmail = (id: string) => {
+        setEmails((prev) => prev.filter((e) => e.id !== id));
+        setTrashedIds((prev) => {
+            const next = new Set(prev);
+            next.delete(id);
+            try {
+                localStorage.setItem("vidya_mail_trashed_ids", JSON.stringify(Array.from(next)));
+                const times = JSON.parse(localStorage.getItem("vidya_mail_trash_times") || "{}");
+                delete times[id];
+                localStorage.setItem("vidya_mail_trash_times", JSON.stringify(times));
+            } catch { }
+            return next;
+        });
+        if (selectedEmailId === id) {
+            setSelectedEmailId(null);
+            setActiveEmailDetail(null);
+        }
+        setFeedbackToast({ type: "success", message: "Email permanently removed." });
+        setTimeout(() => setFeedbackToast(null), 2500);
+    };
+
+    // Permanently delete selected emails forever
+    const handleBulkPermanentDelete = () => {
+        const ids = selectedIds.size > 0 ? Array.from(selectedIds) : (activeEmailDetail ? [activeEmailDetail.id] : []);
+        if (ids.length === 0) return;
+        const idSet = new Set(ids);
+        setEmails((prev) => prev.filter((e) => !idSet.has(e.id)));
+        setTrashedIds((prev) => {
+            const next = new Set(prev);
+            ids.forEach((id) => next.delete(id));
+            try {
+                localStorage.setItem("vidya_mail_trashed_ids", JSON.stringify(Array.from(next)));
+                const times = JSON.parse(localStorage.getItem("vidya_mail_trash_times") || "{}");
+                ids.forEach((id) => delete times[id]);
+                localStorage.setItem("vidya_mail_trash_times", JSON.stringify(times));
+            } catch { }
+            return next;
+        });
+        setSelectedIds(new Set());
+        if (activeEmailDetail && idSet.has(activeEmailDetail.id)) {
+            setSelectedEmailId(null);
+            setActiveEmailDetail(null);
+        }
+        setFeedbackToast({ type: "success", message: `Permanently removed ${ids.length} email(s).` });
         setTimeout(() => setFeedbackToast(null), 3000);
     };
 
@@ -915,14 +1099,13 @@ function StaffInboxContent() {
         const cleanSubj = activeEmailDetail.subject.startsWith("Re:")
             ? activeEmailDetail.subject
             : `Re: ${activeEmailDetail.subject}`;
-        const quote = `\n\n\n--- On ${format(new Date(activeEmailDetail.date), "PPP 'at' p")}, ${activeEmailDetail.from} wrote ---\n> ${activeEmailDetail.text ? activeEmailDetail.text.replace(/\n/g, "\n> ") : ""}`;
 
         setComposeData({
             to: sender,
             cc: "",
             bcc: "",
             subject: cleanSubj,
-            body: quote,
+            body: "", // Mail type section is empty when replying as requested
             replyTo: staffMailbox || "support@vidyaloans.in",
         });
         setAttachments([]);
@@ -936,14 +1119,13 @@ function StaffInboxContent() {
         const cleanSubj = activeEmailDetail.subject.startsWith("Re:")
             ? activeEmailDetail.subject
             : `Re: ${activeEmailDetail.subject}`;
-        const quote = `\n\n\n--- On ${format(new Date(activeEmailDetail.date), "PPP 'at' p")}, ${activeEmailDetail.from} wrote ---\n> ${activeEmailDetail.text ? activeEmailDetail.text.replace(/\n/g, "\n> ") : ""}`;
 
         setComposeData({
             to: sender,
             cc: activeEmailDetail.cc || "",
             bcc: "",
             subject: cleanSubj,
-            body: quote,
+            body: "", // Mail type section is empty when replying as requested
             replyTo: staffMailbox || "support@vidyaloans.in",
         });
         setAttachments([]);
@@ -1486,8 +1668,6 @@ function StaffInboxContent() {
                 onSelectRead={() => setSelectedIds(new Set(filteredEmails.filter((e) => readIds.has(e.id)).map((e) => e.id)))}
                 onSelectUnread={() => setSelectedIds(new Set(filteredEmails.filter((e) => !readIds.has(e.id)).map((e) => e.id)))}
                 onSelectStarred={() => setSelectedIds(new Set(filteredEmails.filter((e) => starredIds.has(e.id)).map((e) => e.id)))}
-                threadsEnabled={threadsEnabled}
-                onToggleThreads={() => setThreadsEnabled(!threadsEnabled)}
                 isCompactView={isCompactView}
                 onToggleCompactView={() => setIsCompactView(!isCompactView)}
                 sortOrder={sortOrder}
@@ -1502,6 +1682,9 @@ function StaffInboxContent() {
                 onArchive={handleToolbarArchive}
                 onJunk={handleToolbarJunk}
                 isSpamActive={activeTab === 'spam' || (Boolean(activeEmailDetail) && isEmailSpam(activeEmailDetail!))}
+                isTrashActive={activeTab === 'trash' || (Boolean(activeEmailDetail) && trashedIds.has(activeEmailDetail!.id))}
+                onRestore={handleBulkRestore}
+                onDeletePermanently={handleBulkPermanentDelete}
                 onMarkRead={handleToolbarMarkRead}
                 onMarkUnread={handleToolbarMarkUnread}
                 onToggleStar={handleToolbarToggleStar}
@@ -1702,6 +1885,41 @@ function StaffInboxContent() {
                         })}
                     </nav>
 
+                    {/* ── Mailbox Cloud Storage Indicator ── */}
+                    <div className="p-2.5 border-t border-slate-100 bg-slate-50/50">
+                        <button
+                            type="button"
+                            onClick={() => setShowStorageModal(true)}
+                            className="w-full text-left group p-2 rounded-xl bg-white border border-slate-200/90 hover:border-indigo-300 hover:shadow-xs transition-all cursor-pointer"
+                        >
+                            <div className="flex items-center justify-between mb-1.5">
+                                <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5 group-hover:text-indigo-600 transition-colors">
+                                    <Cloud className="w-3.5 h-3.5 text-indigo-500" />
+                                    <span>Storage</span>
+                                </span>
+                                <span className="text-[10px] font-bold text-slate-500 font-mono">
+                                    {storageDetails.percentage.toFixed(1)}%
+                                </span>
+                            </div>
+                            <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden mb-1.5 shadow-2xs">
+                                <div
+                                    style={{ width: `${Math.max(2, storageDetails.percentage)}%` }}
+                                    className={`h-full rounded-full transition-all duration-300 ${
+                                        storageDetails.percentage > 90
+                                            ? "bg-rose-500"
+                                            : storageDetails.percentage > 70
+                                            ? "bg-amber-500"
+                                            : "bg-indigo-600"
+                                    }`}
+                                />
+                            </div>
+                            <div className="flex items-center justify-between text-[10px] text-slate-400">
+                                <span>{formatBytes(storageDetails.usedBytes)} of 15 GB</span>
+                                <span className="text-indigo-600 font-semibold group-hover:underline">Manage</span>
+                            </div>
+                        </button>
+                    </div>
+
                     {/* Staff Profile Footer */}
                     <div className="p-3 border-t border-slate-100/80 bg-slate-50/60 flex items-center gap-2.5">
                         <div className="relative">
@@ -1801,6 +2019,28 @@ function StaffInboxContent() {
 
                     {/* Email List Content with Staggered Motion */}
                     <div className="flex-1 overflow-y-auto divide-y divide-slate-100/80">
+                        {/* Trash 60-day auto-purge retention banner */}
+                        {activeTab === "trash" && (
+                            <div className="p-3 mx-3 my-2.5 bg-amber-50/90 border border-amber-200/90 rounded-2xl flex items-center justify-between gap-3 text-xs text-amber-950 shadow-2xs">
+                                <div className="flex items-center gap-2">
+                                    <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+                                    <div>
+                                        <p className="font-bold text-[11px]">Trash Auto-Purge Policy (60 Days)</p>
+                                        <p className="text-[10px] text-amber-800/80">Messages in Trash are retained for 60 days, then permanently removed automatically.</p>
+                                    </div>
+                                </div>
+                                {filteredEmails.length > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={handleEmptyTrash}
+                                        className="px-2.5 py-1 bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 rounded-lg text-[10px] font-bold shadow-2xs transition-colors shrink-0 cursor-pointer"
+                                    >
+                                        Empty Trash
+                                    </button>
+                                )}
+                            </div>
+                        )}
+
                         {loading ? (
                             <div className="p-8 text-center space-y-3">
                                 <div className="w-7 h-7 border-3 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mx-auto" />
@@ -1819,9 +2059,13 @@ function StaffInboxContent() {
                                     </div>
                                 </div>
                                 <div className="space-y-1">
-                                    <h3 className="text-sm font-bold text-slate-800">Your Inbox is Clear</h3>
+                                    <h3 className="text-sm font-bold text-slate-800">
+                                        {activeTab === "trash" ? "Trash is Empty" : "Your Inbox is Clear"}
+                                    </h3>
                                     <p className="text-xs text-slate-400 max-w-[220px] leading-relaxed">
-                                        All incoming customer correspondence has been addressed.
+                                        {activeTab === "trash"
+                                            ? "Items in Trash are automatically deleted forever after 60 days."
+                                            : "All incoming customer correspondence has been addressed."}
                                     </p>
                                 </div>
                                 <button
@@ -1988,6 +2232,29 @@ function StaffInboxContent() {
                                                     >
                                                         <Trash2 className="w-3.5 h-3.5" />
                                                     </button>
+                                                ) : activeTab === "trash" ? (
+                                                    <>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                restoreFromTrash(email.id);
+                                                            }}
+                                                            title="Restore to Inbox"
+                                                            className="p-1 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg text-emerald-600 transition-colors cursor-pointer"
+                                                        >
+                                                            <RotateCcw className="w-3.5 h-3.5" />
+                                                        </button>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                permanentlyDeleteEmail(email.id);
+                                                            }}
+                                                            title="Delete Permanently"
+                                                            className="p-1 hover:text-rose-600 hover:bg-rose-50 rounded-lg text-slate-400 transition-colors cursor-pointer"
+                                                        >
+                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </>
                                                 ) : (
                                                     <button
                                                         onClick={() => moveToTrash(email.id)}
@@ -2216,16 +2483,6 @@ function StaffInboxContent() {
                                                     <span>Spam</span>
                                                 </button>
                                             )}
-
-                                            <button
-                                                type="button"
-                                                onClick={handleToolbarReply}
-                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-50/80 hover:bg-sky-100 text-sky-700 font-bold border border-sky-200/80 shadow-2xs hover:shadow-xs transition-all cursor-pointer"
-                                                title="Quick Reply"
-                                            >
-                                                <Reply className="w-3.5 h-3.5 text-sky-600" />
-                                                <span>Reply</span>
-                                            </button>
                                         </div>
                                     </div>
                                 </div>
@@ -2297,6 +2554,43 @@ function StaffInboxContent() {
                                             </div>
                                         );
                                     })}
+                                </div>
+                            )}
+
+                            {/* Trash Retention & Restore Action Banner */}
+                            {(activeTab === "trash" || trashedIds.has(activeEmailDetail.id)) && (
+                                <div className="mx-6 mt-3.5 p-3.5 rounded-2xl bg-rose-50/90 border border-rose-200/90 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-9 h-9 rounded-xl bg-rose-500/15 border border-rose-300 text-rose-800 flex items-center justify-center shrink-0">
+                                            <Trash2 className="w-5 h-5 text-rose-600" />
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-bold text-rose-950">
+                                                This message is in your Trash folder
+                                            </p>
+                                            <p className="text-[11px] text-rose-800/90 mt-0.5">
+                                                Messages in Trash are retained for up to 60 days before being completely removed automatically.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                        <button
+                                            type="button"
+                                            onClick={() => restoreFromTrash(activeEmailDetail.id)}
+                                            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs hover:shadow-sm transition-all cursor-pointer"
+                                        >
+                                            <RotateCcw className="w-3.5 h-3.5" />
+                                            <span>Restore to Inbox</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => permanentlyDeleteEmail(activeEmailDetail.id)}
+                                            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition-all cursor-pointer"
+                                        >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                            <span>Delete Forever</span>
+                                        </button>
+                                    </div>
                                 </div>
                             )}
 
@@ -2514,6 +2808,14 @@ function StaffInboxContent() {
             <ConditionalFormattingModal
                 isOpen={showConditionalFormattingModal}
                 onClose={() => setShowConditionalFormattingModal(false)}
+            />
+
+            <StorageManagementModal
+                isOpen={showStorageModal}
+                onClose={() => setShowStorageModal(false)}
+                storage={storageDetails}
+                onEmptyTrash={handleEmptyTrash}
+                onEmptySpam={handleEmptySpam}
             />
 
             {/* ── 5. COMPOSE & REPLY MODAL (WITH IMAGE INSERTION) ── */}

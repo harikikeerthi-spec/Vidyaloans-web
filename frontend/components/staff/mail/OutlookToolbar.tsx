@@ -4,7 +4,6 @@ import React, { useState, useRef, useEffect } from "react";
 import {
     CheckSquare,
     ChevronDown,
-    MessageSquare,
     SlidersHorizontal,
     RefreshCw,
     Reply,
@@ -36,7 +35,8 @@ import {
     Clock,
     PenTool,
     Sliders,
-    Palette
+    Palette,
+    RotateCcw
 } from "lucide-react";
 
 export interface OutlookToolbarProps {
@@ -50,8 +50,8 @@ export interface OutlookToolbarProps {
     onSelectStarred: () => void;
 
     // View state
-    threadsEnabled: boolean;
-    onToggleThreads: () => void;
+    threadsEnabled?: boolean;
+    onToggleThreads?: () => void;
     isCompactView: boolean;
     onToggleCompactView: () => void;
     sortOrder: "newest" | "oldest";
@@ -93,8 +93,11 @@ export interface OutlookToolbarProps {
     onMailRules?: () => void;
     onConditionalFormatting?: () => void;
 
-    // Spam context
+    // Spam & Trash context
     isSpamActive?: boolean;
+    isTrashActive?: boolean;
+    onRestore?: () => void;
+    onDeletePermanently?: () => void;
 
     // Available folders for Move To / Copy To
     availableFolders?: { name: string; prefix: string }[];
@@ -124,6 +127,9 @@ export function OutlookToolbar({
     onArchive,
     onJunk,
     isSpamActive = false,
+    isTrashActive = false,
+    onRestore,
+    onDeletePermanently,
     onMarkRead,
     onMarkUnread,
     onToggleStar,
@@ -249,20 +255,6 @@ export function OutlookToolbar({
                         )}
                     </div>
 
-                    {/* Threads Button */}
-                    <button
-                        type="button"
-                        onClick={onToggleThreads}
-                        className={`flex flex-col items-center justify-center px-2.5 py-1.5 rounded-xl transition-all duration-200 cursor-pointer ${
-                            threadsEnabled
-                                ? "bg-indigo-50/90 text-indigo-700 font-bold shadow-2xs"
-                                : "hover:bg-slate-100/80 text-slate-700"
-                        }`}
-                        title="Group emails by conversation thread"
-                    >
-                        <MessageSquare className="w-4 h-4" />
-                        <span className="text-[10px] font-semibold leading-tight mt-0.5">Threads</span>
-                    </button>
 
                     {/* Options Dropdown */}
                     <div className="relative" ref={optionsRef}>
@@ -357,17 +349,42 @@ export function OutlookToolbar({
                         <span className="text-[10px] font-semibold text-slate-600 leading-tight mt-0.5">Forward</span>
                     </button>
 
-                    {/* Delete */}
-                    <button
-                        type="button"
-                        onClick={onDelete}
-                        disabled={!hasActiveEmail && selectedCount === 0}
-                        className="flex flex-col items-center justify-center px-2.5 py-1.5 hover:bg-rose-50/80 hover:text-rose-600 disabled:opacity-35 disabled:hover:bg-transparent rounded-xl text-slate-700 transition-all duration-200 cursor-pointer"
-                        title="Move to Trash"
-                    >
-                        <Trash2 className="w-4 h-4 text-slate-600 hover:text-rose-600" />
-                        <span className="text-[10px] font-semibold leading-tight mt-0.5">Delete</span>
-                    </button>
+                    {/* Delete or Restore depending on Trash mode */}
+                    {isTrashActive ? (
+                        <>
+                            <button
+                                type="button"
+                                onClick={onRestore}
+                                disabled={!hasActiveEmail && selectedCount === 0}
+                                className="flex flex-col items-center justify-center px-2.5 py-1.5 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-35 disabled:hover:bg-transparent rounded-xl text-emerald-700 font-bold transition-all duration-200 cursor-pointer"
+                                title="Restore selected email(s) back to Inbox"
+                            >
+                                <RotateCcw className="w-4 h-4 text-emerald-600" />
+                                <span className="text-[10px] font-bold leading-tight mt-0.5">Restore</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={onDeletePermanently || onDelete}
+                                disabled={!hasActiveEmail && selectedCount === 0}
+                                className="flex flex-col items-center justify-center px-2.5 py-1.5 hover:bg-rose-50/80 hover:text-rose-600 disabled:opacity-35 disabled:hover:bg-transparent rounded-xl text-slate-700 transition-all duration-200 cursor-pointer"
+                                title="Permanently delete email(s)"
+                            >
+                                <Trash2 className="w-4 h-4 text-slate-600 hover:text-rose-600" />
+                                <span className="text-[10px] font-semibold leading-tight mt-0.5">Delete Forever</span>
+                            </button>
+                        </>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={onDelete}
+                            disabled={!hasActiveEmail && selectedCount === 0}
+                            className="flex flex-col items-center justify-center px-2.5 py-1.5 hover:bg-rose-50/80 hover:text-rose-600 disabled:opacity-35 disabled:hover:bg-transparent rounded-xl text-slate-700 transition-all duration-200 cursor-pointer"
+                            title="Move to Trash"
+                        >
+                            <Trash2 className="w-4 h-4 text-slate-600 hover:text-rose-600" />
+                            <span className="text-[10px] font-semibold leading-tight mt-0.5">Delete</span>
+                        </button>
+                    )}
 
                     {/* Archive */}
                     <button

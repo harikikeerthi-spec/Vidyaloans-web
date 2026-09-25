@@ -231,6 +231,14 @@ export const EVVTestAgent: React.FC<{
   const [uploading, setUploading] = useState(false);
   const [intervalMode, setIntervalMode] = useState<"5day" | "custom">("5day");
   const [customDatesInput, setCustomDatesInput] = useState<string>("1, 5, 10, 15, 20, 25");
+  const [isExecutingCustomDates, setIsExecutingCustomDates] = useState<boolean>(false);
+  const [customDatesExecutionStatus, setCustomDatesExecutionStatus] = useState<{
+    status: "success" | "warning";
+    message: string;
+    score?: number;
+    sampleCount?: number;
+    timestamp?: string;
+  } | null>(null);
   const [columnMappings, setColumnMappings] = useState({
     date: "Date",
     description: "Description",
@@ -514,7 +522,7 @@ export const EVVTestAgent: React.FC<{
     }
     if (txs.length === 0) {
       log("No transaction data available for EVV recalculation.", "warn");
-      return;
+      return null;
     }
 
     const currentPolicy = DEFAULT_BANK_POLICIES[bankKey] || DEFAULT_BANK_POLICIES["DEFAULT"];
@@ -530,6 +538,46 @@ export const EVVTestAgent: React.FC<{
     if (onComplete) onComplete(updated);
     const sampleCount = Array.isArray(targetInterval) ? targetInterval.length : 6;
     log(`EVV Recalculated with ${intMode === "5day" ? "5-day interval" : `custom dates (${sampleCount} sample days)`}. Score: ${updated.overallEVV}/100`, "ok");
+    return updated;
+  };
+
+  const handleExecuteCustomDates = async (customDatesStr?: string) => {
+    setIsExecutingCustomDates(true);
+    setIntervalMode("custom");
+    const datesToUse = customDatesStr !== undefined ? customDatesStr : customDatesInput;
+    setCustomDatesInput(datesToUse);
+
+    // Visual transition delay (300ms) so user clearly perceives the recomputation occurring
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    const result = runRecalculation(
+      candidateClassifications,
+      isRepaymentIncomeContributor,
+      profileType,
+      selectedBankKey,
+      "custom",
+      datesToUse
+    );
+
+    const parsedDays = parseCustomDates(datesToUse);
+
+    if (!result) {
+      setCustomDatesExecutionStatus({
+        status: "warning",
+        message: "No statement transactions loaded yet. Please upload or analyze a bank statement first.",
+        timestamp: new Date().toLocaleTimeString(),
+      });
+    } else {
+      setCustomDatesExecutionStatus({
+        status: "success",
+        message: `Custom dates executed! Sampled ${parsedDays.length} days/month. Overall EVV Score: ${result.overallEVV}/100`,
+        score: result.overallEVV,
+        sampleCount: parsedDays.length,
+        timestamp: new Date().toLocaleTimeString(),
+      });
+    }
+
+    setIsExecutingCustomDates(false);
   };
 
   const handleToggleDay = (day: number) => {
@@ -545,7 +593,16 @@ export const EVVTestAgent: React.FC<{
     setCustomDatesInput(newStr);
     setIntervalMode("custom");
     if (evvResult) {
-      runRecalculation(candidateClassifications, isRepaymentIncomeContributor, profileType, selectedBankKey, "custom", newStr);
+      const updated = runRecalculation(candidateClassifications, isRepaymentIncomeContributor, profileType, selectedBankKey, "custom", newStr);
+      if (updated) {
+        setCustomDatesExecutionStatus({
+          status: "success",
+          message: `Custom dates updated (${updatedDays.length} days selected).`,
+          score: updated.overallEVV,
+          sampleCount: updatedDays.length,
+          timestamp: new Date().toLocaleTimeString(),
+        });
+      }
     }
   };
 
@@ -567,7 +624,17 @@ export const EVVTestAgent: React.FC<{
     setCustomDatesInput(daysStr);
     setIntervalMode(mode);
     if (evvResult) {
-      runRecalculation(candidateClassifications, isRepaymentIncomeContributor, profileType, selectedBankKey, mode, daysStr);
+      const updated = runRecalculation(candidateClassifications, isRepaymentIncomeContributor, profileType, selectedBankKey, mode, daysStr);
+      if (updated) {
+        const parsed = parseCustomDates(daysStr);
+        setCustomDatesExecutionStatus({
+          status: "success",
+          message: `Preset "${presetKey}" applied and executed (${parsed.length} sample days).`,
+          score: updated.overallEVV,
+          sampleCount: parsed.length,
+          timestamp: new Date().toLocaleTimeString(),
+        });
+      }
     }
   };
 
@@ -1774,18 +1841,49 @@ export const EVVTestAgent: React.FC<{
               </button>
             </div>
 
-            {/* Input field */}
-            <div>
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
-                Custom Sample Days (Supports comma/space separated or ranges like &quot;1 to 31&quot;):
-              </label>
-              <input
-                type="text"
-                value={customDatesInput}
-                onChange={(e) => handleIntervalChange("custom", e.target.value)}
-                placeholder="e.g. 1 to 31 or 1, 5, 10, 15, 20, 25"
-                className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
-              />
+            {/* Input field and Execute Button */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              <div className="flex-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+                  Custom Sample Days (Supports comma/space separated or ranges like &quot;1 to 31&quot;):
+                </label>
+                <input
+                  type="text"
+                  value={customDatesInput}
+                  onChange={(e) => handleIntervalChange("custom", e.target.value)}
+                  placeholder="e.g. 1 to 31 or 1, 5, 10, 15, 20, 25"
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => handleExecuteCustomDates(customDatesInput)}
+                disabled={isExecutingCustomDates}
+                className={`sm:self-end px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${
+                  isExecutingCustomDates
+                    ? "bg-violet-500 text-white cursor-wait opacity-80"
+                    : customDatesExecutionStatus?.status === "success"
+                    ? "bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-400/30 shadow-xs"
+                    : "bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white shadow-xs hover:shadow-md"
+                }`}
+              >
+                {isExecutingCustomDates ? (
+                  <>
+                    <span className="material-symbols-outlined text-[16px] animate-spin">sync</span>
+                    <span>Executing...</span>
+                  </>
+                ) : customDatesExecutionStatus?.status === "success" ? (
+                  <>
+                    <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                    <span>Executed ({customDatesExecutionStatus.score}/100)</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-[16px]">bolt</span>
+                    <span>Execute EVV Custom Dates</span>
+                  </>
+                )}
+              </button>
             </div>
 
             {/* 1 to 31 Day Chips Grid */}
@@ -1820,15 +1918,43 @@ export const EVVTestAgent: React.FC<{
               </div>
             </div>
 
-            {/* Live Active Sampling Status */}
-            <div className="pt-1 flex items-center justify-between gap-2 flex-wrap text-[11px] border-t border-slate-200/60">
-              <div className="flex items-center gap-1.5 text-emerald-700 font-medium">
-                <span className="material-symbols-outlined text-sm text-emerald-600">check_circle</span>
-                <span>Sampling <strong>{parseCustomDates(customDatesInput).length} days</strong> per calendar month</span>
+            {/* Live Active Sampling Status & Execution Confirmation */}
+            <div className="pt-2 border-t border-slate-200/60 space-y-2">
+              <div className="flex items-center justify-between gap-2 flex-wrap text-[11px]">
+                <div className="flex items-center gap-1.5 text-emerald-700 font-medium">
+                  <span className="material-symbols-outlined text-sm text-emerald-600">check_circle</span>
+                  <span>Sampling <strong>{parseCustomDates(customDatesInput).length} days</strong> per calendar month</span>
+                </div>
+                <span className="text-[10px] font-mono text-slate-500 truncate max-w-md">
+                  [{parseCustomDates(customDatesInput).join(", ")}]
+                </span>
               </div>
-              <span className="text-[10px] font-mono text-slate-500 truncate max-w-md">
-                [{parseCustomDates(customDatesInput).join(", ")}]
-              </span>
+              {customDatesExecutionStatus && (
+                <div
+                  className={`p-2.5 rounded-xl border flex items-center justify-between gap-3 text-xs transition-all animate-in fade-in duration-200 ${
+                    customDatesExecutionStatus.status === "success"
+                      ? "bg-emerald-50 border-emerald-200 text-emerald-900"
+                      : "bg-amber-50 border-amber-200 text-amber-900"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-sm shrink-0">
+                      {customDatesExecutionStatus.status === "success" ? "verified" : "warning"}
+                    </span>
+                    <span className="font-semibold text-[11px]">{customDatesExecutionStatus.message}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {customDatesExecutionStatus.score !== undefined && (
+                      <span className="px-2 py-0.5 bg-emerald-600 text-white text-[10px] font-bold rounded-md font-mono">
+                        Score: {customDatesExecutionStatus.score}/100
+                      </span>
+                    )}
+                    <span className="text-[10px] font-mono text-slate-500 bg-white px-1.5 py-0.5 rounded border border-slate-200">
+                      {customDatesExecutionStatus.timestamp}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -2271,11 +2397,32 @@ export const EVVTestAgent: React.FC<{
                       </div>
                       <button
                         type="button"
-                        onClick={() => runRecalculation(candidateClassifications, isRepaymentIncomeContributor, profileType, selectedBankKey, "custom", customDatesInput)}
-                        className="sm:self-end px-4 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+                        onClick={() => handleExecuteCustomDates(customDatesInput)}
+                        disabled={isExecutingCustomDates}
+                        className={`sm:self-end px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0 shadow-xs ${
+                          isExecutingCustomDates
+                            ? "bg-violet-500 text-white cursor-wait opacity-80"
+                            : customDatesExecutionStatus?.status === "success"
+                            ? "bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-400/40 shadow-emerald-500/20"
+                            : "bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white hover:shadow-md"
+                        }`}
                       >
-                        <span className="material-symbols-outlined text-[16px]">bolt</span>
-                        <span>Execute EVV Custom Dates</span>
+                        {isExecutingCustomDates ? (
+                          <>
+                            <span className="material-symbols-outlined text-[16px] animate-spin">sync</span>
+                            <span>Executing Custom Dates...</span>
+                          </>
+                        ) : customDatesExecutionStatus?.status === "success" ? (
+                          <>
+                            <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                            <span>Executed! Score: {customDatesExecutionStatus.score}/100</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="material-symbols-outlined text-[16px]">bolt</span>
+                            <span>Execute EVV Custom Dates</span>
+                          </>
+                        )}
                       </button>
                     </div>
 
@@ -2311,15 +2458,55 @@ export const EVVTestAgent: React.FC<{
                       </div>
                     </div>
 
-                    {/* Live Active Sampling Status */}
-                    <div className="pt-1 flex items-center justify-between gap-2 flex-wrap text-[11px] border-t border-slate-200/60">
-                      <div className="flex items-center gap-1.5 text-emerald-700 font-medium">
-                        <span className="material-symbols-outlined text-sm text-emerald-600">check_circle</span>
-                        <span>Active Sampling: <strong>{parseCustomDates(customDatesInput).length} days</strong> per calendar month</span>
+                    {/* Live Active Sampling Status & Execution Confirmation Banner */}
+                    <div className="pt-2 border-t border-slate-200/60 space-y-2.5">
+                      <div className="flex items-center justify-between gap-2 flex-wrap text-[11px]">
+                        <div className="flex items-center gap-1.5 text-emerald-700 font-medium">
+                          <span className="material-symbols-outlined text-sm text-emerald-600">check_circle</span>
+                          <span>Active Sampling: <strong>{parseCustomDates(customDatesInput).length} days</strong> per calendar month</span>
+                        </div>
+                        <span className="text-[10px] font-mono text-slate-500 truncate max-w-md">
+                          [{parseCustomDates(customDatesInput).join(", ")}]
+                        </span>
                       </div>
-                      <span className="text-[10px] font-mono text-slate-500 truncate max-w-md">
-                        [{parseCustomDates(customDatesInput).join(", ")}]
-                      </span>
+
+                      {customDatesExecutionStatus && (
+                        <div
+                          className={`p-3 rounded-xl border flex items-center justify-between gap-3 text-xs transition-all animate-in fade-in slide-in-from-top-1 duration-200 ${
+                            customDatesExecutionStatus.status === "success"
+                              ? "bg-emerald-50/90 border-emerald-300 text-emerald-950 shadow-2xs"
+                              : "bg-amber-50/90 border-amber-300 text-amber-950 shadow-2xs"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <span className="material-symbols-outlined text-lg shrink-0 text-emerald-600">
+                              {customDatesExecutionStatus.status === "success" ? "task_alt" : "warning"}
+                            </span>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold">
+                                  {customDatesExecutionStatus.status === "success"
+                                    ? "EVV Calculation Executed & Updated"
+                                    : "Execution Notice"}
+                                </span>
+                                <span className="text-[10px] font-mono text-slate-500 bg-white/90 px-1.5 py-0.5 rounded border border-slate-200">
+                                  {customDatesExecutionStatus.timestamp}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-600 mt-0.5">
+                                {customDatesExecutionStatus.message}
+                              </p>
+                            </div>
+                          </div>
+                          {customDatesExecutionStatus.score !== undefined && (
+                            <div className="shrink-0 flex items-center gap-2">
+                              <span className="px-2.5 py-1 bg-emerald-600 text-white text-xs font-black rounded-lg shadow-2xs font-mono">
+                                EVV Score: {customDatesExecutionStatus.score}/100
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

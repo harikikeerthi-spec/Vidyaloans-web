@@ -218,7 +218,184 @@ export class BlogService {
             return `<div class="blog-gallery grid grid-cols-2 sm:grid-cols-3 gap-3 my-4"${styleAttr}>${imgs}</div>`;
           }
           case 'image_carousel': {
-            return `<div class="blog-carousel my-4 rounded-2xl overflow-hidden shadow-sm"${styleAttr}>${block.items?.[0] ? `<img src="${block.items[0].url}" alt="Carousel" class="w-full h-64 object-cover" /><div class="p-3 bg-slate-900 text-white"><p class="font-bold text-sm">${block.items[0].title || ''}</p><p class="text-xs text-slate-300">${block.items[0].content || ''}</p></div>` : ''}</div>`;
+            const items = block.items || [];
+            if (!items.length) return '';
+            const carouselId = `msn_slideshow_${block.id || Math.random().toString(36).substring(2, 8)}`;
+            const total = items.length;
+
+            const slidesHtml = items.map((it: any, idx: number) => {
+              const detailsHtml = Array.isArray(it.details) && it.details.length > 0
+                ? `<div class="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
+                    <p class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Key Highlights & Duties</p>
+                    <ul class="space-y-1 text-xs text-slate-600 dark:text-slate-300">
+                      ${it.details.map((d: string) => `<li class="flex items-start gap-1.5"><span class="text-emerald-500 font-bold">✓</span><span>${d}</span></li>`).join('')}
+                    </ul>
+                  </div>`
+                : '';
+
+              return `
+                <div class="slideshow-slide ${idx === 0 ? 'block' : 'hidden'}" data-slide-index="${idx}">
+                  <!-- Hero Image Container -->
+                  <div class="relative w-full h-80 sm:h-96 bg-slate-900 rounded-t-xl overflow-hidden group">
+                    <img src="${it.url || 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=1200'}" alt="${it.title || 'Slide'}" class="w-full h-full object-cover" />
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-black/30 pointer-events-none"></div>
+
+                    <!-- Slide Badge -->
+                    <div class="absolute top-4 left-4 z-10 flex items-center gap-2">
+                      <span class="px-3 py-1 bg-slate-900/80 backdrop-blur-md text-white text-xs font-bold rounded-full border border-white/20">
+                        Slide ${idx + 1} of ${total}
+                      </span>
+                      ${it.salary ? `<span class="px-3 py-1 bg-emerald-600/90 backdrop-blur-md text-white text-xs font-bold rounded-full shadow-sm">💰 ${it.salary}</span>` : ''}
+                    </div>
+
+                    <!-- Prev/Next Controls inside Hero -->
+                    <div class="absolute inset-y-0 left-0 right-0 flex items-center justify-between px-3 pointer-events-none">
+                      <button type="button" class="btn-prev pointer-events-auto p-2.5 rounded-full bg-black/60 hover:bg-indigo-600 text-white shadow-lg transition backdrop-blur-sm cursor-pointer" aria-label="Previous Slide">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg>
+                      </button>
+                      <button type="button" class="btn-next pointer-events-auto p-2.5 rounded-full bg-black/60 hover:bg-indigo-600 text-white shadow-lg transition backdrop-blur-sm cursor-pointer" aria-label="Next Slide">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>
+                      </button>
+                    </div>
+
+                    <!-- Caption & Credit -->
+                    ${it.caption || it.credit ? `
+                      <div class="absolute bottom-3 left-4 right-4 z-10 text-[11px] text-slate-300 flex items-center justify-between">
+                        <span>${it.caption || ''}</span>
+                        ${it.credit ? `<span class="opacity-75">Photo: ${it.credit}</span>` : ''}
+                      </div>
+                    ` : ''}
+                  </div>
+
+                  <!-- Story Text & Information -->
+                  <div class="p-6 bg-white dark:bg-slate-900 border-x border-b border-slate-200 dark:border-slate-800 rounded-b-xl">
+                    <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+                      <h3 class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                        ${idx + 1}. ${it.title || ''}
+                      </h3>
+                      <div class="flex items-center gap-2">
+                        ${it.salary ? `<span class="px-2.5 py-1 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs font-bold rounded-lg">💰 ${it.salary}</span>` : ''}
+                        ${it.requirements ? `<span class="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 text-xs font-semibold rounded-lg">🎓 ${it.requirements}</span>` : ''}
+                      </div>
+                    </div>
+                    <p class="text-slate-700 dark:text-slate-300 text-sm sm:text-base leading-relaxed">
+                      ${it.content || ''}
+                    </p>
+                    ${detailsHtml}
+                  </div>
+                </div>
+              `;
+            }).join('');
+
+            const sidebarThumbnailsHtml = items.map((it: any, idx: number) => `
+              <button type="button" class="sidebar-item w-full text-left p-2.5 rounded-xl border transition flex items-center gap-3 cursor-pointer ${idx === 0 ? 'bg-indigo-50/80 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-700 ring-2 ring-indigo-500/20' : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'}" data-goto-index="${idx}">
+                <div class="w-14 h-12 rounded-lg overflow-hidden shrink-0 bg-slate-800 relative">
+                  <img src="${it.url || 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=200'}" alt="${it.title || ''}" class="w-full h-full object-cover" />
+                  <span class="absolute bottom-0.5 right-0.5 px-1 bg-black/70 text-[9px] font-bold text-white rounded">${idx + 1}</span>
+                </div>
+                <div class="min-w-0 flex-1">
+                  <p class="text-xs font-bold text-slate-900 dark:text-white truncate">${it.title || `Slide ${idx + 1}`}</p>
+                  ${it.salary ? `<p class="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 truncate">💰 ${it.salary}</p>` : `<p class="text-[11px] text-slate-500 truncate">${it.requirements || ''}</p>`}
+                </div>
+              </button>
+            `).join('');
+
+            return `
+              <div id="${carouselId}" class="msn-story-slideshow my-8 bg-slate-50/60 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm"${styleAttr}>
+                <!-- Top Header Bar -->
+                <div class="flex items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-200 dark:border-slate-800">
+                  <div class="flex items-center gap-2">
+                    <span class="px-2.5 py-1 bg-indigo-600 text-white text-[11px] font-black uppercase tracking-wider rounded-md">MSN Story</span>
+                    <h4 class="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white">${block.title || 'Slide Story Gallery'}</h4>
+                  </div>
+                  <div class="flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-400">
+                    <span>Use arrows or sidebar to explore</span>
+                  </div>
+                </div>
+
+                <!-- 2-Column Responsive Layout: Slide Viewport + Sidebar Outline -->
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                  <!-- Main Slide Area -->
+                  <div class="lg:col-span-8">
+                    ${slidesHtml}
+                  </div>
+
+                  <!-- Sidebar Navigation Outline -->
+                  <div class="lg:col-span-4 flex flex-col">
+                    <div class="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex-1 flex flex-col">
+                      <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 dark:border-slate-800">
+                        <span class="text-xs font-black uppercase tracking-wider text-slate-500">All Slides (${total})</span>
+                        <span class="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold">Click to read</span>
+                      </div>
+                      <div class="space-y-2 max-h-[460px] overflow-y-auto pr-1">
+                        ${sidebarThumbnailsHtml}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <script>
+                  (function() {
+                    var root = document.getElementById('${carouselId}');
+                    if (!root) return;
+                    var slides = root.querySelectorAll('.slideshow-slide');
+                    var sidebarItems = root.querySelectorAll('.sidebar-item');
+                    var prevBtns = root.querySelectorAll('.btn-prev');
+                    var nextBtns = root.querySelectorAll('.btn-next');
+                    var currentIndex = 0;
+                    var total = slides.length;
+
+                    function showSlide(index) {
+                      if (index < 0) index = total - 1;
+                      if (index >= total) index = 0;
+                      currentIndex = index;
+
+                      slides.forEach(function(s, i) {
+                        if (i === currentIndex) {
+                          s.classList.remove('hidden');
+                          s.classList.add('block');
+                        } else {
+                          s.classList.add('hidden');
+                          s.classList.remove('block');
+                        }
+                      });
+
+                      sidebarItems.forEach(function(b, i) {
+                        if (i === currentIndex) {
+                          b.classList.add('bg-indigo-50/80', 'dark:bg-indigo-950/40', 'border-indigo-300', 'dark:border-indigo-700', 'ring-2', 'ring-indigo-500/20');
+                          b.classList.remove('bg-slate-50', 'dark:bg-slate-800/60', 'border-slate-200', 'dark:border-slate-700');
+                          try { b.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch(e) {}
+                        } else {
+                          b.classList.remove('bg-indigo-50/80', 'dark:bg-indigo-950/40', 'border-indigo-300', 'dark:border-indigo-700', 'ring-2', 'ring-indigo-500/20');
+                          b.classList.add('bg-slate-50', 'dark:bg-slate-800/60', 'border-slate-200', 'dark:border-slate-700');
+                        }
+                      });
+                    }
+
+                    prevBtns.forEach(function(btn) {
+                      btn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        showSlide(currentIndex - 1);
+                      });
+                    });
+
+                    nextBtns.forEach(function(btn) {
+                      btn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        showSlide(currentIndex + 1);
+                      });
+                    });
+
+                    sidebarItems.forEach(function(item) {
+                      item.addEventListener('click', function() {
+                        var target = parseInt(item.getAttribute('data-goto-index') || '0', 10);
+                        showSlide(target);
+                      });
+                    });
+                  })();
+                </script>
+              </div>
+            `;
           }
           case 'icon_list': {
             const listItems = (block.items || []).map((it: any) => `<li class="flex items-center gap-2 text-sm text-slate-700"><span class="text-emerald-600 font-bold">✓</span><span>${it.title}</span></li>`).join('');

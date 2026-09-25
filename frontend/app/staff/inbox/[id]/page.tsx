@@ -30,7 +30,8 @@ import {
     Info,
     Eye,
     ChevronDown,
-    Image as ImageIcon
+    Image as ImageIcon,
+    RotateCcw
 } from "lucide-react";
 
 import { EmailRemoteResourceBanner } from "@/components/staff/mail/EmailRemoteResourceBanner";
@@ -145,6 +146,7 @@ function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id
     });
     const [attachments, setAttachments] = useState<{ filename: string; contentType: string; size: number; content: string }[]>([]);
     const [isSending, setIsSending] = useState(false);
+    const [isTrashed, setIsTrashed] = useState(false);
     const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
     // Mark as read and check starred & spam on mount
@@ -167,6 +169,12 @@ function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id
             const notSpamSet = new Set(userNotSpam ? JSON.parse(userNotSpam) : []);
             if (spamSet.has(emailId)) setIsMarkedSpam(true);
             else if (notSpamSet.has(emailId)) setIsMarkedSpam(false);
+
+            const savedTrash = localStorage.getItem("vidya_mail_trashed_ids");
+            if (savedTrash) {
+                const trashSet = new Set(JSON.parse(savedTrash));
+                setIsTrashed(trashSet.has(emailId));
+            }
         } catch { }
     }, [emailId]);
 
@@ -263,24 +271,46 @@ function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id
             const trashSet = new Set(savedTrash ? JSON.parse(savedTrash) : []);
             trashSet.add(emailId);
             localStorage.setItem("vidya_mail_trashed_ids", JSON.stringify(Array.from(trashSet)));
+            const times = JSON.parse(localStorage.getItem("vidya_mail_trash_times") || "{}");
+            times[emailId] = Date.now();
+            localStorage.setItem("vidya_mail_trash_times", JSON.stringify(times));
             mailApi.updateState(emailId, { isTrashed: true }).catch(() => { });
+            setIsTrashed(true);
+            setToast({ type: "error", message: "Moved email to Trash. (Retained up to 60 days)" });
+            setTimeout(() => setToast(null), 3000);
             router.push(`/staff/inbox?folder=${encodeURIComponent(currentFolder)}`);
         } catch { }
     };
 
-    // Reply action
+    // Restore from Trash
+    const handleRestoreFromTrash = () => {
+        try {
+            const savedTrash = localStorage.getItem("vidya_mail_trashed_ids");
+            const trashSet = new Set(savedTrash ? JSON.parse(savedTrash) : []);
+            trashSet.delete(emailId);
+            localStorage.setItem("vidya_mail_trashed_ids", JSON.stringify(Array.from(trashSet)));
+            const times = JSON.parse(localStorage.getItem("vidya_mail_trash_times") || "{}");
+            delete times[emailId];
+            localStorage.setItem("vidya_mail_trash_times", JSON.stringify(times));
+            mailApi.updateState(emailId, { isTrashed: false }).catch(() => { });
+            setIsTrashed(false);
+            setToast({ type: "success", message: "Restored email to Inbox." });
+            setTimeout(() => setToast(null), 3000);
+        } catch { }
+    };
+
+    // Reply action - mail type section is empty as requested
     const handleReply = () => {
         if (!mail) return;
         const sender = mail.from.replace(/.*<(.+)>/, "$1").trim();
         const cleanSubj = mail.subject.startsWith("Re:") ? mail.subject : `Re: ${mail.subject}`;
-        const quote = `\n\n\n--- On ${format(new Date(mail.date), "PPP 'at' p")}, ${mail.from} wrote ---\n> ${mail.text ? mail.text.replace(/\n/g, "\n> ") : ""}`;
 
         setComposeData({
             to: sender,
             cc: "",
             bcc: "",
             subject: cleanSubj,
-            body: quote,
+            body: "", // Mail type section is empty when replying as requested
             replyTo: staffMailbox || "support@vidyaloans.in",
         });
         setAttachments([]);
@@ -502,18 +532,55 @@ function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id
                         <Printer className="w-4 h-4" />
                     </button>
 
-                    <button
-                        onClick={handleMoveToTrash}
-                        className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                        title="Move to Trash"
-                    >
-                        <Trash2 className="w-4 h-4" />
-                    </button>
+                    {isTrashed ? (
+                        <button
+                            onClick={handleRestoreFromTrash}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 text-xs font-bold transition-all cursor-pointer"
+                            title="Restore email to Inbox"
+                        >
+                            <RotateCcw className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Restore to Inbox</span>
+                        </button>
+                    ) : (
+                        <button
+                            onClick={handleMoveToTrash}
+                            className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                            title="Move to Trash"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                        </button>
+                    )}
                 </div>
             </header>
 
             {/* ── EMAIL BODY DETAIL ── */}
             <main className="flex-1 overflow-y-auto p-6 md:p-8 space-y-4 max-w-5xl mx-auto w-full">
+                {/* Trash Retention & Restore Notice Banner */}
+                {isTrashed && (
+                    <div className="p-4 rounded-2xl bg-rose-50/90 border border-rose-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-rose-500/15 border border-rose-300 text-rose-800 flex items-center justify-center shrink-0">
+                                <Trash2 className="w-5 h-5 text-rose-600" />
+                            </div>
+                            <div>
+                                <p className="text-xs font-bold text-rose-950">
+                                    This message is in your Trash folder
+                                </p>
+                                <p className="text-[11px] text-rose-800/90 mt-0.5">
+                                    Messages in Trash are retained for up to 60 days before being completely removed automatically.
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={handleRestoreFromTrash}
+                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition-all cursor-pointer shrink-0"
+                        >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            <span>Restore to Inbox</span>
+                        </button>
+                    </div>
+                )}
                 <div className="bg-white rounded-3xl border border-slate-200/80 shadow-2xs p-6 md:p-8 space-y-5">
                     {/* Subject Header with External Indicator */}
                     <div className="border-b border-slate-100 pb-5 space-y-3">
