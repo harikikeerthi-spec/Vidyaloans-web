@@ -46,6 +46,7 @@ import {
     Flag,
     Calendar,
     PenTool,
+    Flame,
 } from "lucide-react";
 
 import { OutlookToolbar } from "@/components/staff/mail/OutlookToolbar";
@@ -68,6 +69,8 @@ import {
     saveEmailAsCalendarEvent,
     formatOutlookDate,
     generateEmailSummary,
+    parseEmailContact,
+    getAvatarPalette,
     MailItemBase
 } from "@/components/staff/mail/mailUtils";
 
@@ -1011,7 +1014,11 @@ function StaffInboxContent() {
         if (selectedIds.size > 0) {
             handleBulkSpam();
         } else if (activeEmailDetail) {
-            handleMarkAsSpam({ stopPropagation: () => { } } as any, activeEmailDetail.id);
+            if (activeTab === "spam" || isEmailSpam(activeEmailDetail)) {
+                handleMarkAsNotSpam({ stopPropagation: () => { } } as any, activeEmailDetail.id);
+            } else {
+                handleMarkAsSpam({ stopPropagation: () => { } } as any, activeEmailDetail.id);
+            }
         }
     };
 
@@ -1428,6 +1435,19 @@ function StaffInboxContent() {
         setTimeout(() => setFeedbackToast(null), 3500);
     };
 
+    const activeSenderContact = useMemo(
+        () => (activeEmailDetail ? parseEmailContact(activeEmailDetail.from) : null),
+        [activeEmailDetail?.from]
+    );
+    const activeRecipientContact = useMemo(
+        () => (activeEmailDetail ? parseEmailContact(activeEmailDetail.to) : null),
+        [activeEmailDetail?.to]
+    );
+    const activeAvatarPalette = useMemo(
+        () => (activeSenderContact ? getAvatarPalette(activeSenderContact.email || activeSenderContact.displayName) : null),
+        [activeSenderContact]
+    );
+
     return (
         <div className="flex flex-col h-full w-full overflow-hidden bg-slate-100/70 font-sans">
             {/* ── HIDDEN IMPORT INPUT ── */}
@@ -1481,6 +1501,7 @@ function StaffInboxContent() {
                 onDelete={handleToolbarDelete}
                 onArchive={handleToolbarArchive}
                 onJunk={handleToolbarJunk}
+                isSpamActive={activeTab === 'spam' || (Boolean(activeEmailDetail) && isEmailSpam(activeEmailDetail!))}
                 onMarkRead={handleToolbarMarkRead}
                 onMarkUnread={handleToolbarMarkUnread}
                 onToggleStar={handleToolbarToggleStar}
@@ -1920,6 +1941,23 @@ function StaffInboxContent() {
                                                 >
                                                     <Reply className="w-3.5 h-3.5" />
                                                 </button>
+                                                {(activeTab === "spam" || isEmailSpam(email)) ? (
+                                                    <button
+                                                        onClick={(e) => handleMarkAsNotSpam(e, email.id)}
+                                                        title="Not Spam (Move to Inbox)"
+                                                        className="p-1 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg text-slate-400 transition-colors cursor-pointer"
+                                                    >
+                                                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                                                    </button>
+                                                ) : (
+                                                    <button
+                                                        onClick={(e) => handleMarkAsSpam(e, email.id)}
+                                                        title="Report as Spam"
+                                                        className="p-1 hover:text-rose-600 hover:bg-rose-50 rounded-lg text-slate-400 transition-colors cursor-pointer"
+                                                    >
+                                                        <Flame className="w-3.5 h-3.5 text-rose-500" />
+                                                    </button>
+                                                )}
                                                 <button
                                                     onClick={(e) => toggleStar(e, email.id)}
                                                     title="Toggle Star"
@@ -1970,72 +2008,140 @@ function StaffInboxContent() {
 
                 {/* ── 3. RIGHT: EMAIL DETAIL VIEWER (OUTLOOK READING PANE) ── */}
                 <main className={`${selectedEmailId ? "flex" : "hidden lg:flex"} flex-1 bg-white flex-col overflow-hidden`}>
-                    {selectedEmailId && activeEmailDetail ? (
+                    {selectedEmailId && activeEmailDetail && activeSenderContact && activeRecipientContact && activeAvatarPalette ? (
                         <div className="flex-1 flex flex-col h-full overflow-hidden">
-                            {/* Subject Title & Actions */}
-                            <div className="px-7 pt-6 pb-4 border-b border-slate-100/80">
-                                <div className="flex items-center justify-between gap-4">
-                                    <h1 className="text-xl font-black text-slate-900 leading-snug flex items-center gap-2.5">
-                                        <span>{activeEmailDetail.subject || "(No Subject)"}</span>
+                            {/* Subject Title & Actions Header */}
+                            <div className="px-6 py-4.5 border-b border-slate-200/80 bg-white shrink-0">
+                                {/* Top: Subject Line & External Link / Mobile Actions */}
+                                <div className="flex items-center justify-between gap-3">
+                                    <h1 className="text-lg lg:text-xl font-bold text-slate-900 tracking-tight leading-snug flex items-center gap-2.5 min-w-0">
+                                        <span className="truncate">{activeEmailDetail.subject || "(No Subject)"}</span>
                                         <button
                                             onClick={handleOpenInNewWindow}
                                             title="Open in new window"
-                                            className="text-sky-600 hover:text-sky-800 transition-colors p-1 rounded-lg hover:bg-sky-50"
+                                            className="text-slate-400 hover:text-sky-600 transition-colors p-1.5 rounded-lg hover:bg-sky-50 shrink-0 cursor-pointer"
                                         >
                                             <ExternalLink className="w-4 h-4" />
                                         </button>
                                     </h1>
 
-                                    <button
-                                        onClick={() => setSelectedEmailId(null)}
-                                        className="lg:hidden p-1.5 rounded-xl text-slate-500 hover:bg-slate-100"
-                                    >
-                                        <ArrowLeft className="w-4 h-4" />
-                                    </button>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                        <button
+                                            onClick={() => setSelectedEmailId(null)}
+                                            className="lg:hidden p-1.5 rounded-xl text-slate-500 hover:bg-slate-100 cursor-pointer"
+                                        >
+                                            <ArrowLeft className="w-4 h-4" />
+                                        </button>
+                                    </div>
                                 </div>
 
-                                {/* Sender Metadata & Quick Action Pills */}
-                                <div className="flex items-start gap-4 mt-3.5">
-                                    {/* Sender Avatar */}
-                                    <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-indigo-100 to-violet-100 border border-indigo-200/80 flex items-center justify-center shrink-0 shadow-2xs">
-                                        <User className="w-5 h-5 text-indigo-600" />
+                                {/* Below Subject: Sender Info (From & To grouped on one side) & Professional Actions/Status Panel */}
+                                <div className="mt-3.5 pt-3.5 border-t border-slate-100 flex flex-col md:flex-row md:items-start justify-between gap-4">
+                                    {/* LEFT SIDE: Avatar + Name + FROM & TO Metadata Block */}
+                                    <div className="flex items-start gap-3.5 min-w-0 flex-1">
+                                        {/* Sender Avatar */}
+                                        <div
+                                            className={`w-11 h-11 rounded-2xl bg-gradient-to-br ${activeAvatarPalette.bg} ${activeAvatarPalette.border} border shadow-xs flex items-center justify-center shrink-0 ring-2 ${activeAvatarPalette.ring}`}
+                                        >
+                                            <span className={`text-sm font-bold tracking-wider ${activeAvatarPalette.text}`}>
+                                                {activeSenderContact.initials}
+                                            </span>
+                                        </div>
+
+                                        {/* Details Block */}
+                                        <div className="min-w-0 flex-1">
+                                            {/* Primary Sender Display Name + Security / Authentication Pills */}
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <span className="text-sm font-bold text-slate-900 tracking-tight">
+                                                    {activeSenderContact.displayName}
+                                                </span>
+
+                                                {activeEmailDetail.authResults?.spf === "pass" && (
+                                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+                                                        <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                                                        SPF Pass
+                                                    </span>
+                                                )}
+                                                {activeEmailDetail.authResults?.dkim === "pass" && (
+                                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200/80">
+                                                        <CheckCircle2 className="w-3 h-3 text-sky-600" />
+                                                        DKIM Pass
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            {/* Clean FROM & TO block grouped neatly on this side */}
+                                            <div className="mt-1.5 space-y-1 text-xs">
+                                                {/* From Line */}
+                                                <div className="flex items-baseline gap-2">
+                                                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 w-10 shrink-0">
+                                                        From
+                                                    </span>
+                                                    <div className="flex items-baseline gap-1.5 min-w-0 truncate">
+                                                        {activeSenderContact.displayName !== activeSenderContact.email && (
+                                                            <span className="font-semibold text-slate-800 truncate">
+                                                                {activeSenderContact.displayName}
+                                                            </span>
+                                                        )}
+                                                        <span className="text-sky-600 font-mono text-[11px] truncate select-all">
+                                                            {activeSenderContact.email ? `<${activeSenderContact.email}>` : activeEmailDetail.from}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                {/* To Line */}
+                                                <div className="flex items-baseline gap-2">
+                                                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 w-10 shrink-0">
+                                                        To
+                                                    </span>
+                                                    <div className="flex items-baseline gap-1.5 min-w-0 truncate">
+                                                        {activeRecipientContact.displayName !== activeRecipientContact.email && (
+                                                            <span className="font-semibold text-slate-800 truncate">
+                                                                {activeRecipientContact.displayName}
+                                                            </span>
+                                                        )}
+                                                        <span className="text-sky-600 font-mono text-[11px] truncate select-all">
+                                                            {activeRecipientContact.email ? `<${activeRecipientContact.email}>` : activeEmailDetail.to}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Cc Line (if present) */}
+                                                {activeEmailDetail.cc && (
+                                                    <div className="flex items-baseline gap-2">
+                                                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 w-10 shrink-0">
+                                                            Cc
+                                                        </span>
+                                                        <span className="text-slate-600 font-mono text-[11px] truncate select-all">
+                                                            {activeEmailDetail.cc}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
                                     </div>
 
-                                    {/* Sender Details */}
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-baseline gap-2 text-xs">
-                                            <span className="font-bold text-slate-900 w-10 shrink-0">From</span>
-                                            <span className="text-sky-600 font-semibold truncate hover:underline cursor-pointer">
-                                                {activeEmailDetail.from}
-                                            </span>
-                                        </div>
-
-                                        <div className="flex items-baseline gap-2 text-xs mt-0.5">
-                                            <span className="font-bold text-slate-900 w-10 shrink-0">To</span>
-                                            <span className="text-sky-600 font-medium truncate hover:underline cursor-pointer">
-                                                {activeEmailDetail.to}
-                                            </span>
-                                        </div>
-
-                                        {activeEmailDetail.cc && (
-                                            <div className="flex items-baseline gap-2 text-xs mt-0.5">
-                                                <span className="font-bold text-slate-900 w-10 shrink-0">Cc</span>
-                                                <span className="text-slate-600 font-medium truncate">
-                                                    {activeEmailDetail.cc}
-                                                </span>
-                                            </div>
-                                        )}
-
-                                        <div className="flex items-baseline gap-2 text-xs mt-0.5">
-                                            <span className="font-bold text-slate-900 w-10 shrink-0">Date</span>
-                                            <span className="text-slate-700 font-medium">
-                                                {formatOutlookDate(activeEmailDetail.date)}
+                                    {/* RIGHT SIDE: Date & Time + Status Badges + Action Buttons */}
+                                    <div className="flex flex-col md:items-end justify-between shrink-0 gap-2.5">
+                                        {/* Date and Time */}
+                                        <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 md:justify-end">
+                                            <Clock className="w-3.5 h-3.5 text-slate-400" />
+                                            <span>
+                                                {(() => {
+                                                    try {
+                                                        const d = new Date(activeEmailDetail.date);
+                                                        if (isNaN(d.getTime())) return formatOutlookDate(activeEmailDetail.date);
+                                                        return format(d, "EEE, d MMM yyyy 'at' h:mm a");
+                                                    } catch {
+                                                        return formatOutlookDate(activeEmailDetail.date);
+                                                    }
+                                                })()}
                                             </span>
                                         </div>
 
                                         {/* Scheduled / Priority / Read Receipt indicators */}
                                         {((activeEmailDetail as any)?.rawScheduled || (activeEmailDetail as any)?.priority || (activeEmailDetail as any)?.requestReadReceipt) && (
-                                            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                                            <div className="flex flex-wrap items-center md:justify-end gap-1.5">
                                                 {((activeEmailDetail as any)?.rawScheduled?.priority === 'high' || (activeEmailDetail as any)?.priority === 'high') && (
                                                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
                                                         <Flag className="w-2.5 h-2.5 fill-rose-500 text-rose-500" />
@@ -2057,33 +2163,68 @@ function StaffInboxContent() {
                                             </div>
                                         )}
 
-                                        {/* Quick Action Pills: ✉ Summary  ℹ Headers  📄 Plain text */}
-                                        <div className="flex items-center gap-2.5 mt-3 text-xs">
+                                        {/* Action Pills Toolbar: Summary | Headers | Plain Text / HTML | Reply */}
+                                        <div className="flex items-center gap-2 text-xs md:justify-end flex-wrap">
                                             <button
                                                 type="button"
                                                 onClick={() => setShowSummaryModal(true)}
-                                                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-indigo-50/80 hover:bg-indigo-100 text-indigo-700 font-bold border border-indigo-200/70 shadow-2xs hover:shadow-xs transition-all cursor-pointer"
+                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50/90 hover:bg-indigo-100 text-indigo-700 font-bold border border-indigo-200/80 shadow-2xs hover:shadow-xs transition-all cursor-pointer"
+                                                title="Generate AI summary of email"
                                             >
-                                                <Mail className="w-3.5 h-3.5" />
+                                                <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
                                                 <span>Summary</span>
                                             </button>
 
                                             <button
                                                 type="button"
                                                 onClick={() => setShowHeadersModal(true)}
-                                                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-sky-50/80 hover:bg-sky-100 text-sky-700 font-bold border border-sky-200/70 shadow-2xs hover:shadow-xs transition-all cursor-pointer"
+                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold border border-slate-200/80 shadow-2xs hover:shadow-xs transition-all cursor-pointer"
+                                                title="View RFC 822 Email Headers"
                                             >
-                                                <Info className="w-3.5 h-3.5" />
+                                                <Info className="w-3.5 h-3.5 text-slate-500" />
                                                 <span>Headers</span>
                                             </button>
 
                                             <button
                                                 type="button"
                                                 onClick={() => setViewMode(viewMode === "html" ? "text" : "html")}
-                                                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-100/90 hover:bg-slate-200 text-slate-700 font-bold border border-slate-200/70 shadow-2xs hover:shadow-xs transition-all cursor-pointer"
+                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold border border-slate-200/80 shadow-2xs hover:shadow-xs transition-all cursor-pointer"
+                                                title="Toggle HTML / Plain text format"
                                             >
                                                 <FileText className="w-3.5 h-3.5 text-slate-500" />
                                                 <span>{viewMode === "html" ? "Plain text" : "HTML format"}</span>
+                                            </button>
+
+                                            {(activeTab === "spam" || isEmailSpam(activeEmailDetail)) ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => handleMarkAsNotSpam(e, activeEmailDetail.id)}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold border border-emerald-200/80 shadow-2xs hover:shadow-xs transition-all cursor-pointer"
+                                                    title="Move message back to Inbox and mark as safe"
+                                                >
+                                                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                                                    <span>Not Spam</span>
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => handleMarkAsSpam(e, activeEmailDetail.id)}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-rose-50 text-slate-700 hover:text-rose-700 font-bold border border-slate-200/80 shadow-2xs hover:shadow-xs transition-all cursor-pointer"
+                                                    title="Report as Junk / Spam"
+                                                >
+                                                    <Flame className="w-3.5 h-3.5 text-rose-500" />
+                                                    <span>Spam</span>
+                                                </button>
+                                            )}
+
+                                            <button
+                                                type="button"
+                                                onClick={handleToolbarReply}
+                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-50/80 hover:bg-sky-100 text-sky-700 font-bold border border-sky-200/80 shadow-2xs hover:shadow-xs transition-all cursor-pointer"
+                                                title="Quick Reply"
+                                            >
+                                                <Reply className="w-3.5 h-3.5 text-sky-600" />
+                                                <span>Reply</span>
                                             </button>
                                         </div>
                                     </div>
@@ -2092,7 +2233,11 @@ function StaffInboxContent() {
 
                             {/* Attachments Bar */}
                             {activeEmailDetail.attachments && activeEmailDetail.attachments.length > 0 && (
-                                <div className="px-7 py-3 bg-slate-50/70 border-b border-slate-100/80 flex flex-wrap items-center gap-2">
+                                <div className="px-6 py-2.5 bg-slate-50/70 border-b border-slate-100/80 flex items-center gap-2 flex-wrap shrink-0">
+                                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-600 pr-2 border-r border-slate-200 shrink-0">
+                                        <Paperclip className="w-3.5 h-3.5 text-slate-500" />
+                                        <span>{activeEmailDetail.attachments.length} {activeEmailDetail.attachments.length === 1 ? 'Attachment' : 'Attachments'}</span>
+                                    </div>
                                     {activeEmailDetail.attachments.map((att, idx) => {
                                         const isImg = att.contentType?.startsWith("image/") || /\.(png|jpe?g|webp|gif|svg)$/i.test(att.filename);
 
@@ -2152,6 +2297,43 @@ function StaffInboxContent() {
                                             </div>
                                         );
                                     })}
+                                </div>
+                            )}
+
+                            {/* Junk Email Security Alert Banner with One-Click 'Not Spam' action */}
+                            {(activeTab === "spam" || isEmailSpam(activeEmailDetail)) && (
+                                <div className="mx-6 mt-3.5 p-3.5 rounded-2xl bg-amber-50/90 border border-amber-200/90 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-300 text-amber-800 flex items-center justify-center shrink-0">
+                                            <ShieldAlert className="w-5 h-5 text-amber-600" />
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-bold text-amber-950">
+                                                This message was identified as Junk / Spam
+                                            </p>
+                                            <p className="text-[11px] text-amber-800/90 mt-0.5">
+                                                Images and external links might be unsafe. If this is legitimate mail, click Not Spam to move it back to your Inbox.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                        <button
+                                            type="button"
+                                            onClick={(e) => handleMarkAsNotSpam(e, activeEmailDetail.id)}
+                                            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs hover:shadow-sm transition-all cursor-pointer"
+                                        >
+                                            <ShieldCheck className="w-3.5 h-3.5" />
+                                            <span>Not Spam</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => moveToTrash(activeEmailDetail.id)}
+                                            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 text-xs font-bold transition-all cursor-pointer"
+                                        >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                            <span>Delete</span>
+                                        </button>
+                                    </div>
                                 </div>
                             )}
 

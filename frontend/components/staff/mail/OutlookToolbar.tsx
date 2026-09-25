@@ -93,6 +93,9 @@ export interface OutlookToolbarProps {
     onMailRules?: () => void;
     onConditionalFormatting?: () => void;
 
+    // Spam context
+    isSpamActive?: boolean;
+
     // Available folders for Move To / Copy To
     availableFolders?: { name: string; prefix: string }[];
 }
@@ -120,6 +123,7 @@ export function OutlookToolbar({
     onDelete,
     onArchive,
     onJunk,
+    isSpamActive = false,
     onMarkRead,
     onMarkUnread,
     onToggleStar,
@@ -377,16 +381,26 @@ export function OutlookToolbar({
                         <span className="text-[10px] font-semibold text-slate-600 leading-tight mt-0.5">Archive</span>
                     </button>
 
-                    {/* Junk */}
+                    {/* Junk / Not Junk Toggle */}
                     <button
                         type="button"
                         onClick={onJunk}
                         disabled={!hasActiveEmail && selectedCount === 0}
-                        className="flex flex-col items-center justify-center px-2.5 py-1.5 hover:bg-rose-50/80 hover:text-rose-700 disabled:opacity-35 disabled:hover:bg-transparent rounded-xl text-slate-700 transition-all duration-200 cursor-pointer"
-                        title="Report as Junk / Spam"
+                        className={`flex flex-col items-center justify-center px-2.5 py-1.5 rounded-xl transition-all duration-200 cursor-pointer disabled:opacity-35 disabled:hover:bg-transparent ${
+                            isSpamActive
+                                ? "hover:bg-emerald-50 hover:text-emerald-700 text-emerald-700 font-bold"
+                                : "hover:bg-rose-50/80 hover:text-rose-700 text-slate-700"
+                        }`}
+                        title={isSpamActive ? "Restore to Inbox (Mark as Not Spam)" : "Report as Junk / Spam"}
                     >
-                        <Flame className="w-4 h-4 text-rose-500" />
-                        <span className="text-[10px] font-semibold text-slate-600 leading-tight mt-0.5">Junk</span>
+                        {isSpamActive ? (
+                            <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                        ) : (
+                            <Flame className="w-4 h-4 text-rose-500" />
+                        )}
+                        <span className={`text-[10px] font-semibold leading-tight mt-0.5 ${isSpamActive ? "text-emerald-700 font-bold" : "text-slate-600"}`}>
+                            {isSpamActive ? "Not Junk" : "Junk"}
+                        </span>
                     </button>
 
                     {/* Mark Dropdown */}

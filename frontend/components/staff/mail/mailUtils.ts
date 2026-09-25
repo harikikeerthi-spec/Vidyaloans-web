@@ -29,6 +29,86 @@ export interface MailItemBase {
     spamReasons?: string[];
 }
 
+export interface ParsedContact {
+    displayName: string;
+    email: string;
+    initials: string;
+}
+
+export function parseEmailContact(raw: string): ParsedContact {
+    if (!raw || typeof raw !== "string") {
+        return { displayName: "Unknown", email: "", initials: "?" };
+    }
+    const trimmed = raw.trim();
+
+    // Pattern: "Display Name <email@domain.com>" or Display Name <email@domain.com>
+    const angleMatch = trimmed.match(/^(?:["']?([^"']+)["']?\s*)?<([^>]+)>$/);
+    if (angleMatch) {
+        const namePart = (angleMatch[1] || "").trim();
+        const emailPart = (angleMatch[2] || "").trim();
+        const displayName = namePart || emailPart.split("@")[0] || emailPart;
+        return {
+            displayName,
+            email: emailPart,
+            initials: getContactInitials(displayName)
+        };
+    }
+
+    // Pattern: Just an email "user@domain.com"
+    if (trimmed.includes("@")) {
+        const emailPart = trimmed;
+        const localPart = emailPart.split("@")[0].replace(/[._-]/g, " ");
+        const formatted = localPart.replace(/\b\w/g, (c) => c.toUpperCase());
+        return {
+            displayName: formatted || emailPart,
+            email: emailPart,
+            initials: getContactInitials(formatted || emailPart)
+        };
+    }
+
+    // Pattern: Just a name or title like "University HUB" or "Hostinger"
+    return {
+        displayName: trimmed,
+        email: trimmed,
+        initials: getContactInitials(trimmed)
+    };
+}
+
+function getContactInitials(text: string): string {
+    if (!text) return "??";
+    const cleaned = text.replace(/[^a-zA-Z0-9\s]/g, " ").trim();
+    const parts = cleaned.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+        return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    if (parts.length === 1 && parts[0].length >= 2) {
+        return parts[0].substring(0, 2).toUpperCase();
+    }
+    if (parts.length === 1 && parts[0].length === 1) {
+        return parts[0].toUpperCase();
+    }
+    return "??";
+}
+
+export function getAvatarPalette(seed: string): { bg: string; text: string; border: string; ring: string } {
+    const palettes = [
+        { bg: "from-blue-600 to-indigo-700", text: "text-white", border: "border-blue-400/40", ring: "ring-blue-100" },
+        { bg: "from-violet-600 to-purple-700", text: "text-white", border: "border-violet-400/40", ring: "ring-violet-100" },
+        { bg: "from-emerald-600 to-teal-700", text: "text-white", border: "border-emerald-400/40", ring: "ring-emerald-100" },
+        { bg: "from-amber-600 to-orange-600", text: "text-white", border: "border-amber-400/40", ring: "ring-amber-100" },
+        { bg: "from-rose-600 to-pink-700", text: "text-white", border: "border-rose-400/40", ring: "ring-rose-100" },
+        { bg: "from-cyan-600 to-blue-700", text: "text-white", border: "border-cyan-400/40", ring: "ring-cyan-100" },
+        { bg: "from-indigo-600 to-violet-700", text: "text-white", border: "border-indigo-400/40", ring: "ring-indigo-100" },
+        { bg: "from-teal-600 to-emerald-700", text: "text-white", border: "border-teal-400/40", ring: "ring-teal-100" },
+    ];
+    let hash = 0;
+    for (let i = 0; i < (seed || "").length; i++) {
+        hash = (hash << 5) - hash + seed.charCodeAt(i);
+        hash |= 0;
+    }
+    return palettes[Math.abs(hash) % palettes.length];
+}
+
 /** Format timestamp like Outlook: "Today 18:07", "Yesterday 15:43", "Mon 14:02", or "15 Aug 2025" */
 export function formatOutlookDate(dateStr: string): string {
     if (!dateStr) return "";
