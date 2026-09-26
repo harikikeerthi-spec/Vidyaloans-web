@@ -229,14 +229,25 @@ export class EmailService {
    * Includes personalised greeting, loan offerings, platform features, and a CTA.
    */
   async sendDashboardWelcomeEmail(email: string, firstName?: string, lastName?: string) {
-    const fullName = firstName ? (lastName ? `${firstName} ${lastName}` : firstName) : '';
-    const name = firstName ? firstName : 'there';
+    const cleanEmail = (email || '').trim().toLowerCase();
+    if (!cleanEmail) {
+      console.warn('[EmailService] Cannot send welcome email: email address is empty');
+      return;
+    }
+
+    const cleanFirstName = (firstName || '').trim();
+    const cleanLastName = (lastName || '').trim();
+    const fullName = cleanFirstName ? (cleanLastName ? `${cleanFirstName} ${cleanLastName}` : cleanFirstName) : '';
+    const name = cleanFirstName || 'there';
     const frontendUrl = process.env.FRONTEND_URL || 'https://www.vidyaloans.in';
     const year = new Date().getFullYear();
 
+    const sanitizedName = fullName.replace(/["\r\n<>]/g, '').trim();
+    const recipient = sanitizedName ? `"${sanitizedName}" <${cleanEmail}>` : cleanEmail;
+
     const mailOptions = {
       from: this.getFromAddress(),
-      to: fullName ? `"${fullName}" <${email}>` : email,
+      to: recipient,
       replyTo: this.getReplyToAddress(),
       headers: this.getStandardHeaders(),
       subject: `Welcome to VidyaLoans, ${name}! Your Education Loan Journey Begins`,
@@ -409,16 +420,19 @@ export class EmailService {
     };
 
     try {
-      console.log(`[EmailService] Sending welcome email to new user: ${email}`);
+      console.log(`[EmailService] Sending welcome email to new user: ${cleanEmail}`);
       if (this.hasCredentials()) {
-        await this.transporter.sendMail(mailOptions);
-        console.log(`[EmailService] Welcome email sent successfully to ${email}`);
+        const info = await this.transporter.sendMail(mailOptions);
+        console.log(`[EmailService] Welcome email sent successfully to ${cleanEmail}. MessageId: ${info?.messageId}`);
+        return { success: true, messageId: info?.messageId };
       } else {
-        console.log(`[EmailService] Email credentials not configured – welcome email skipped for ${email}`);
+        console.log(`[EmailService] Email credentials not configured – welcome email skipped for ${cleanEmail}`);
+        return { success: false, message: 'Email credentials not configured' };
       }
-    } catch (error) {
+    } catch (error: any) {
       // Non-fatal: never block the login flow because of a welcome email failure
-      console.error(`[EmailService] Failed to send welcome email to ${email}:`, error);
+      console.error(`[EmailService] Failed to send welcome email to ${cleanEmail}:`, error?.message || error);
+      return { success: false, error: error?.message || error };
     }
   }
 

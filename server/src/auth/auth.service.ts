@@ -1095,8 +1095,8 @@ export class AuthService {
 
       // Fire-and-forget: send personalised dashboard welcome email on first profile completion
       if (isFirstProfileCompletion) {
-        void this.emailService.sendDashboardWelcomeEmail(email, firstName, lastName);
-        console.log(`[AuthService] Dashboard welcome email queued for ${email} (${firstName} ${lastName})`);
+        void this.emailService.sendDashboardWelcomeEmail(cleanEmail, firstName, lastName);
+        console.log(`[AuthService] Dashboard welcome email queued for ${cleanEmail} (${firstName} ${lastName})`);
       }
 
       return {
@@ -1260,6 +1260,11 @@ export class AuthService {
       phoneNumber: user.phoneNumber,
       isNewUser,
     });
+
+    if (isNewUser) {
+      void this.emailService.sendDashboardWelcomeEmail(cleanEmail, firstName.trim(), lastName.trim());
+      console.log(`[AuthService.submitLandingPageApplication] Dashboard welcome email queued for ${cleanEmail} (${firstName.trim()} ${lastName.trim()})`);
+    }
 
     return {
       success: true,

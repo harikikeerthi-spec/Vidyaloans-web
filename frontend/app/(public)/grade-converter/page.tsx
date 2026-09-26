@@ -685,23 +685,47 @@ Verified on Vidyaloans Study Abroad Grade Converter`;
                                     </div>
 
                                     {/* Interactive Range Slider (for numeric types) */}
-                                    {formData.inputType !== "letterGrade" && formData.inputType !== "marks" && (
-                                        <div className="space-y-1 pt-2">
-                                            <input
-                                                type="range"
-                                                min={currentConstraints.min}
-                                                max={currentConstraints.max}
-                                                step={currentConstraints.step}
-                                                value={parseFloat(formData.inputValue) || 0}
-                                                onChange={e => setFormData(prev => ({ ...prev, inputValue: e.target.value }))}
-                                                className="w-full h-2.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#6605c7]"
-                                            />
-                                            <div className="flex justify-between text-[10px] font-bold text-gray-400 px-1">
-                                                <span>Min: {currentConstraints.min}</span>
-                                                <span>Max: {currentConstraints.max}</span>
+                                    {formData.inputType !== "letterGrade" && formData.inputType !== "marks" && (() => {
+                                        const minVal = currentConstraints.min ?? 0;
+                                        const maxVal = currentConstraints.max ?? 10;
+                                        const rawVal = parseFloat(formData.inputValue);
+                                        const currentNum = isNaN(rawVal) ? minVal : Math.max(minVal, Math.min(maxVal, rawVal));
+                                        const progressPercent = maxVal > minVal
+                                            ? Math.min(100, Math.max(0, ((currentNum - minVal) / (maxVal - minVal)) * 100))
+                                            : 0;
+
+                                        return (
+                                            <div className="space-y-1.5 pt-2">
+                                                <div className="relative flex items-center">
+                                                    <input
+                                                        type="range"
+                                                        min={minVal}
+                                                        max={maxVal}
+                                                        step={currentConstraints.step}
+                                                        value={isNaN(rawVal) ? minVal : currentNum}
+                                                        onChange={e => {
+                                                            const val = e.target.value;
+                                                            setFormData(prev => ({ ...prev, inputValue: val }));
+                                                        }}
+                                                        className="w-full h-2.5 rounded-lg appearance-none cursor-pointer focus:outline-none"
+                                                        style={{
+                                                            background: `linear-gradient(to right, #2563eb 0%, #2563eb ${progressPercent}%, #e2e8f0 ${progressPercent}%, #e2e8f0 100%)`,
+                                                            accentColor: "#2563eb",
+                                                            ["--range-progress" as any]: `${progressPercent}%`,
+                                                            ["--range-color" as any]: "#2563eb",
+                                                            ["--range-thumb" as any]: "#2563eb",
+                                                            ["--range-shadow" as any]: "rgba(37, 99, 235, 0.40)"
+                                                        }}
+                                                    />
+                                                </div>
+                                                <div className="flex justify-between items-center text-[10px] font-bold text-gray-400 px-1">
+                                                    <span>Min: {minVal}</span>
+                                                    <span className="text-blue-600 font-black">{progressPercent.toFixed(0)}% Scale ({currentNum})</span>
+                                                    <span>Max: {maxVal}</span>
+                                                </div>
                                             </div>
-                                        </div>
-                                    )}
+                                        );
+                                    })()}
 
                                     {/* Total Marks Input (Only for Raw Marks) */}
                                     {formData.inputType === "marks" && (

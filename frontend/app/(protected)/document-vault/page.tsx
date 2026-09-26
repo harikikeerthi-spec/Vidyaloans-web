@@ -1521,21 +1521,21 @@ export default function DocumentVaultPage() {
                                     <div>
                                         <h3 className="text-base font-black text-gray-900 uppercase tracking-tight flex items-center gap-2">
                                             Step 1 Mandatory Requirement: Upload Passport or Aadhaar Card First
-                                            <span className="px-2.5 py-0.5 bg-[#6605c7] text-white text-[10px] font-black rounded-full uppercase tracking-widest shadow-sm">Required Step 1</span>
+                                            {/* <span className="px-2.5 py-0.5 bg-[#6605c7] text-white text-[10px] font-black rounded-full uppercase tracking-widest shadow-sm">Required Step 1</span> */}
                                         </h3>
                                         <p className="text-xs text-gray-600 font-medium mt-1 leading-relaxed max-w-2xl">
                                             To ensure identity verification and automatic detail extraction, you must upload either your <strong>Passport</strong> or <strong>Aadhaar Card</strong> first. All other document slots will unlock automatically once either your Passport or Aadhaar Card is uploaded.
                                         </p>
                                     </div>
                                 </div>
-                                <button
+                                {/* <button
                                     onClick={() => triggerFileInput("passport")}
                                     disabled={!!uploadingDocs["passport"]}
                                     className="px-6 py-3 bg-[#6605c7] hover:bg-[#5504a6] text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-purple-500/30 shrink-0 flex items-center justify-center gap-2 active:scale-95 relative z-10"
                                 >
                                     <span className="material-symbols-outlined text-[18px]">upload</span>
                                     Upload Identity Document
-                                </button>
+                                </button> */}
                             </div>
                         )}
 

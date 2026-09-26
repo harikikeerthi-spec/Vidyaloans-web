@@ -5,12 +5,25 @@ import Image from "next/image";
 import { banks } from "@/lib/bankData";
 import { referenceApi } from "@/lib/api";
 
+const formatApprovalTime = (raw: string | undefined): string => {
+    if (!raw) return "48 Hours";
+    const trimmed = raw.trim().toLowerCase();
+    if (trimmed === "48h" || trimmed === "48 hours" || trimmed === "48 hrs" || trimmed === "48hr" || trimmed === "48") return "48 Hours";
+    if (trimmed === "72h" || trimmed === "72 hours" || trimmed === "72 hrs" || trimmed === "72hr" || trimmed === "72") return "72 Hours";
+    if (trimmed.endsWith("h")) return `${trimmed.slice(0, -1)} Hours`;
+    if (trimmed === "3 days" || trimmed === "3days") return "3 Days";
+    if (trimmed === "5 days" || trimmed === "5days") return "5 Days";
+    if (trimmed.endsWith("hours")) return `${raw.replace(/hours/i, "Hours")}`;
+    if (trimmed.endsWith("days")) return `${raw.replace(/days/i, "Days")}`;
+    return raw;
+};
+
 const STATIC_LOAN_DATA = Object.values(banks).map(bank => ({
     id: bank.slug,
     bank: bank.name,
     logo: bank.logo,
     rate: bank.interestRate,
-    fee: bank.specifications.find(s => s.label === "Processing Fee")?.value || "1% + GST",
+    processingTime: formatApprovalTime(bank.approvalTime),
     tenure: bank.specifications.find(s => s.label === "Repayment Tenure")?.value || "Up to 15 Years",
     collateral: bank.specifications.find(s => s.label === "Collateral")?.value || "Profile based",
     tag: bank.uniqueFeatures[0]?.title || "Premium Partner"
@@ -36,7 +49,7 @@ export default function CompareLoansPage() {
                             bank: b.name,
                             logo: b.logoUrl || b.logo || staticMatch?.logo || `/banks/${slug}.png`,
                             rate: b.interestRateMin ? `${b.interestRateMin}% - ${b.interestRateMax || (b.interestRateMin + 3)}% p.a.` : (staticMatch?.rate || "From 10.25% p.a."),
-                            fee: b.processingFee || staticMatch?.fee || "1% + GST",
+                            processingTime: formatApprovalTime(b.processingTime || staticMatch?.processingTime || (b.approvalTime ? String(b.approvalTime) : "48 Hours")),
                             tenure: staticMatch?.tenure || "Up to 15 Years",
                             collateral: b.collateralRequired ? "Collateral Required" : (b.collateralFreeLimit ? `Collateral-free up to ₹${b.collateralFreeLimit}` : "Profile based"),
                             tag: b.isPopular ? "Most Popular Partner" : (staticMatch?.tag || "Active Lending Partner")
@@ -79,7 +92,7 @@ export default function CompareLoansPage() {
                         Compare Education Loans
                     </h1>
                     <p className="text-[13px] text-gray-500 max-w-xl leading-relaxed">
-                        Find the perfect loan for your education journey. Compare interest rates, processing fees, and terms from India's top lenders side-by-side.
+                        Find the perfect loan for your education journey. Compare interest rates, processing time, and terms from India's top lenders side-by-side.
                     </p>
                 </div>
 
@@ -116,8 +129,8 @@ export default function CompareLoansPage() {
                                     <span className="text-xl font-bold text-[#6605c7]">{loan.rate}</span>
                                 </div>
                                 <div className="flex justify-between">
-                                    <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Processing Fee</span>
-                                    <span className="text-[13px] font-bold text-gray-900">{loan.fee}</span>
+                                    <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Processing Time</span>
+                                    <span className="text-[13px] font-bold text-gray-900">{loan.processingTime}</span>
                                 </div>
                             </div>
 
@@ -201,7 +214,7 @@ export default function CompareLoansPage() {
                                 <tbody className="divide-y divide-gray-50 text-center">
                                     {[
                                         { label: "Interest Rate", key: "rate" },
-                                        { label: "Processing Fee", key: "fee" },
+                                        { label: "Processing Time", key: "processingTime" },
                                         { label: "Tenure", key: "tenure" },
                                         { label: "Collateral", key: "collateral" }
                                     ].map((row, i) => (

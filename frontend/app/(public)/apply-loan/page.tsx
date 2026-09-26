@@ -1106,9 +1106,10 @@ export default function ApplyLoanPage() {
                                                         return isNaN(fallback.getTime()) ? formData.dateOfBirth : fallback.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
                                                     })()
                                                 },
-                                                { label: "Co-Applicant", value: formData.coApplicant === "none" ? "None" : formData.coApplicant === "other" ? (formData.otherRelation ? formData.otherRelation.charAt(0).toUpperCase() + formData.otherRelation.slice(1) : "Other") : formData.coApplicant ? formData.coApplicant.charAt(0).toUpperCase() + formData.coApplicant.slice(1) : "" },
-                                                { label: "Co-Applicant Mobile", value: formData.coApplicantPhone },
-                                                { label: "Co-Applicant Email", value: formData.coApplicantEmail },
+                                                { label: "Co-Applicant Name", value: formData.coApplicant === "none" ? "" : formData.coApplicantName },
+                                                { label: "Co-Applicant Relation", value: formData.coApplicant === "none" ? "None" : formData.coApplicant === "other" ? (formData.otherRelation ? formData.otherRelation.charAt(0).toUpperCase() + formData.otherRelation.slice(1) : "Other") : formData.coApplicant ? formData.coApplicant.charAt(0).toUpperCase() + formData.coApplicant.slice(1) : "" },
+                                                { label: "Co-Applicant Mobile", value: formData.coApplicant === "none" ? "" : formData.coApplicantPhone },
+                                                { label: "Co-Applicant Email", value: formData.coApplicant === "none" ? "" : formData.coApplicantEmail },
                                                 { label: "Co-App Income", value: formData.income && formData.coApplicant !== "none" ? `₹${Number(formData.income.replace(/,/g, "")).toLocaleString("en-IN")}` : "" },
                                                 // { label: "Collateral", value: formData.collateral.split(':')[0] },
                                                 { label: "Residential Pincode", value: formData.pincode },

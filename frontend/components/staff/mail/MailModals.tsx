@@ -496,7 +496,10 @@ export function BlockSenderModal({
     onClose: () => void;
     onConfirmBlock: (target: string, type: "sender" | "domain", moveToJunk: boolean) => void;
 }) {
-    const domain = senderEmail?.includes("@") ? senderEmail.split("@")[1] : "";
+    const cleanEmail = senderEmail?.includes("<")
+        ? (senderEmail.match(/<([^>]+)>/)?.[1] || senderEmail).trim()
+        : (senderEmail || "").replace(/[<>"']/g, "").trim();
+    const domain = cleanEmail?.includes("@") ? cleanEmail.split("@")[1]?.replace(/[>]/g, "").trim() : "";
     const [blockType, setBlockType] = useState<"sender" | "domain">("sender");
     const [moveToJunk, setMoveToJunk] = useState(true);
 
@@ -515,7 +518,7 @@ export function BlockSenderModal({
                             <p className="text-[10px] text-rose-100">Add to mailbox blacklist</p>
                         </div>
                     </div>
-                    <button onClick={onClose} className="text-white/80 hover:text-white transition-colors">
+                    <button onClick={onClose} className="text-white/80 hover:text-white transition-colors cursor-pointer">
                         <X className="w-4 h-4" />
                     </button>
                 </div>
@@ -542,7 +545,7 @@ export function BlockSenderModal({
                             />
                             <div>
                                 <span className="text-xs font-bold text-slate-800 block">Block this specific sender</span>
-                                <span className="text-[11px] font-mono text-slate-500 truncate block mt-0.5">{senderEmail}</span>
+                                <span className="text-[11px] font-mono text-slate-500 truncate block mt-0.5">{cleanEmail || senderEmail}</span>
                             </div>
                         </label>
 
@@ -583,17 +586,17 @@ export function BlockSenderModal({
                 <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2">
                     <button
                         onClick={onClose}
-                        className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800"
+                        className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 cursor-pointer"
                     >
                         Cancel
                     </button>
                     <button
                         onClick={() => {
-                            const target = blockType === "domain" && domain ? `@${domain}` : senderEmail;
+                            const target = blockType === "domain" && domain ? `@${domain}` : cleanEmail;
                             onConfirmBlock(target, blockType, moveToJunk);
                             onClose();
                         }}
-                        className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all"
+                        className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all cursor-pointer"
                     >
                         Confirm Block
                     </button>

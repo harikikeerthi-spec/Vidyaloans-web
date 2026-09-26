@@ -414,7 +414,26 @@ export class AuthController {
 
     const phone = body.phoneNumber || body.mobile;
     const dob = body.dateOfBirth || body.dob;
-    const targetEmail = (body.newEmail || body.email || '').trim();
+    const targetEmail = (body.newEmail || body.email || '').trim().toLowerCase();
+
+    // Check if this is the user's first profile completion BEFORE updating
+    let existingUser: any = null;
+    try {
+      if (targetEmail) {
+        existingUser = await this.usersService.findOne(targetEmail);
+      } else if (body.userId) {
+        existingUser = await this.usersService.findById(body.userId);
+      }
+    } catch (e: any) {
+      console.warn('[AuthController.updateUserDetails] Failed to lookup existing user before update:', e?.message || e);
+    }
+
+    const isFirstProfileCompletion = !existingUser ||
+      !existingUser.firstName ||
+      existingUser.firstName === 'User' ||
+      existingUser.firstName === 'New Candidate' ||
+      !existingUser.phoneNumber ||
+      !existingUser.dateOfBirth;
 
     const result = await this.usersService.updateUserDetails(
       targetEmail,
@@ -435,6 +454,19 @@ export class AuthController {
       body.userId,
       body.passport
     );
+
+    // If update succeeded and this was the user's first profile completion, send dashboard welcome email
+    if (result && (result as any).success !== false && isFirstProfileCompletion) {
+      const emailToSend = targetEmail || existingUser?.email || (result as any)?.email;
+      const firstNameToSend = body.firstName || (result as any)?.firstName;
+      const lastNameToSend = body.lastName || (result as any)?.lastName;
+      const userRole = (result as any)?.role || existingUser?.role || 'user';
+
+      if (emailToSend && firstNameToSend && (userRole === 'user' || userRole === 'student')) {
+        void this.emailService.sendDashboardWelcomeEmail(emailToSend, firstNameToSend, lastNameToSend);
+        console.log(`[AuthController] Dashboard welcome email queued for ${emailToSend} (${firstNameToSend} ${lastNameToSend || ''})`);
+      }
+    }
 
     return result;
   }

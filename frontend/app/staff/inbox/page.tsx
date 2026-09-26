@@ -66,8 +66,6 @@ import {
     SignaturesModal,
     MailRulesModal,
     ConditionalFormattingModal,
-    StorageManagementModal,
-    StorageDetails,
 } from "@/components/staff/mail/MailModals";
 import {
     exportEmailToEml,
@@ -345,11 +343,18 @@ function StaffInboxContent() {
     const [showSignaturesModal, setShowSignaturesModal] = useState(false);
     const [showMailRulesModal, setShowMailRulesModal] = useState(false);
     const [showConditionalFormattingModal, setShowConditionalFormattingModal] = useState(false);
-    const [showStorageModal, setShowStorageModal] = useState(false);
     const [savedSignature, setSavedSignature] = useState<string>(
-        `<div style="font-family: sans-serif; font-size: 13px; color: #334155; margin-top: 14px; border-left: 3px solid #4F46E5; padding-left: 10px;">` +
-        `<strong>VidyaLoans Support Desk</strong><br/><span style="color: #64748b; font-size: 11px;">Education Lending Advisory &bull; vidyaloans.in</span></div>`
+        `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; color: #334155; margin-top: 14px; border-left: 3px solid #4F46E5; padding-left: 12px; line-height: 1.5;">` +
+        `<p style="margin: 0; font-weight: 700; color: #0f172a; font-size: 13px;">VidyaLoans Support Team</p>` +
+        `<p style="margin: 2px 0 0; color: #4F46E5; font-weight: 600; font-size: 12px;">Relationship Manager &bull; Student Lending Desk</p>` +
+        `<p style="margin: 4px 0 0; color: #64748b; font-size: 11px;">Direct: +91 8000 123 456 | Web: <a href="https://vidyaloans.in" style="color: #4F46E5; text-decoration: none;">vidyaloans.in</a></p>` +
+        `</div>`
     );
+    const editorRef = useRef<HTMLDivElement>(null);
+    const [selectedFont, setSelectedFont] = useState("sans-serif");
+    const [selectedFontSize, setSelectedFontSize] = useState("3");
+    const [selectedColor, setSelectedColor] = useState("#1e293b");
+    const [showColorPalette, setShowColorPalette] = useState(false);
     const [lightboxImage, setLightboxImage] = useState<{ url: string; filename?: string } | null>(null);
     const [activeAttachmentMenu, setActiveAttachmentMenu] = useState<number | null>(null);
 
@@ -410,6 +415,77 @@ function StaffInboxContent() {
     const [showPriorityMenu, setShowPriorityMenu] = useState(false);
     const [customScheduleInput, setCustomScheduleInput] = useState("");
 
+    // Synchronize editor content when modal opens or body changes
+    useEffect(() => {
+        if (isComposeOpen && editorRef.current) {
+            const currentHTML = editorRef.current.innerHTML;
+            const incoming = composeData.body || "";
+            if (incoming !== currentHTML) {
+                if (incoming.includes("<div") || incoming.includes("<p") || incoming.includes("<br") || incoming.includes("<table")) {
+                    editorRef.current.innerHTML = incoming;
+                } else if (incoming) {
+                    editorRef.current.innerHTML = incoming.replace(/\n/g, "<br/>");
+                } else {
+                    editorRef.current.innerHTML = "";
+                }
+            }
+        }
+    }, [isComposeOpen, composeData.subject]);
+
+    // Apply formatting to selected text
+    const applyFormat = (command: string, value: string | undefined = undefined) => {
+        if (!editorRef.current) return;
+        editorRef.current.focus();
+        document.execCommand(command, false, value);
+        if (editorRef.current) {
+            setComposeData((prev) => ({
+                ...prev,
+                body: editorRef.current!.innerHTML,
+            }));
+        }
+    };
+
+    // Insert rich signature into editor (renders visual HTML, not raw code)
+    const handleInsertSignature = (e: React.MouseEvent) => {
+        e.preventDefault();
+        if (!editorRef.current) return;
+        editorRef.current.focus();
+
+        // Remove existing signature block if present to prevent multiple copies
+        const existingSig = editorRef.current.querySelector(".email-signature-block");
+        if (existingSig) {
+            existingSig.remove();
+        }
+
+        const sigHtml = `
+            <div class="email-signature-block" style="margin-top: 24px; padding-top: 12px; border-top: 1px dashed #cbd5e1; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #334155; font-size: 13px; line-height: 1.5;">
+                ${savedSignature}
+            </div>
+        `;
+
+        const sel = window.getSelection();
+        let inserted = false;
+        if (sel && sel.rangeCount > 0 && editorRef.current.contains(sel.anchorNode)) {
+            try {
+                document.execCommand("insertHTML", false, sigHtml);
+                inserted = true;
+            } catch {
+                inserted = false;
+            }
+        }
+
+        if (!inserted) {
+            editorRef.current.insertAdjacentHTML("beforeend", sigHtml);
+        }
+
+        setComposeData((prev) => ({
+            ...prev,
+            body: editorRef.current!.innerHTML,
+        }));
+        setFeedbackToast({ type: "success", message: "Official signature inserted!" });
+        setTimeout(() => setFeedbackToast(null), 2500);
+    };
+
     // Initialize state from localStorage
     useEffect(() => {
         try {
@@ -463,6 +539,15 @@ function StaffInboxContent() {
 
             const savedDrafts = localStorage.getItem("vidya_mail_drafts");
             if (savedDrafts) setDraftEmails(JSON.parse(savedDrafts));
+
+            const savedBlacklist = localStorage.getItem("vidya_mail_blacklist_senders");
+            if (savedBlacklist) setBlacklistSenders(JSON.parse(savedBlacklist));
+
+            const savedWhitelist = localStorage.getItem("vidya_mail_whitelist_senders");
+            if (savedWhitelist) setWhitelistSenders(JSON.parse(savedWhitelist));
+
+            const savedSig = localStorage.getItem("vidya_mail_saved_signature");
+            if (savedSig) setSavedSignature(savedSig);
         } catch (e) {
             console.warn("Error reading mail local state", e);
         }
@@ -692,8 +777,23 @@ function StaffInboxContent() {
     const isEmailSpam = useCallback((e: MailSummaryItem) => {
         if (userNotSpamIds.has(e.id)) return false;
         if (userSpamIds.has(e.id)) return true;
+
+        if (blacklistSenders.length > 0) {
+            const fromLower = (e.from || "").toLowerCase();
+            const fromEmail = parseEmailContact(e.from).email.toLowerCase();
+            const isBlacklisted = blacklistSenders.some((b) => {
+                const blocked = b.trim().toLowerCase();
+                if (!blocked) return false;
+                if (blocked.startsWith("@")) {
+                    return fromLower.includes(blocked) || fromEmail.endsWith(blocked.substring(1));
+                }
+                return fromEmail === blocked || fromLower.includes(blocked);
+            });
+            if (isBlacklisted) return true;
+        }
+
         return Boolean(e.isSpam);
-    }, [userNotSpamIds, userSpamIds]);
+    }, [userNotSpamIds, userSpamIds, blacklistSenders]);
 
     // Filter and Sort emails
     const filteredEmails = useMemo(() => {
@@ -785,37 +885,7 @@ function StaffInboxContent() {
         return list;
     }, [emails, activeTab, starredIds, trashedIds, archiveIds, sentEmails, draftEmails, scheduledEmails, showOnlyUnread, filterType, readIds, searchQuery, isEmailSpam, sortOrder]);
 
-    // ── Email Storage Metrics & Quota Computation ──
-    const storageDetails: StorageDetails = useMemo(() => {
-        const totalIncomingBytes = emails.reduce((acc, e) => acc + (e.size || 0), 0);
-        const trashBytes = emails.filter((e) => trashedIds.has(e.id)).reduce((acc, e) => acc + (e.size || 0), 0);
-        const spamBytes = emails.filter((e) => userSpamIds.has(e.id) || (isEmailSpam(e) && !userNotSpamIds.has(e.id))).reduce((acc, e) => acc + (e.size || 0), 0);
-        const sentBytes = sentEmails.reduce((acc, e) => acc + (e.size || 2500), 0);
-        const inboxBytes = Math.max(0, totalIncomingBytes - trashBytes - spamBytes);
-        const usedBytes = totalIncomingBytes + sentBytes;
-        const quotaBytes = 15 * 1024 * 1024 * 1024; // 15 GB Enterprise Quota
-        const percentage = Number(Math.min(100, Math.max(0.1, (usedBytes / quotaBytes) * 100)).toFixed(2));
 
-        return {
-            usedBytes,
-            quotaBytes,
-            inboxBytes,
-            spamBytes,
-            trashBytes,
-            sentBytes,
-            percentage,
-            totalEmails: emails.length + sentEmails.length,
-            bucketName: "vidyaloans-incoming-emails",
-        };
-    }, [emails, trashedIds, userSpamIds, userNotSpamIds, sentEmails, isEmailSpam]);
-
-    const formatBytes = (bytes: number): string => {
-        if (!bytes || bytes <= 0) return "0 KB";
-        if (bytes < 1024) return `${bytes} B`;
-        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-        if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-        return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-    };
 
     const handleEmptyTrash = () => {
         setEmails((prev) => prev.filter((e) => !trashedIds.has(e.id)));
@@ -1108,6 +1178,9 @@ function StaffInboxContent() {
             body: "", // Mail type section is empty when replying as requested
             replyTo: staffMailbox || "support@vidyaloans.in",
         });
+        if (editorRef.current) {
+            editorRef.current.innerHTML = "";
+        }
         setAttachments([]);
         setIsComposeOpen(true);
         setIsComposeMinimized(false);
@@ -1128,6 +1201,9 @@ function StaffInboxContent() {
             body: "", // Mail type section is empty when replying as requested
             replyTo: staffMailbox || "support@vidyaloans.in",
         });
+        if (editorRef.current) {
+            editorRef.current.innerHTML = "";
+        }
         setAttachments([]);
         setIsComposeOpen(true);
         setIsComposeMinimized(false);
@@ -1473,10 +1549,12 @@ function StaffInboxContent() {
                 cc: composeData.cc ? composeData.cc.split(",").map((s) => s.trim()).filter(Boolean) : undefined,
                 bcc: composeData.bcc ? composeData.bcc.split(",").map((s) => s.trim()).filter(Boolean) : undefined,
                 subject: composeData.subject,
-                text: composeData.body.replace(/<[^>]*>/g, ""),
-                html: composeData.body.includes("<div") || composeData.body.includes("<p") || composeData.body.includes("<br")
-                    ? composeData.body
-                    : `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; line-height: 1.6; color: #1e293b; white-space: pre-wrap;">${composeData.body}</div>`,
+                text: editorRef.current ? (editorRef.current.innerText || "") : composeData.body.replace(/<[^>]*>/g, ""),
+                html: editorRef.current
+                    ? `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; line-height: 1.6; color: #1e293b;">${editorRef.current.innerHTML}</div>`
+                    : (composeData.body.includes("<div") || composeData.body.includes("<p") || composeData.body.includes("<br")
+                        ? composeData.body
+                        : `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; line-height: 1.6; color: #1e293b; white-space: pre-wrap;">${composeData.body}</div>`),
                 replyTo: composeData.replyTo || undefined,
                 attachments: attachments.map((a) => ({
                     filename: a.filename,
@@ -1526,6 +1604,7 @@ function StaffInboxContent() {
 
             setIsComposeOpen(false);
             setComposeData({ to: "", cc: "", bcc: "", subject: "", body: "", replyTo: "" });
+            if (editorRef.current) editorRef.current.innerHTML = "";
             setAttachments([]);
             setComposePriority("normal");
             setComposeReadReceipt(false);
@@ -1600,12 +1679,70 @@ function StaffInboxContent() {
     }, [selectedFolder, foldersList]);
 
     const handleBlockSender = (target: string, type: "sender" | "domain", moveToJunk: boolean) => {
-        setBlacklistSenders((prev) => [...new Set([...prev, target.toLowerCase()])]);
-        if (moveToJunk && activeEmailDetail) {
-            setUserSpamIds((prev) => new Set([...prev, activeEmailDetail.id]));
-            setFeedbackToast({ type: "success", message: `Blocked ${target}. Existing messages routed to Junk.` });
+        const cleanTarget = target.trim().toLowerCase();
+        if (!cleanTarget) return;
+
+        const nextBlacklist = Array.from(new Set([...blacklistSenders, cleanTarget]));
+        setBlacklistSenders(nextBlacklist);
+        try {
+            localStorage.setItem("vidya_mail_blacklist_senders", JSON.stringify(nextBlacklist));
+        } catch { }
+
+        // Find all matching emails
+        const matchingIds = emails
+            .filter((em) => {
+                const fromLower = (em.from || "").toLowerCase();
+                const fromEmail = parseEmailContact(em.from).email.toLowerCase();
+                if (cleanTarget.startsWith("@")) {
+                    return fromLower.includes(cleanTarget) || fromEmail.endsWith(cleanTarget.substring(1));
+                }
+                return fromEmail === cleanTarget || fromLower.includes(cleanTarget);
+            })
+            .map((em) => em.id);
+
+        if (activeEmailDetail && !matchingIds.includes(activeEmailDetail.id)) {
+            const activeFrom = parseEmailContact(activeEmailDetail.from).email.toLowerCase();
+            const matches = cleanTarget.startsWith("@")
+                ? activeFrom.endsWith(cleanTarget.substring(1)) || activeEmailDetail.from.toLowerCase().includes(cleanTarget)
+                : activeFrom === cleanTarget || activeEmailDetail.from.toLowerCase().includes(cleanTarget);
+            if (matches) {
+                matchingIds.push(activeEmailDetail.id);
+            }
+        }
+
+        if (moveToJunk) {
+            setUserSpamIds((prev) => {
+                const next = new Set(prev);
+                matchingIds.forEach((id) => next.add(id));
+                try {
+                    localStorage.setItem("vidya_mail_user_spam_ids", JSON.stringify(Array.from(next)));
+                } catch { }
+                return next;
+            });
+
+            setUserNotSpamIds((prev) => {
+                const next = new Set(prev);
+                matchingIds.forEach((id) => next.delete(id));
+                try {
+                    localStorage.setItem("vidya_mail_user_not_spam_ids", JSON.stringify(Array.from(next)));
+                } catch { }
+                return next;
+            });
+
+            if (activeEmailDetail && matchingIds.includes(activeEmailDetail.id) && activeTab !== "spam") {
+                setSelectedEmailId(null);
+                setActiveEmailDetail(null);
+            }
+
+            setFeedbackToast({
+                type: "success",
+                message: `Blocked ${cleanTarget}. ${matchingIds.length > 0 ? `${matchingIds.length} message(s) moved to Junk.` : "Messages will be routed to Junk."}`,
+            });
         } else {
-            setFeedbackToast({ type: "success", message: `Blocked ${target}. Future emails will be filtered.` });
+            setFeedbackToast({
+                type: "success",
+                message: `Blocked ${cleanTarget}. Future emails will be routed to Junk.`,
+            });
         }
         setTimeout(() => setFeedbackToast(null), 3500);
     };
@@ -1885,40 +2022,7 @@ function StaffInboxContent() {
                         })}
                     </nav>
 
-                    {/* ── Mailbox Cloud Storage Indicator ── */}
-                    <div className="p-2.5 border-t border-slate-100 bg-slate-50/50">
-                        <button
-                            type="button"
-                            onClick={() => setShowStorageModal(true)}
-                            className="w-full text-left group p-2 rounded-xl bg-white border border-slate-200/90 hover:border-indigo-300 hover:shadow-xs transition-all cursor-pointer"
-                        >
-                            <div className="flex items-center justify-between mb-1.5">
-                                <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5 group-hover:text-indigo-600 transition-colors">
-                                    <Cloud className="w-3.5 h-3.5 text-indigo-500" />
-                                    <span>Storage</span>
-                                </span>
-                                <span className="text-[10px] font-bold text-slate-500 font-mono">
-                                    {storageDetails.percentage.toFixed(1)}%
-                                </span>
-                            </div>
-                            <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden mb-1.5 shadow-2xs">
-                                <div
-                                    style={{ width: `${Math.max(2, storageDetails.percentage)}%` }}
-                                    className={`h-full rounded-full transition-all duration-300 ${
-                                        storageDetails.percentage > 90
-                                            ? "bg-rose-500"
-                                            : storageDetails.percentage > 70
-                                            ? "bg-amber-500"
-                                            : "bg-indigo-600"
-                                    }`}
-                                />
-                            </div>
-                            <div className="flex items-center justify-between text-[10px] text-slate-400">
-                                <span>{formatBytes(storageDetails.usedBytes)} of 15 GB</span>
-                                <span className="text-indigo-600 font-semibold group-hover:underline">Manage</span>
-                            </div>
-                        </button>
-                    </div>
+
 
                     {/* Staff Profile Footer */}
                     <div className="p-3 border-t border-slate-100/80 bg-slate-50/60 flex items-center gap-2.5">
@@ -2763,7 +2867,7 @@ function StaffInboxContent() {
             />
 
             <BlockSenderModal
-                senderEmail={activeEmailDetail?.from || ""}
+                senderEmail={activeSenderContact?.email || (activeEmailDetail?.from ? parseEmailContact(activeEmailDetail.from).email : "")}
                 isOpen={showBlockSenderModal}
                 onClose={() => setShowBlockSenderModal(false)}
                 onConfirmBlock={handleBlockSender}
@@ -2810,13 +2914,7 @@ function StaffInboxContent() {
                 onClose={() => setShowConditionalFormattingModal(false)}
             />
 
-            <StorageManagementModal
-                isOpen={showStorageModal}
-                onClose={() => setShowStorageModal(false)}
-                storage={storageDetails}
-                onEmptyTrash={handleEmptyTrash}
-                onEmptySpam={handleEmptySpam}
-            />
+
 
             {/* ── 5. COMPOSE & REPLY MODAL (WITH IMAGE INSERTION) ── */}
             {isComposeOpen && (
@@ -2929,81 +3027,206 @@ function StaffInboxContent() {
                             </div>
 
                             {/* Rich Formatting Toolbar & Signature Helper */}
-                            <div className="px-3 py-1.5 bg-slate-50/80 border-b border-slate-200/80 flex items-center justify-between flex-wrap gap-2 text-slate-600">
-                                <div className="flex items-center gap-1">
+                            <div className="px-3 py-1.5 bg-slate-50/90 border-b border-slate-200/80 flex items-center justify-between flex-wrap gap-2 text-slate-700">
+                                <div className="flex items-center gap-1 flex-wrap">
+                                    {/* Font Family Selector */}
+                                    <select
+                                        value={selectedFont}
+                                        onChange={(e) => {
+                                            const font = e.target.value;
+                                            setSelectedFont(font);
+                                            applyFormat("fontName", font);
+                                        }}
+                                        title="Font Family (Selected text)"
+                                        className="h-7 px-2 text-xs font-semibold bg-white border border-slate-200 rounded-lg text-slate-700 hover:border-indigo-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-2xs"
+                                    >
+                                        <option value="sans-serif">Default Sans</option>
+                                        <option value="Arial, sans-serif">Arial</option>
+                                        <option value="Segoe UI, sans-serif">Segoe UI</option>
+                                        <option value="Georgia, serif">Georgia</option>
+                                        <option value="'Times New Roman', serif">Times New Roman</option>
+                                        <option value="'Courier New', monospace">Courier New</option>
+                                        <option value="Verdana, sans-serif">Verdana</option>
+                                        <option value="'Trebuchet MS', sans-serif">Trebuchet MS</option>
+                                    </select>
+
+                                    {/* Font Size Selector */}
+                                    <select
+                                        value={selectedFontSize}
+                                        onChange={(e) => {
+                                            const sz = e.target.value;
+                                            setSelectedFontSize(sz);
+                                            applyFormat("fontSize", sz);
+                                        }}
+                                        title="Font Size (Selected text)"
+                                        className="h-7 px-2 text-xs font-semibold bg-white border border-slate-200 rounded-lg text-slate-700 hover:border-indigo-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-2xs"
+                                    >
+                                        <option value="1">Small (10pt)</option>
+                                        <option value="2">Medium (11pt)</option>
+                                        <option value="3">Normal (13pt)</option>
+                                        <option value="4">Large (15pt)</option>
+                                        <option value="5">X-Large (18pt)</option>
+                                        <option value="6">Huge (24pt)</option>
+                                    </select>
+
+                                    <span className="w-px h-4 bg-slate-200 mx-1" />
+
+                                    {/* Bold */}
                                     <button
                                         type="button"
-                                        title="Bold"
-                                        onClick={() => {
-                                            setComposeData((prev) => ({ ...prev, body: prev.body + " **bold text** " }));
-                                        }}
-                                        className="w-6 h-6 rounded flex items-center justify-center font-bold text-xs hover:bg-slate-200 text-slate-700 transition-colors"
+                                        title="Bold (Ctrl+B) - Applied to selected text"
+                                        onMouseDown={(e) => { e.preventDefault(); applyFormat("bold"); }}
+                                        className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
                                     >
                                         B
                                     </button>
+
+                                    {/* Italic */}
                                     <button
                                         type="button"
-                                        title="Italic"
-                                        onClick={() => {
-                                            setComposeData((prev) => ({ ...prev, body: prev.body + " *italic text* " }));
-                                        }}
-                                        className="w-6 h-6 rounded flex items-center justify-center italic text-xs hover:bg-slate-200 text-slate-700 transition-colors font-serif"
+                                        title="Italic (Ctrl+I) - Applied to selected text"
+                                        onMouseDown={(e) => { e.preventDefault(); applyFormat("italic"); }}
+                                        className="w-7 h-7 rounded-lg flex items-center justify-center italic text-xs hover:bg-slate-200 text-slate-700 transition-colors font-serif cursor-pointer"
                                     >
                                         I
                                     </button>
+
+                                    {/* Underline */}
                                     <button
                                         type="button"
-                                        title="Underline"
-                                        onClick={() => {
-                                            setComposeData((prev) => ({ ...prev, body: prev.body + " <u>underlined text</u> " }));
-                                        }}
-                                        className="w-6 h-6 rounded flex items-center justify-center underline text-xs hover:bg-slate-200 text-slate-700 transition-colors"
+                                        title="Underline (Ctrl+U) - Applied to selected text"
+                                        onMouseDown={(e) => { e.preventDefault(); applyFormat("underline"); }}
+                                        className="w-7 h-7 rounded-lg flex items-center justify-center underline text-xs hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
                                     >
                                         U
                                     </button>
+
+                                    {/* Strikethrough */}
+                                    <button
+                                        type="button"
+                                        title="Strikethrough - Applied to selected text"
+                                        onMouseDown={(e) => { e.preventDefault(); applyFormat("strikeThrough"); }}
+                                        className="w-7 h-7 rounded-lg flex items-center justify-center line-through text-xs hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
+                                    >
+                                        S
+                                    </button>
+
                                     <span className="w-px h-4 bg-slate-200 mx-1" />
+
+                                    {/* Font Color Picker Popover */}
+                                    <div className="relative">
+                                        <button
+                                            type="button"
+                                            title="Text Color (Selected text)"
+                                            onMouseDown={(e) => { e.preventDefault(); setShowColorPalette(!showColorPalette); }}
+                                            className="h-7 px-2 rounded-lg flex items-center gap-1.5 text-xs hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
+                                        >
+                                            <span className="font-bold">A</span>
+                                            <span className="w-3 h-3 rounded-full border border-slate-300 shadow-2xs" style={{ backgroundColor: selectedColor }} />
+                                        </button>
+                                        {showColorPalette && (
+                                            <div
+                                                onMouseDown={(e) => e.preventDefault()}
+                                                className="absolute left-0 top-full mt-1 p-2 bg-white rounded-xl shadow-xl border border-slate-200 z-50 flex items-center gap-1.5 animate-in fade-in zoom-in-95 duration-100"
+                                            >
+                                                {[
+                                                    { color: "#0f172a", label: "Black" },
+                                                    { color: "#475569", label: "Slate" },
+                                                    { color: "#4338ca", label: "Indigo" },
+                                                    { color: "#2563eb", label: "Blue" },
+                                                    { color: "#059669", label: "Emerald" },
+                                                    { color: "#e11d48", label: "Rose" },
+                                                    { color: "#d97706", label: "Amber" },
+                                                    { color: "#7c3aed", label: "Purple" },
+                                                ].map((c) => (
+                                                    <button
+                                                        key={c.color}
+                                                        type="button"
+                                                        title={c.label}
+                                                        onMouseDown={(e) => {
+                                                            e.preventDefault();
+                                                            setSelectedColor(c.color);
+                                                            applyFormat("foreColor", c.color);
+                                                            setShowColorPalette(false);
+                                                        }}
+                                                        className="w-5 h-5 rounded-full border border-black/10 hover:scale-110 transition-transform cursor-pointer shadow-2xs"
+                                                        style={{ backgroundColor: c.color }}
+                                                    />
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <span className="w-px h-4 bg-slate-200 mx-1" />
+
+                                    {/* Bullet List */}
                                     <button
                                         type="button"
                                         title="Bullet List"
-                                        onClick={() => {
-                                            setComposeData((prev) => ({ ...prev, body: prev.body + "\n• Item 1\n• Item 2" }));
-                                        }}
-                                        className="px-1.5 py-0.5 rounded text-[11px] font-mono hover:bg-slate-200 text-slate-700 transition-colors"
+                                        onMouseDown={(e) => { e.preventDefault(); applyFormat("insertUnorderedList"); }}
+                                        className="px-2 h-7 rounded-lg text-xs font-mono hover:bg-slate-200 text-slate-700 transition-colors flex items-center gap-1 cursor-pointer"
                                     >
                                         &bull; List
+                                    </button>
+
+                                    {/* Numbered List */}
+                                    <button
+                                        type="button"
+                                        title="Numbered List"
+                                        onMouseDown={(e) => { e.preventDefault(); applyFormat("insertOrderedList"); }}
+                                        className="px-2 h-7 rounded-lg text-xs font-mono hover:bg-slate-200 text-slate-700 transition-colors flex items-center gap-1 cursor-pointer"
+                                    >
+                                        1. List
+                                    </button>
+
+                                    {/* Clear formatting */}
+                                    <button
+                                        type="button"
+                                        title="Clear Formatting (Selected text)"
+                                        onMouseDown={(e) => { e.preventDefault(); applyFormat("removeFormat"); }}
+                                        className="px-2 h-7 rounded-lg text-[11px] font-semibold hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
+                                    >
+                                        Clear
                                     </button>
                                 </div>
 
                                 <div className="flex items-center gap-2">
                                     <button
                                         type="button"
-                                        onClick={() => {
-                                            setComposeData((prev) => ({
-                                                ...prev,
-                                                body: prev.body + "\n\n" + savedSignature,
-                                            }));
-                                            setFeedbackToast({ type: "success", message: "HTML Signature inserted!" });
-                                            setTimeout(() => setFeedbackToast(null), 2500);
-                                        }}
-                                        className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-[10px] font-bold border border-indigo-200 transition-colors cursor-pointer"
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={handleInsertSignature}
+                                        className="inline-flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-indigo-50 to-violet-50 hover:from-indigo-100 hover:to-violet-100 text-indigo-700 rounded-lg text-xs font-bold border border-indigo-200 transition-colors cursor-pointer shadow-2xs"
                                     >
-                                        <PenTool className="w-3 h-3" />
+                                        <PenTool className="w-3.5 h-3.5 text-indigo-600" />
                                         <span>Insert Signature</span>
                                     </button>
                                     <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                                        Spell Check: On
+                                        Rich HTML
                                     </span>
                                 </div>
                             </div>
 
-                            {/* Body */}
-                            <textarea
-                                placeholder="Type your message here..."
-                                value={composeData.body}
-                                onChange={(e) => setComposeData({ ...composeData, body: e.target.value })}
-                                spellCheck={true}
-                                className="flex-1 p-4 text-xs leading-relaxed font-sans focus:outline-none resize-none"
-                            />
+                            {/* Body: Rich ContentEditable Editor with visual formatting & signature */}
+                            <div
+                                className="flex-1 p-4 overflow-y-auto focus:outline-none flex flex-col cursor-text min-h-[180px] bg-white"
+                                onClick={() => editorRef.current?.focus()}
+                            >
+                                <div
+                                    ref={editorRef}
+                                    contentEditable
+                                    suppressContentEditableWarning
+                                    onInput={() => {
+                                        if (editorRef.current) {
+                                            setComposeData((prev) => ({
+                                                ...prev,
+                                                body: editorRef.current!.innerHTML,
+                                            }));
+                                        }
+                                    }}
+                                    data-placeholder="Type your message here..."
+                                    className="flex-1 text-xs leading-relaxed font-sans focus:outline-none min-h-[140px] empty:before:content-[attr(data-placeholder)] empty:before:text-slate-400 empty:before:pointer-events-none"
+                                />
+                            </div>
 
                             {/* Attachments Pills with Image Thumbnail Support */}
                             {attachments.length > 0 && (
