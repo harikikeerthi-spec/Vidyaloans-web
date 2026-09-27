@@ -79,7 +79,6 @@ export default async function BankPage({ params }: Props) {
                 specifications: [
                     { label: "Interest Rate", value: `${roiStr} p.a.` },
                     { label: "Loan Amount", value: dbBank.maxLoanAmount },
-                    { label: "Processing Fee", value: dbBank.processingFee },
                     { label: "Repayment Tenure", value: bank.specifications?.find(s => s.label === "Repayment Tenure")?.value || "Up to 15 years" },
                     { label: "Moratorium Period", value: bank.specifications?.find(s => s.label === "Moratorium Period")?.value || "Course + 12 months" },
                     { label: "Collateral", value: dbBank.collateralRequired ? "Required" : `Not required up to ${dbBank.collateralFreeLimit || '₹40L'}` }
@@ -107,7 +106,6 @@ export default async function BankPage({ params }: Props) {
                 specifications: [
                     { label: "Interest Rate", value: `${roiStr} p.a.` },
                     { label: "Loan Amount", value: dbBank.maxLoanAmount },
-                    { label: "Processing Fee", value: dbBank.processingFee },
                     { label: "Repayment Tenure", value: "Up to 15 years" },
                     { label: "Moratorium Period", value: "Course + 12 months" },
                     { label: "Collateral", value: dbBank.collateralRequired ? "Required" : `Not required up to ${dbBank.collateralFreeLimit || '₹40L'}` }
@@ -188,7 +186,7 @@ export default async function BankPage({ params }: Props) {
                                 </p>
 
                                 {/* Quick Stats Cards */}
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
                                     <div className="bg-gradient-to-br from-[#6605c7]/5 to-[#6605c7]/10 p-5 rounded-2xl border border-[#6605c7]/10">
                                         <div className="flex items-center gap-2 mb-2">
                                             <span className="material-symbols-outlined text-[#6605c7] text-lg">percent</span>
@@ -212,14 +210,6 @@ export default async function BankPage({ params }: Props) {
                                         </div>
                                         <p className="text-2xl font-bold text-gray-900">{bank.approvalTime}</p>
                                         <p className="text-xs text-gray-500 mt-1">fast-track</p>
-                                    </div>
-                                    <div className="bg-gradient-to-br from-orange-50 to-orange-100/50 p-5 rounded-2xl border border-orange-100">
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <span className="material-symbols-outlined text-orange-600 text-lg">receipt</span>
-                                            <span className="text-xs font-bold text-orange-600 uppercase tracking-wider">Processing</span>
-                                        </div>
-                                        <p className="text-2xl font-bold text-gray-900">{bank.specifications.find(s => s.label === "Processing Fee")?.value || "1% + GST"}</p>
-                                        <p className="text-xs text-gray-500 mt-1">one-time</p>
                                     </div>
                                 </div>
 
@@ -309,7 +299,7 @@ export default async function BankPage({ params }: Props) {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {bank.specifications.map((spec, i) => (
+                                    {bank.specifications.filter(spec => !spec.label.toLowerCase().includes("processing")).map((spec, i) => (
                                         <tr key={i} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
                                             <td className="p-6 text-gray-600 font-medium">{spec.label}</td>
                                             <td className="p-6 font-bold text-gray-900">{spec.value}</td>
