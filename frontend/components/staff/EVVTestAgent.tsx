@@ -36,18 +36,18 @@ interface ConsoleMessage {
   kind?: "ok" | "warn" | "error";
 }
 
-// Interactive SVG Gradient Area Chart
+// Interactive SVG Gradient Area Chart — Monthly Balance & Credit Trend
 const EVVGradientAreaChart: React.FC<{ metrics: MonthlyMetric[] }> = ({ metrics }) => {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
   if (!metrics || metrics.length === 0) return null;
 
-  const width = 600;
-  const height = 220;
-  const paddingLeft = 55;
-  const paddingRight = 15;
+  const width = 640;
+  const height = 230;
+  const paddingLeft = 58;
+  const paddingRight = 24;
   const paddingTop = 25;
-  const paddingBottom = 35;
+  const paddingBottom = 38;
 
   const chartWidth = width - paddingLeft - paddingRight;
   const chartHeight = height - paddingTop - paddingBottom;
@@ -85,131 +85,192 @@ const EVVGradientAreaChart: React.FC<{ metrics: MonthlyMetric[] }> = ({ metrics 
     return { y, val };
   });
 
+  const formatMonthDisplay = (label: string) => {
+    try {
+      const d = new Date(label);
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+      }
+    } catch {}
+    return label;
+  };
+
   return (
-    <div className="bg-white/70 border border-violet-100/60 rounded-3xl p-6 shadow-sm relative group/chart">
-      <div className="text-xs font-bold text-slate-700 mb-4 flex items-center justify-between uppercase tracking-wider">
-        <span className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-violet-600 text-base">show_chart</span>
+    <div className="bg-white border border-[#E2E8F0] rounded-2xl p-6 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05),0_2px_4px_-1px_rgba(0,0,0,0.03)] relative select-none font-sans">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <h4 className="text-[13px] font-semibold text-[#475569] uppercase tracking-wider font-sans">
           Monthly Balance & Credit Trend
+        </h4>
+        <span className="text-[10px] font-semibold text-[#4F46E5] bg-[#EEF2FF] border border-[#E0E7FF] px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+          INR
         </span>
-        <span className="text-[9px] font-black text-violet-600 bg-violet-50 border border-violet-100 px-2 py-0.5 rounded-full uppercase tracking-widest">INR</span>
       </div>
 
-      <div className="relative w-full overflow-x-auto scrollbar-hide">
+      <div className="relative w-full overflow-x-auto scrollbar-hide py-1">
+        {/* Floating Interactive Tooltip */}
+        {hoveredIdx !== null && points[hoveredIdx] && (
+          <div
+            className="absolute pointer-events-none z-30 transition-all duration-150 ease-out"
+            style={{
+              left: `${(points[hoveredIdx].x / width) * 100}%`,
+              top: `${(points[hoveredIdx].y / height) * 100}%`,
+              transform:
+                points[hoveredIdx].x < width * 0.22
+                  ? "translate(4%, -118%)"
+                  : points[hoveredIdx].x > width * 0.78
+                  ? "translate(-104%, -118%)"
+                  : "translate(-50%, -118%)",
+            }}
+          >
+            <div className="bg-[#1E293B]/95 backdrop-blur-[4px] text-white rounded-[8px] p-2.5 px-3.5 shadow-xl border border-white/10 space-y-1 select-none min-w-[135px]">
+              <p className="text-[11px] font-medium text-[#94A3B8] leading-none">
+                {formatMonthDisplay(points[hoveredIdx].metric.label)}
+              </p>
+              <p className="text-sm font-bold text-[#FFFFFF] tracking-tight font-mono leading-tight">
+                ₹{Math.round(points[hoveredIdx].metric.avg).toLocaleString("en-IN")}
+              </p>
+              <div className="flex items-center justify-between gap-3 pt-1 border-t border-white/10 text-[9.5px] text-[#94A3B8]">
+                <span>Min: ₹{Math.round(points[hoveredIdx].metric.min).toLocaleString("en-IN")}</span>
+                <span>Max: ₹{Math.round(points[hoveredIdx].metric.max).toLocaleString("en-IN")}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
         <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto overflow-visible select-none min-w-[480px]">
           <defs>
+            {/* Highly transparent area fill gradient fading to 0% at X-axis */}
             <linearGradient id="chartAreaGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#7C3AED" stopOpacity="0.28" />
-              <stop offset="100%" stopColor="#7C3AED" stopOpacity="0.00" />
+              <stop offset="0%" stopColor="#6366F1" stopOpacity="0.15" />
+              <stop offset="100%" stopColor="#FFFFFF" stopOpacity="0.00" />
             </linearGradient>
+
+            {/* Horizontal gradient on line stroke: Bright Indigo (#6366F1) to Deep Violet (#8B5CF6) */}
             <linearGradient id="chartLineGradient" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="#4C1D95" />
+              <stop offset="0%" stopColor="#6366F1" />
               <stop offset="100%" stopColor="#8B5CF6" />
             </linearGradient>
+
+            {/* Purple glow filter for hovered node marker */}
+            <filter id="purpleNodeGlow" x="-50%" y="-50%" width="200%" height="200%">
+              <feDropShadow dx="0" dy="0" stdDeviation="3.5" floodColor="#6366F1" floodOpacity="0.65" />
+            </filter>
           </defs>
 
-          {/* Grid lines */}
+          {/* Ultra-faint Horizontal Grid Lines (No vertical grid lines) */}
           {gridLines.map((line, idx) => (
-            <g key={idx} className="opacity-40">
+            <g key={idx}>
               <line
                 x1={paddingLeft}
                 y1={line.y}
                 x2={width - paddingRight}
                 y2={line.y}
-                stroke="#DDD6FE"
+                stroke="#F1F5F9"
                 strokeDasharray="4 4"
-                strokeWidth="1"
+                strokeWidth="1.2"
               />
               <text
-                x={paddingLeft - 8}
-                y={line.y + 3}
+                x={paddingLeft - 12}
+                y={line.y + 3.5}
                 textAnchor="end"
-                className="fill-slate-400 font-mono text-[9px]"
+                className="fill-[#94A3B8] font-sans text-[11px] font-medium"
               >
                 ₹{Math.round(line.val / 1000)}k
               </text>
             </g>
           ))}
 
-          {/* Area fill */}
+          {/* Area Fill */}
           {areaPath && <path d={areaPath} fill="url(#chartAreaGradient)" />}
 
-          {/* X axis line */}
+          {/* Baseline */}
           <line
             x1={paddingLeft}
             y1={height - paddingBottom}
             x2={width - paddingRight}
             y2={height - paddingBottom}
-            stroke="#CBD5E1"
-            strokeWidth="1.5"
+            stroke="#F1F5F9"
+            strokeWidth="1"
           />
 
-          {/* Line stroke */}
+          {/* Line Stroke with Smooth Spline (3px width) */}
           {linePath && (
             <path
               d={linePath}
               fill="none"
               stroke="url(#chartLineGradient)"
-              strokeWidth="3.5"
+              strokeWidth="3"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
           )}
 
-          {/* Data Points */}
-          {points.map((pt, idx) => (
-            <g
-              key={idx}
-              onMouseEnter={() => setHoveredIdx(idx)}
-              onMouseLeave={() => setHoveredIdx(null)}
-              className="cursor-pointer"
-            >
-              <circle
-                cx={pt.x}
-                cy={pt.y}
-                r="10"
-                className={`fill-violet-400/20 stroke-none transition-all duration-200 ${hoveredIdx === idx ? "scale-100 opacity-100" : "scale-50 opacity-0"
-                  }`}
-              />
-              <circle
-                cx={pt.x}
-                cy={pt.y}
-                r={hoveredIdx === idx ? "6.5" : "5"}
-                className="fill-white stroke-[#5B21B6] stroke-[3.5] transition-all duration-200"
-              />
-            </g>
-          ))}
+          {/* Data Nodes (Markers): Solid white with 2px purple border; expands + glows on hover */}
+          {points.map((pt, idx) => {
+            const isHovered = hoveredIdx === idx;
+            return (
+              <g
+                key={idx}
+                onMouseEnter={() => setHoveredIdx(idx)}
+                onMouseLeave={() => setHoveredIdx(null)}
+                className="cursor-pointer"
+              >
+                {/* Invisible larger hit target for smooth mouse tracking */}
+                <circle cx={pt.x} cy={pt.y} r="14" fill="transparent" />
 
-          {/* Month labels */}
-          {points.map((pt, idx) => (
-            <text
-              key={idx}
-              x={pt.x}
-              y={height - paddingBottom + 18}
-              textAnchor="middle"
-              className={`font-black text-[9px] uppercase tracking-wider transition-all duration-200 ${hoveredIdx === idx ? "fill-violet-700" : "fill-slate-500"
+                {/* Visible Data Node Marker */}
+                <circle
+                  cx={pt.x}
+                  cy={pt.y}
+                  r={isHovered ? "6" : "4"}
+                  fill="#FFFFFF"
+                  stroke="#6366F1"
+                  strokeWidth="2"
+                  filter={isHovered ? "url(#purpleNodeGlow)" : undefined}
+                  className="transition-all duration-200 ease-out"
+                />
+              </g>
+            );
+          })}
+
+          {/* X-Axis Month Labels with padding */}
+          {points.map((pt, idx) => {
+            const isHovered = hoveredIdx === idx;
+            return (
+              <text
+                key={idx}
+                x={pt.x}
+                y={height - paddingBottom + 20}
+                textAnchor="middle"
+                className={`font-sans text-[11px] font-medium uppercase tracking-wider transition-colors duration-150 ${
+                  isHovered ? "fill-[#4F46E5] font-semibold" : "fill-[#94A3B8]"
                 }`}
-            >
-              {pt.metric.label}
-            </text>
-          ))}
+              >
+                {pt.metric.label}
+              </text>
+            );
+          })}
         </svg>
       </div>
 
-      {/* Hover Metric Overlay */}
-      <div className="min-h-[44px] mt-4 flex items-center justify-center p-3 bg-violet-50/60 border border-violet-100/60 rounded-2xl transition-all duration-200 select-none">
+      {/* Hover Metric Bar below */}
+      <div className="min-h-[40px] mt-3.5 flex items-center justify-between p-2.5 px-3 bg-slate-50 border border-slate-100 rounded-xl transition-all duration-200 select-none text-xs">
         {hoveredIdx !== null ? (
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-6 text-xs font-bold text-slate-700 items-center justify-between w-full px-2">
-            <span className="text-[#5B21B6] uppercase tracking-widest text-[10px] font-black">{metrics[hoveredIdx].label}</span>
-            <div className="flex gap-4 text-xs">
-              <span>Avg Bal: <strong className="text-slate-900">₹{metrics[hoveredIdx].avg.toLocaleString("en-IN")}</strong></span>
-              <span className="text-slate-500">Min: <strong className="text-slate-700">₹{metrics[hoveredIdx].min.toLocaleString("en-IN")}</strong></span>
-              <span className="text-slate-500">Max: <strong className="text-slate-700">₹{metrics[hoveredIdx].max.toLocaleString("en-IN")}</strong></span>
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-6 text-xs font-medium text-slate-700 items-center justify-between w-full">
+            <span className="text-[#4F46E5] uppercase tracking-wider text-[11px] font-bold">
+              {formatMonthDisplay(metrics[hoveredIdx].label)}
+            </span>
+            <div className="flex gap-4 text-xs font-mono">
+              <span>Avg: <strong className="text-slate-900 font-bold">₹{Math.round(metrics[hoveredIdx].avg).toLocaleString("en-IN")}</strong></span>
+              <span className="text-slate-400">Min: <strong className="text-slate-600 font-semibold">₹{Math.round(metrics[hoveredIdx].min).toLocaleString("en-IN")}</strong></span>
+              <span className="text-slate-400">Max: <strong className="text-slate-600 font-semibold">₹{Math.round(metrics[hoveredIdx].max).toLocaleString("en-IN")}</strong></span>
             </div>
           </div>
         ) : (
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-            Hover over trend nodes to inspect monthly balance metrics
+          <p className="text-[11px] text-[#94A3B8] font-medium flex items-center gap-1.5 mx-auto">
+            <span className="material-symbols-outlined text-[15px]">touch_app</span>
+            <span>Hover over trend nodes to inspect monthly balance metrics</span>
           </p>
         )}
       </div>
@@ -2524,12 +2585,12 @@ export const EVVTestAgent: React.FC<{
                     Arithmetic mean of antecedent closing ledger balances sampled across complete calendar months (not an official bank AMB).
                   </p>
                 </div>
-                <div className="flex items-center bg-slate-100 p-1 rounded-xl gap-1 shrink-0 no-print">
+                <div className="flex items-center bg-[#F1F5F9] p-1 rounded-xl gap-1 shrink-0 no-print border border-[#E2E8F0]">
                   <button
                     type="button"
                     onClick={() => setMonthlyMetricsView("graph")}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                      monthlyMetricsView === "graph" ? "bg-white text-violet-700 shadow-2xs" : "text-slate-600 hover:text-slate-900"
+                      monthlyMetricsView === "graph" ? "bg-[#EEF2FF] text-[#4F46E5] shadow-2xs" : "text-slate-600 hover:text-slate-900"
                     }`}
                   >
                     <span className="material-symbols-outlined text-sm">show_chart</span>
@@ -2539,7 +2600,7 @@ export const EVVTestAgent: React.FC<{
                     type="button"
                     onClick={() => setMonthlyMetricsView("table")}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                      monthlyMetricsView === "table" ? "bg-white text-violet-700 shadow-2xs" : "text-slate-600 hover:text-slate-900"
+                      monthlyMetricsView === "table" ? "bg-[#EEF2FF] text-[#4F46E5] shadow-2xs" : "text-slate-600 hover:text-slate-900"
                     }`}
                   >
                     <span className="material-symbols-outlined text-sm">table_rows</span>
@@ -2549,7 +2610,7 @@ export const EVVTestAgent: React.FC<{
                     type="button"
                     onClick={() => setMonthlyMetricsView("split")}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                      monthlyMetricsView === "split" ? "bg-white text-violet-700 shadow-2xs" : "text-slate-600 hover:text-slate-900"
+                      monthlyMetricsView === "split" ? "bg-[#EEF2FF] text-[#4F46E5] shadow-2xs" : "text-slate-600 hover:text-slate-900"
                     }`}
                   >
                     <span className="material-symbols-outlined text-sm">dashboard</span>
@@ -2620,12 +2681,12 @@ export const EVVTestAgent: React.FC<{
                     {evvResult.snapshots.length} antecedent closing ledger balances sampled across the statement (carry-forward accounting).
                   </p>
                 </div>
-                <div className="flex items-center bg-slate-100 p-1 rounded-xl gap-1 shrink-0 no-print">
+                <div className="flex items-center bg-[#F1F5F9] p-1 rounded-xl gap-1 shrink-0 no-print border border-[#E2E8F0]">
                   <button
                     type="button"
                     onClick={() => setSnapshotsView("graph")}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                      snapshotsView === "graph" ? "bg-white text-violet-700 shadow-2xs" : "text-slate-600 hover:text-slate-900"
+                      snapshotsView === "graph" ? "bg-[#EEF2FF] text-[#4F46E5] shadow-2xs" : "text-slate-600 hover:text-slate-900"
                     }`}
                   >
                     <span className="material-symbols-outlined text-sm">timeline</span>
@@ -2635,7 +2696,7 @@ export const EVVTestAgent: React.FC<{
                     type="button"
                     onClick={() => setSnapshotsView("table")}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                      snapshotsView === "table" ? "bg-white text-violet-700 shadow-2xs" : "text-slate-600 hover:text-slate-900"
+                      snapshotsView === "table" ? "bg-[#EEF2FF] text-[#4F46E5] shadow-2xs" : "text-slate-600 hover:text-slate-900"
                     }`}
                   >
                     <span className="material-symbols-outlined text-sm">table_rows</span>
@@ -2645,7 +2706,7 @@ export const EVVTestAgent: React.FC<{
                     type="button"
                     onClick={() => setSnapshotsView("split")}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                      snapshotsView === "split" ? "bg-white text-violet-700 shadow-2xs" : "text-slate-600 hover:text-slate-900"
+                      snapshotsView === "split" ? "bg-[#EEF2FF] text-[#4F46E5] shadow-2xs" : "text-slate-600 hover:text-slate-900"
                     }`}
                   >
                     <span className="material-symbols-outlined text-sm">dashboard</span>
@@ -2737,7 +2798,12 @@ export const EVVTestAgent: React.FC<{
           </div>
 
           {/* Hero Metric Card — FIXED EVV Score Card with Visual Radial Gauge */}
-          <div className="bg-white border border-violet-100 rounded-3xl p-6 sm:p-8 shadow-[0_20px_40px_-10px_rgba(91,33,182,0.12)] relative overflow-hidden">
+          <div
+            className="bg-white border border-[#E2E8F0] rounded-2xl p-6 sm:p-8 relative overflow-hidden"
+            style={{
+              boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
+            }}
+          >
             <div className="relative z-10 flex flex-col lg:flex-row justify-between items-center gap-6 w-full">
               {/* Left Column: Visual Speedometer Gauge */}
               <div className="w-full lg:w-auto flex justify-center shrink-0">
@@ -2797,26 +2863,31 @@ export const EVVTestAgent: React.FC<{
 
           {/* 6-Component Underwriting Breakdown (Official VidyaLoans Engine) */}
           {evvResult.sixComponent && (
-            <div className="bg-gradient-to-br from-violet-50/50 via-white to-indigo-50/30 border border-violet-200/80 rounded-3xl p-6 shadow-sm space-y-5">
-              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 border-b border-violet-100 pb-4">
+            <div
+              className="bg-white border border-[#E2E8F0] rounded-2xl p-6 shadow-sm space-y-5"
+              style={{
+                boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
+              }}
+            >
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 border-b border-[#E2E8F0] pb-4">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-violet-600 text-lg">verified</span>
-                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">
+                    <span className="material-symbols-outlined text-indigo-600 text-lg">verified</span>
+                    <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider font-sans">
                       6-Component Bank Statement Health (EVV)
                     </h3>
                   </div>
                   <p className="text-[11px] text-slate-500 font-medium mt-0.5">
-                    Target Bank: <strong className="text-slate-800">{evvResult.sixComponent.bankPolicy.bankName}</strong> • Benchmark M: <strong className="text-violet-700">₹{evvResult.sixComponent.bankPolicy.minimumBalanceBenchmark.toLocaleString('en-IN')}</strong> • Sampling: <strong className="text-slate-700">Fixed Dates [1, 5, 10, 15, 20, 25]</strong>
+                    Target Bank: <strong className="text-slate-800">{evvResult.sixComponent.bankPolicy.bankName}</strong> • Benchmark M: <strong className="text-indigo-600">₹{evvResult.sixComponent.bankPolicy.minimumBalanceBenchmark.toLocaleString('en-IN')}</strong> • Sampling: <strong className="text-slate-700">Fixed Dates [1, 5, 10, 15, 20, 25]</strong>
                   </p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <div className="flex items-center bg-white/90 p-1 rounded-xl gap-1 border border-violet-100 no-print shadow-2xs">
+                  <div className="flex items-center bg-[#F1F5F9] p-1 rounded-xl gap-1 border border-[#E2E8F0] no-print">
                     <button
                       type="button"
                       onClick={() => setSixComponentView("bar")}
                       className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                        sixComponentView === "bar" ? "bg-violet-600 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"
+                        sixComponentView === "bar" ? "bg-[#EEF2FF] text-[#4F46E5] shadow-2xs font-bold" : "text-slate-600 hover:text-slate-900"
                       }`}
                     >
                       <span className="material-symbols-outlined text-sm">bar_chart</span>
@@ -2826,7 +2897,7 @@ export const EVVTestAgent: React.FC<{
                       type="button"
                       onClick={() => setSixComponentView("radar")}
                       className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                        sixComponentView === "radar" ? "bg-violet-600 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"
+                        sixComponentView === "radar" ? "bg-[#EEF2FF] text-[#4F46E5] shadow-2xs font-bold" : "text-slate-600 hover:text-slate-900"
                       }`}
                     >
                       <span className="material-symbols-outlined text-sm">radar</span>
@@ -2836,7 +2907,7 @@ export const EVVTestAgent: React.FC<{
                       type="button"
                       onClick={() => setSixComponentView("cards")}
                       className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                        sixComponentView === "cards" ? "bg-violet-600 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"
+                        sixComponentView === "cards" ? "bg-[#EEF2FF] text-[#4F46E5] shadow-2xs font-bold" : "text-slate-600 hover:text-slate-900"
                       }`}
                     >
                       <span className="material-symbols-outlined text-sm">grid_view</span>
@@ -2846,7 +2917,7 @@ export const EVVTestAgent: React.FC<{
                       type="button"
                       onClick={() => setSixComponentView("both")}
                       className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                        sixComponentView === "both" ? "bg-violet-600 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"
+                        sixComponentView === "both" ? "bg-[#EEF2FF] text-[#4F46E5] shadow-2xs font-bold" : "text-slate-600 hover:text-slate-900"
                       }`}
                     >
                       <span className="material-symbols-outlined text-sm">dashboard</span>
@@ -3181,12 +3252,17 @@ export const EVVTestAgent: React.FC<{
 
           {/* SECTION D: Transaction Classification & Candidate Confirmation */}
           {evvResult.deterministicEngineResult && (
-            <div className="bg-white border border-violet-100 rounded-3xl p-6 shadow-xs space-y-4 no-print">
-              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 border-b border-violet-50 pb-4">
+            <div
+              className="bg-white border border-[#E2E8F0] rounded-2xl p-6 shadow-sm space-y-4 no-print"
+              style={{
+                boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
+              }}
+            >
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 border-b border-[#E2E8F0] pb-4">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-violet-600 text-lg">rate_review</span>
-                    <h4 className="text-sm font-black text-slate-900 uppercase tracking-wider">
+                    <span className="material-symbols-outlined text-indigo-600 text-lg">rate_review</span>
+                    <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider font-sans">
                       Section D: Transaction Classification & Candidate Confirmation
                     </h4>
                   </div>
@@ -3197,12 +3273,12 @@ export const EVVTestAgent: React.FC<{
 
                 <div className="flex items-center gap-2 flex-wrap">
                   {/* View mode toggle */}
-                  <div className="flex items-center bg-slate-100/90 p-1 rounded-xl gap-1 no-print shadow-2xs border border-slate-200/70">
+                  <div className="flex items-center bg-[#F1F5F9] p-1 rounded-xl gap-1 no-print border border-[#E2E8F0]">
                     <button
                       type="button"
                       onClick={() => setClassificationsView("donut")}
                       className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                        classificationsView === "donut" ? "bg-violet-600 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"
+                        classificationsView === "donut" ? "bg-[#EEF2FF] text-[#4F46E5] shadow-2xs font-bold" : "text-slate-600 hover:text-slate-900"
                       }`}
                     >
                       <span className="material-symbols-outlined text-sm">donut_large</span>
@@ -3212,7 +3288,7 @@ export const EVVTestAgent: React.FC<{
                       type="button"
                       onClick={() => setClassificationsView("table")}
                       className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                        classificationsView === "table" ? "bg-violet-600 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"
+                        classificationsView === "table" ? "bg-[#EEF2FF] text-[#4F46E5] shadow-2xs font-bold" : "text-slate-600 hover:text-slate-900"
                       }`}
                     >
                       <span className="material-symbols-outlined text-sm">table_rows</span>
@@ -3222,7 +3298,7 @@ export const EVVTestAgent: React.FC<{
                       type="button"
                       onClick={() => setClassificationsView("both")}
                       className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                        classificationsView === "both" ? "bg-violet-600 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"
+                        classificationsView === "both" ? "bg-[#EEF2FF] text-[#4F46E5] shadow-2xs font-bold" : "text-slate-600 hover:text-slate-900"
                       }`}
                     >
                       <span className="material-symbols-outlined text-sm">dashboard</span>
@@ -3232,13 +3308,13 @@ export const EVVTestAgent: React.FC<{
 
                   {/* Tabs for Candidates */}
                   {(classificationsView === "table" || classificationsView === "both") && (
-                    <div className="flex items-center gap-1.5 bg-slate-100/80 p-1 rounded-xl">
+                    <div className="flex items-center gap-1.5 bg-[#F1F5F9] p-1 rounded-xl border border-[#E2E8F0]">
                       <button
                         type="button"
                         onClick={() => setActiveCandidateTab("bounces")}
                         className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                           activeCandidateTab === "bounces"
-                            ? "bg-white text-violet-700 shadow-xs font-black"
+                            ? "bg-[#EEF2FF] text-[#4F46E5] shadow-2xs font-bold"
                             : "text-slate-600 hover:text-slate-900"
                         }`}
                       >
@@ -3249,7 +3325,7 @@ export const EVVTestAgent: React.FC<{
                         onClick={() => setActiveCandidateTab("cash")}
                         className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                           activeCandidateTab === "cash"
-                            ? "bg-white text-violet-700 shadow-xs font-black"
+                            ? "bg-[#EEF2FF] text-[#4F46E5] shadow-2xs font-bold"
                             : "text-slate-600 hover:text-slate-900"
                         }`}
                       >
@@ -3260,7 +3336,7 @@ export const EVVTestAgent: React.FC<{
                         onClick={() => setActiveCandidateTab("passThrough")}
                         className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                           activeCandidateTab === "passThrough"
-                            ? "bg-white text-violet-700 shadow-xs font-black"
+                            ? "bg-[#EEF2FF] text-[#4F46E5] shadow-2xs font-bold"
                             : "text-slate-600 hover:text-slate-900"
                         }`}
                       >
@@ -3660,30 +3736,41 @@ export const EVVTestAgent: React.FC<{
       })()}
 
           {/* Sampled Interval Balances & Audit Points Breakdown */}
-          <div className="bg-white/90 border border-violet-100/90 rounded-3xl p-6 shadow-sm space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-violet-50 pb-4">
+          <div
+            className="bg-white border border-[#E2E8F0] rounded-2xl p-6 sm:p-7 shadow-sm space-y-5"
+            style={{
+              boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
+            }}
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
               <div>
-                <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-violet-600 text-lg">calendar_month</span>
-                  <h4 className="text-sm font-black text-slate-900 uppercase tracking-wider">
-                    Sampled Interval Balances & Audit Points
-                  </h4>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-violet-50 text-violet-700 border border-violet-200">
-                    {evvResult.snapshots.length} Points
-                  </span>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white shadow-xs">
+                    <span className="material-symbols-outlined text-[18px]">calendar_month</span>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider font-sans">
+                        Sampled Interval Balances & Audit Points
+                      </h4>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/60">
+                        {evvResult.snapshots.length} Points
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-0.5 font-medium">
+                      Reconstructed closing ledger balances sampled at 5-day intervals across each calendar month to eliminate window dressing.
+                    </p>
+                  </div>
                 </div>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Reconstructed closing ledger balances sampled at 5-day intervals across each calendar month to eliminate window dressing.
-                </p>
               </div>
 
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setIsExplainingIntervals(true)}
-                  className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200 flex items-center gap-1.5 transition-all cursor-pointer"
+                  className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
                 >
-                  <span className="material-symbols-outlined text-sm">psychology_alt</span>
+                  <span className="material-symbols-outlined text-sm text-indigo-600">psychology_alt</span>
                   <span>How it's calculated</span>
                 </button>
                 <button
@@ -3698,27 +3785,27 @@ export const EVVTestAgent: React.FC<{
             </div>
 
             {/* Quick Summary Strip */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-violet-50/40 border border-violet-100/60 rounded-2xl p-3.5 text-xs">
-              <div>
-                <span className="text-[9px] font-black uppercase text-slate-400 block tracking-wider">Sampling Interval</span>
-                <span className="font-black text-slate-800 text-sm mt-0.5 block">5-Day Cycle</span>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50/70 border border-slate-200/70 rounded-2xl p-4 text-xs font-sans">
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Sampling Interval</span>
+                <span className="font-extrabold text-slate-800 text-sm block tracking-tight">5-Day Cycle</span>
                 <span className="text-[10px] text-slate-500">Days 1, 5, 10, 15, 20, 25</span>
               </div>
-              <div>
-                <span className="text-[9px] font-black uppercase text-slate-400 block tracking-wider">Total Interval Points</span>
-                <span className="font-black text-slate-800 text-sm mt-0.5 block">{evvResult.snapshots.length} Points</span>
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Total Interval Points</span>
+                <span className="font-extrabold text-slate-800 text-sm block tracking-tight">{evvResult.snapshots.length} Points</span>
                 <span className="text-[10px] text-slate-500">Across {evvResult.totalMonths} months</span>
               </div>
-              <div>
-                <span className="text-[9px] font-black uppercase text-slate-400 block tracking-wider">Computed AMB</span>
-                <span className="font-black text-violet-700 text-sm mt-0.5 block">
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Computed AMB</span>
+                <span className="font-extrabold text-indigo-700 text-sm block tracking-tight font-mono">
                   ₹{Math.round(evvResult.snapshots.reduce((s, snap) => s + snap.balance, 0) / (evvResult.snapshots.length || 1)).toLocaleString('en-IN')}
                 </span>
                 <span className="text-[10px] text-slate-500">Arithmetic Mean</span>
               </div>
-              <div>
-                <span className="text-[9px] font-black uppercase text-slate-400 block tracking-wider">Benchmark Safety</span>
-                <span className={`font-black text-sm mt-0.5 block ${evvResult.snapshots.every(s => s.balance >= 3000) ? "text-emerald-600" : "text-amber-600"}`}>
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-wider">Benchmark Safety</span>
+                <span className={`font-extrabold text-sm block tracking-tight ${evvResult.snapshots.every(s => s.balance >= 3000) ? "text-emerald-600" : "text-amber-600"}`}>
                   {evvResult.snapshots.filter(s => s.balance >= 3000).length} / {evvResult.snapshots.length} Met
                 </span>
                 <span className="text-[10px] text-slate-500">Benchmark M (₹3,000)</span>
@@ -3734,10 +3821,10 @@ export const EVVTestAgent: React.FC<{
                     <button
                       type="button"
                       onClick={() => setSelectedIntervalMonth("ALL")}
-                      className={`px-3 py-1 rounded-lg font-bold text-[11px] transition-all cursor-pointer ${
+                      className={`px-3.5 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
                         selectedIntervalMonth === "ALL"
-                          ? "bg-violet-600 text-white shadow-xs"
-                          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                          ? "bg-[#EEF2FF] text-[#4F46E5] border border-indigo-200 shadow-2xs font-bold"
+                          : "bg-[#F1F5F9] text-slate-600 hover:bg-slate-200"
                       }`}
                     >
                       All Months ({evvResult.snapshots.length})
@@ -3747,10 +3834,10 @@ export const EVVTestAgent: React.FC<{
                         key={idx}
                         type="button"
                         onClick={() => setSelectedIntervalMonth(m.month || m.label)}
-                        className={`px-3 py-1 rounded-lg font-bold text-[11px] whitespace-nowrap transition-all cursor-pointer ${
+                        className={`px-3.5 py-1.5 rounded-xl font-bold text-xs whitespace-nowrap transition-all cursor-pointer ${
                           selectedIntervalMonth === (m.month || m.label)
-                            ? "bg-violet-600 text-white shadow-xs"
-                            : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                            ? "bg-[#EEF2FF] text-[#4F46E5] border border-indigo-200 shadow-2xs font-bold"
+                            : "bg-[#F1F5F9] text-slate-600 hover:bg-slate-200"
                         }`}
                       >
                         {m.label}

@@ -323,6 +323,8 @@ export class UsersController {
             isDraft?: boolean;
             status?: string;
             bank?: string;
+            bankName?: string;
+            branch?: string;
         }
     ) {
         console.log('=== ADMIN CREATE USER START ===');
@@ -417,18 +419,33 @@ export class UsersController {
                     }
                 }
             } else if (body.role === 'bank' || body.role === 'partner_bank') {
-                // Bank person registration: dispatch welcome email with dedicated Bank Login URL
+                // Bank person registration: dispatch welcome email with dedicated Bank Login URL & Staff Login URL
                 try {
                     const officerName = `${body.firstName || ''} ${body.lastName || ''}`.trim() || 'Bank Officer';
                     await this.emailService.sendBankUserWelcomeEmail(
                         newUser.email,
                         officerName,
                         newUser.id,
-                        body.bank || 'Lending Partner Bank',
+                        body.bank || body.bankName || 'Lending Partner Bank',
                         body.officeLocation || body.office || 'Central Lending Desk'
                     );
                 } catch (emailErr: any) {
                     console.warn('[adminCreateUser] Bank welcome email non-blocking failed:', emailErr?.message);
+                }
+            } else if (body.role === 'staff') {
+                // Staff member registration: dispatch official congrats & verified welcome email with staff login link
+                try {
+                    const staffName = `${body.firstName || ''} ${body.lastName || ''}`.trim() || 'Staff Member';
+                    const staffId = (newUser as any)?.staffId || newUser.id;
+                    await this.emailService.sendStaffWelcomeEmail(
+                        newUser.email,
+                        staffName,
+                        staffId,
+                        body.officeLocation || body.office || body.branch || 'Main Operations Center',
+                        body.mailboxEmail || undefined
+                    );
+                } catch (emailErr: any) {
+                    console.warn('[adminCreateUser] Staff welcome email non-blocking failed:', emailErr?.message);
                 }
             } else {
                 // Send standard welcome email for other non-agents
@@ -464,7 +481,13 @@ export class UsersController {
                 success: true,
                 message: isDraft 
                     ? 'Agent profile saved as draft successfully' 
-                    : (isAgent ? 'Agent profile created and welcome email sent with login link' : 'User created successfully'),
+                    : (isAgent 
+                        ? 'Agent profile created and welcome email sent with login link' 
+                        : (body.role === 'bank' || body.role === 'partner_bank'
+                            ? 'Bank Officer profile created and welcome email sent with login link'
+                            : (body.role === 'staff'
+                                ? 'Staff profile created and welcome email sent with login link'
+                                : 'User created successfully'))),
                 user: responseUser,
                 isDraft
             };

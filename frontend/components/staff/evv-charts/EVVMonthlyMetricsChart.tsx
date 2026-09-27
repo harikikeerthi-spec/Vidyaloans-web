@@ -20,9 +20,9 @@ export const EVVMonthlyMetricsChart: React.FC<EVVMonthlyMetricsChartProps> = ({
 
   if (!metrics || metrics.length === 0) return null;
 
-  const width = 760;
-  const height = 280;
-  const padding = { left: 65, right: 25, top: 32, bottom: 45 };
+  const width = 820;
+  const height = 290;
+  const padding = { left: 68, right: 88, top: 32, bottom: 48 };
   const chartW = width - padding.left - padding.right;
   const chartH = height - padding.top - padding.bottom;
 
@@ -72,15 +72,11 @@ export const EVVMonthlyMetricsChart: React.FC<EVVMonthlyMetricsChartProps> = ({
   };
 
   const ambPoints = metrics.map((m, i) => ({ x: getX(i), y: getBalanceY(m.avg) }));
-  const dailyPoints = metrics.map((m, i) => ({ x: getX(i), y: getBalanceY(m.avgDailyBalance || m.avg) }));
-  const closingPoints = metrics.map((m, i) => ({ x: getX(i), y: getBalanceY(m.closing) }));
-  const minPoints = metrics.map((m, i) => ({ x: getX(i), y: getBalanceY(m.min) }));
-  const maxPoints = metrics.map((m, i) => ({ x: getX(i), y: getBalanceY(m.max) }));
-
   const ambPath = makeSpline(ambPoints);
-  const ambAreaPath = ambPoints.length > 0
-    ? `${ambPath} L ${ambPoints[ambPoints.length - 1].x} ${height - padding.bottom} L ${ambPoints[0].x} ${height - padding.bottom} Z`
-    : "";
+  const ambAreaPath =
+    ambPoints.length > 0
+      ? `${ambPath} L ${ambPoints[ambPoints.length - 1].x} ${height - padding.bottom} L ${ambPoints[0].x} ${height - padding.bottom} Z`
+      : "";
 
   const benchmarkY = getBalanceY(benchmarkM);
   const targetY = targetT ? getBalanceY(targetT) : null;
@@ -101,21 +97,39 @@ export const EVVMonthlyMetricsChart: React.FC<EVVMonthlyMetricsChartProps> = ({
   const maxCashPct = Math.max(...metrics.map((m) => m.cashPercent || 0), 40);
   const cashLimitY = height - padding.bottom - (25 / (maxCashPct || 1)) * chartH;
 
+  const getRiskY = (pct: number) => {
+    return height - padding.bottom - (pct / (maxCashPct || 1)) * chartH;
+  };
+
+  // Hover position calculations for floating glass tooltip
+  const getHoverPos = (idx: number) => {
+    const x = getSlotCenterX(idx);
+    let y = height / 2;
+    if (activeMode === "balances") {
+      y = balanceGraphStyle === "spline" ? ambPoints[idx].y : getBalanceY(metrics[idx].avg);
+    } else if (activeMode === "cashflow") {
+      y = Math.min(getFlowY(metrics[idx].credits), getFlowY(metrics[idx].debits));
+    } else {
+      y = getRiskY(metrics[idx].cashPercent || 0);
+    }
+    return { x, y };
+  };
+
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-xs space-y-4 select-none">
+    <div className="bg-white border border-[#E2E8F0] rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05),0_2px_4px_-1px_rgba(0,0,0,0.03)] space-y-4 select-none font-sans">
       {/* Chart Top Header & Mode Switcher */}
-      <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
+      <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-3 border-b border-slate-100 pb-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-indigo-600 dark:text-indigo-400 text-lg">bar_chart</span>
-            <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
-              Monthly Financial Metrics Bar Visualizer
+            <span className="material-symbols-outlined text-[#4F46E5] text-lg">bar_chart</span>
+            <h4 className="text-[13px] font-semibold text-[#475569] uppercase tracking-wider font-sans">
+              Monthly Financial Metrics Visualizer
             </h4>
-            <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300">
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#EEF2FF] text-[#4F46E5] border border-[#E0E7FF]">
               {metrics.length} Months
             </span>
           </div>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+          <p className="text-[11px] text-slate-500 font-medium mt-0.5">
             Comparative bar charts of monthly sampled AMB balances, cashflow, and risk factors
           </p>
         </div>
@@ -124,14 +138,14 @@ export const EVVMonthlyMetricsChart: React.FC<EVVMonthlyMetricsChartProps> = ({
         <div className="flex items-center gap-2 flex-wrap">
           {/* Sub-toggle for Balances: Bar vs Spline */}
           {activeMode === "balances" && (
-            <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl gap-0.5">
+            <div className="flex items-center bg-[#F1F5F9] p-1 rounded-xl gap-1">
               <button
                 type="button"
                 onClick={() => setBalanceGraphStyle("bar")}
                 className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
                   balanceGraphStyle === "bar"
-                    ? "bg-white dark:bg-slate-700 text-indigo-700 dark:text-white shadow-2xs"
-                    : "text-slate-500 dark:text-slate-400 hover:text-slate-800"
+                    ? "bg-[#EEF2FF] text-[#4F46E5] shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
                 }`}
               >
                 <span className="material-symbols-outlined text-xs">bar_chart</span>
@@ -142,8 +156,8 @@ export const EVVMonthlyMetricsChart: React.FC<EVVMonthlyMetricsChartProps> = ({
                 onClick={() => setBalanceGraphStyle("spline")}
                 className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
                   balanceGraphStyle === "spline"
-                    ? "bg-white dark:bg-slate-700 text-indigo-700 dark:text-white shadow-2xs"
-                    : "text-slate-500 dark:text-slate-400 hover:text-slate-800"
+                    ? "bg-[#EEF2FF] text-[#4F46E5] shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
                 }`}
               >
                 <span className="material-symbols-outlined text-xs">show_chart</span>
@@ -152,14 +166,15 @@ export const EVVMonthlyMetricsChart: React.FC<EVVMonthlyMetricsChartProps> = ({
             </div>
           )}
 
-          <div className="flex items-center bg-slate-100/90 dark:bg-slate-800/90 p-1 rounded-xl gap-1">
+          {/* Mode Switcher */}
+          <div className="flex items-center bg-[#F1F5F9] p-1 rounded-xl gap-1">
             <button
               type="button"
               onClick={() => setActiveMode("balances")}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeMode === "balances"
-                  ? "bg-white dark:bg-slate-700 text-indigo-700 dark:text-white shadow-2xs"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                  ? "bg-[#EEF2FF] text-[#4F46E5] shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
               }`}
             >
               <span className="material-symbols-outlined text-sm">equalizer</span>
@@ -170,11 +185,11 @@ export const EVVMonthlyMetricsChart: React.FC<EVVMonthlyMetricsChartProps> = ({
               onClick={() => setActiveMode("cashflow")}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeMode === "cashflow"
-                  ? "bg-white dark:bg-slate-700 text-emerald-700 dark:text-emerald-300 shadow-2xs"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                  ? "bg-[#EEF2FF] text-[#4F46E5] shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
               }`}
             >
-              <span className="material-symbols-outlined text-sm">bar_chart</span>
+              <span className="material-symbols-outlined text-sm">swap_horiz</span>
               <span>Credits vs Debits</span>
             </button>
             <button
@@ -182,8 +197,8 @@ export const EVVMonthlyMetricsChart: React.FC<EVVMonthlyMetricsChartProps> = ({
               onClick={() => setActiveMode("risk")}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeMode === "risk"
-                  ? "bg-white dark:bg-slate-700 text-rose-700 dark:text-rose-300 shadow-2xs"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                  ? "bg-[#EEF2FF] text-[#4F46E5] shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
               }`}
             >
               <span className="material-symbols-outlined text-sm">warning</span>
@@ -193,65 +208,156 @@ export const EVVMonthlyMetricsChart: React.FC<EVVMonthlyMetricsChartProps> = ({
         </div>
       </div>
 
-      {/* Main SVG Visualization Canvas */}
-      <div className="relative w-full overflow-x-auto scrollbar-hide">
+      {/* Main SVG Visualization Canvas Container with Floating Glass Tooltip */}
+      <div className="relative w-full overflow-x-auto scrollbar-hide py-1">
+        {/* Floating Interactive Tooltip */}
+        {hoveredMonthIdx !== null && metrics[hoveredMonthIdx] && (
+          <div
+            className="absolute pointer-events-none z-30 transition-all duration-150 ease-out"
+            style={{
+              left: `${(getHoverPos(hoveredMonthIdx).x / width) * 100}%`,
+              top: `${(Math.max(padding.top + 10, getHoverPos(hoveredMonthIdx).y) / height) * 100}%`,
+              transform:
+                getHoverPos(hoveredMonthIdx).x < width * 0.22
+                  ? "translate(4%, -115%)"
+                  : getHoverPos(hoveredMonthIdx).x > width * 0.78
+                  ? "translate(-104%, -115%)"
+                  : "translate(-50%, -115%)",
+            }}
+          >
+            <div className="bg-[#1E293B]/95 backdrop-blur-[8px] text-white rounded-[8px] p-2.5 px-3.5 shadow-xl border border-white/10 space-y-1 select-none min-w-[150px]">
+              <p className="text-[11px] font-medium text-[#94A3B8] leading-none">
+                {metrics[hoveredMonthIdx].label}
+              </p>
+              {activeMode === "balances" && (
+                <>
+                  <p className="text-sm font-bold text-[#FFFFFF] tracking-tight font-mono leading-tight">
+                    AMB: ₹{Math.round(metrics[hoveredMonthIdx].avg).toLocaleString("en-IN")}
+                  </p>
+                  <div className="flex items-center justify-between gap-3 pt-1 border-t border-white/10 text-[9.5px] text-[#94A3B8]">
+                    <span>Closing: ₹{Math.round(metrics[hoveredMonthIdx].closing || 0).toLocaleString("en-IN")}</span>
+                    <span>Min: ₹{Math.round(metrics[hoveredMonthIdx].min).toLocaleString("en-IN")}</span>
+                  </div>
+                </>
+              )}
+              {activeMode === "cashflow" && (
+                <>
+                  <p className="text-sm font-bold text-emerald-400 tracking-tight font-mono leading-tight">
+                    Inflow: ₹{Math.round(metrics[hoveredMonthIdx].credits).toLocaleString("en-IN")}
+                  </p>
+                  <div className="flex items-center justify-between gap-3 pt-1 border-t border-white/10 text-[9.5px] text-[#94A3B8]">
+                    <span className="text-rose-400">Out: ₹{Math.round(metrics[hoveredMonthIdx].debits).toLocaleString("en-IN")}</span>
+                    <span className={metrics[hoveredMonthIdx].credits >= metrics[hoveredMonthIdx].debits ? "text-emerald-400" : "text-rose-400"}>
+                      Net: {metrics[hoveredMonthIdx].credits >= metrics[hoveredMonthIdx].debits ? "+" : "-"}₹
+                      {Math.abs(Math.round(metrics[hoveredMonthIdx].credits - metrics[hoveredMonthIdx].debits)).toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                </>
+              )}
+              {activeMode === "risk" && (
+                <>
+                  <p className={`text-sm font-bold tracking-tight font-mono leading-tight ${(metrics[hoveredMonthIdx].cashPercent || 0) > 25 ? "text-rose-400" : "text-amber-400"}`}>
+                    Cash: {metrics[hoveredMonthIdx].cashPercent || 0}%
+                  </p>
+                  <div className="flex items-center justify-between gap-3 pt-1 border-t border-white/10 text-[9.5px] text-[#94A3B8]">
+                    <span>Bounces: {metrics[hoveredMonthIdx].bounces || 0}</span>
+                    <span className={(metrics[hoveredMonthIdx].cashPercent || 0) > 25 ? "text-rose-400" : "text-emerald-400"}>
+                      {(metrics[hoveredMonthIdx].cashPercent || 0) > 25 ? "High Cash Spike" : "Within Policy"}
+                    </span>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
         <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto min-w-[620px] overflow-visible">
           <defs>
+            {/* Primary/Safe AMB Gradient (#818CF8 to #4F46E5) */}
             <linearGradient id="ambBarGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#8B5CF6" />
-              <stop offset="100%" stopColor="#6D28D9" />
+              <stop offset="0%" stopColor="#818CF8" />
+              <stop offset="100%" stopColor="#4F46E5" />
             </linearGradient>
+
+            {/* Closing Balance Gradient */}
             <linearGradient id="closingBarGrad" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#38BDF8" />
               <stop offset="100%" stopColor="#0284C7" />
             </linearGradient>
+
+            {/* Spline Area Gradient */}
             <linearGradient id="monthlyAreaGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#8B5CF6" stopOpacity="0.32" />
-              <stop offset="100%" stopColor="#8B5CF6" stopOpacity="0.01" />
+              <stop offset="0%" stopColor="#6366F1" stopOpacity="0.15" />
+              <stop offset="100%" stopColor="#FFFFFF" stopOpacity="0.00" />
             </linearGradient>
+
+            {/* Horizontal stroke gradient for Spline curve */}
+            <linearGradient id="monthlySplineGrad" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#6366F1" />
+              <stop offset="100%" stopColor="#8B5CF6" />
+            </linearGradient>
+
+            {/* Cashflow Gradients */}
             <linearGradient id="creditBarGrad" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#10B981" />
               <stop offset="100%" stopColor="#059669" />
             </linearGradient>
             <linearGradient id="debitBarGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#F43F5E" />
+              <stop offset="0%" stopColor="#FB7185" />
               <stop offset="100%" stopColor="#E11D48" />
             </linearGradient>
+
+            {/* Risk Gradients: Amber for Safe, Rose for Critical */}
             <linearGradient id="cashBarAmberGrad" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#FBBF24" />
               <stop offset="100%" stopColor="#D97706" />
             </linearGradient>
             <linearGradient id="cashBarRoseGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#F43F5E" />
+              <stop offset="0%" stopColor="#FB7185" />
               <stop offset="100%" stopColor="#BE123C" />
             </linearGradient>
+
+            {/* Glow Filters */}
+            <filter id="mBenchmarkGlow" x="-20%" y="-40%" width="140%" height="180%">
+              <feDropShadow dx="0" dy="0" stdDeviation="2.5" floodColor="#F59E0B" floodOpacity="0.45" />
+            </filter>
+            <filter id="tTargetGlow" x="-20%" y="-40%" width="140%" height="180%">
+              <feDropShadow dx="0" dy="0" stdDeviation="2.5" floodColor="#10B981" floodOpacity="0.45" />
+            </filter>
+            <filter id="barHoverGlow" x="-30%" y="-20%" width="160%" height="140%">
+              <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="#6366F1" floodOpacity="0.45" />
+            </filter>
+            <filter id="nodeGlow" x="-50%" y="-50%" width="200%" height="200%">
+              <feDropShadow dx="0" dy="0" stdDeviation="3.5" floodColor="#6366F1" floodOpacity="0.65" />
+            </filter>
           </defs>
 
-          {/* Grid lines */}
+          {/* Ultra-faint Horizontal Grid lines (no vertical lines) */}
           {[0, 0.25, 0.5, 0.75, 1].map((r, i) => {
             const y = height - padding.bottom - r * chartH;
-            const val = activeMode === "balances"
-              ? Math.round(minBalance + r * (maxBalance - minBalance))
-              : activeMode === "cashflow"
-              ? Math.round(r * maxFlow)
-              : Math.round(r * maxCashPct);
+            const val =
+              activeMode === "balances"
+                ? Math.round(minBalance + r * (maxBalance - minBalance))
+                : activeMode === "cashflow"
+                ? Math.round(r * maxFlow)
+                : Math.round(r * maxCashPct);
 
             return (
-              <g key={i} className="opacity-40 dark:opacity-20">
+              <g key={i}>
                 <line
                   x1={padding.left}
                   y1={y}
                   x2={width - padding.right}
                   y2={y}
-                  stroke="#CBD5E1"
+                  stroke="#F1F5F9"
                   strokeDasharray="4 4"
-                  strokeWidth="1"
+                  strokeWidth="1.2"
                 />
                 <text
-                  x={padding.left - 10}
-                  y={y + 3}
+                  x={padding.left - 12}
+                  y={y + 3.5}
                   textAnchor="end"
-                  className="fill-slate-400 font-mono text-[9px]"
+                  className="fill-[#94A3B8] font-sans text-[11px] font-medium"
                 >
                   {activeMode === "risk" ? `${val}%` : `₹${Math.round(val / 1000)}k`}
                 </text>
@@ -259,10 +365,10 @@ export const EVVMonthlyMetricsChart: React.FC<EVVMonthlyMetricsChartProps> = ({
             );
           })}
 
-          {/* ────────────────── MODE 1: BALANCE DYNAMICS (BAR GRAPH / SPLINE) ────────────────── */}
+          {/* ────────────────── MODE 1: BALANCE DYNAMICS ────────────────── */}
           {activeMode === "balances" && (
             <>
-              {/* Benchmark M reference line */}
+              {/* Benchmark M reference line with Right-Axis Pill Badge */}
               {benchmarkM > 0 && benchmarkY >= padding.top && benchmarkY <= height - padding.bottom && (
                 <g>
                   <line
@@ -270,23 +376,34 @@ export const EVVMonthlyMetricsChart: React.FC<EVVMonthlyMetricsChartProps> = ({
                     y1={benchmarkY}
                     x2={width - padding.right}
                     y2={benchmarkY}
-                    stroke="#8B5CF6"
-                    strokeDasharray="5 4"
+                    stroke="#F59E0B"
+                    strokeDasharray="5 5"
                     strokeWidth="1.5"
-                    className="opacity-75"
+                    filter="url(#mBenchmarkGlow)"
                   />
-                  <text
-                    x={width - padding.right}
-                    y={benchmarkY - 5}
-                    textAnchor="end"
-                    className="fill-indigo-600 dark:fill-indigo-400 text-[9px] font-mono font-bold"
-                  >
-                    Benchmark M: ₹{benchmarkM.toLocaleString("en-IN")}
-                  </text>
+                  <g transform={`translate(${width - padding.right + 6}, ${benchmarkY - 9})`}>
+                    <rect
+                      width="76"
+                      height="18"
+                      rx="5"
+                      fill="#FEF3C7"
+                      stroke="#F59E0B"
+                      strokeWidth="1"
+                      strokeOpacity="0.5"
+                    />
+                    <text
+                      x="38"
+                      y="12.5"
+                      textAnchor="middle"
+                      className="fill-amber-700 font-sans text-[9px] font-bold tracking-tight"
+                    >
+                      M: ₹{benchmarkM >= 1000 ? `${(benchmarkM / 1000).toFixed(0)}k` : benchmarkM}
+                    </text>
+                  </g>
                 </g>
               )}
 
-              {/* Target T reference line */}
+              {/* Target T reference line with Right-Axis Pill Badge */}
               {targetT && targetY && targetY >= padding.top && targetY <= height - padding.bottom && (
                 <g>
                   <line
@@ -295,18 +412,29 @@ export const EVVMonthlyMetricsChart: React.FC<EVVMonthlyMetricsChartProps> = ({
                     x2={width - padding.right}
                     y2={targetY}
                     stroke="#10B981"
-                    strokeDasharray="5 4"
+                    strokeDasharray="5 5"
                     strokeWidth="1.5"
-                    className="opacity-75"
+                    filter="url(#tTargetGlow)"
                   />
-                  <text
-                    x={width - padding.right}
-                    y={targetY - 5}
-                    textAnchor="end"
-                    className="fill-emerald-600 text-[9px] font-mono font-bold"
-                  >
-                    Target T: ₹{targetT.toLocaleString("en-IN")}
-                  </text>
+                  <g transform={`translate(${width - padding.right + 6}, ${targetY - 9})`}>
+                    <rect
+                      width="76"
+                      height="18"
+                      rx="5"
+                      fill="#D1FAE5"
+                      stroke="#10B981"
+                      strokeWidth="1"
+                      strokeOpacity="0.5"
+                    />
+                    <text
+                      x="38"
+                      y="12.5"
+                      textAnchor="middle"
+                      className="fill-emerald-700 font-sans text-[9px] font-bold tracking-tight"
+                    >
+                      T: ₹{targetT >= 1000 ? `${(targetT / 1000).toFixed(0)}k` : targetT}
+                    </text>
+                  </g>
                 </g>
               )}
 
@@ -323,11 +451,13 @@ export const EVVMonthlyMetricsChart: React.FC<EVVMonthlyMetricsChartProps> = ({
                     const minY = getBalanceY(m.min);
                     const maxY = getBalanceY(m.max);
                     const isHovered = hoveredMonthIdx === i;
+                    const isDimmed = hoveredMonthIdx !== null && !isHovered;
 
                     return (
                       <g
                         key={i}
-                        className="cursor-pointer"
+                        className="cursor-pointer transition-opacity duration-200"
+                        style={{ opacity: isDimmed ? 0.7 : 1 }}
                         onMouseEnter={() => setHoveredMonthIdx(i)}
                         onMouseLeave={() => setHoveredMonthIdx(null)}
                       >
@@ -337,18 +467,16 @@ export const EVVMonthlyMetricsChart: React.FC<EVVMonthlyMetricsChartProps> = ({
                           y1={maxY}
                           x2={groupCenter}
                           y2={minY}
-                          stroke="#94A3B8"
+                          stroke="#CBD5E1"
                           strokeWidth="2"
                           strokeDasharray="2 2"
-                          className="opacity-60"
                         />
-                        {/* Whisker caps */}
                         <line
                           x1={groupCenter - 6}
                           y1={maxY}
                           x2={groupCenter + 6}
                           y2={maxY}
-                          stroke="#94A3B8"
+                          stroke="#CBD5E1"
                           strokeWidth="2"
                         />
                         <line
@@ -356,150 +484,136 @@ export const EVVMonthlyMetricsChart: React.FC<EVVMonthlyMetricsChartProps> = ({
                           y1={minY}
                           x2={groupCenter + 6}
                           y2={minY}
-                          stroke="#94A3B8"
+                          stroke="#CBD5E1"
                           strokeWidth="2"
                         />
 
-                        {/* Bar 1: Sampled AMB */}
+                        {/* Bar 1: Sampled AMB with Rounded Top Caps (rx=4) */}
                         <rect
                           x={groupCenter - barW - 1.5}
                           y={ambY}
                           width={barW}
                           height={ambH}
-                          rx="5"
+                          rx="4"
                           fill="url(#ambBarGrad)"
-                          className={`transition-all duration-200 ${
-                            isHovered ? "filter drop-shadow(0 4px 8px rgba(139,92,246,0.35)) opacity-100" : "opacity-90"
-                          }`}
+                          filter={isHovered ? "url(#barHoverGlow)" : undefined}
+                          className="transition-all duration-200"
                         />
 
-                        {/* Bar 2: Closing Balance */}
+                        {/* Bar 2: Closing Ledger Balance with Rounded Top Caps (rx=4) */}
                         <rect
                           x={groupCenter + 1.5}
                           y={closingY}
                           width={barW}
                           height={closingH}
-                          rx="5"
+                          rx="4"
                           fill="url(#closingBarGrad)"
-                          className={`transition-all duration-200 ${
-                            isHovered ? "filter drop-shadow(0 4px 8px rgba(56,189,248,0.35)) opacity-100" : "opacity-90"
-                          }`}
+                          filter={isHovered ? "url(#barHoverGlow)" : undefined}
+                          className="transition-all duration-200"
                         />
-
-                        {/* Value Tag over AMB Bar */}
-                        <text
-                          x={groupCenter - barW / 2 - 1.5}
-                          y={Math.max(padding.top - 4, ambY - 6)}
-                          textAnchor="middle"
-                          className="font-mono font-black text-[9px] fill-indigo-700 dark:fill-indigo-400"
-                        >
-                          ₹{Math.round(m.avg / 1000)}k
-                        </text>
                       </g>
                     );
                   })}
                 </>
               ) : (
-                /* SUB-VIEW B: SPLINE AREA CURVE VIEW */
+                /* SUB-VIEW B: SPLINE CURVE VIEW */
                 <>
                   {ambAreaPath && <path d={ambAreaPath} fill="url(#monthlyAreaGrad)" />}
-                  {metrics.map((_, i) => (
-                    <line
-                      key={i}
-                      x1={getX(i)}
-                      y1={minPoints[i].y}
-                      x2={getX(i)}
-                      y2={maxPoints[i].y}
-                      stroke="#CBD5E1"
+                  {ambPath && (
+                    <path
+                      d={ambPath}
+                      fill="none"
+                      stroke="url(#monthlySplineGrad)"
                       strokeWidth="3"
                       strokeLinecap="round"
-                      className="opacity-60"
+                      strokeLinejoin="round"
                     />
-                  ))}
-                  <path d={makeSpline(dailyPoints)} fill="none" stroke="#94A3B8" strokeWidth="2" strokeDasharray="4 4" />
-                  <path d={makeSpline(closingPoints)} fill="none" stroke="#0EA5E9" strokeWidth="2" />
-                  <path d={ambPath} fill="none" stroke="#7C3AED" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
-                  {ambPoints.map((pt, i) => (
-                    <g
-                      key={i}
-                      onMouseEnter={() => setHoveredMonthIdx(i)}
-                      onMouseLeave={() => setHoveredMonthIdx(null)}
-                      className="cursor-pointer"
-                    >
-                      <circle
-                        cx={pt.x}
-                        cy={pt.y}
-                        r={hoveredMonthIdx === i ? "7.5" : "5"}
-                        fill="#FFFFFF"
-                        stroke="#7C3AED"
-                        strokeWidth="3"
-                        className="transition-all duration-200"
-                      />
-                    </g>
-                  ))}
+                  )}
+                  {ambPoints.map((pt, i) => {
+                    const isHovered = hoveredMonthIdx === i;
+                    const isDimmed = hoveredMonthIdx !== null && !isHovered;
+
+                    return (
+                      <g
+                        key={i}
+                        className="cursor-pointer transition-opacity duration-200"
+                        style={{ opacity: isDimmed ? 0.7 : 1 }}
+                        onMouseEnter={() => setHoveredMonthIdx(i)}
+                        onMouseLeave={() => setHoveredMonthIdx(null)}
+                      >
+                        <circle cx={pt.x} cy={pt.y} r="14" fill="transparent" />
+                        <circle
+                          cx={pt.x}
+                          cy={pt.y}
+                          r={isHovered ? "6" : "4"}
+                          fill="#FFFFFF"
+                          stroke="#6366F1"
+                          strokeWidth="2"
+                          filter={isHovered ? "url(#nodeGlow)" : undefined}
+                          className="transition-all duration-200 ease-out"
+                        />
+                      </g>
+                    );
+                  })}
                 </>
               )}
             </>
           )}
 
-          {/* ────────────────── MODE 2: CASHFLOW (CREDITS vs DEBITS BARS) ────────────────── */}
+          {/* ────────────────── MODE 2: CASHFLOW (CREDITS VS DEBITS) ────────────────── */}
           {activeMode === "cashflow" && (
             <>
               {metrics.map((m, i) => {
-                const groupX = getSlotCenterX(i);
-                const barW = Math.min(24, slotW * 0.36);
-                const creditH = height - padding.bottom - getFlowY(m.credits);
-                const debitH = height - padding.bottom - getFlowY(m.debits);
+                const groupCenter = getSlotCenterX(i);
+                const barW = Math.min(22, slotW * 0.36);
+                const crY = getFlowY(m.credits);
+                const crH = Math.max(4, height - padding.bottom - crY);
+                const dbY = getFlowY(m.debits);
+                const dbH = Math.max(4, height - padding.bottom - dbY);
                 const isHovered = hoveredMonthIdx === i;
+                const isDimmed = hoveredMonthIdx !== null && !isHovered;
 
                 return (
                   <g
                     key={i}
+                    className="cursor-pointer transition-opacity duration-200"
+                    style={{ opacity: isDimmed ? 0.7 : 1 }}
                     onMouseEnter={() => setHoveredMonthIdx(i)}
                     onMouseLeave={() => setHoveredMonthIdx(null)}
-                    className="cursor-pointer"
                   >
-                    {/* Credit Bar */}
+                    {/* Inflow Credit Bar (rx=4) */}
                     <rect
-                      x={groupX - barW - 2}
-                      y={getFlowY(m.credits)}
+                      x={groupCenter - barW - 1.5}
+                      y={crY}
                       width={barW}
-                      height={Math.max(2, creditH)}
-                      rx="5"
+                      height={crH}
+                      rx="4"
                       fill="url(#creditBarGrad)"
-                      className={`transition-all duration-200 ${isHovered ? "opacity-100 filter drop-shadow(0 4px 6px rgba(16,185,129,0.3))" : "opacity-90"}`}
+                      filter={isHovered ? "url(#barHoverGlow)" : undefined}
+                      className="transition-all duration-200"
                     />
 
-                    {/* Debit Bar */}
+                    {/* Outflow Debit Bar (rx=4) */}
                     <rect
-                      x={groupX + 2}
-                      y={getFlowY(m.debits)}
+                      x={groupCenter + 1.5}
+                      y={dbY}
                       width={barW}
-                      height={Math.max(2, debitH)}
-                      rx="5"
+                      height={dbH}
+                      rx="4"
                       fill="url(#debitBarGrad)"
-                      className={`transition-all duration-200 ${isHovered ? "opacity-100 filter drop-shadow(0 4px 6px rgba(244,63,94,0.3))" : "opacity-90"}`}
+                      filter={isHovered ? "url(#barHoverGlow)" : undefined}
+                      className="transition-all duration-200"
                     />
-
-                    {/* Credit Value Label */}
-                    <text
-                      x={groupX - barW / 2 - 2}
-                      y={Math.max(padding.top - 4, getFlowY(m.credits) - 6)}
-                      textAnchor="middle"
-                      className="font-mono font-black text-[9px] fill-emerald-600"
-                    >
-                      +₹{Math.round(m.credits / 1000)}k
-                    </text>
                   </g>
                 );
               })}
             </>
           )}
 
-          {/* ────────────────── MODE 3: RISK & BOUNCES (CASH % COLUMN BARS) ────────────────── */}
+          {/* ────────────────── MODE 3: RISK (CASH DEPOSIT %) ────────────────── */}
           {activeMode === "risk" && (
             <>
-              {/* 25% Threshold line */}
+              {/* 25% Safe Policy Threshold reference line */}
               {cashLimitY >= padding.top && cashLimitY <= height - padding.bottom && (
                 <g>
                   <line
@@ -507,91 +621,81 @@ export const EVVMonthlyMetricsChart: React.FC<EVVMonthlyMetricsChartProps> = ({
                     y1={cashLimitY}
                     x2={width - padding.right}
                     y2={cashLimitY}
-                    stroke="#EF4444"
-                    strokeDasharray="4 4"
+                    stroke="#F59E0B"
+                    strokeDasharray="5 5"
                     strokeWidth="1.5"
-                    className="opacity-80"
+                    filter="url(#mBenchmarkGlow)"
                   />
-                  <text
-                    x={width - padding.right}
-                    y={cashLimitY - 5}
-                    textAnchor="end"
-                    className="fill-rose-600 font-mono text-[9px] font-black uppercase"
-                  >
-                    25% Max Cash Limit
-                  </text>
+                  <g transform={`translate(${width - padding.right + 6}, ${cashLimitY - 9})`}>
+                    <rect
+                      width="76"
+                      height="18"
+                      rx="5"
+                      fill="#FEF3C7"
+                      stroke="#F59E0B"
+                      strokeWidth="1"
+                      strokeOpacity="0.5"
+                    />
+                    <text
+                      x="38"
+                      y="12.5"
+                      textAnchor="middle"
+                      className="fill-amber-700 font-sans text-[9px] font-bold tracking-tight"
+                    >
+                      Safe: ≤25%
+                    </text>
+                  </g>
                 </g>
               )}
 
-              {/* Cash % Bars */}
               {metrics.map((m, i) => {
-                const groupX = getSlotCenterX(i);
-                const barW = Math.min(30, slotW * 0.45);
+                const groupCenter = getSlotCenterX(i);
+                const barW = Math.min(28, slotW * 0.48);
                 const pct = m.cashPercent || 0;
-                const barH = (pct / (maxCashPct || 1)) * chartH;
-                const barY = height - padding.bottom - barH;
-                const isHighRisk = pct > 25;
+                const barY = getRiskY(pct);
+                const barH = Math.max(4, height - padding.bottom - barY);
+                const isHigh = pct > 25;
                 const isHovered = hoveredMonthIdx === i;
+                const isDimmed = hoveredMonthIdx !== null && !isHovered;
 
                 return (
                   <g
                     key={i}
+                    className="cursor-pointer transition-opacity duration-200"
+                    style={{ opacity: isDimmed ? 0.7 : 1 }}
                     onMouseEnter={() => setHoveredMonthIdx(i)}
                     onMouseLeave={() => setHoveredMonthIdx(null)}
-                    className="cursor-pointer"
                   >
-                    {/* Background track */}
+                    {/* Background Slot Bar */}
                     <rect
-                      x={groupX - barW / 2}
+                      x={groupCenter - barW / 2}
                       y={padding.top}
                       width={barW}
                       height={chartH}
-                      rx="6"
-                      fill="#F1F5F9"
-                      className="dark:fill-slate-800/40 opacity-50"
+                      rx="4"
+                      fill="rgba(241, 245, 249, 0.45)"
                     />
 
-                    {/* Active Cash % Bar */}
+                    {/* Cash % Bar (rx=4) */}
                     <rect
-                      x={groupX - barW / 2}
+                      x={groupCenter - barW / 2}
                       y={barY}
                       width={barW}
-                      height={Math.max(4, barH)}
-                      rx="6"
-                      fill={isHighRisk ? "url(#cashBarRoseGrad)" : "url(#cashBarAmberGrad)"}
-                      className={`transition-all duration-200 ${
-                        isHovered ? "opacity-100 filter drop-shadow(0 4px 8px rgba(0,0,0,0.2))" : "opacity-90"
-                      }`}
+                      height={barH}
+                      rx="4"
+                      fill={isHigh ? "url(#cashBarRoseGrad)" : "url(#cashBarAmberGrad)"}
+                      filter={isHovered ? "url(#barHoverGlow)" : undefined}
+                      className="transition-all duration-200"
                     />
 
-                    {/* Percentage text */}
-                    <text
-                      x={groupX}
-                      y={Math.max(padding.top - 4, barY - 6)}
-                      textAnchor="middle"
-                      className={`font-mono font-black text-[9px] ${
-                        isHighRisk ? "fill-rose-600" : "fill-amber-600"
-                      }`}
-                    >
-                      {pct}%
-                    </text>
-
-                    {/* Bounce Badge if any */}
+                    {/* Bounces Badge on top of Bar */}
                     {m.bounces > 0 && (
-                      <g transform={`translate(${groupX}, ${padding.top + 16})`}>
-                        <circle
-                          cx="0"
-                          cy="0"
-                          r="10"
-                          fill="#FEE2E2"
-                          stroke="#EF4444"
-                          strokeWidth="2"
-                        />
+                      <g transform={`translate(${groupCenter}, ${Math.max(padding.top - 8, barY - 14)})`}>
+                        <circle r="7.5" fill="#FDA4AF" stroke="#E11D48" strokeWidth="1" />
                         <text
-                          x="0"
-                          y="3.5"
+                          y="3"
                           textAnchor="middle"
-                          className="fill-rose-700 font-mono text-[9px] font-black"
+                          className="fill-rose-900 font-sans text-[8.5px] font-extrabold"
                         >
                           {m.bounces}
                         </text>
@@ -603,51 +707,54 @@ export const EVVMonthlyMetricsChart: React.FC<EVVMonthlyMetricsChartProps> = ({
             </>
           )}
 
-          {/* Month X-Axis Labels */}
+          {/* Baseline */}
+          <line
+            x1={padding.left}
+            y1={height - padding.bottom}
+            x2={width - padding.right}
+            y2={height - padding.bottom}
+            stroke="#F1F5F9"
+            strokeWidth="1"
+          />
+
+          {/* X-Axis Month Labels */}
           {metrics.map((m, i) => {
-            const x = balanceGraphStyle === "bar" || activeMode !== "balances" ? getSlotCenterX(i) : getX(i);
+            const x = getSlotCenterX(i);
             const isHovered = hoveredMonthIdx === i;
+
             return (
-              <g
+              <text
                 key={i}
-                className="cursor-pointer"
-                onMouseEnter={() => setHoveredMonthIdx(i)}
-                onMouseLeave={() => setHoveredMonthIdx(null)}
+                x={x}
+                y={height - padding.bottom + 20}
+                textAnchor="middle"
+                className={`font-sans text-[11px] font-medium uppercase tracking-wider transition-colors duration-150 ${
+                  isHovered ? "fill-[#4F46E5] font-semibold" : "fill-[#94A3B8]"
+                }`}
               >
-                <text
-                  x={x}
-                  y={height - padding.bottom + 18}
-                  textAnchor="middle"
-                  className={`text-[10px] uppercase tracking-wider transition-all ${
-                    isHovered
-                      ? "fill-indigo-600 dark:fill-indigo-400 font-black text-[11px]"
-                      : "fill-slate-500 font-bold"
-                  }`}
-                >
-                  {m.label || m.month}
-                </text>
-              </g>
+                {m.label || m.month}
+              </text>
             );
           })}
         </svg>
       </div>
 
-      {/* Chart Footer: Legend and Selected Month Scrub Details */}
-      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+      {/* Chart Footer: Clean Modern Legend and Scrub Details */}
+      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 pt-3 border-t border-slate-100">
         {/* Dynamic Legend */}
-        <div className="flex items-center gap-4 flex-wrap text-xs font-bold">
+        <div className="flex items-center gap-4 flex-wrap text-xs font-semibold text-slate-600">
           {activeMode === "balances" && (
             <>
-              <span className="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400">
-                <span className="w-3 h-3 bg-violet-600 rounded-xs" />
+              <span className="flex items-center gap-1.5 text-indigo-600">
+                <span className="w-2.5 h-2.5 rounded-full bg-gradient-to-b from-[#818CF8] to-[#4F46E5]" />
                 Sampled AMB (Avg)
               </span>
               <span className="flex items-center gap-1.5 text-sky-600">
-                <span className="w-3 h-3 bg-sky-500 rounded-xs" />
+                <span className="w-2.5 h-2.5 rounded-full bg-gradient-to-b from-[#38BDF8] to-[#0284C7]" />
                 Closing Balance
               </span>
-              <span className="flex items-center gap-1.5 text-slate-500">
-                <span className="w-3 h-0.5 bg-slate-400" />
+              <span className="flex items-center gap-1.5 text-slate-400">
+                <span className="w-3 h-0.5 bg-slate-300" />
                 Min–Max Whisker
               </span>
             </>
@@ -655,74 +762,76 @@ export const EVVMonthlyMetricsChart: React.FC<EVVMonthlyMetricsChartProps> = ({
           {activeMode === "cashflow" && (
             <>
               <span className="flex items-center gap-1.5 text-emerald-600">
-                <span className="w-3 h-3 bg-emerald-500 rounded-xs" />
-                Total Credits (Inflow)
+                <span className="w-2.5 h-2.5 rounded-full bg-gradient-to-b from-[#10B981] to-[#059669]" />
+                Credits (Inflow)
               </span>
-              <span className="flex items-center gap-1.5 text-rose-600">
-                <span className="w-3 h-3 bg-rose-500 rounded-xs" />
-                Total Debits (Outflow)
+              <span className="flex items-center gap-1.5 text-rose-500">
+                <span className="w-2.5 h-2.5 rounded-full bg-gradient-to-b from-[#FB7185] to-[#E11D48]" />
+                Debits (Outflow)
               </span>
             </>
           )}
           {activeMode === "risk" && (
             <>
               <span className="flex items-center gap-1.5 text-amber-600">
-                <span className="w-3 h-3 bg-amber-500 rounded-xs" />
-                Cash Deposit % (Safe &le; 25%)
+                <span className="w-2.5 h-2.5 rounded-full bg-gradient-to-b from-[#FBBF24] to-[#D97706]" />
+                Cash Deposit % (&le; 25% Safe)
               </span>
-              <span className="flex items-center gap-1.5 text-rose-600">
-                <span className="w-3 h-3 bg-rose-500 rounded-xs" />
-                Cash Deposit % (High Risk &gt; 25%)
+              <span className="flex items-center gap-1.5 text-rose-500">
+                <span className="w-2.5 h-2.5 rounded-full bg-gradient-to-b from-[#FB7185] to-[#E11D48]" />
+                High Risk (&gt; 25%)
               </span>
-              <span className="flex items-center gap-1.5 text-rose-600">
+              <span className="flex items-center gap-1.5 text-rose-500">
                 <span className="w-2.5 h-2.5 rounded-full bg-rose-100 border border-rose-500" />
-                Bounces Tag
+                Bounces Badge
               </span>
             </>
           )}
         </div>
 
-        {/* Dynamic Hover Details */}
+        {/* Dynamic Hover Details Pill */}
         {hoveredMonthIdx !== null ? (
-          <div className="flex items-center gap-3 font-mono font-bold text-xs bg-slate-50 dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs">
-            <span className="text-indigo-600 dark:text-indigo-400 uppercase font-black text-[10px]">
+          <div className="flex items-center gap-3 font-mono font-medium text-xs bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200/80 shadow-2xs">
+            <span className="text-[#4F46E5] uppercase font-bold text-[10px]">
               {metrics[hoveredMonthIdx].label}:
             </span>
             {activeMode === "balances" && (
               <>
                 <span>AMB: ₹{Math.round(metrics[hoveredMonthIdx].avg).toLocaleString("en-IN")}</span>
-                <span className="text-slate-400">|</span>
+                <span className="text-slate-300">|</span>
                 <span>Closing: ₹{Math.round(metrics[hoveredMonthIdx].closing || 0).toLocaleString("en-IN")}</span>
-                <span className="text-slate-400">|</span>
+                <span className="text-slate-300">|</span>
                 <span className="text-slate-500">Min: ₹{Math.round(metrics[hoveredMonthIdx].min).toLocaleString("en-IN")}</span>
-                <span className="text-slate-400">|</span>
+                <span className="text-slate-300">|</span>
                 <span className="text-slate-500">Max: ₹{Math.round(metrics[hoveredMonthIdx].max).toLocaleString("en-IN")}</span>
               </>
             )}
             {activeMode === "cashflow" && (
               <>
                 <span className="text-emerald-600">In: ₹{Math.round(metrics[hoveredMonthIdx].credits).toLocaleString("en-IN")}</span>
-                <span className="text-slate-400">|</span>
-                <span className="text-rose-600">Out: ₹{Math.round(metrics[hoveredMonthIdx].debits).toLocaleString("en-IN")}</span>
-                <span className="text-slate-400">|</span>
-                <span className={metrics[hoveredMonthIdx].credits >= metrics[hoveredMonthIdx].debits ? "text-emerald-600" : "text-rose-600"}>
-                  Net: {metrics[hoveredMonthIdx].credits >= metrics[hoveredMonthIdx].debits ? "+" : "-"}₹{Math.abs(Math.round(metrics[hoveredMonthIdx].credits - metrics[hoveredMonthIdx].debits)).toLocaleString("en-IN")}
+                <span className="text-slate-300">|</span>
+                <span className="text-rose-500">Out: ₹{Math.round(metrics[hoveredMonthIdx].debits).toLocaleString("en-IN")}</span>
+                <span className="text-slate-300">|</span>
+                <span className={metrics[hoveredMonthIdx].credits >= metrics[hoveredMonthIdx].debits ? "text-emerald-600" : "text-rose-500"}>
+                  Net: {metrics[hoveredMonthIdx].credits >= metrics[hoveredMonthIdx].debits ? "+" : "-"}₹
+                  {Math.abs(Math.round(metrics[hoveredMonthIdx].credits - metrics[hoveredMonthIdx].debits)).toLocaleString("en-IN")}
                 </span>
               </>
             )}
             {activeMode === "risk" && (
               <>
                 <span className="text-amber-600">Cash: {metrics[hoveredMonthIdx].cashPercent || 0}%</span>
-                <span className="text-slate-400">|</span>
-                <span className={metrics[hoveredMonthIdx].bounces > 0 ? "text-rose-600 font-black" : "text-slate-600"}>
+                <span className="text-slate-300">|</span>
+                <span className={metrics[hoveredMonthIdx].bounces > 0 ? "text-rose-500 font-bold" : "text-slate-600"}>
                   Bounces: {metrics[hoveredMonthIdx].bounces || 0}
                 </span>
               </>
             )}
           </div>
         ) : (
-          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-            Hover over bars to inspect monthly breakdown
+          <span className="text-[11px] text-slate-400 font-medium flex items-center gap-1.5">
+            <span className="material-symbols-outlined text-[15px]">touch_app</span>
+            <span>Hover over bars to inspect monthly breakdown</span>
           </span>
         )}
       </div>

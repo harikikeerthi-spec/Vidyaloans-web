@@ -4494,8 +4494,41 @@ export const EvvAnalysisTab = ({
                       options={{
                         responsive: true,
                         maintainAspectRatio: false,
-                        plugins: { legend: { display: true, position: "top" as const } },
-                        scales: { y: { grid: { color: isDarkMode ? "#1e293b" : "#f1f5f9" } } }
+                        plugins: {
+                          legend: {
+                            display: true,
+                            position: "top" as const,
+                            labels: {
+                              font: { family: "'Plus Jakarta Sans', 'Inter', sans-serif", size: 11, weight: 'bold' as const },
+                              usePointStyle: true,
+                              pointStyle: 'circle',
+                              padding: 16,
+                              color: isDarkMode ? '#94A3B8' : '#64748B',
+                            }
+                          },
+                          tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.88)',
+                            titleColor: '#F8FAFC',
+                            bodyColor: '#CBD5E1',
+                            titleFont: { family: "'Plus Jakarta Sans', 'Inter', sans-serif", size: 12, weight: 'bold' as const },
+                            bodyFont: { family: "'Plus Jakarta Sans', 'Inter', sans-serif", size: 11 },
+                            padding: 12,
+                            cornerRadius: 8,
+                            borderColor: 'rgba(255,255,255,0.1)',
+                            borderWidth: 1,
+                          }
+                        },
+                        scales: {
+                          x: {
+                            grid: { display: false },
+                            ticks: { color: '#94A3B8', font: { family: "'Plus Jakarta Sans', 'Inter', sans-serif", size: 10 } }
+                          },
+                          y: {
+                            border: { display: false },
+                            grid: { color: isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(148, 163, 184, 0.1)' },
+                            ticks: { color: '#94A3B8', padding: 10, font: { family: "'Plus Jakarta Sans', 'Inter', sans-serif", size: 10 } }
+                          }
+                        }
                       }}
                     />
                   )}
@@ -4505,8 +4538,41 @@ export const EvvAnalysisTab = ({
                       options={{
                         responsive: true,
                         maintainAspectRatio: false,
-                        plugins: { legend: { display: true } },
-                        scales: { y: { grid: { color: isDarkMode ? "#1e293b" : "#f1f5f9" } } }
+                        plugins: {
+                          legend: {
+                            display: true,
+                            position: "top" as const,
+                            labels: {
+                              font: { family: "'Plus Jakarta Sans', 'Inter', sans-serif", size: 11, weight: 'bold' as const },
+                              usePointStyle: true,
+                              pointStyle: 'circle',
+                              padding: 16,
+                              color: isDarkMode ? '#94A3B8' : '#64748B',
+                            }
+                          },
+                          tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.88)',
+                            titleColor: '#F8FAFC',
+                            bodyColor: '#CBD5E1',
+                            titleFont: { family: "'Plus Jakarta Sans', 'Inter', sans-serif", size: 12, weight: 'bold' as const },
+                            bodyFont: { family: "'Plus Jakarta Sans', 'Inter', sans-serif", size: 11 },
+                            padding: 12,
+                            cornerRadius: 8,
+                            borderColor: 'rgba(255,255,255,0.1)',
+                            borderWidth: 1,
+                          }
+                        },
+                        scales: {
+                          x: {
+                            grid: { display: false },
+                            ticks: { color: '#94A3B8', font: { family: "'Plus Jakarta Sans', 'Inter', sans-serif", size: 10 } }
+                          },
+                          y: {
+                            border: { display: false },
+                            grid: { color: isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(148, 163, 184, 0.1)' },
+                            ticks: { color: '#94A3B8', padding: 10, font: { family: "'Plus Jakarta Sans', 'Inter', sans-serif", size: 10 } }
+                          }
+                        }
                       }}
                     />
                   )}
@@ -4517,7 +4583,27 @@ export const EvvAnalysisTab = ({
                         options={{
                           responsive: true,
                           maintainAspectRatio: false,
-                          plugins: { legend: { position: "right" as const } }
+                          plugins: {
+                            legend: {
+                              position: "right" as const,
+                              labels: {
+                                font: { family: "'Plus Jakarta Sans', 'Inter', sans-serif", size: 11, weight: 'bold' as const },
+                                usePointStyle: true,
+                                pointStyle: 'circle',
+                                padding: 12,
+                                color: isDarkMode ? '#94A3B8' : '#64748B',
+                              }
+                            },
+                            tooltip: {
+                              backgroundColor: 'rgba(15, 23, 42, 0.88)',
+                              titleColor: '#F8FAFC',
+                              bodyColor: '#CBD5E1',
+                              padding: 10,
+                              cornerRadius: 8,
+                              borderColor: 'rgba(255,255,255,0.1)',
+                              borderWidth: 1,
+                            }
+                          }
                         }}
                       />
                     </div>

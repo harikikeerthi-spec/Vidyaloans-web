@@ -40,6 +40,12 @@ function DossierLayoutInner({ children }: { children: React.ReactNode }) {
 
     const router = useRouter();
     const pathname = usePathname();
+    const [isRefreshing, setIsRefreshing] = useState(false);
+
+    const handleRefresh = () => {
+        setIsRefreshing(true);
+        window.location.reload();
+    };
 
     const handleBack = () => {
         router.push("/staff/users");
@@ -168,9 +174,6 @@ function DossierLayoutInner({ children }: { children: React.ReactNode }) {
                                 <h1 className="text-xl font-bold text-gray-900 tracking-tight uppercase">
                                     {userData.firstName || "—"} {userData.lastName || ""}
                                 </h1>
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                    Low Risk • Grade A+
-                                </span>
                             </div>
                             <p className="text-xs text-gray-500 mt-1">
                                 Registered: <span className="font-medium text-gray-700">{formatDate(userData.createdAt, "MMM d, yyyy")}</span>
@@ -181,6 +184,19 @@ function DossierLayoutInner({ children }: { children: React.ReactNode }) {
                     {/* User Action Controls */}
                     <div className="flex items-center gap-2.5">
                         <button
+                            type="button"
+                            onClick={handleRefresh}
+                            disabled={isRefreshing}
+                            className="px-3.5 py-2 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                            title="Refresh Page"
+                        >
+                            <span className={`material-symbols-outlined text-[16px] text-gray-600 ${isRefreshing ? "animate-spin" : ""}`}>
+                                refresh
+                            </span>
+
+                        </button>
+                        <button
+                            type="button"
                             onClick={openCoAppModal}
                             disabled={actionLoading}
                             className="px-3.5 py-2 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg shadow-2xs transition-all cursor-pointer disabled:opacity-50"
@@ -188,6 +204,7 @@ function DossierLayoutInner({ children }: { children: React.ReactNode }) {
                             Change Co-Applicant
                         </button>
                         <button
+                            type="button"
                             onClick={() => {
                                 const targetId = userData.id || userData._id || userId;
                                 const studentPhone = userData.phoneNumber || userData.mobile || userData.phone || "";
@@ -212,11 +229,10 @@ function DossierLayoutInner({ children }: { children: React.ReactNode }) {
                                 <Link
                                     key={tab.id}
                                     href={tab.path}
-                                    className={`px-3.5 py-2 rounded-md transition-all whitespace-nowrap inline-flex items-center gap-1.5 cursor-pointer ${
-                                        isActive
+                                    className={`px-3.5 py-2 rounded-md transition-all whitespace-nowrap inline-flex items-center gap-1.5 cursor-pointer ${isActive
                                             ? "bg-white text-indigo-600 shadow-2xs font-bold border border-gray-200/80"
                                             : "hover:text-indigo-600 hover:bg-white"
-                                    }`}
+                                        }`}
                                 >
                                     <span>{tab.label}</span>
                                     {tab.badge && (
@@ -237,144 +253,144 @@ function DossierLayoutInner({ children }: { children: React.ReactNode }) {
             </main>
 
             {/* Edit Co-applicant Details Modal */}
-                {isCoAppModalOpen && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                            className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-white/40"
-                        >
-                            <div className="bg-gradient-to-r from-indigo-500/10 to-[#6605c7]/10 border-b border-indigo-100 px-6 py-4">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-600">
-                                        <span className="material-symbols-outlined text-[20px]">groups</span>
-                                    </div>
-                                    <div>
-                                        <h3 className="text-[13px] font-black text-[#1a1626] uppercase tracking-wider">Modify Co-applicant Profile</h3>
-                                        <p className="text-[10px] text-gray-500 font-semibold mt-0.5">Edit co-applicant information for user directory & active loan files</p>
-                                    </div>
+            {isCoAppModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                        className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-white/40"
+                    >
+                        <div className="bg-gradient-to-r from-indigo-500/10 to-[#6605c7]/10 border-b border-indigo-100 px-6 py-4">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-600">
+                                    <span className="material-symbols-outlined text-[20px]">groups</span>
+                                </div>
+                                <div>
+                                    <h3 className="text-[13px] font-black text-[#1a1626] uppercase tracking-wider">Modify Co-applicant Profile</h3>
+                                    <p className="text-[10px] text-gray-500 font-semibold mt-0.5">Edit co-applicant information for user directory & active loan files</p>
                                 </div>
                             </div>
+                        </div>
 
-                            <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+                        <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+                            <div>
+                                <label className="block text-[9px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Co-applicant Name</label>
+                                <input
+                                    type="text"
+                                    value={coAppName}
+                                    onChange={(e) => setCoAppName(e.target.value)}
+                                    placeholder="Enter co-applicant full name"
+                                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-[9px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Co-applicant Name</label>
+                                    <label className="block text-[9px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Relationship to Student</label>
+                                    <select
+                                        value={coAppRelation}
+                                        onChange={(e) => setCoAppRelation(e.target.value)}
+                                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer transition-all"
+                                    >
+                                        <option value="" disabled>Select relation...</option>
+                                        <option value="Father">Father</option>
+                                        <option value="Mother">Mother</option>
+                                        <option value="Spouse">Spouse</option>
+                                        <option value="Brother">Brother</option>
+                                        <option value="Sister">Sister</option>
+                                        <option value="Uncle">Uncle</option>
+                                        <option value="Aunt">Aunt</option>
+                                        <option value="Guardian">Guardian</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[9px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Annual Income (INR)</label>
                                     <input
-                                        type="text"
-                                        value={coAppName}
-                                        onChange={(e) => setCoAppName(e.target.value)}
-                                        placeholder="Enter co-applicant full name"
+                                        type="number"
+                                        value={coAppIncome}
+                                        onChange={(e) => setCoAppIncome(e.target.value)}
+                                        placeholder="Example: 600000"
                                         className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
                                     />
                                 </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-[9px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Relationship to Student</label>
-                                        <select
-                                            value={coAppRelation}
-                                            onChange={(e) => setCoAppRelation(e.target.value)}
-                                            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer transition-all"
-                                        >
-                                            <option value="" disabled>Select relation...</option>
-                                            <option value="Father">Father</option>
-                                            <option value="Mother">Mother</option>
-                                            <option value="Spouse">Spouse</option>
-                                            <option value="Brother">Brother</option>
-                                            <option value="Sister">Sister</option>
-                                            <option value="Uncle">Uncle</option>
-                                            <option value="Aunt">Aunt</option>
-                                            <option value="Guardian">Guardian</option>
-                                            <option value="Other">Other</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="block text-[9px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Annual Income (INR)</label>
-                                        <input
-                                            type="number"
-                                            value={coAppIncome}
-                                            onChange={(e) => setCoAppIncome(e.target.value)}
-                                            placeholder="Example: 600000"
-                                            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-[9px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Phone Number</label>
-                                        <input
-                                            type="tel"
-                                            value={coAppPhone}
-                                            onChange={(e) => setCoAppPhone(e.target.value)}
-                                            placeholder="Enter 10-digit mobile number"
-                                            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-[9px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Email Address</label>
-                                        <input
-                                            type="email"
-                                            value={coAppEmail}
-                                            onChange={(e) => setCoAppEmail(e.target.value)}
-                                            placeholder="example@mail.com"
-                                            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                                        />
-                                    </div>
-                                </div>
                             </div>
 
-                            <div className="bg-gray-50 border-t border-gray-100 px-6 py-4 flex justify-end gap-3">
-                                <button
-                                    onClick={() => setIsCoAppModalOpen(false)}
-                                    disabled={actionLoading}
-                                    className="px-4 py-2 text-[10px] font-black uppercase tracking-wider text-gray-600 bg-white border border-gray-200 hover:bg-gray-100 rounded-lg transition-all cursor-pointer disabled:opacity-50"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={handleSaveCoApp}
-                                    disabled={actionLoading || !coAppRelation}
-                                    className="px-4 py-2 text-[10px] font-black uppercase tracking-wider text-white bg-gradient-to-r from-indigo-600 to-[#6605c7] hover:opacity-90 rounded-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-indigo-500/20"
-                                >
-                                    Save Changes
-                                </button>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[9px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Phone Number</label>
+                                    <input
+                                        type="tel"
+                                        value={coAppPhone}
+                                        onChange={(e) => setCoAppPhone(e.target.value)}
+                                        placeholder="Enter 10-digit mobile number"
+                                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[9px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Email Address</label>
+                                    <input
+                                        type="email"
+                                        value={coAppEmail}
+                                        onChange={(e) => setCoAppEmail(e.target.value)}
+                                        placeholder="example@mail.com"
+                                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                                    />
+                                </div>
                             </div>
-                        </motion.div>
-                    </div>
-                )}
+                        </div>
 
-                {/* Share/Route to Bank Modal */}
-                {isShareModalOpen && routingApp && (
-                    <ShareWithBankModal
-                        applicationId={routingApp.id}
-                        applicationNumber={routingApp.applicationNumber || ""}
-                        studentName={`${userData.firstName || ""} ${userData.lastName || ""}`}
-                        loanAmount={routingApp.amount || 1500000}
-                        isOpen={isShareModalOpen}
-                        onClose={() => {
-                            setIsShareModalOpen(false);
-                            setRoutingApp(null);
-                        }}
-                        onSuccess={async () => {
-                            setIsShareModalOpen(false);
-                            setRoutingApp(null);
-                            // Refresh data to show routed status
-                            try {
-                                const appsRes = await adminApi.getApplications({}) as any;
-                                const fetchedApps = appsRes.data || [];
-                                const userApps = fetchedApps.filter((app: any) =>
-                                    app.userId === userId || app.user_id === userId || app.applicantId === userId || app.linkedUserId === userId ||
-                                    (userData && (app.userId === userData.id || app.user_id === userData.id || app.applicantId === userData.id))
-                                );
-                                setUserApplications(userApps);
-                            } catch (e) {
-                                console.error("Failed to refresh applications list:", e);
-                            }
-                        }}
-                    />
-                )}
+                        <div className="bg-gray-50 border-t border-gray-100 px-6 py-4 flex justify-end gap-3">
+                            <button
+                                onClick={() => setIsCoAppModalOpen(false)}
+                                disabled={actionLoading}
+                                className="px-4 py-2 text-[10px] font-black uppercase tracking-wider text-gray-600 bg-white border border-gray-200 hover:bg-gray-100 rounded-lg transition-all cursor-pointer disabled:opacity-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSaveCoApp}
+                                disabled={actionLoading || !coAppRelation}
+                                className="px-4 py-2 text-[10px] font-black uppercase tracking-wider text-white bg-gradient-to-r from-indigo-600 to-[#6605c7] hover:opacity-90 rounded-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-indigo-500/20"
+                            >
+                                Save Changes
+                            </button>
+                        </div>
+                    </motion.div>
+                </div>
+            )}
+
+            {/* Share/Route to Bank Modal */}
+            {isShareModalOpen && routingApp && (
+                <ShareWithBankModal
+                    applicationId={routingApp.id}
+                    applicationNumber={routingApp.applicationNumber || ""}
+                    studentName={`${userData.firstName || ""} ${userData.lastName || ""}`}
+                    loanAmount={routingApp.amount || 1500000}
+                    isOpen={isShareModalOpen}
+                    onClose={() => {
+                        setIsShareModalOpen(false);
+                        setRoutingApp(null);
+                    }}
+                    onSuccess={async () => {
+                        setIsShareModalOpen(false);
+                        setRoutingApp(null);
+                        // Refresh data to show routed status
+                        try {
+                            const appsRes = await adminApi.getApplications({}) as any;
+                            const fetchedApps = appsRes.data || [];
+                            const userApps = fetchedApps.filter((app: any) =>
+                                app.userId === userId || app.user_id === userId || app.applicantId === userId || app.linkedUserId === userId ||
+                                (userData && (app.userId === userData.id || app.user_id === userData.id || app.applicantId === userData.id))
+                            );
+                            setUserApplications(userApps);
+                        } catch (e) {
+                            console.error("Failed to refresh applications list:", e);
+                        }
+                    }}
+                />
+            )}
         </div>
     );
 }

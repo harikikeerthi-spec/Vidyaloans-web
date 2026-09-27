@@ -19,8 +19,8 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       connectionString,
       ssl: isLocalhost ? false : { rejectUnauthorized: false },
       max: 6, // Keep pool conservative per worker to prevent pooler exhaustion
-      idleTimeoutMillis: 10000, // Close idle connections after 10s to release back to Supabase
-      connectionTimeoutMillis: 15000,
+      idleTimeoutMillis: 60000, // Keep warm for 60s so 30s cron cycles reuse connection
+      connectionTimeoutMillis: 30000, // Allow up to 30s for Supabase pooler cold start / latency
       keepAlive: true,
       keepAliveInitialDelayMillis: 10000,
     });

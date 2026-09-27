@@ -3,155 +3,155 @@
 import React, { useState } from "react";
 import { type EVV6ComponentResult } from "@/lib/evv-parser";
 
-interface EVV6ComponentBarChartProps {
-  sixComponent: EVV6ComponentResult;
+export interface EVV6ComponentBarChartProps {
+  sixComponent?: EVV6ComponentResult | any;
+  sixComponents?: EVV6ComponentResult | any;
   className?: string;
 }
 
 export const EVV6ComponentBarChart: React.FC<EVV6ComponentBarChartProps> = ({
   sixComponent,
+  sixComponents,
   className = "",
 }) => {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   const [layoutMode, setLayoutMode] = useState<"columns" | "horizontal">("columns");
 
-  if (!sixComponent) return null;
+  const data = sixComponent || sixComponents;
+  if (!data) return null;
 
-  const { component1: c1, component2: c2, component3: c3, component4: c4, component5: c5, component6: c6 } = sixComponent;
-
-  const c4ScoreNum = c4?.isRepaymentIncomeContributor === "NO" ? 15 : (typeof c4?.score === "number" ? c4.score : 0);
+  const c1 = data.component1;
+  const c2 = data.component2;
+  const c3 = data.component3;
+  const c4 = data.component4;
+  const c5 = data.component5;
+  const c6 = data.component6;
 
   const items = [
     {
-      id: "c1",
       code: "C1",
-      title: "Sampled AMB Dynamics",
-      shortTitle: "AMB Dynamics",
-      score: c1?.score ?? 0,
-      maxScore: c1?.maxScore ?? 25,
-      ratio: Math.min(1, Math.max(0, (c1?.score ?? 0) / (c1?.maxScore || 25))),
-      evidence: `6-Mo AMB: ₹${Number(c1?.sixMonthSampledAMB ?? 0).toLocaleString("en-IN")}`,
-      color: "#8B5CF6", // Violet
-      gradId: "gradC1",
-      gradStart: "#8B5CF6",
-      gradEnd: "#6D28D9",
+      title: c1?.name || "AMB Benchmark & Inflow",
+      shortName: "Balance Trend",
+      score: c1?.score || 0,
+      maxScore: c1?.maxScore || c1?.maxPoints || 25,
+      ratio: (c1?.score || 0) / (c1?.maxScore || c1?.maxPoints || 25),
+      evidence: c1?.sixMonthSampledAMB !== undefined ? `6M AMB ₹${Math.round(c1.sixMonthSampledAMB).toLocaleString('en-IN')}` : `AMB: ₹${Math.round(c1?.ambBalance || 0).toLocaleString("en-IN")}`,
+      color: "#4F46E5",
+      gradStart: "#818CF8",
+      gradEnd: "#4F46E5",
+      gradId: "c1BarGrad",
     },
     {
-      id: "c2",
       code: "C2",
-      title: "Min-Balance Safety Ratio",
-      shortTitle: "Safety Ratio",
-      score: c2?.score ?? 0,
-      maxScore: c2?.maxScore ?? 20,
-      ratio: Math.min(1, Math.max(0, (c2?.score ?? 0) / (c2?.maxScore || 20))),
-      evidence: `Safety Ratio: ${c2?.finalSafetyRatio ?? 100}%`,
-      color: "#3B82F6", // Blue
-      gradId: "gradC2",
-      gradStart: "#3B82F6",
-      gradEnd: "#1D4ED8",
+      title: c2?.name || "Minimum-Balance Safety",
+      shortName: "Min-Bal Safety",
+      score: c2?.score || 0,
+      maxScore: c2?.maxScore || c2?.maxPoints || 20,
+      ratio: (c2?.score || 0) / (c2?.maxScore || c2?.maxPoints || 20),
+      evidence: c2?.finalSafetyRatio !== undefined ? `Safety Ratio: ${c2.finalSafetyRatio}%` : `Vol CV: ${c2?.volatilityCV?.toFixed(2) || "—"}`,
+      color: "#06B6D4",
+      gradStart: "#22D3EE",
+      gradEnd: "#0891B2",
+      gradId: "c2BarGrad",
     },
     {
-      id: "c3",
       code: "C3",
-      title: "Bounce-Free Record",
-      shortTitle: "Bounce Record",
-      score: c3?.score ?? 0,
-      maxScore: c3?.maxScore ?? 20,
-      ratio: Math.min(1, Math.max(0, (c3?.score ?? 0) / (c3?.maxScore || 20))),
-      evidence: `${c3?.confirmedBounces ?? 0} Bounces`,
-      color: "#10B981", // Emerald
-      gradId: "gradC3",
-      gradStart: "#10B981",
-      gradEnd: "#047857",
+      title: c3?.name || "Bounce-Free Record",
+      shortName: "Bounce Record",
+      score: c3?.score || 0,
+      maxScore: c3?.maxScore || c3?.maxPoints || 20,
+      ratio: (c3?.score || 0) / (c3?.maxScore || c3?.maxPoints || 20),
+      evidence: c3?.confirmedBounces !== undefined ? `${c3.confirmedBounces} Bounces` : `${c3?.salaryCount || 0} credits detected`,
+      color: (c3?.confirmedBounces || 0) > 0 ? "#FB7185" : "#10B981",
+      gradStart: (c3?.confirmedBounces || 0) > 0 ? "#FB7185" : "#34D399",
+      gradEnd: (c3?.confirmedBounces || 0) > 0 ? "#E11D48" : "#059669",
+      gradId: "c3BarGrad",
     },
     {
-      id: "c4",
       code: "C4",
-      title: "Verified Inflow Regularity",
-      shortTitle: "Inflow Reg.",
-      score: c4ScoreNum,
-      maxScore: c4?.maxScore ?? 15,
-      ratio: c4?.isRepaymentIncomeContributor === "NO" ? 1 : Math.min(1, Math.max(0, c4ScoreNum / (c4?.maxScore || 15))),
-      evidence: c4?.isRepaymentIncomeContributor === "NO" ? "Non-Contributor (Scaled)" : `${c4?.recurringMonthsCount ?? 6}/6 mos verified`,
-      color: "#F59E0B", // Amber
-      gradId: "gradC4",
-      gradStart: "#F59E0B",
+      title: c4?.name || "Verified Inflow Regularity",
+      shortName: "Inflow Regularity",
+      score: c4?.isRepaymentIncomeContributor === 'NO' ? 15 : (typeof c4?.score === 'number' ? c4.score : 0),
+      maxScore: c4?.maxScore || c4?.maxPoints || 15,
+      ratio: (c4?.score || 0) / (c4?.maxScore || c4?.maxPoints || 15),
+      evidence: c4?.isRepaymentIncomeContributor === 'NO' ? "Non-Contributor (Scaled)" : (c4?.recurringMonthsCount !== undefined ? `${c4.recurringMonthsCount}/6 mos verified` : `Bounces: ${c4?.bounceCount || 0}`),
+      color: "#F59E0B",
+      gradStart: "#FBBF24",
       gradEnd: "#D97706",
+      gradId: "c4BarGrad",
     },
     {
-      id: "c5",
       code: "C5",
-      title: "Cash-Deposit Ratio",
-      shortTitle: "Cash Ratio",
-      score: c5?.score ?? 0,
-      maxScore: c5?.maxScore ?? 10,
-      ratio: Math.min(1, Math.max(0, (c5?.score ?? 0) / (c5?.maxScore || 10))),
-      evidence: `${((c5?.cashRatio ?? 0) * 100).toFixed(1)}% Cash`,
-      color: "#06B6D4", // Cyan
-      gradId: "gradC5",
-      gradStart: "#06B6D4",
-      gradEnd: "#0E7490",
+      title: c5?.name || "Cash-Deposit Ratio",
+      shortName: "Cash Ratio",
+      score: c5?.score || 0,
+      maxScore: c5?.maxScore || c5?.maxPoints || 10,
+      ratio: (c5?.score || 0) / (c5?.maxScore || c5?.maxPoints || 10),
+      evidence: c5?.cashRatio !== undefined ? `Cash: ${Math.round(c5.cashRatio * 100)}%` : `Cash %: ${c5?.cashRatioPercent?.toFixed(1) || 0}%`,
+      color: ((c5?.cashRatio || 0) > 0.2 || (c5?.cashRatioPercent || 0) > 20) ? "#F59E0B" : "#10B981",
+      gradStart: ((c5?.cashRatio || 0) > 0.2 || (c5?.cashRatioPercent || 0) > 20) ? "#FBBF24" : "#34D399",
+      gradEnd: ((c5?.cashRatio || 0) > 0.2 || (c5?.cashRatioPercent || 0) > 20) ? "#D97706" : "#059669",
+      gradId: "c5BarGrad",
     },
     {
-      id: "c6",
       code: "C6",
-      title: "Withdrawal Discipline",
-      shortTitle: "Withdrawals",
-      score: c6?.score ?? 0,
-      maxScore: c6?.maxScore ?? 10,
-      ratio: Math.min(1, Math.max(0, (c6?.score ?? 0) / (c6?.maxScore || 10))),
-      evidence: `${c6?.passThroughEvents?.length ?? 0} Pass-Throughs`,
-      color: "#EC4899", // Pink
-      gradId: "gradC6",
-      gradStart: "#EC4899",
-      gradEnd: "#BE185D",
+      title: c6?.name || "Withdrawal Discipline",
+      shortName: "Withdrawal Disc.",
+      score: c6?.score || 0,
+      maxScore: c6?.maxScore || c6?.maxPoints || 10,
+      ratio: (c6?.score || 0) / (c6?.maxScore || c6?.maxPoints || 10),
+      evidence: c6?.passThroughEvents ? `${c6.passThroughEvents.length} Pass-throughs` : `Pass-thru: ${c6?.rapidPassThroughCount || 0}`,
+      color: "#8B5CF6",
+      gradStart: "#A78BFA",
+      gradEnd: "#6D28D9",
+      gradId: "c6BarGrad",
     },
   ];
 
-  // Totals
-  const totalScored = items.reduce((s, i) => s + (typeof i.score === "number" ? i.score : 0), 0);
-  const totalMax = items.reduce((s, i) => s + i.maxScore, 0);
-  const passingComponents = items.filter((i) => i.ratio >= 0.7).length;
+  const totalScored = items.reduce((s, it) => s + it.score, 0);
+  const totalMax = items.reduce((s, it) => s + it.maxScore, 0);
+  const passingComponents = items.filter((it) => it.ratio >= 0.7).length;
 
-  // SVG dimensions for vertical column mode
-  const width = 680;
-  const height = 260;
-  const padding = { left: 55, right: 30, top: 35, bottom: 45 };
+  const width = 720;
+  const height = 270;
+  const padding = { left: 60, right: 88, top: 32, bottom: 48 };
   const chartW = width - padding.left - padding.right;
   const chartH = height - padding.top - padding.bottom;
 
   const barSlotW = chartW / items.length;
-  const barW = Math.min(48, barSlotW * 0.58);
+  const barW = Math.min(46, barSlotW * 0.58);
   const benchmarkY = height - padding.bottom - 0.7 * chartH;
 
   return (
-    <div className={`bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-xs space-y-4 select-none ${className}`}>
+    <div
+      className={`bg-white border border-[#E2E8F0] rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05),0_2px_4px_-1px_rgba(0,0,0,0.03)] space-y-4 select-none font-sans ${className}`}
+    >
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
+      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 border-b border-slate-100 pb-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-indigo-600 dark:text-indigo-400 text-lg">equalizer</span>
-            <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
+            <span className="material-symbols-outlined text-[#4F46E5] text-lg">equalizer</span>
+            <h4 className="text-[13px] font-semibold text-[#475569] uppercase tracking-wider font-sans">
               6-Component Underwriting Bar Graph
             </h4>
-            <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300">
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#EEF2FF] text-[#4F46E5] border border-[#E0E7FF]">
               {passingComponents}/6 Met 70% Target
             </span>
           </div>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+          <p className="text-[11px] text-slate-500 font-medium mt-0.5">
             Component score realization vs. maximum points with 70% benchmark threshold
           </p>
         </div>
 
         {/* Layout Switcher */}
-        <div className="flex items-center bg-slate-100/90 dark:bg-slate-800/90 p-1 rounded-xl gap-1">
+        <div className="flex items-center bg-[#F1F5F9] p-1 rounded-xl gap-1">
           <button
             type="button"
             onClick={() => setLayoutMode("columns")}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               layoutMode === "columns"
-                ? "bg-white dark:bg-slate-700 text-indigo-700 dark:text-white shadow-2xs"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                ? "bg-[#EEF2FF] text-[#4F46E5] shadow-xs"
+                : "text-slate-600 hover:text-slate-900"
             }`}
           >
             <span className="material-symbols-outlined text-sm">bar_chart</span>
@@ -162,8 +162,8 @@ export const EVV6ComponentBarChart: React.FC<EVV6ComponentBarChartProps> = ({
             onClick={() => setLayoutMode("horizontal")}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               layoutMode === "horizontal"
-                ? "bg-white dark:bg-slate-700 text-indigo-700 dark:text-white shadow-2xs"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                ? "bg-[#EEF2FF] text-[#4F46E5] shadow-xs"
+                : "text-slate-600 hover:text-slate-900"
             }`}
           >
             <span className="material-symbols-outlined text-sm">view_stream</span>
@@ -174,8 +174,49 @@ export const EVV6ComponentBarChart: React.FC<EVV6ComponentBarChartProps> = ({
 
       {/* MODE 1: VERTICAL COLUMNS SVG BAR GRAPH */}
       {layoutMode === "columns" ? (
-        <div className="relative w-full overflow-x-auto scrollbar-hide">
-          <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto min-w-[560px] overflow-visible">
+        <div className="relative w-full overflow-x-auto scrollbar-hide py-1">
+          {/* Floating Interactive Tooltip */}
+          {hoveredIdx !== null && items[hoveredIdx] && (
+            <div
+              className="absolute pointer-events-none z-30 transition-all duration-150 ease-out"
+              style={{
+                left: `${((padding.left + hoveredIdx * barSlotW + barSlotW / 2) / width) * 100}%`,
+                top: `${((height - padding.bottom - items[hoveredIdx].ratio * chartH) / height) * 100}%`,
+                transform:
+                  hoveredIdx < 2
+                    ? "translate(4%, -115%)"
+                    : hoveredIdx > 3
+                    ? "translate(-104%, -115%)"
+                    : "translate(-50%, -115%)",
+              }}
+            >
+              <div className="bg-[#1E293B]/95 backdrop-blur-[8px] text-white rounded-[8px] p-2.5 px-3.5 shadow-xl border border-white/10 space-y-1 select-none min-w-[150px]">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[#94A3B8]">
+                  {items[hoveredIdx].code} • {items[hoveredIdx].shortName}
+                </p>
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-sm font-bold text-white font-mono">
+                    {items[hoveredIdx].score} / {items[hoveredIdx].maxScore} pts
+                  </span>
+                  <span className="text-xs font-bold text-indigo-300 font-mono">
+                    {Math.round(items[hoveredIdx].ratio * 100)}%
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-2 pt-1 border-t border-white/10 text-[9.5px]">
+                  <span className="text-slate-300 truncate max-w-[110px]">{items[hoveredIdx].evidence}</span>
+                  <span
+                    className={`font-bold ${
+                      items[hoveredIdx].ratio >= 0.7 ? "text-emerald-400" : "text-amber-400"
+                    }`}
+                  >
+                    {items[hoveredIdx].ratio >= 0.7 ? "Passed" : "Below 70%"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto min-w-[580px] overflow-visible">
             <defs>
               {items.map((item) => (
                 <linearGradient key={item.gradId} id={item.gradId} x1="0" y1="0" x2="0" y2="1">
@@ -183,16 +224,17 @@ export const EVV6ComponentBarChart: React.FC<EVV6ComponentBarChartProps> = ({
                   <stop offset="100%" stopColor={item.gradEnd} />
                 </linearGradient>
               ))}
-              <linearGradient id="bgBarGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#F1F5F9" stopOpacity="0.8" />
-                <stop offset="100%" stopColor="#E2E8F0" stopOpacity="0.4" />
-              </linearGradient>
+              <filter id="cBarHoverGlow" x="-30%" y="-20%" width="160%" height="140%">
+                <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="#6366F1" floodOpacity="0.45" />
+              </filter>
+              <filter id="bench70Glow" x="-20%" y="-40%" width="140%" height="180%">
+                <feDropShadow dx="0" dy="0" stdDeviation="2.5" floodColor="#F59E0B" floodOpacity="0.45" />
+              </filter>
             </defs>
 
-            {/* Background grid lines */}
-            {[0, 0.25, 0.5, 0.7, 1].map((pct, i) => {
+            {/* Faint Horizontal Grid lines */}
+            {[0, 0.25, 0.5, 0.75, 1].map((pct, i) => {
               const y = height - padding.bottom - pct * chartH;
-              const is70 = pct === 0.7;
               return (
                 <g key={i}>
                   <line
@@ -200,18 +242,15 @@ export const EVV6ComponentBarChart: React.FC<EVV6ComponentBarChartProps> = ({
                     y1={y}
                     x2={width - padding.right}
                     y2={y}
-                    stroke={is70 ? "#F59E0B" : "#E2E8F0"}
-                    strokeDasharray={is70 ? "5 4" : "4 4"}
-                    strokeWidth={is70 ? "1.5" : "1"}
-                    className={is70 ? "opacity-90" : "opacity-40 dark:opacity-20"}
+                    stroke="#F1F5F9"
+                    strokeDasharray="4 4"
+                    strokeWidth="1.2"
                   />
                   <text
-                    x={padding.left - 8}
+                    x={padding.left - 12}
                     y={y + 3.5}
                     textAnchor="end"
-                    className={`font-mono text-[9px] ${
-                      is70 ? "fill-amber-600 dark:fill-amber-400 font-bold" : "fill-slate-400 dark:fill-slate-500"
-                    }`}
+                    className="fill-[#94A3B8] font-sans text-[11px] font-medium"
                   >
                     {Math.round(pct * 100)}%
                   </text>
@@ -219,154 +258,167 @@ export const EVV6ComponentBarChart: React.FC<EVV6ComponentBarChartProps> = ({
               );
             })}
 
-            {/* 70% Target Badge Label */}
-            <g transform={`translate(${width - padding.right - 105}, ${benchmarkY - 10})`}>
-              <rect
-                x="0"
-                y="-10"
-                width="105"
-                height="20"
-                rx="6"
-                fill="#FEF3C7"
-                stroke="#FDE68A"
-                strokeWidth="1"
-                className="dark:fill-amber-950/70 dark:stroke-amber-900"
+            {/* 70% Target Benchmark reference line with Right-Axis Pill Badge */}
+            <g>
+              <line
+                x1={padding.left}
+                y1={benchmarkY}
+                x2={width - padding.right}
+                y2={benchmarkY}
+                stroke="#F59E0B"
+                strokeDasharray="5 5"
+                strokeWidth="1.5"
+                filter="url(#bench70Glow)"
               />
-              <text
-                x="52"
-                y="3"
-                textAnchor="middle"
-                className="font-bold text-[9px] fill-amber-800 dark:fill-amber-300 uppercase tracking-wider"
-              >
-                70% Approval Target
-              </text>
+              <g transform={`translate(${width - padding.right + 6}, ${benchmarkY - 9})`}>
+                <rect
+                  width="76"
+                  height="18"
+                  rx="5"
+                  fill="#FEF3C7"
+                  stroke="#F59E0B"
+                  strokeWidth="1"
+                  strokeOpacity="0.5"
+                />
+                <text
+                  x="38"
+                  y="12.5"
+                  textAnchor="middle"
+                  className="fill-amber-700 font-sans text-[9px] font-bold tracking-tight"
+                >
+                  Target: 70%
+                </text>
+              </g>
             </g>
 
             {/* Bars */}
             {items.map((item, idx) => {
               const slotCenter = padding.left + idx * barSlotW + barSlotW / 2;
-              const barX = slotCenter - barW / 2;
-              const barH = item.ratio * chartH;
+              const barH = Math.max(4, item.ratio * chartH);
               const barY = height - padding.bottom - barH;
               const isHovered = hoveredIdx === idx;
+              const isDimmed = hoveredIdx !== null && !isHovered;
 
               return (
                 <g
-                  key={item.id}
-                  className="cursor-pointer transition-all duration-300"
+                  key={idx}
+                  className="cursor-pointer transition-opacity duration-200"
+                  style={{ opacity: isDimmed ? 0.7 : 1 }}
                   onMouseEnter={() => setHoveredIdx(idx)}
                   onMouseLeave={() => setHoveredIdx(null)}
                 >
-                  {/* Full Height Background Slot Bar */}
+                  {/* Background Track (rx=4) */}
                   <rect
-                    x={barX}
+                    x={slotCenter - barW / 2}
                     y={padding.top}
                     width={barW}
                     height={chartH}
-                    rx="8"
-                    fill="url(#bgBarGrad)"
-                    className="dark:fill-slate-800/50"
+                    rx="4"
+                    fill="rgba(241, 245, 249, 0.45)"
                   />
 
-                  {/* Scored Active Bar */}
+                  {/* Scored Bar with Vertical Gradient & Rounded Top Caps (rx=4) */}
                   <rect
-                    x={barX}
+                    x={slotCenter - barW / 2}
                     y={barY}
                     width={barW}
-                    height={Math.max(4, barH)}
-                    rx="8"
+                    height={barH}
+                    rx="4"
                     fill={`url(#${item.gradId})`}
-                    className={`transition-all duration-300 ${
-                      isHovered ? "filter drop-shadow(0 6px 12px rgba(0,0,0,0.18)) opacity-100" : "opacity-90"
-                    }`}
+                    filter={isHovered ? "url(#cBarHoverGlow)" : undefined}
+                    className="transition-all duration-200"
                   />
 
-                  {/* Top Score Pill / Tag */}
-                  <g transform={`translate(${slotCenter}, ${Math.max(padding.top - 6, barY - 7)})`}>
-                    <rect
-                      x="-26"
-                      y="-15"
-                      width="52"
-                      height="18"
-                      rx="6"
-                      fill={isHovered ? "#1E293B" : item.ratio >= 0.7 ? "#ECFDF5" : "#FFF1F2"}
-                      stroke={isHovered ? "#0F172A" : item.ratio >= 0.7 ? "#A7F3D0" : "#FECDD3"}
-                      strokeWidth="1"
-                    />
-                    <text
-                      x="0"
-                      y="-3"
-                      textAnchor="middle"
-                      className={`font-mono font-bold text-[9px] ${
-                        isHovered ? "fill-white" : item.ratio >= 0.7 ? "fill-emerald-800" : "fill-rose-700"
-                      }`}
-                    >
-                      {item.score}/{item.maxScore}
-                    </text>
-                  </g>
-
-                  {/* Bottom Component Labels */}
+                  {/* Value tag on top of bar */}
                   <text
                     x={slotCenter}
-                    y={height - padding.bottom + 16}
+                    y={Math.max(padding.top - 6, barY - 7)}
                     textAnchor="middle"
-                    className="font-black text-[10px] fill-slate-800 dark:fill-slate-200"
+                    className={`font-sans text-[10px] font-bold transition-all ${
+                      isHovered ? "fill-[#4F46E5] font-extrabold" : "fill-slate-600"
+                    }`}
+                  >
+                    {item.score}/{item.maxScore}
+                  </text>
+
+                  {/* X-axis component code & title */}
+                  <text
+                    x={slotCenter}
+                    y={height - padding.bottom + 18}
+                    textAnchor="middle"
+                    className={`font-sans text-[11px] font-bold transition-colors ${
+                      isHovered ? "fill-[#4F46E5]" : "fill-slate-700"
+                    }`}
                   >
                     {item.code}
                   </text>
                   <text
                     x={slotCenter}
-                    y={height - padding.bottom + 28}
+                    y={height - padding.bottom + 31}
                     textAnchor="middle"
-                    className="font-semibold text-[8px] fill-slate-400 dark:fill-slate-500 truncate"
+                    className="font-sans text-[9px] font-medium fill-[#94A3B8]"
                   >
-                    {item.shortTitle}
+                    {item.shortName}
                   </text>
                 </g>
               );
             })}
+
+            {/* Baseline */}
+            <line
+              x1={padding.left}
+              y1={height - padding.bottom}
+              x2={width - padding.right}
+              y2={height - padding.bottom}
+              stroke="#F1F5F9"
+              strokeWidth="1"
+            />
           </svg>
         </div>
       ) : (
         /* MODE 2: HORIZONTAL PROGRESS BARS VIEW */
-        <div className="space-y-3.5 pt-2">
+        <div className="space-y-3 pt-1">
           {items.map((item, idx) => {
             const isHovered = hoveredIdx === idx;
+            const isDimmed = hoveredIdx !== null && !isHovered;
             const pct = Math.round(item.ratio * 100);
 
             return (
               <div
-                key={item.id}
+                key={idx}
                 onMouseEnter={() => setHoveredIdx(idx)}
                 onMouseLeave={() => setHoveredIdx(null)}
-                className={`p-3 rounded-2xl border transition-all cursor-pointer ${
+                className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
                   isHovered
-                    ? "bg-slate-50 dark:bg-slate-800 border-indigo-200 dark:border-indigo-800 shadow-sm"
-                    : "bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800"
+                    ? "bg-indigo-50/40 border-indigo-200 shadow-xs"
+                    : "bg-[#F8FAFC] border-slate-100 hover:border-slate-200"
                 }`}
+                style={{ opacity: isDimmed ? 0.7 : 1 }}
               >
                 <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-1.5 mb-2">
                   <div className="flex items-center gap-2">
                     <span
-                      className="w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black text-white"
+                      className="w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-bold text-white shadow-2xs"
                       style={{ backgroundColor: item.color }}
                     >
                       {item.code}
                     </span>
-                    <span className="text-xs font-black text-slate-800 dark:text-white">
+                    <span className="text-xs font-bold text-slate-800">
                       {item.title}
                     </span>
-                    <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500">
+                    <span className="text-[10px] font-medium text-slate-400">
                       • {item.evidence}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 self-end sm:self-auto">
-                    <span className="text-xs font-black font-mono text-slate-900 dark:text-white">
+                    <span className="text-xs font-bold font-mono text-slate-900">
                       {item.score} <span className="text-[10px] text-slate-400 font-normal">/ {item.maxScore} pts</span>
                     </span>
                     <span
-                      className={`px-2 py-0.5 rounded-md text-[10px] font-black font-mono ${
-                        pct >= 70 ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300" : "bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300"
+                      className={`px-2 py-0.5 rounded-md text-[10px] font-bold font-mono ${
+                        pct >= 70
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
+                          : "bg-amber-50 text-amber-700 border border-amber-200/60"
                       }`}
                     >
                       {pct}%
@@ -375,8 +427,7 @@ export const EVV6ComponentBarChart: React.FC<EVV6ComponentBarChartProps> = ({
                 </div>
 
                 {/* Relative Progress Track with 70% threshold marker */}
-                <div className="relative w-full h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                  {/* Scored bar */}
+                <div className="relative w-full h-2.5 bg-slate-200/60 rounded-full overflow-hidden">
                   <div
                     className="h-full rounded-full transition-all duration-500"
                     style={{
@@ -397,61 +448,30 @@ export const EVV6ComponentBarChart: React.FC<EVV6ComponentBarChartProps> = ({
         </div>
       )}
 
-      {/* Hover Inspection Popover Card */}
-      {hoveredIdx !== null && (
-        <div className="p-3.5 bg-slate-900 text-white rounded-2xl flex flex-col sm:flex-row justify-between sm:items-center gap-2 shadow-lg animate-in fade-in zoom-in-95 duration-150">
-          <div className="flex items-center gap-2.5">
-            <span
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black text-white"
-              style={{ backgroundColor: items[hoveredIdx].color }}
-            >
-              {items[hoveredIdx].code}
-            </span>
-            <div>
-              <div className="text-xs font-black text-white">{items[hoveredIdx].title}</div>
-              <div className="text-[10px] text-slate-300">{items[hoveredIdx].evidence}</div>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="text-right">
-              <div className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Score Realization</div>
-              <div className="text-sm font-black font-mono text-emerald-400">
-                {items[hoveredIdx].score} / {items[hoveredIdx].maxScore} pts ({Math.round(items[hoveredIdx].ratio * 100)}%)
-              </div>
-            </div>
-            <span
-              className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider ${
-                items[hoveredIdx].ratio >= 0.7 ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40" : "bg-rose-500/20 text-rose-300 border border-rose-500/40"
-              }`}
-            >
-              {items[hoveredIdx].ratio >= 0.7 ? "Passes Target" : "Below Target"}
-            </span>
-          </div>
-        </div>
-      )}
-
       {/* Quick Summary Pill Strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
-        <div className="p-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
-          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Aggregate Realized</span>
-          <span className="text-sm font-black text-slate-900 dark:text-white font-mono">
-            {totalScored} <span className="text-[10px] text-slate-400">/ {totalMax}</span>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-100">
+        <div className="p-3 bg-[#F8FAFC] rounded-xl border border-slate-100">
+          <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider block">Aggregate Realized</span>
+          <span className="text-sm font-extrabold text-slate-900 font-mono tracking-tight">
+            {totalScored} <span className="text-[10px] text-slate-400 font-normal">/ {totalMax} pts</span>
           </span>
         </div>
-        <div className="p-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
-          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Realization Rate</span>
-          <span className="text-sm font-black text-indigo-600 dark:text-indigo-400 font-mono">
-            {Math.round((totalScored / totalMax) * 100)}%
+        <div className="p-3 bg-[#F8FAFC] rounded-xl border border-slate-100">
+          <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider block">Overall Percentage</span>
+          <span className="text-sm font-extrabold text-[#4F46E5] font-mono tracking-tight">
+            {Math.round((totalScored / (totalMax || 1)) * 100)}%
           </span>
         </div>
-        <div className="p-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
-          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Policy Threshold</span>
-          <span className="text-sm font-black text-amber-600 dark:text-amber-400 font-mono">70% (70 pts)</span>
+        <div className="p-3 bg-[#F8FAFC] rounded-xl border border-slate-100">
+          <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider block">Passing Rate</span>
+          <span className="text-sm font-extrabold text-emerald-600 font-mono tracking-tight">
+            {passingComponents} of 6 Components
+          </span>
         </div>
-        <div className="p-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
-          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Benchmark Status</span>
-          <span className={`text-xs font-black uppercase ${totalScored >= 70 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
-            {totalScored >= 70 ? "Benchmark Satisfied" : "Attention Required"}
+        <div className="p-3 bg-[#F8FAFC] rounded-xl border border-slate-100">
+          <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider block">Standard Threshold</span>
+          <span className="text-sm font-extrabold text-amber-600 font-mono tracking-tight">
+            70% Benchmark Met
           </span>
         </div>
       </div>

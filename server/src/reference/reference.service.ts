@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
+import { EmailService } from '../auth/email.service';
 import { randomUUID } from 'crypto';
 
 @Injectable()
@@ -8,7 +9,10 @@ export class ReferenceService {
     return this.supabase.getClient();
   }
 
-  constructor(private supabase: SupabaseService) {}
+  constructor(
+    private supabase: SupabaseService,
+    private emailService: EmailService,
+  ) {}
 
   // ==================== LOAN TYPES ====================
 
@@ -299,6 +303,21 @@ export class ReferenceService {
     };
     const { data, error } = await this.db.from('Bank').insert([payload]).select().single();
     if (error) throw new Error(error.message);
+
+    // If an email address is provided for the bank partner entity, dispatch onboarding verification email
+    if (bankData.email) {
+      try {
+        await this.emailService.sendBankPartnerOnboardingEmail(
+          bankData.email,
+          bankData.name,
+          bankData.type || 'Lending Partner',
+          bankData.contactNumber,
+        );
+      } catch (emailErr: any) {
+        console.warn('[ReferenceService] Failed to send bank partner onboarding email:', emailErr?.message || emailErr);
+      }
+    }
+
     return { success: true, data };
   }
 
