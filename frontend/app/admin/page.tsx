@@ -13,6 +13,7 @@ import AdminBanksSection from "@/components/Admin/AdminBanksSection";
 import AdminCountriesSection from "@/components/Admin/AdminCountriesSection";
 import SiteSettingsSection from "@/components/Admin/SiteSettingsSection";
 import AdminErrorLogsSection from "@/components/Admin/AdminErrorLogsSection";
+import ProgressTracker from "@/components/ProgressTracker";
 import { 
   Building2, 
   X, 
@@ -46,16 +47,16 @@ const getApplicationStageLabel = (app: any, progress: number): string => {
     if (app.currentStage) return app.currentStage;
     const status = (app.status || "").toLowerCase();
     if (status === "disbursed" || status === "disbursement_confirmed" || status === "closed") return "Disbursed";
-    if (status === "approved") return "Sanction Approved";
+    if (status === "approved" || status.includes("sanction")) return "Sanction";
     if (status === "rejected") return "Rejected";
     if (progress <= 15) return "Created";
     if (progress <= 25) return "Submitted";
     if (progress <= 40) return "Documents";
-    if (progress <= 55) return "Submit to Bank";
-    if (progress <= 75) return "Credit & Eligibility";
-    if (progress <= 90) return "Bank Underwriting";
-    if (progress <= 98) return "Sanction Offer";
-    return "Disbursement";
+    if (progress <= 50) return "Submit to Bank";
+    if (progress <= 75) return "Credit Check";
+    if (progress <= 90) return "Review";
+    if (progress <= 95) return "Sanction";
+    return "Disbursed";
 };
 
 const renderBankLogo = (name?: string, sizeClass: string = "h-5") => {
@@ -4871,51 +4872,14 @@ export default function AdminDashboardPage() {
                                         </div>
                                     </div>
 
-                                    {/* Stage Progression Stepper */}
-                                    {drawerStages.length > 0 && (
-                                        <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-200 mb-6">
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Application Stage Progress</p>
-                                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                                                {drawerStages.map((st: any, sIdx: number) => {
-                                                    const isCurrent = st.isCurrent || st.key === selectedApp.stage;
-                                                    const isDone = st.isCompleted;
-                                                    return (
-                                                        <div
-                                                            key={st.key || sIdx}
-                                                            className={`p-2.5 rounded-lg border flex flex-col justify-between transition-all ${
-                                                                isCurrent ? 'bg-purple-50/80 border-purple-300 ring-2 ring-purple-500/20' :
-                                                                isDone ? 'bg-emerald-50/50 border-emerald-200' :
-                                                                'bg-white border-slate-200 opacity-60'
-                                                            }`}
-                                                        >
-                                                            <div className="flex items-center justify-between mb-1">
-                                                                <span className="text-[9px] font-black text-slate-400">0{sIdx + 1}</span>
-                                                                <span className={`material-symbols-outlined text-[14px] ${
-                                                                    isCurrent ? 'text-purple-600 animate-pulse' :
-                                                                    isDone ? 'text-emerald-600' :
-                                                                    'text-slate-300'
-                                                                }`}>
-                                                                    {isDone ? 'check_circle' : isCurrent ? 'radio_button_checked' : 'radio_button_unchecked'}
-                                                                </span>
-                                                            </div>
-                                                            <p className={`text-[11px] font-bold truncate ${
-                                                                isCurrent ? 'text-purple-900' :
-                                                                isDone ? 'text-emerald-900' :
-                                                                'text-slate-600'
-                                                            }`}>
-                                                                {st.label || formatStatusLabel(st.key)}
-                                                            </p>
-                                                            {st.completedAt && (
-                                                                <p className="text-[8px] font-medium text-slate-400 mt-1">
-                                                                    {format(new Date(st.completedAt), 'dd MMM yyyy')}
-                                                                </p>
-                                                            )}
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        </div>
-                                    )}
+                                    {/* Application Progress (Standard 8 Steps) */}
+                                    <ProgressTracker
+                                        application={selectedApp}
+                                        documents={drawerDocs}
+                                        compact={true}
+                                        title="Application Progress"
+                                        className="mb-6"
+                                    />
 
                                     {/* Timeline Event List */}
                                     {drawerTimelineLoading ? (

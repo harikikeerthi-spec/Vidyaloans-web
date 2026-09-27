@@ -134,14 +134,14 @@ const getApplicationStageLabel = (app: ApplicationProgressFields, progress: numb
         return "Disbursed";
     }
 
-    if (progress <= 12) return "Application Created";
-    if (progress <= 25) return "Application Submitted";
+    if (progress <= 12) return "Created";
+    if (progress <= 25) return "Submitted";
     if (progress <= 40) return "Documents";
     if (progress <= 50) return "Submit to Bank";
     if (progress <= 75) return "Credit Check";
-    if (progress <= 90) return "Bank Review";
+    if (progress <= 90) return "Review";
     if (progress <= 95) return "Sanction";
-    return "Disbursement";
+    return "Disbursed";
 };
 
 const StatCard = ({ label, value, icon, color, trend, loading, hint, badge, ...props }: any) => {

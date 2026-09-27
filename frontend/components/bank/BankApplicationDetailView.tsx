@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { format, differenceInDays, parseISO } from "date-fns";
 import { StatusBadge } from "@/components/bank/SharedUI";
 import Link from "next/link";
+import ProgressTracker from "@/components/ProgressTracker";
 
 interface BankApplicationDetailViewProps {
     app: any;
@@ -345,6 +346,15 @@ export default function BankApplicationDetailView({
                     </div>
                 </div>
             </div>
+
+            {/* Application Progress (Standard 8 Steps) */}
+            <ProgressTracker
+                application={app}
+                documents={uploadedDocs}
+                compact={false}
+                title="Application Progress"
+                className="rounded-2xl border-slate-200/90 shadow-2xs"
+            />
 
             {/* Navigation Tabs Bar */}
             <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-1.5 flex items-center gap-1.5 overflow-x-auto custom-scrollbar">

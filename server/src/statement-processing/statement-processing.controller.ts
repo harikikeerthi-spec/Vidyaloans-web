@@ -41,17 +41,71 @@ export class StatementProcessingController {
       applicationId || 'app-default',
       coApplicantId,
     );
+
+    // If AI rejected the document as not a bank statement
+    if (upload.isBankStatement === false) {
+      return {
+        success: false,
+        statement: upload,
+        statementId: upload.id,
+        id: upload.id,
+        isEncrypted: false,
+        isBankStatement: false,
+        status: 'INVALID_DOCUMENT_TYPE',
+        detectedType: upload.detectedType,
+        reason: upload.reason,
+        aiVerification: upload.aiVerification,
+        message: upload.reason
+          ? `AI Document Verification Failed: The uploaded document is detected as "${upload.detectedType}", not an official bank statement. ${upload.reason}`
+          : `AI Document Verification Failed: The uploaded document is not a bank statement (Detected: ${upload.detectedType || 'Non-bank file'}).`,
+      };
+    }
+
     const isEncrypted = upload.encryptionStatus === 'PASSWORD_REQUIRED';
+    if (isEncrypted) {
+      return {
+        success: false,
+        statement: upload,
+        statementId: upload.id,
+        id: upload.id,
+        isEncrypted: true,
+        status: 'PROTECTED_WAITING_PASSWORD',
+        bankName: upload.bankName,
+        maskedAccount: upload.accountNumberMasked,
+        attemptsRemaining: Math.max(0, 5 - upload.passwordAttemptCount),
+        message: 'This bank statement is password protected. Please provide the document password to proceed.',
+      };
+    }
+
     return {
       success: true,
       statement: upload,
       statementId: upload.id,
       id: upload.id,
-      isEncrypted,
-      status: isEncrypted ? 'PROTECTED_WAITING_PASSWORD' : upload.processingStatus,
+      isEncrypted: false,
+      isBankStatement: true,
+      aiVerification: upload.aiVerification,
+      status: upload.processingStatus || 'EXTRACTED',
       bankName: upload.bankName,
       maskedAccount: upload.accountNumberMasked,
       attemptsRemaining: Math.max(0, 5 - upload.passwordAttemptCount),
+      transactions: upload.transactions || [],
+    };
+  }
+
+  /**
+   * POST /api/statements/verify-document
+   * Verifies whether provided text or sample represents an authentic bank statement
+   */
+  @Post('verify-document')
+  async verifyDocument(@Body() body: { text?: string; filename?: string }) {
+    const verification = await this.statementService.verifyDocumentIsBankStatement(
+      body.text || '',
+      body.filename,
+    );
+    return {
+      success: verification.isBankStatement,
+      ...verification,
     };
   }
 

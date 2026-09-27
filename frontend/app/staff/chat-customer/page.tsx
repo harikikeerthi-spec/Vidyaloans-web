@@ -15,12 +15,23 @@ function SupportChatContent() {
     const phone = searchParams.get("phone") || searchParams.get("phoneNumber");
     const applicationId = searchParams.get("applicationId") || searchParams.get("appId");
     const applicationNumber = searchParams.get("applicationNumber") || searchParams.get("appNo");
-    const bankName = searchParams.get("bankName") || searchParams.get("bank");
+    const rawBankName = searchParams.get("bankName") || searchParams.get("bank");
+    const cleanBankName = rawBankName ? (rawBankName.includes(',') ? rawBankName.split(',')[0].trim() : rawBankName.trim()) : null;
+
+    // Distinguish between student chat and bank chat
+    const isStudentChat = Boolean(userId || (!cleanBankName && (email || phone || firstName)));
+    const isBankChat = Boolean(cleanBankName && !userId);
 
     const [resolvedUser, setResolvedUser] = useState<any>(null);
-    const [loading, setLoading] = useState(!!userId && !phone);
+    const [loading, setLoading] = useState(isStudentChat && !!userId && !phone);
 
     useEffect(() => {
+        if (!isStudentChat) {
+            setResolvedUser(null);
+            setLoading(false);
+            return;
+        }
+
         if (userId && !phone) {
             setLoading(true);
             adminApi.getUserById(userId)
@@ -66,9 +77,9 @@ function SupportChatContent() {
                 .finally(() => {
                     setLoading(false);
                 });
-        } else if (userId) {
+        } else if (userId || email || phone) {
             setResolvedUser({
-                id: userId,
+                id: userId || "",
                 email: email || "",
                 firstName: firstName || "Student",
                 lastName: lastName || "",
@@ -79,10 +90,10 @@ function SupportChatContent() {
             });
             setLoading(false);
         }
-    }, [userId, phone, email, firstName, lastName, applicationId, applicationNumber]);
+    }, [isStudentChat, userId, phone, email, firstName, lastName, applicationId, applicationNumber]);
 
-    const initialBank = (bankName || applicationId) ? {
-        bankName: bankName || "Partner Bank",
+    const initialBank = isBankChat ? {
+        bankName: cleanBankName!,
         applicationId: applicationId || undefined,
         applicationNumber: applicationNumber || undefined
     } : null;

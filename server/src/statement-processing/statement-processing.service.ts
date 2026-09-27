@@ -4,12 +4,14 @@ import {
   BadRequestException,
   ForbiddenException,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EncryptionStorageService } from './services/encryption-storage.service';
 import { TempArtifactService } from './services/temp-artifact.service';
 import { PdfUnlockWorker, PdfUnlockResult } from './workers/pdf-unlock-worker';
 import { EvvEngineService, DEFAULT_BANK_POLICIES, BankPolicy } from '../application/evv-engine';
+import { OpenRouterService } from '../ai/services/openrouter.service';
 import {
   StatementUploadDto,
   StatementProcessingAuditDto,
@@ -17,6 +19,7 @@ import {
   ActorType,
   NormalizedTransactionDto,
   DailyBalanceDto,
+  AiBankStatementVerificationResult,
 } from './types/statement.types';
 
 @Injectable()
@@ -31,6 +34,7 @@ export class StatementProcessingService {
     private readonly tempArtifacts: TempArtifactService,
     private readonly pdfWorker: PdfUnlockWorker,
     private readonly evvEngine: EvvEngineService,
+    @Optional() private readonly openRouterService?: OpenRouterService,
   ) {}
 
   /**
@@ -165,39 +169,122 @@ export class StatementProcessingService {
       { isEncrypted: encryptionStatus === 'PASSWORD_REQUIRED', pageCount },
     );
 
-    // If file is not encrypted, extract automatically!
+    // If file is not encrypted, extract and verify with AI automatically!
     if (encryptionStatus === 'NOT_ENCRYPTED') {
-      this.extractUnencryptedInBackground(created.id, file.buffer, isPdf, isCsv).catch((e) =>
-        this.logger.error(`Background auto-extract error: ${e.message}`),
-      );
-    }
+      try {
+        let extractedText = '';
+        let unencryptedResult: PdfUnlockResult | null = null;
 
-    return this.mapUploadToDto(created);
-  }
+        if (isPdf) {
+          unencryptedResult = await this.pdfWorker.unlockAndExtract(file.buffer, undefined);
+          extractedText = unencryptedResult.extractedText || '';
+        } else if (isCsv) {
+          extractedText = file.buffer.toString('utf-8', 0, Math.min(file.buffer.length, 10000));
+        }
 
-  /**
-   * Background extractor for non-encrypted files
-   */
-  private async extractUnencryptedInBackground(
-    statementUploadId: string,
-    buffer: Buffer,
-    isPdf: boolean,
-    isCsv: boolean,
-  ): Promise<void> {
-    try {
-      if (isPdf) {
-        const result = await this.pdfWorker.unlockAndExtract(buffer, undefined);
-        await this.handleExtractionSuccess(statementUploadId, result, 'TEXT', buffer);
-      } else if (isCsv) {
-        await this.handleCsvExtraction(statementUploadId, buffer);
+        // Run AI Document Verification: verify whether it is a bank statement or not
+        const verification = await this.verifyDocumentIsBankStatement(extractedText, originalFilename);
+
+        if (!verification.isBankStatement) {
+          await (this.prisma as any).statementUpload.update({
+            where: { id: created.id },
+            data: { processingStatus: 'REJECTED_INVALID_DOCUMENT' },
+          });
+
+          await this.recordAudit(created.id, 'AI_DOCUMENT_REJECTED', 'SYSTEM', uploadedByUserId, {
+            detectedType: verification.detectedType,
+            confidence: verification.confidence,
+            reason: verification.reason,
+          });
+
+          const dto = this.mapUploadToDto(created);
+          return {
+            ...dto,
+            processingStatus: 'REJECTED_INVALID_DOCUMENT',
+            isBankStatement: false,
+            detectedType: verification.detectedType,
+            reason: verification.reason,
+            aiVerification: verification,
+            message: `AI Document Verification Failed: The uploaded document is detected as "${verification.detectedType}", not an official bank statement. ${verification.reason}`,
+          };
+        }
+
+        // Verification Passed!
+        await this.recordAudit(created.id, 'AI_DOCUMENT_VERIFIED', 'SYSTEM', uploadedByUserId, {
+          detectedType: verification.detectedType,
+          bankName: verification.bankName || unencryptedResult?.detectedBankName,
+          confidence: verification.confidence,
+        });
+
+        await (this.prisma as any).statementUpload.update({
+          where: { id: created.id },
+          data: {
+            bankName: verification.bankName || unencryptedResult?.detectedBankName,
+            accountNumberMasked: verification.accountNumberMasked || unencryptedResult?.detectedAccountMasked,
+            encryptionStatus: 'UNLOCKED',
+          },
+        });
+
+        let transactions: any[] = [];
+        if (unencryptedResult) {
+          await this.handleExtractionSuccess(
+            created.id,
+            unencryptedResult,
+            unencryptedResult.isOcrUsed ? 'OCR' : 'TEXT',
+            file.buffer,
+          );
+          transactions = (unencryptedResult.preliminaryTransactions || []).map((tx) => {
+            let parsedDate: Date;
+            try {
+              parsedDate = new Date(tx.date);
+              if (isNaN(parsedDate.getTime())) parsedDate = new Date();
+            } catch {
+              parsedDate = new Date();
+            }
+            const debitVal = typeof tx.debit === 'number' && !isNaN(tx.debit) ? tx.debit : 0;
+            const creditVal = typeof tx.credit === 'number' && !isNaN(tx.credit) ? tx.credit : 0;
+            const balanceVal = typeof tx.balance === 'number' && !isNaN(tx.balance) ? tx.balance : 0;
+            return {
+              date: parsedDate,
+              narration: tx.narration || 'Transaction',
+              debit: debitVal,
+              credit: creditVal,
+              balance: balanceVal,
+              raw: `${tx.date} | ${tx.narration} | ${debitVal} | ${creditVal} | ${balanceVal}`,
+            };
+          });
+        } else if (isCsv) {
+          await this.handleCsvExtraction(created.id, file.buffer);
+        }
+
+        const dto = this.mapUploadToDto(created);
+        return {
+          ...dto,
+          processingStatus: 'DATA_VALIDATING',
+          isBankStatement: true,
+          detectedType: verification.detectedType,
+          bankName: verification.bankName || unencryptedResult?.detectedBankName,
+          accountNumberMasked: verification.accountNumberMasked || unencryptedResult?.detectedAccountMasked,
+          aiVerification: verification,
+          transactions,
+        };
+      } catch (e: any) {
+        this.logger.error(`Unencrypted extraction error: ${e.message}`);
       }
-    } catch (e: any) {
-      this.logger.error(`Unencrypted extraction error: ${e.message}`);
-      await (this.prisma as any).statementUpload.update({
-        where: { id: statementUploadId },
-        data: { processingStatus: 'PROCESSING_FAILED' },
-      });
     }
+
+    const dto = this.mapUploadToDto(created);
+    if (encryptionStatus === 'PASSWORD_REQUIRED') {
+      return {
+        ...dto,
+        isEncrypted: true,
+        status: 'PROTECTED_WAITING_PASSWORD',
+        processingStatus: 'PASSWORD_REQUIRED',
+        message: 'This bank statement is password protected. Please enter the document password to proceed.',
+      } as any;
+    }
+
+    return dto;
   }
 
   /**
@@ -348,6 +435,41 @@ export class StatementProcessingService {
       );
     }
 
+    // Verify unlocked document using AI
+    const verification = await this.verifyDocumentIsBankStatement(result.extractedText, upload.originalFilename);
+
+    if (!verification.isBankStatement) {
+      await (this.prisma as any).statementUpload.update({
+        where: { id: statementUploadId },
+        data: {
+          processingStatus: 'REJECTED_INVALID_DOCUMENT',
+        },
+      });
+
+      await this.recordAudit(statementUploadId, 'AI_DOCUMENT_REJECTED', 'APPLICANT', actorId, {
+        detectedType: verification.detectedType,
+        confidence: verification.confidence,
+        reason: verification.reason,
+      });
+
+      return {
+        success: false,
+        status: 'INVALID_DOCUMENT_TYPE',
+        isBankStatement: false,
+        detectedType: verification.detectedType,
+        confidence: verification.confidence,
+        reason: verification.reason,
+        message: `AI Document Verification Failed: The unlocked document is identified as "${verification.detectedType}", not an official bank statement. ${verification.reason}`,
+      };
+    }
+
+    // AI Document Verification Passed!
+    await this.recordAudit(statementUploadId, 'AI_DOCUMENT_VERIFIED', 'APPLICANT', actorId, {
+      detectedType: verification.detectedType,
+      bankName: verification.bankName || result.detectedBankName,
+      confidence: verification.confidence,
+    });
+
     // SUCCESSFUL UNLOCK
     await (this.prisma as any).statementUpload.update({
       where: { id: statementUploadId },
@@ -355,8 +477,8 @@ export class StatementProcessingService {
         passwordAttemptCount: 0,
         passwordCooldownUntil: null,
         encryptionStatus: 'UNLOCKED',
-        accountNumberMasked: result.detectedAccountMasked,
-        bankName: result.detectedBankName,
+        accountNumberMasked: verification.accountNumberMasked || result.detectedAccountMasked,
+        bankName: verification.bankName || result.detectedBankName,
       },
     });
 
@@ -398,12 +520,14 @@ export class StatementProcessingService {
       success: true,
       status: 'EXTRACTED',
       encryptionStatus: 'UNLOCKED',
+      isBankStatement: true,
+      aiVerification: verification,
       processingStatus: result.isOcrUsed ? 'COLUMN_MAPPING_REQUIRED' : 'DATA_VALIDATING',
       isOcrUsed: result.isOcrUsed,
       pageCount: result.pageCount,
       normalizedTransactionsCreated: result.preliminaryTransactions.length,
-      detectedBankName: result.detectedBankName,
-      accountNumberMasked: result.detectedAccountMasked,
+      detectedBankName: verification.bankName || result.detectedBankName,
+      accountNumberMasked: verification.accountNumberMasked || result.detectedAccountMasked,
       detectedColumns: result.detectedColumns,
       transactions: txList,
     };
@@ -926,6 +1050,290 @@ export class StatementProcessingService {
       throw new NotFoundException(`Statement upload ${id} not found`);
     }
     return upload;
+  }
+
+  /**
+   * AI-powered verification to ensure uploaded document is an authentic Bank Statement.
+   * Leverages OpenRouter AI (e.g. GPT-4o-mini / Gemini) with an extensive deterministic heuristic fallback.
+   */
+  async verifyDocumentIsBankStatement(
+    text: string,
+    filename?: string,
+  ): Promise<AiBankStatementVerificationResult> {
+    const cleanText = (text || '').trim();
+
+    // 1. Try OpenRouter AI classification if available and key configured
+    if (this.openRouterService && cleanText.length >= 20) {
+      try {
+        const apiKey = await this.openRouterService.getApiKey();
+        if (apiKey && apiKey.startsWith('sk-')) {
+          const sample = (
+            cleanText.length > 4000
+              ? cleanText.substring(0, 2800) + '\n...\n' + cleanText.substring(cleanText.length - 1200)
+              : cleanText
+          );
+
+          const prompt = `You are a financial document verification auditor.
+Verify whether the following document text belongs to an official Bank Statement (e.g., account transaction statement, passbook, or banking account ledger) or another type of document.
+
+Document Filename: "${filename || 'statement.pdf'}"
+Document Content Sample:
+"""
+${sample}
+"""
+
+Verification Rules:
+1. A valid Bank Statement must be a financial statement issued by a bank or financial institution showing account details (e.g., Account Number, IFSC, branch) and/or periodic transactions (dates, deposits/credits, withdrawals/debits, balance).
+2. Documents such as Aadhaar Card, PAN Card, Passport, Driver's License, Academic Degree/Marksheet, Invoice/Bill, Electricity/Utility Bill, Salary Slip/Payslip without transaction ledger, Resume/CV, or other non-bank documents are NOT bank statements and MUST be marked isBankStatement: false.
+3. If this is a valid Bank Statement, identify the Bank Name (e.g. SBI, HDFC, ICICI, Axis, PNB, etc.) and masked account number if visible.
+
+Respond ONLY with a valid JSON object matching this schema (do not wrap in markdown or backticks):
+{
+  "isBankStatement": boolean,
+  "detectedType": string,
+  "bankName": string | null,
+  "accountNumberMasked": string | null,
+  "confidence": number,
+  "reason": string
+}`;
+
+          const response = await this.openRouterService.chat(prompt, 'openai/gpt-4o-mini');
+          const cleanJson = response.replace(/```json/gi, '').replace(/```/g, '').trim();
+          const parsed = JSON.parse(cleanJson);
+          if (typeof parsed.isBankStatement === 'boolean') {
+            this.logger.log(
+              `[AI Verification] Result: isBankStatement=${parsed.isBankStatement}, type=${parsed.detectedType}, bank=${parsed.bankName}`,
+            );
+            return {
+              isBankStatement: parsed.isBankStatement,
+              detectedType: parsed.detectedType || (parsed.isBankStatement ? 'Bank Statement' : 'Non-Bank Document'),
+              bankName: parsed.bankName || undefined,
+              accountNumberMasked: parsed.accountNumberMasked || undefined,
+              confidence: typeof parsed.confidence === 'number' ? parsed.confidence : (parsed.isBankStatement ? 95 : 90),
+              reason: parsed.reason || (parsed.isBankStatement ? 'Verified as an authentic bank account statement' : `Detected as ${parsed.detectedType || 'non-bank document'}`),
+            };
+          }
+        }
+      } catch (err: any) {
+        this.logger.warn(`OpenRouter AI verification notice: ${err.message}. Using heuristic verification.`);
+      }
+    }
+
+    // 2. Intelligent Deterministic Fallback Classifier
+    return this.classifyDocumentHeuristically(cleanText, filename);
+  }
+
+  /**
+   * Deterministic heuristic classifier for banking documents
+   */
+  classifyDocumentHeuristically(text: string, filename?: string): AiBankStatementVerificationResult {
+    const lowerText = (text || '').toLowerCase();
+    const lowerFilename = (filename || '').toLowerCase();
+
+    // Known bank names list
+    const knownBanks: { name: string; patterns: string[] }[] = [
+      { name: 'State Bank of India', patterns: ['state bank of india', 'sbi', 'onlinesbi'] },
+      { name: 'HDFC Bank', patterns: ['hdfc bank', 'hdfcbank', 'housing development finance'] },
+      { name: 'ICICI Bank', patterns: ['icici bank', 'icicibank'] },
+      { name: 'Axis Bank', patterns: ['axis bank', 'axisbank', 'uti bank'] },
+      { name: 'Kotak Mahindra Bank', patterns: ['kotak mahindra', 'kotak bank', 'kotak.com'] },
+      { name: 'Punjab National Bank', patterns: ['punjab national bank', 'pnb'] },
+      { name: 'Bank of Baroda', patterns: ['bank of baroda', 'bob'] },
+      { name: 'Canara Bank', patterns: ['canara bank'] },
+      { name: 'Union Bank of India', patterns: ['union bank of india', 'union bank'] },
+      { name: 'IndusInd Bank', patterns: ['indusind bank', 'indusind'] },
+      { name: 'Yes Bank', patterns: ['yes bank'] },
+      { name: 'Federal Bank', patterns: ['federal bank'] },
+      { name: 'IDFC FIRST Bank', patterns: ['idfc first bank', 'idfc bank', 'idfc'] },
+      { name: 'Bank of India', patterns: ['bank of india', 'boi'] },
+      { name: 'Central Bank of India', patterns: ['central bank of india'] },
+      { name: 'Indian Bank', patterns: ['indian bank', 'allahabad bank'] },
+      { name: 'Standard Chartered Bank', patterns: ['standard chartered'] },
+      { name: 'Citibank', patterns: ['citibank', 'citi'] },
+      { name: 'HSBC Bank', patterns: ['hsbc'] },
+      { name: 'RBL Bank', patterns: ['rbl bank', 'ratnakar bank'] },
+      { name: 'Bandhan Bank', patterns: ['bandhan bank'] },
+      { name: 'AU Small Finance Bank', patterns: ['au small finance bank', 'aubank'] },
+    ];
+
+    let detectedBankName: string | undefined = undefined;
+    for (const bank of knownBanks) {
+      if (bank.patterns.some((p) => lowerText.includes(p) || lowerFilename.includes(p.replace(/\s+/g, '')))) {
+        detectedBankName = bank.name;
+        break;
+      }
+    }
+
+    // Negative Non-Bank Document Checks
+    // 1. Aadhaar Card
+    const aadhaarMatches = ['uidai', 'unique identification authority of india', 'aadhaar', 'mera aadhaar', 'enrolment no'];
+    const aadhaarCount = aadhaarMatches.filter((m) => lowerText.includes(m)).length;
+    if (aadhaarCount >= 2 || (aadhaarCount >= 1 && (lowerText.includes('vid :') || lowerText.includes('vid:') || lowerFilename.includes('aadhaar')))) {
+      return {
+        isBankStatement: false,
+        detectedType: 'Aadhaar Card',
+        confidence: 96,
+        reason: 'Document contains UIDAI / Aadhaar identification markers instead of bank account statement transactions.',
+      };
+    }
+
+    // 2. PAN Card
+    const panMatches = ['income tax department', 'permanent account number', 'pan card', 'father’s name', "father's name", 'govt. of india'];
+    const panCount = panMatches.filter((m) => lowerText.includes(m)).length;
+    if ((panCount >= 2 && !lowerText.includes('statement')) || lowerFilename.includes('pan_card') || lowerFilename.includes('pancard')) {
+      return {
+        isBankStatement: false,
+        detectedType: 'PAN Card',
+        confidence: 95,
+        reason: 'Document contains Income Tax Department Permanent Account Number (PAN) details instead of bank statement transactions.',
+      };
+    }
+
+    // 3. Academic Marksheet / Certificate
+    const academicMatches = ['secondary school certificate', 'board of intermediate', 'degree certificate', 'marks statement', 'grade sheet', 'semester examination', 'cgpa', 'hall ticket', 'bachelor of', 'master of', 'controller of examinations'];
+    const academicCount = academicMatches.filter((m) => lowerText.includes(m)).length;
+    if (academicCount >= 2 || lowerFilename.includes('marksheet') || lowerFilename.includes('certificate')) {
+      return {
+        isBankStatement: false,
+        detectedType: 'Academic Marksheet / Certificate',
+        confidence: 94,
+        reason: 'Document contains academic degree, university grading, or examination marks sheet details instead of a bank statement.',
+      };
+    }
+
+    // 4. Utility / Electricity Bill
+    const utilityMatches = ['electricity bill', 'power distribution', 'discom', 'meter reading', 'kwh', 'consumer no', 'lpg cylinder', 'water supply bill'];
+    const utilityCount = utilityMatches.filter((m) => lowerText.includes(m)).length;
+    if (utilityCount >= 2 || lowerFilename.includes('bill') || lowerFilename.includes('electricity')) {
+      return {
+        isBankStatement: false,
+        detectedType: 'Utility Bill',
+        confidence: 92,
+        reason: 'Document appears to be a utility or electricity bill rather than a bank account transaction statement.',
+      };
+    }
+
+    // 5. Resume / CV
+    const resumeMatches = ['curriculum vitae', 'work experience', 'technical skills', 'professional summary', 'career objective', 'projects'];
+    const resumeCount = resumeMatches.filter((m) => lowerText.includes(m)).length;
+    if (resumeCount >= 2 || lowerFilename.includes('resume') || lowerFilename.includes('cv')) {
+      return {
+        isBankStatement: false,
+        detectedType: 'Resume / CV',
+        confidence: 95,
+        reason: 'Document is a personal curriculum vitae or resume, not a bank statement.',
+      };
+    }
+
+    // 6. Salary Slip / Payslip
+    const payslipMatches = ['payslip', 'salary slip', 'earnings and deductions', 'basic pay', 'hra allowance', 'provident fund', 'net payable'];
+    const payslipCount = payslipMatches.filter((m) => lowerText.includes(m)).length;
+    if (payslipCount >= 3 && !lowerText.includes('statement of account') && !lowerText.includes('closing balance')) {
+      return {
+        isBankStatement: false,
+        detectedType: 'Salary Slip / Payslip',
+        confidence: 90,
+        reason: 'Document is a salary slip / payslip without a bank account ledger or transaction history.',
+      };
+    }
+
+    // Positive Bank Statement Signatures
+    const bankingKeywords = [
+      'statement of account',
+      'account statement',
+      'account summary',
+      'transaction history',
+      'available balance',
+      'closing balance',
+      'opening balance',
+      'withdrawal',
+      'deposit',
+      'debit',
+      'credit',
+      'cheque no',
+      'chq no',
+      'ifsc',
+      'micr',
+      'txn date',
+      'value date',
+      'narration',
+      'particulars',
+      'savings account',
+      'current account',
+      'account number',
+      'a/c no',
+      'trans date',
+      'dr.',
+      'cr.',
+      'clear balance',
+    ];
+
+    const bankKeywordHits = bankingKeywords.filter((k) => lowerText.includes(k));
+    const hasDateMatches = (lowerText.match(/\d{1,2}[/-]\d{1,2}[/-]\d{2,4}/g) || []).length >= 2;
+    const hasAccountPattern = /account\s*(no|number|#)?\s*[:.-]?\s*\d{6,}/i.test(lowerText) || /a\/c\s*(no|number)?\s*[:.-]?\s*\d{6,}/i.test(lowerText) || /x{4,}\d{3,}/i.test(lowerText);
+
+    // Try to extract masked account number
+    let accountNumberMasked: string | undefined = undefined;
+    const acctMatch = text.match(/(?:A\/c|Account|Acc|A\/C)\s*(?:No\.?|Number)?\s*[:.-]?\s*([X\d\s-]{8,20})/i);
+    if (acctMatch && acctMatch[1]) {
+      const cleanAcct = acctMatch[1].trim().replace(/\s+/g, '');
+      if (cleanAcct.length >= 8) {
+        accountNumberMasked = cleanAcct.length > 8 ? '•••• •••• ' + cleanAcct.slice(-4) : cleanAcct;
+      }
+    }
+
+    // Verification evaluation
+    if (detectedBankName && (bankKeywordHits.length >= 2 || hasDateMatches)) {
+      return {
+        isBankStatement: true,
+        detectedType: 'Bank Statement',
+        bankName: detectedBankName,
+        accountNumberMasked,
+        confidence: 96,
+        reason: `Verified authentic bank statement from ${detectedBankName} with matching transaction ledger entries.`,
+      };
+    }
+
+    if (bankKeywordHits.length >= 4 || (bankKeywordHits.length >= 2 && (hasDateMatches || hasAccountPattern))) {
+      return {
+        isBankStatement: true,
+        detectedType: 'Bank Statement',
+        bankName: detectedBankName || 'Bank Statement',
+        accountNumberMasked,
+        confidence: 92,
+        reason: 'Identified official bank account transaction ledger, balance, and account indicators.',
+      };
+    }
+
+    if (lowerFilename.includes('statement') || lowerFilename.includes('bank') || lowerFilename.endsWith('.csv')) {
+      if (bankKeywordHits.length >= 1 || hasDateMatches) {
+        return {
+          isBankStatement: true,
+          detectedType: 'Bank Statement',
+          bankName: detectedBankName || 'Bank Statement',
+          accountNumberMasked,
+          confidence: 85,
+          reason: 'Statement structure identified with transaction fields.',
+        };
+      }
+    }
+
+    // If text is very short or unidentifiable
+    if ((text || '').trim().length < 50) {
+      return {
+        isBankStatement: false,
+        detectedType: 'Unreadable or Empty Document',
+        confidence: 80,
+        reason: 'Document text could not be read or does not contain bank account transactions.',
+      };
+    }
+
+    return {
+      isBankStatement: false,
+      detectedType: 'Non-Bank Document',
+      confidence: 82,
+      reason: 'The uploaded file does not contain official bank account details, transaction tables, or banking institution identifiers.',
+    };
   }
 
   private mapUploadToDto(entity: any): StatementUploadDto {

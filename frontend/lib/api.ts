@@ -2222,6 +2222,11 @@ export const statementApi = {
         apiFetch(`${API_URL}/statements/${statementId}/purge-temporary-artifacts`, {
             method: "POST",
         }),
+    verifyDocument: (data: { text?: string; filename?: string }) =>
+        apiFetch(`${API_URL}/statements/verify-document`, {
+            method: "POST",
+            body: JSON.stringify(data),
+        }),
 };
 
 /** Shared REST path builders + staff-dashboard catalog (single source for URLs). */

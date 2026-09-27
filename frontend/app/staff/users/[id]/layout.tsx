@@ -147,12 +147,12 @@ function DossierLayoutInner({ children }: { children: React.ReactNode }) {
             <div className="w-full bg-white border-b border-gray-200/80 shadow-2xs">
                 {/* Top Action Breadcrumb Row */}
                 <div className="max-w-7xl mx-auto px-6 pt-3 pb-2 flex items-center justify-between">
-                    <button
+                    {/* <button
                         onClick={handleBack}
                         className="inline-flex items-center text-xs font-bold text-gray-500 hover:text-indigo-600 transition-colors uppercase tracking-wider cursor-pointer group"
                     >
                         <span className="mr-1.5 text-sm transition-transform group-hover:-translate-x-0.5">←</span> Back to Members
-                    </button>
+                    </button> */}
                     <div className="text-xs text-gray-400 font-medium">
                         Student ID: <span className="text-gray-800 font-mono font-bold">{userData.studentId || userData.customId || userData.id || userId}</span>
                     </div>
@@ -230,8 +230,8 @@ function DossierLayoutInner({ children }: { children: React.ReactNode }) {
                                     key={tab.id}
                                     href={tab.path}
                                     className={`px-3.5 py-2 rounded-md transition-all whitespace-nowrap inline-flex items-center gap-1.5 cursor-pointer ${isActive
-                                            ? "bg-white text-indigo-600 shadow-2xs font-bold border border-gray-200/80"
-                                            : "hover:text-indigo-600 hover:bg-white"
+                                        ? "bg-white text-indigo-600 shadow-2xs font-bold border border-gray-200/80"
+                                        : "hover:text-indigo-600 hover:bg-white"
                                         }`}
                                 >
                                     <span>{tab.label}</span>

@@ -39,14 +39,14 @@ const getApplicationStageLabel = (app: any, progress: number): string => {
     if (app.currentStage) return app.currentStage;
     const status = (app.status || "").toLowerCase();
     if (status === "disbursed" || status === "disbursement_confirmed" || status === "closed" || (app.bankWorkflowStatus || "").toUpperCase() === "DISBURSED") return "Disbursed";
-    if (progress <= 12) return "Application Created";
-    if (progress <= 25) return "Application Submitted";
+    if (progress <= 12) return "Created";
+    if (progress <= 25) return "Submitted";
     if (progress <= 40) return "Documents";
     if (progress <= 50) return "Submit to Bank";
     if (progress <= 75) return "Credit Check";
-    if (progress <= 90) return "Bank Review";
+    if (progress <= 90) return "Review";
     if (progress <= 95) return "Sanction";
-    return "Disbursement";
+    return "Disbursed";
 };
 
 const StudentContactDropdownBesideName = ({
@@ -507,7 +507,12 @@ function ApplicationsPageInner() {
                                         </td>
                                         <td className="px-6 py-4 text-center">
                                             <div className="flex items-center justify-center gap-1.5">
-                                                <button onClick={() => { const appNo = item.applicationNumber || `APP-${(item.id || item._id || 'UNKNOWN').slice(-6)}`; router.push(`/staff/chat-customer?bankName=${encodeURIComponent(bankName)}&applicationId=${item.id || item._id}&applicationNumber=${encodeURIComponent(appNo)}`); }} className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[11px] font-bold rounded-lg transition-all border border-indigo-200 cursor-pointer flex items-center gap-1 active:scale-90 shadow-2xs">
+                                                <button onClick={() => { 
+                                                    let targetBank = bankName || "";
+                                                    if (targetBank.includes(',')) targetBank = targetBank.split(',')[0].trim();
+                                                    const appNo = item.applicationNumber || `APP-${(item.id || item._id || 'UNKNOWN').slice(-6)}`; 
+                                                    router.push(`/staff/chat-customer?bankName=${encodeURIComponent(targetBank.trim())}&applicationId=${item.id || item._id}&applicationNumber=${encodeURIComponent(appNo)}`); 
+                                                }} className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[11px] font-bold rounded-lg transition-all border border-indigo-200 cursor-pointer flex items-center gap-1 active:scale-90 shadow-2xs">
                                                     <span className="material-symbols-outlined text-[14px]">forum</span>Chat with Bank
                                                 </button>
                                                 {(item.email || item.student?.email) && (

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '../prisma/prisma.module';
 import { ApplicationModule } from '../application/application.module';
+import { AiModule } from '../ai/ai.module';
 import { StatementProcessingController } from './statement-processing.controller';
 import { StatementProcessingService } from './statement-processing.service';
 import { EncryptionStorageService } from './services/encryption-storage.service';
@@ -9,7 +10,7 @@ import { PdfUnlockWorker } from './workers/pdf-unlock-worker';
 import { PasswordRedactionInterceptor } from './interceptors/password-redaction.interceptor';
 
 @Module({
-  imports: [PrismaModule, ApplicationModule],
+  imports: [PrismaModule, ApplicationModule, AiModule],
   controllers: [StatementProcessingController],
   providers: [
     StatementProcessingService,

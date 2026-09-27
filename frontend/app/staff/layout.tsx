@@ -16,6 +16,8 @@ export const StaffLayoutContext = createContext<{
     onlineEmails: string[];
     socket: any;
     unreadChatCount: number;
+    incomingCount?: number;
+    pendingCount?: number;
     fetchBadgeStats: () => Promise<void>;
 } | null>(null);
 
@@ -27,6 +29,8 @@ export const useStaffLayout = () => {
             onlineEmails: [],
             socket: null,
             unreadChatCount: 0,
+            incomingCount: 0,
+            pendingCount: 0,
             fetchBadgeStats: async () => { }
         };
     }
@@ -49,9 +53,15 @@ const DASHBOARD_SECTIONS = [
 const getDashboardSection = (section: string | null) =>
     DASHBOARD_SECTIONS.includes(section as any) ? section as typeof DASHBOARD_SECTIONS[number] : "overview";
 
-const NavItem = ({ section, icon, label, badge, active, expanded }: any) => {
+const NavItem = ({ section, icon, label, badge, maxBadge = 99, active, expanded }: any) => {
     const isActive = active === section;
     const path = section === 'overview' ? '/staff' : `/staff/${section.replace('_', '-')}`;
+    const count = typeof badge === 'number' ? badge : parseInt(badge, 10);
+    const hasBadge = !isNaN(count) ? count > 0 : Boolean(badge);
+    const badgeText = !isNaN(count)
+        ? (count > maxBadge ? `${maxBadge}+` : count)
+        : badge;
+
     return (
         <Link
             href={path}
@@ -61,15 +71,18 @@ const NavItem = ({ section, icon, label, badge, active, expanded }: any) => {
                 : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
                 }`}
         >
-            <div className="w-6 h-6 flex items-center justify-center flex-shrink-0">
+            <div className="w-6 h-6 flex items-center justify-center flex-shrink-0 relative">
                 <span className={`material-symbols-outlined text-[18px] ${isActive ? 'text-indigo-400' : 'text-slate-400'}`}>{icon}</span>
+                {hasBadge && (
+                    <span className={`absolute -top-1 -right-1 w-2 h-2 rounded-full ${isActive ? 'bg-indigo-400' : 'bg-indigo-500'} ${expanded ? 'hidden' : 'inline-block group-hover/sidebar:hidden'}`} />
+                )}
             </div>
             <span className={`flex-1 transition-all duration-200 whitespace-nowrap truncate ${expanded ? 'opacity-100' : 'opacity-0 w-0 group-hover/sidebar:opacity-100 group-hover/sidebar:w-auto'}`}>
                 {label}
             </span>
-            {badge > 0 && (
+            {hasBadge && (
                 <span className={`px-2 py-0.5 rounded-full text-xs font-bold shrink-0 transition-opacity duration-200 ${isActive ? 'bg-indigo-500 text-white' : 'bg-slate-700 text-slate-300'} ${expanded ? 'inline-flex' : 'hidden group-hover/sidebar:inline-flex'}`}>
-                    {badge > 99 ? '99+' : badge}
+                    {badgeText}
                 </span>
             )}
         </Link>
@@ -146,12 +159,60 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
     const fetchBadgeStats = useCallback(async () => {
         if (!token) return;
         try {
-            const [appStats, conversationsRes]: [any, any] = await Promise.all([
+            const [appStats, conversationsRes, appsRes]: [any, any, any] = await Promise.all([
                 adminApi.getApplicationStats().catch(() => null),
                 apiFetch<any[]>("/api/chat/conversations").catch(() => null),
+                adminApi.getApplications({ limit: "1000" }).catch(() => null),
             ]);
 
-            if (appStats && appStats.data) {
+            if (appsRes) {
+                const rawItems: any[] = Array.isArray(appsRes?.data) ? appsRes.data : (Array.isArray(appsRes) ? appsRes : []);
+                const isPureStaff = user?.role === 'staff';
+                const staffId = (user?.id || '').toLowerCase();
+                const staffEmail = (user?.email || '').toLowerCase();
+
+                let incoming = 0;
+                let activePipeline = 0;
+
+                rawItems.forEach((app: any) => {
+                    // Strict per-staff isolation for pure staff role
+                    if (isPureStaff && staffId) {
+                        const assignedId = (app.assignedStaffId || '').toLowerCase();
+                        const assignedEmail = (app.assignedStaffEmail || '').toLowerCase();
+                        const matchesStaff = (
+                            assignedId === staffId ||
+                            (staffEmail && assignedId === staffEmail) ||
+                            (staffEmail && assignedEmail === staffEmail)
+                        );
+                        if (!matchesStaff) return;
+                    }
+
+                    const s = (app.status || "draft").toLowerCase();
+                    const bw = (app.bankWorkflowStatus || "").toUpperCase();
+
+                    // Exclude draft, inactive, or rejected applications
+                    if (s === "draft" || s === "rejected" || s === "cancelled" || bw === "REJECTED") {
+                        return;
+                    }
+
+                    // Check if application has already been sent to a bank
+                    const isSentToBank = Boolean(
+                        app.submittedToBankAt ||
+                        app.bankSubmissionId ||
+                        (bw && bw !== "NONE" && bw !== "") ||
+                        ["submitted_to_bank", "routed_multiparty", "file_logged", "under_bank_review", "processing", "sanctioned", "approved", "disbursed", "disbursement_confirmed"].includes(s)
+                    );
+
+                    if (isSentToBank) {
+                        activePipeline++;
+                    } else if (s !== "disbursed" && s !== "disbursement_confirmed") {
+                        incoming++;
+                    }
+                });
+
+                setIncomingCount(incoming);
+                setPendingCount(activePipeline);
+            } else if (appStats && appStats.data) {
                 const statusStats = appStats.data.statusStats || {};
                 setIncomingCount(Number(statusStats.submitted || 0));
                 setPendingCount(Number(statusStats.pending || 0) + Number(statusStats.processing || 0));
@@ -223,7 +284,7 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
         } catch (err) {
             console.error("Failed to load badge stats:", err);
         }
-    }, [token, activeSection, user?.email, user?.id]);
+    }, [token, activeSection, user?.email, user?.id, user?.role]);
 
     // Poll badge counts periodically
     useEffect(() => {
@@ -317,8 +378,8 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
 
     const navItems = [
         { section: "dashboard", path: "/staff/dashboard", icon: "dashboard", label: "Dashboard", badge: 0 },
-        { section: "incoming_queue", path: "/staff/incoming-queue", icon: "move_to_inbox", label: "Incoming Queue", badge: incomingCount },
-        { section: "applications", path: "/staff/applications", icon: "folder_open", label: "Active Pipeline", badge: pendingCount },
+        { section: "incoming_queue", path: "/staff/incoming-queue", icon: "move_to_inbox", label: "Incoming Queue", badge: incomingCount, maxBadge: 9 },
+        { section: "applications", path: "/staff/applications", icon: "folder_open", label: "Active Pipeline", badge: pendingCount, maxBadge: 9 },
         { section: "inactive_applications", path: "/staff/inactive-pipeline", icon: "archive", label: "Inactive Pipeline", badge: 0 },
         { section: "users", path: "/staff/users", icon: "group", label: "Bank & Staff Members", badge: 0 },
         { section: "performance", path: "/staff/performance", icon: "insights", label: "Performance", badge: 0 },
@@ -334,8 +395,10 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
         onlineEmails,
         socket: socketRef.current,
         unreadChatCount,
+        incomingCount,
+        pendingCount,
         fetchBadgeStats
-    }), [onlineEmails, unreadChatCount, fetchBadgeStats]);
+    }), [onlineEmails, unreadChatCount, incomingCount, pendingCount, fetchBadgeStats]);
 
     const handleLogout = async (e?: React.MouseEvent) => {
         if (e) e.stopPropagation();

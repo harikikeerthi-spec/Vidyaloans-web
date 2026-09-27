@@ -248,6 +248,54 @@ export class NotificationService {
     return 'Application';
   }
 
+  private formatCurrency(amount?: number | string): string | null {
+    if (!amount) return null;
+    const num = Number(amount);
+    if (isNaN(num) || num <= 0) return null;
+    try {
+      return new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR',
+        maximumFractionDigits: 0,
+      }).format(num);
+    } catch {
+      return `₹${num.toLocaleString('en-IN')}`;
+    }
+  }
+
+  private isGenericBank(bankName?: string): boolean {
+    if (!bankName) return true;
+    const lower = bankName.toLowerCase().trim();
+    return [
+      'any bank',
+      'any',
+      'anybank',
+      'pending partner',
+      'pending',
+      '—',
+      '-',
+      'none',
+      'n/a',
+      'unassigned',
+      'not assigned',
+      'not specified'
+    ].includes(lower);
+  }
+
+  private async getApplicationDetails(applicationId?: string) {
+    if (!applicationId) return null;
+    try {
+      const { data } = await this.db
+        .from('LoanApplication')
+        .select('id, applicationNumber, firstName, lastName, email, amount, loanType, universityName, country, bank, assignedStaffId, userId')
+        .eq('id', applicationId)
+        .maybeSingle();
+      return data;
+    } catch {
+      return null;
+    }
+  }
+
   private async resolveAssignedStaffId(applicationId?: string): Promise<string | null> {
     if (!applicationId) return null;
     try {
@@ -272,23 +320,52 @@ export class NotificationService {
   @OnEvent('loan.assigned')
   async handleLoanAssigned(payload: any) {
     try {
-      const appRef = this.formatAppRef(payload.applicationNumber, payload.loanId);
-      const loanTypeStr = payload.loanType ? ` (${payload.loanType})` : '';
+      const appId = payload.loanId || payload.applicationId;
+      const app = await this.getApplicationDetails(appId);
 
-      await this.createNotification(
-        payload.assignedStaffId,
-        `📋 New Application Assigned to You`,
-        `${payload.candidateName} has submitted a ${payload.loanType || 'loan'} application for ${payload.bank || 'a bank'}${loanTypeStr}. It has been assigned to you via round-robin.${appRef ? ' ' + appRef : ''}`,
-        'loan_assigned',
-        {
-          loanId: payload.loanId,
-          applicationNumber: payload.applicationNumber,
-          candidateName: payload.candidateName,
-          bank: payload.bank,
-          loanType: payload.loanType,
-          assignedBy: payload.assignedBy,
-        }
-      );
+      const candidateName = (app?.firstName || app?.lastName)
+        ? `${app.firstName || ''} ${app.lastName || ''}`.trim()
+        : (payload.candidateName || payload.name || 'Applicant');
+
+      const appNum = app?.applicationNumber || payload.applicationNumber;
+      const appRef = this.formatAppRef(appNum, appId);
+      const loanType = app?.loanType || payload.loanType || 'education loan';
+      const amountVal = app?.amount || payload.loanAmount || payload.amount;
+      const amountStr = this.formatCurrency(amountVal);
+      const uniName = app?.universityName || payload.universityName;
+      const country = app?.country || payload.country;
+      const uniStr = uniName ? (country ? `${uniName} (${country})` : uniName) : (country || '');
+      const bank = app?.bank || payload.bank;
+      const preferredBank = !this.isGenericBank(bank) ? bank : null;
+
+      let body = `${candidateName} has submitted a ${loanType} application`;
+      if (amountStr) body += ` for ${amountStr}`;
+      if (uniStr) body += ` at ${uniStr}`;
+      if (preferredBank) body += ` (Preferred Lender: ${preferredBank})`;
+      body += `. Assigned to you for review. (${appRef})`;
+
+      const targetUserId = payload.assignedStaffId || app?.assignedStaffId;
+      if (targetUserId) {
+        await this.createNotification(
+          targetUserId,
+          `📋 New Application Assigned: ${candidateName}`,
+          body,
+          'loan_assigned',
+          {
+            loanId: appId,
+            applicationId: appId,
+            applicationNumber: appNum || null,
+            candidateName,
+            candidateEmail: app?.email || payload.candidateEmail,
+            loanAmount: amountVal || null,
+            loanType,
+            universityName: uniName || null,
+            country: country || null,
+            bank: preferredBank,
+            assignedBy: payload.assignedBy,
+          }
+        );
+      }
     } catch (error) {
       this.logger.error(`Failed to handle loan.assigned event: ${error.message}`);
     }
@@ -301,27 +378,49 @@ export class NotificationService {
   @OnEvent('application.created')
   async handleApplicationCreated(payload: any) {
     try {
-      const candidateName = payload.candidateName || 'Candidate';
-      const appRef = this.formatAppRef(payload.applicationNumber, payload.applicationId);
-      const loanTypeStr = payload.loanType ? ` (${payload.loanType})` : '';
+      const appId = payload.applicationId || payload.loanId;
+      const app = await this.getApplicationDetails(appId);
 
-      const targetUserId = await this.resolveAssignedStaffId(payload.applicationId);
+      const candidateName = (app?.firstName || app?.lastName)
+        ? `${app.firstName || ''} ${app.lastName || ''}`.trim()
+        : (payload.candidateName || 'Candidate');
+
+      const appNum = app?.applicationNumber || payload.applicationNumber;
+      const appRef = this.formatAppRef(appNum, appId);
+      const loanType = app?.loanType || payload.loanType || 'education loan';
+      const amountVal = app?.amount || payload.loanAmount || payload.amount;
+      const amountStr = this.formatCurrency(amountVal);
+      const uniName = app?.universityName || payload.universityName;
+      const country = app?.country || payload.country;
+      const uniStr = uniName ? (country ? `${uniName} (${country})` : uniName) : (country || '');
+      const bank = app?.bank || payload.bank;
+      const preferredBank = !this.isGenericBank(bank) ? bank : null;
+
+      let body = `${candidateName} submitted a new ${loanType} application`;
+      if (amountStr) body += ` for ${amountStr}`;
+      if (uniStr) body += ` at ${uniStr}`;
+      if (preferredBank) body += ` (Preferred Lender: ${preferredBank})`;
+      body += `. Assigned to you for review. (${appRef})`;
+
+      const targetUserId = app?.assignedStaffId || payload.assignedStaffId || (await this.resolveAssignedStaffId(appId));
       if (targetUserId) {
         await this.createNotification(
           targetUserId,
           `📋 New Application Assigned: ${candidateName}`,
-          `${candidateName} submitted a new loan application${loanTypeStr} for ${payload.bank || 'a bank'} and it has been assigned to you.${appRef ? ' ' + appRef : ''}`,
+          body,
           'application_created',
           {
-            applicationId: payload.applicationId,
-            applicationNumber: payload.applicationNumber,
-            userId: payload.userId,
-            candidateName: payload.candidateName,
-            candidateEmail: payload.candidateEmail,
-            bank: payload.bank,
-            loanAmount: payload.loanAmount,
-            loanType: payload.loanType,
-            createdAt: payload.createdAt,
+            applicationId: appId,
+            applicationNumber: appNum || null,
+            userId: payload.userId || app?.userId,
+            candidateName,
+            candidateEmail: app?.email || payload.candidateEmail,
+            loanAmount: amountVal || null,
+            loanType,
+            universityName: uniName || null,
+            country: country || null,
+            bank: preferredBank,
+            createdAt: payload.createdAt || new Date().toISOString(),
           }
         );
       }
@@ -375,26 +474,49 @@ export class NotificationService {
   @OnEvent('application.submitted')
   async handleApplicationSubmitted(payload: any) {
     try {
-      const candidateName = payload.candidateName || 'Candidate';
-      const appRef = this.formatAppRef(payload.applicationNumber, payload.applicationId);
+      const appId = payload.applicationId || payload.loanId;
+      const app = await this.getApplicationDetails(appId);
 
-      const targetUserId = await this.resolveAssignedStaffId(payload.applicationId);
+      const candidateName = (app?.firstName || app?.lastName)
+        ? `${app.firstName || ''} ${app.lastName || ''}`.trim()
+        : (payload.candidateName || 'Candidate');
+
+      const appNum = app?.applicationNumber || payload.applicationNumber;
+      const appRef = this.formatAppRef(appNum, appId);
+      const loanType = app?.loanType || payload.loanType || 'education loan';
+      const amountVal = app?.amount || payload.loanAmount || payload.amount;
+      const amountStr = this.formatCurrency(amountVal);
+      const uniName = app?.universityName || payload.universityName;
+      const country = app?.country || payload.country;
+      const uniStr = uniName ? (country ? `${uniName} (${country})` : uniName) : (country || '');
+      const bank = app?.bank || payload.bank;
+      const preferredBank = !this.isGenericBank(bank) ? bank : null;
+
+      let body = `${candidateName} submitted a ${loanType} application`;
+      if (amountStr) body += ` for ${amountStr}`;
+      if (uniStr) body += ` at ${uniStr}`;
+      if (preferredBank) body += ` (Preferred Lender: ${preferredBank})`;
+      body += `. Ready for document verification. (${appRef})`;
+
+      const targetUserId = app?.assignedStaffId || (await this.resolveAssignedStaffId(appId));
       if (targetUserId) {
         await this.createNotification(
           targetUserId,
           `🚀 Application Submitted: ${candidateName}`,
-          `${candidateName} submitted a loan application for ${payload.bank || 'a bank'} and it has been assigned to you.${appRef ? ' ' + appRef : ''}`,
+          body,
           'application_submitted',
           {
-            applicationId: payload.applicationId,
-            applicationNumber: payload.applicationNumber,
-            userId: payload.userId,
-            candidateName: payload.candidateName,
-            candidateEmail: payload.candidateEmail,
-            bank: payload.bank,
-            loanAmount: payload.loanAmount,
-            loanType: payload.loanType,
-            submittedAt: payload.submittedAt,
+            applicationId: appId,
+            applicationNumber: appNum || null,
+            userId: payload.userId || app?.userId,
+            candidateName,
+            candidateEmail: app?.email || payload.candidateEmail,
+            loanAmount: amountVal || null,
+            loanType,
+            universityName: uniName || null,
+            country: country || null,
+            bank: preferredBank,
+            submittedAt: payload.submittedAt || new Date().toISOString(),
           }
         );
       }

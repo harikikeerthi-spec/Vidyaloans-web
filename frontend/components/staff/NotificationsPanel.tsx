@@ -198,6 +198,36 @@ const NotificationsPanel = ({
     return `${relative} (${originalTimeStr})`;
   };
 
+  const formatAmount = (amt?: number | string) => {
+    if (!amt) return '';
+    const num = Number(amt);
+    if (isNaN(num) || num <= 0) return '';
+    try {
+      return new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR',
+        maximumFractionDigits: 0,
+      }).format(num);
+    } catch {
+      return `₹${num.toLocaleString('en-IN')}`;
+    }
+  };
+
+  const cleanNotificationBody = (body: string, metadata?: any): string => {
+    if (!body) return '';
+    let cleaned = body;
+    // Strip out generic "Any Bank" mentions
+    cleaned = cleaned.replace(/\s+for\s+Any\s+Bank\s*\([^)]*\)/gi, '');
+    cleaned = cleaned.replace(/\s+for\s+any\s+bank/gi, '');
+    cleaned = cleaned.replace(/\s+for\s+a\s+bank/gi, '');
+    cleaned = cleaned.replace(/\s+for\s+Pending\s+Partner/gi, '');
+    cleaned = cleaned.replace(/\s+to\s+Any\s+Bank/gi, '');
+    cleaned = cleaned.replace(/\s+with\s+Any\s+Bank/gi, '');
+
+    cleaned = cleaned.replace(/\s{2,}/g, ' ').replace(/\s+\./g, '.').replace(/\s+,/g, ',');
+    return cleaned;
+  };
+
   const fetchNotifications = useCallback(async () => {
     try {
       const data = await apiFetch<any>("/api/notifications");
@@ -771,9 +801,31 @@ const NotificationsPanel = ({
                               <p className="font-semibold text-sm text-slate-900 line-clamp-1">
                                 {notif.title}
                               </p>
-                              <p className="text-xs text-slate-600 line-clamp-2 mt-1">
-                                {notif.body}
+                              <p className="text-xs text-slate-600 line-clamp-2 mt-1 leading-relaxed">
+                                {cleanNotificationBody(notif.body, notif.metadata)}
                               </p>
+                              {(notif.metadata?.universityName || notif.metadata?.loanAmount || notif.metadata?.country) && (
+                                <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                                  {notif.metadata?.loanAmount && (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                                      <span className="material-symbols-outlined text-[11px]">payments</span>
+                                      {formatAmount(notif.metadata.loanAmount)}
+                                    </span>
+                                  )}
+                                  {notif.metadata?.universityName && (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/60 truncate max-w-[190px]" title={notif.metadata.universityName}>
+                                      <span className="material-symbols-outlined text-[11px]">school</span>
+                                      {notif.metadata.universityName}
+                                    </span>
+                                  )}
+                                  {notif.metadata?.country && (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-sky-50 text-sky-700 border border-sky-200/60">
+                                      <span className="material-symbols-outlined text-[11px]">public</span>
+                                      {notif.metadata.country}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                               <p className="text-[10px] text-slate-400 mt-2">
                                 {formatTime(notif.timestamp)}
                               </p>
@@ -864,9 +916,25 @@ const NotificationsPanel = ({
                         <h4 className="font-extrabold text-sm text-slate-900 mt-1 line-clamp-1">
                           {activeToast.title}
                         </h4>
-                        <p className="text-xs text-slate-600 mt-1 line-clamp-2">
-                          {activeToast.body}
+                        <p className="text-xs text-slate-600 mt-1 line-clamp-2 leading-relaxed">
+                          {cleanNotificationBody(activeToast.body, activeToast.metadata)}
                         </p>
+                        {(activeToast.metadata?.universityName || activeToast.metadata?.loanAmount || activeToast.metadata?.country) && (
+                          <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                            {activeToast.metadata?.loanAmount && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                                <span className="material-symbols-outlined text-[11px]">payments</span>
+                                {formatAmount(activeToast.metadata.loanAmount)}
+                              </span>
+                            )}
+                            {activeToast.metadata?.universityName && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/60 truncate max-w-[170px]" title={activeToast.metadata.universityName}>
+                                <span className="material-symbols-outlined text-[11px]">school</span>
+                                {activeToast.metadata.universityName}
+                              </span>
+                            )}
+                          </div>
+                        )}
                         <p className="text-[10px] text-indigo-600 font-bold mt-2">
                           Click to view details
                         </p>
@@ -987,8 +1055,30 @@ const NotificationsPanel = ({
                                 </span>
                               </div>
                               <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                                {notif.body}
+                                {cleanNotificationBody(notif.body, notif.metadata)}
                               </p>
+                              {(notif.metadata?.universityName || notif.metadata?.loanAmount || notif.metadata?.country) && (
+                                <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                                  {notif.metadata?.loanAmount && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                                      <span className="material-symbols-outlined text-[12px]">payments</span>
+                                      {formatAmount(notif.metadata.loanAmount)}
+                                    </span>
+                                  )}
+                                  {notif.metadata?.universityName && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/60">
+                                      <span className="material-symbols-outlined text-[12px]">school</span>
+                                      {notif.metadata.universityName}
+                                    </span>
+                                  )}
+                                  {notif.metadata?.country && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-sky-50 text-sky-700 border border-sky-200/60">
+                                      <span className="material-symbols-outlined text-[12px]">public</span>
+                                      {notif.metadata.country}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                             </div>
 
                             {/* Status Circle */}

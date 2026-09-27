@@ -147,14 +147,14 @@ const getApplicationStageLabel = (app: any, progress: number): string => {
         return "Disbursed";
     }
 
-    if (progress <= 12) return "Application Created";
-    if (progress <= 25) return "Application Submitted";
+    if (progress <= 12) return "Created";
+    if (progress <= 25) return "Submitted";
     if (progress <= 40) return "Documents";
     if (progress <= 50) return "Submit to Bank";
     if (progress <= 75) return "Credit Check";
-    if (progress <= 90) return "Bank Review";
+    if (progress <= 90) return "Review";
     if (progress <= 95) return "Sanction";
-    return "Disbursement";
+    return "Disbursed";
 };
 
 const TableHeader = ({ children }: { children: React.ReactNode }) => (
@@ -487,7 +487,7 @@ function IncomingQueuePageInner() {
         localStorage.setItem(followUpKey, JSON.stringify(updated));
 
         // 2. Update student-level follow-up (synchronization)
-        const sId = followUpItem?.userId || followUpItem?.studentId || followUpItem?.student?.id || followUpItem?.user?.id;
+        const sId = followUpItem?.userId || followUpItem?.user_id || followUpItem?.studentId || followUpItem?.student?.id || followUpItem?.user?.id || followUpItem?.student?._id;
         if (sId) {
             const studentKey = `follow_ups_${staffId}_${sId}`;
             const stored = localStorage.getItem(studentKey);
@@ -507,7 +507,9 @@ function IncomingQueuePageInner() {
                     ...currentList[pendingIndex],
                     date: tempFollowUpDate,
                     time: selectedTime,
-                    notes: tempFollowUpNotes
+                    notes: tempFollowUpNotes,
+                    studentName,
+                    appNumber: appNumber || `#${appId.slice(0, 8)}`,
                 };
             } else {
                 currentList.push({
@@ -547,7 +549,7 @@ function IncomingQueuePageInner() {
 
         // 2. Clear student-level follow-up (synchronization)
         const staffId = user?.id || user?.email || "default";
-        const sId = followUpItem?.userId || followUpItem?.studentId || followUpItem?.student?.id || followUpItem?.user?.id;
+        const sId = followUpItem?.userId || followUpItem?.user_id || followUpItem?.studentId || followUpItem?.student?.id || followUpItem?.user?.id || followUpItem?.student?._id;
         if (sId) {
             const studentKey = `follow_ups_${staffId}_${sId}`;
             const stored = localStorage.getItem(studentKey);
@@ -1224,97 +1226,127 @@ function IncomingQueuePageInner() {
                 recipientName={emailModalRecipientName}
             />
 
-            {editingFollowUpId && followUpItem && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden border border-slate-100 font-sans" onClick={e => e.stopPropagation()}>
-                        <div className="px-5 py-4 border-b border-slate-100 flex items-start justify-between">
-                            <div>
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Create Follow-up</p>
-                                <h3 className="text-[14px] font-black text-slate-800 leading-tight">
-                                    {`${followUpItem.firstName || followUpItem.student?.firstName || ''} ${followUpItem.lastName || followUpItem.student?.lastName || ''}`.trim()}
-                                </h3>
-                                <p className="text-[10px] text-indigo-500 font-bold mt-0.5">{followUpItem.applicationNumber || '—'}</p>
-                            </div>
-                            <button type="button" onClick={() => { setEditingFollowUpId(null); setFollowUpItem(null); }} className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all border-0 bg-transparent cursor-pointer mt-0.5">
-                                <span className="material-symbols-outlined text-[18px]">close</span>
-                            </button>
-                        </div>
-                        <div className="p-5 space-y-4">
-                            <div>
-                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Set a due date</p>
-                                <div className="flex items-center gap-2">
-                                    {[{ label: '1 Day', days: 1 }, { label: '3 Days', days: 3 }, { label: '1 Week', days: 7 }].map(opt => {
-                                        const pd = new Date(); pd.setDate(pd.getDate() + opt.days);
-                                        const val = `${pd.getFullYear()}-${String(pd.getMonth() + 1).padStart(2, '0')}-${String(pd.getDate()).padStart(2, '0')}`;
-                                        const isActive = tempFollowUpDate === val;
-                                        return (
-                                            <button key={opt.label} type="button" onClick={() => applyQuickDate(opt.days)}
-                                                className={`flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider border transition-all cursor-pointer ${isActive ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-400 hover:text-indigo-600'}`}>
-                                                {opt.label}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <div className="flex-1 h-px bg-slate-100" />
-                                <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Or</span>
-                                <div className="flex-1 h-px bg-slate-100" />
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="block text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1.5">Set a custom due date</label>
-                                    <input type="date" min={getTodayDateString()} value={tempFollowUpDate} onChange={e => setTempFollowUpDate(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-700 font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all" />
-                                </div>
-                                <div>
-                                    <label className="block text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1.5">Select time slot</label>
-                                    <select
-                                        value={tempFollowUpTime}
-                                        onChange={e => setTempFollowUpTime(e.target.value)}
-                                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-700 font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                                    >
-                                        <option value="">Select Time Slot...</option>
-                                        {DEFAULT_TIME_SLOTS.map(slot => {
-                                            const staffId = user?.id || user?.email || "default";
-                                            const conflict = tempFollowUpDate ? checkFollowUpConflict({
-                                                staffId,
-                                                date: tempFollowUpDate,
-                                                time: slot,
-                                                currentAppId: editingFollowUpId
-                                            }) : null;
+            {editingFollowUpId && followUpItem && (() => {
+                const studentDisplayName = `${followUpItem.firstName || followUpItem.student?.firstName || ''} ${followUpItem.lastName || followUpItem.student?.lastName || ''}`.trim() || followUpItem.studentName || 'Student';
+                const appNum = followUpItem.applicationNumber || followUpItem.application?.applicationNumber || followUpItem.student?.applicationNumber || followUpItem.appNumber;
+                const studentId = followUpItem.userId || followUpItem.user_id || followUpItem.studentId || followUpItem.student?.id || followUpItem.user?.id || followUpItem.student?._id;
+                const appIdentifier = appNum || studentId || (followUpItem.id ? `#${followUpItem.id.slice(0, 8)}` : '');
+                const isEditingExisting = Boolean(followUpDates[editingFollowUpId] || getActiveFollowUp(followUpItem));
 
+                return (
+                    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden border border-slate-100 font-sans" onClick={e => e.stopPropagation()}>
+                            <div className="px-5 py-4 border-b border-slate-100 flex items-start justify-between">
+                                <div>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">
+                                        {isEditingExisting ? "Edit Follow-up" : "Create Follow-up"}
+                                    </p>
+                                    <h3 className="text-[14px] font-black text-slate-800 leading-tight">
+                                        {studentDisplayName}
+                                    </h3>
+                                    {appNum && studentId && appNum !== studentId ? (
+                                        <div className="flex items-center gap-1.5 mt-0.5 font-mono text-[10px]">
+                                            <span className="font-bold text-indigo-600 bg-indigo-50/80 px-1.5 py-0.5 rounded border border-indigo-100">{appNum}</span>
+                                            <span className="text-slate-300">•</span>
+                                            <span className="text-slate-500 font-medium">{studentId}</span>
+                                        </div>
+                                    ) : appNum || studentId ? (
+                                        <p className="text-[10px] text-indigo-600 font-bold font-mono mt-0.5">
+                                            {appNum || studentId}
+                                        </p>
+                                    ) : followUpItem.id ? (
+                                        <p className="text-[10px] text-indigo-600 font-bold font-mono mt-0.5">
+                                            #{followUpItem.id.slice(0, 8)}
+                                        </p>
+                                    ) : (
+                                        <span className="inline-block text-[9px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded mt-0.5">
+                                            Incoming Lead
+                                        </span>
+                                    )}
+                                </div>
+                                <button type="button" onClick={() => { setEditingFollowUpId(null); setFollowUpItem(null); }} className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all border-0 bg-transparent cursor-pointer mt-0.5">
+                                    <span className="material-symbols-outlined text-[18px]">close</span>
+                                </button>
+                            </div>
+                            <div className="p-5 space-y-4">
+                                <div>
+                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Set a due date</p>
+                                    <div className="flex items-center gap-2">
+                                        {[{ label: '1 Day', days: 1 }, { label: '3 Days', days: 3 }, { label: '1 Week', days: 7 }].map(opt => {
+                                            const pd = new Date(); pd.setDate(pd.getDate() + opt.days);
+                                            const val = `${pd.getFullYear()}-${String(pd.getMonth() + 1).padStart(2, '0')}-${String(pd.getDate()).padStart(2, '0')}`;
+                                            const isActive = tempFollowUpDate === val;
                                             return (
-                                                <option key={slot} value={slot} disabled={!!conflict}>
-                                                    {formatSlot12Hr(slot)} {conflict ? `❌ (Booked - ${conflict.studentName})` : '✓ (Available)'}
-                                                </option>
+                                                <button key={opt.label} type="button" onClick={() => applyQuickDate(opt.days)}
+                                                    className={`flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider border transition-all cursor-pointer ${isActive ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-400 hover:text-indigo-600'}`}>
+                                                    {opt.label}
+                                                </button>
                                             );
                                         })}
-                                    </select>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <div className="flex-1 h-px bg-slate-100" />
+                                    <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Or</span>
+                                    <div className="flex-1 h-px bg-slate-100" />
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1.5">Set a custom due date</label>
+                                        <input type="date" min={getTodayDateString()} value={tempFollowUpDate} onChange={e => setTempFollowUpDate(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-700 font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1.5">Select time slot</label>
+                                        <select
+                                            value={tempFollowUpTime}
+                                            onChange={e => setTempFollowUpTime(e.target.value)}
+                                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-700 font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                                        >
+                                            <option value="">Select Time Slot...</option>
+                                            {DEFAULT_TIME_SLOTS.map(slot => {
+                                                const staffId = user?.id || user?.email || "default";
+                                                const conflict = tempFollowUpDate ? checkFollowUpConflict({
+                                                    staffId,
+                                                    date: tempFollowUpDate,
+                                                    time: slot,
+                                                    currentAppId: editingFollowUpId
+                                                }) : null;
+
+                                                return (
+                                                    <option key={slot} value={slot} disabled={!!conflict}>
+                                                        {formatSlot12Hr(slot)} {conflict ? `❌ (Booked - ${conflict.studentName})` : '✓ (Available)'}
+                                                    </option>
+                                                );
+                                            })}
+                                        </select>
+                                    </div>
+                                </div>
+                                {tempFollowUpDate && (
+                                    <div className="px-4 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl">
+                                        <p className="text-[11px] font-bold text-emerald-700">
+                                            Due date will be <span className="font-black">{new Date(tempFollowUpDate + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
+                                            {tempFollowUpTime && <> at <span className="font-black">{tempFollowUpTime}</span></>}
+                                        </p>
+                                    </div>
+                                )}
+                                <div>
+                                    <label className="block text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1.5">Notes</label>
+                                    <textarea rows={3} value={tempFollowUpNotes} onChange={e => setTempFollowUpNotes(e.target.value)} placeholder="Add a quick note..." className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-700 font-medium resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all" />
                                 </div>
                             </div>
-                            {tempFollowUpDate && (
-                                <div className="px-4 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl">
-                                    <p className="text-[11px] font-bold text-emerald-700">
-                                        Due date will be <span className="font-black">{new Date(tempFollowUpDate + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
-                                        {tempFollowUpTime && <> at <span className="font-black">{tempFollowUpTime}</span></>}
-                                    </p>
+                            <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between gap-3">
+                                <button type="button" onClick={() => clearFollowUp(editingFollowUpId)} className="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-rose-600 hover:bg-rose-50 rounded-xl border border-rose-100 bg-white transition-all cursor-pointer">Clear</button>
+                                <div className="flex items-center gap-2">
+                                    <button type="button" onClick={() => { setEditingFollowUpId(null); setFollowUpItem(null); }} className="px-4 py-2 text-[10px] font-black uppercase tracking-wider text-slate-500 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-all cursor-pointer">Cancel</button>
+                                    <button type="button" onClick={() => saveFollowUp(editingFollowUpId, studentDisplayName, appIdentifier)} className="px-5 py-2 text-[10px] font-black uppercase tracking-wider bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-sm transition-all cursor-pointer">
+                                        {isEditingExisting ? "Save Changes" : "Create"}
+                                    </button>
                                 </div>
-                            )}
-                            <div>
-                                <label className="block text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1.5">Notes</label>
-                                <textarea rows={3} value={tempFollowUpNotes} onChange={e => setTempFollowUpNotes(e.target.value)} placeholder="Add a quick note..." className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-700 font-medium resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all" />
-                            </div>
-                        </div>
-                        <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between gap-3">
-                            <button type="button" onClick={() => clearFollowUp(editingFollowUpId)} className="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-rose-600 hover:bg-rose-50 rounded-xl border border-rose-100 bg-white transition-all cursor-pointer">Clear</button>
-                            <div className="flex items-center gap-2">
-                                <button type="button" onClick={() => { setEditingFollowUpId(null); setFollowUpItem(null); }} className="px-4 py-2 text-[10px] font-black uppercase tracking-wider text-slate-500 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-all cursor-pointer">Cancel</button>
-                                <button type="button" onClick={() => saveFollowUp(editingFollowUpId, `${followUpItem.firstName || followUpItem.student?.firstName || ''} ${followUpItem.lastName || followUpItem.student?.lastName || ''}`.trim(), followUpItem.applicationNumber)} className="px-5 py-2 text-[10px] font-black uppercase tracking-wider bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-sm transition-all cursor-pointer">Create</button>
                             </div>
                         </div>
                     </div>
-                </div>
-            )}
+                );
+            })()}
 
             {isRejectModalOpen && appToReject && (
 

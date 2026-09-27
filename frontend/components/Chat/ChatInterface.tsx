@@ -180,7 +180,19 @@ export default function ChatInterface({ role, initialUser, initialBank, initialC
     const [inputText, setInputText] = useState('');
     const [sidebarTab, setSidebarTab] = useState<'chats' | 'users'>('chats');
     // 'all' | 'student' | 'bank' — for staff to filter which conversation type they see
-    const [chatTypeFilter, setChatTypeFilter] = useState<'all' | 'student' | 'bank'>('all');
+    const [chatTypeFilter, setChatTypeFilter] = useState<'all' | 'student' | 'bank'>(() => {
+        if (initialBank?.bankName) return 'bank';
+        if (initialUser?.id || initialUser?.email) return 'student';
+        return 'all';
+    });
+
+    useEffect(() => {
+        if (initialBank?.bankName) {
+            setChatTypeFilter('bank');
+        } else if (initialUser?.id || initialUser?.email) {
+            setChatTypeFilter('student');
+        }
+    }, [initialBank?.bankName, initialUser?.id, initialUser?.email]);
     const [allUsers, setAllUsers] = useState<any[]>([]);
     const [loadingUsers, setLoadingUsers] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -914,7 +926,7 @@ export default function ChatInterface({ role, initialUser, initialBank, initialC
             const data = await doFetch();
             if (data.success && data.conversation) {
                 setSidebarTab('chats');
-                setChatTypeFilter('all');
+                setChatTypeFilter(role === 'staff' ? 'student' : 'all');
                 setConversations(prev => {
                     const idx = prev.findIndex(c => c.id === data.conversation.id);
                     if (idx >= 0) {
@@ -1005,22 +1017,28 @@ export default function ChatInterface({ role, initialUser, initialBank, initialC
         }
     }, [initialBank?.applicationId, initialBank?.bankName, token, role]);
 
-    // Auto-select conversation matching applicationId
-    useEffect(() => {
-        const appId = initialBank?.applicationId || (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('applicationId') : null);
-        if (!appId || conversations.length === 0) return;
+    const hasAutoSelectedBankRef = useRef(false);
 
+    // Auto-select existing bank conversation matching both bankName and applicationId if already loaded
+    useEffect(() => {
+        if (!initialBank?.bankName || !initialBank?.applicationId || conversations.length === 0 || hasAutoSelectedBankRef.current) return;
+        if (activeConversation) return;
+
+        const normTargetBank = normalizeBankName(initialBank.bankName);
         const match = conversations.find(c => {
             const meta = getMetadata(c);
-            return meta.applicationId === appId || c.id === appId;
+            if (meta.type !== 'bank') return false;
+            const convBank = normalizeBankName(meta.bank || meta.bankName || c.customerName);
+            return meta.applicationId === initialBank.applicationId && convBank === normTargetBank;
         });
-        if (match && activeConversation !== match.id) {
+
+        if (match) {
+            hasAutoSelectedBankRef.current = true;
             setSidebarTab('chats');
-            const meta = getMetadata(match);
-            if (meta.type === 'bank') setChatTypeFilter('bank');
+            setChatTypeFilter('bank');
             setActiveConversation(match.id);
         }
-    }, [conversations, initialBank?.applicationId, activeConversation]);
+    }, [conversations, initialBank, activeConversation]);
 
     // Fetch student documents for the active conversation
     const openStudentDocuments = async () => {

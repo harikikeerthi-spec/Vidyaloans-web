@@ -24,6 +24,7 @@ export type StatementProcessingStatus =
   | 'COLUMN_MAPPING_REQUIRED'
   | 'DATA_VALIDATING'
   | 'EVV_READY'
+  | 'REJECTED_INVALID_DOCUMENT'
   | 'PROCESSING_FAILED';
 
 export type AuditEventType =
@@ -33,6 +34,8 @@ export type AuditEventType =
   | 'PDF_PASSWORD_REQUESTED'
   | 'PDF_UNLOCK_FAILED'
   | 'PDF_UNLOCK_SUCCEEDED'
+  | 'AI_DOCUMENT_VERIFIED'
+  | 'AI_DOCUMENT_REJECTED'
   | 'TEXT_EXTRACTION_SUCCEEDED'
   | 'OCR_STARTED'
   | 'OCR_COMPLETED'
@@ -43,6 +46,15 @@ export type AuditEventType =
   | 'TEMPORARY_FILES_PURGED'
   | 'EVV_CALCULATION_STARTED'
   | 'EVV_CALCULATION_COMPLETED';
+
+export interface AiBankStatementVerificationResult {
+  isBankStatement: boolean;
+  detectedType: string;
+  bankName?: string;
+  accountNumberMasked?: string;
+  confidence: number;
+  reason: string;
+}
 
 export type ActorType = 'APPLICANT' | 'STAFF' | 'MANAGER' | 'SYSTEM';
 
@@ -70,6 +82,13 @@ export interface StatementUploadDto {
   statementPeriodTo?: string;
   createdAt: string;
   updatedAt: string;
+  isBankStatement?: boolean;
+  detectedType?: string;
+  reason?: string;
+  message?: string;
+  status?: string;
+  aiVerification?: AiBankStatementVerificationResult;
+  transactions?: any[];
 }
 
 export interface StatementProcessingAuditDto {

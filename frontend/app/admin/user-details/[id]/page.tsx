@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, useMemo, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { adminApi, documentApi, referenceApi, mailApi } from "@/lib/api";
+import { adminApi, documentApi, referenceApi } from "@/lib/api";
 import { format } from "date-fns";
 
 export default function AdminUserDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -16,7 +16,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
     const [userData, setUserData] = useState<any>(null);
     const [userApplications, setUserApplications] = useState<any[]>([]);
     const [userDocuments, setUserDocuments] = useState<any[]>([]);
-    const [activeTab, setActiveTab] = useState<"profile" | "applications" | "documents" | "bank_compare" | "mailbox">("profile");
+    const [activeTab, setActiveTab] = useState<"profile" | "applications" | "documents" | "bank_compare">("profile");
     const [selectedApplication, setSelectedApplication] = useState<any>(null);
 
     // Dynamic Bank Partner & Comparison State
@@ -24,9 +24,8 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
     const [comparedBankPartner, setComparedBankPartner] = useState<any>(null);
     const [updatingBank, setUpdatingBank] = useState(false);
 
-    // Staff Operational & Mailbox Assignment State
+    // Staff Operational Assignment State
     const [offices, setOffices] = useState<any[]>([]);
-    const [s3Folders, setS3Folders] = useState<any[]>([]);
     const [showEditStaffModal, setShowEditStaffModal] = useState(false);
     const [savingStaff, setSavingStaff] = useState(false);
     const [staffForm, setStaffForm] = useState({
@@ -34,9 +33,6 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
         firstName: "",
         lastName: "",
         phoneNumber: "",
-        mailboxEmail: "",
-        mailboxPrefix: "",
-        canAccessSupport: false,
         officeId: "",
         officeLocation: "",
         isOnLeave: false,
@@ -44,6 +40,11 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
         department: "",
         designation: "",
     });
+
+    // Staff Assigned Applications & Leads Filters
+    const [caseTypeFilter, setCaseTypeFilter] = useState<"all" | "application" | "lead">("all");
+    const [caseSearchTerm, setCaseSearchTerm] = useState("");
+    const [caseStatusFilter, setCaseStatusFilter] = useState("all");
 
     useEffect(() => {
         const fetchUserDetails = async () => {
@@ -59,7 +60,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                     const listRes: any = await adminApi.getUsers(200, 0).catch(() => ({ data: [] }));
                     foundUser = listRes.data?.find((u: any) => u.id === userId || u._id === userId);
                 }
-                
+
                 const banks = banksRes.success && Array.isArray(banksRes.data) ? banksRes.data : [];
                 setBankPartners(banks);
 
@@ -68,7 +69,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
 
                     const rawBank = (foundUser.bank || foundUser.partnerBank || foundUser.bankId || '').toString().trim();
                     const cleanBank = rawBank.toLowerCase().replace(/[^a-z0-9]/g, '');
-                    
+
                     let matchedBank: any = null;
                     if (cleanBank && Array.isArray(banks) && banks.length > 0) {
                         matchedBank = banks.find((b: any) => {
@@ -76,8 +77,8 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                             const bName = (b.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
                             const bId = (b.id || '').toLowerCase().replace(/[^a-z0-9]/g, '');
                             return bShort === cleanBank || bName === cleanBank || bId === cleanBank ||
-                                   cleanBank.includes(bShort) || (bShort && bShort.includes(cleanBank)) ||
-                                   cleanBank.includes(bName) || (bName && bName.includes(cleanBank));
+                                cleanBank.includes(bShort) || (bShort && bShort.includes(cleanBank)) ||
+                                cleanBank.includes(bName) || (bName && bName.includes(cleanBank));
                         });
                     }
 
@@ -101,7 +102,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                             const bShort = (b.shortName || '').toLowerCase().trim();
                             const bName = (b.name || '').toLowerCase().trim();
                             return (bShort && bShort.length >= 3 && nameParts.includes(bShort)) ||
-                                   (bName && bName.length >= 4 && nameParts.includes(bName));
+                                (bName && bName.length >= 4 && nameParts.includes(bName));
                         });
                     }
 
@@ -131,25 +132,32 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                     setComparedBankPartner(matchedBank || null);
 
                     const isStaffUser = (foundUser.role || '').toLowerCase().includes('staff');
-                    
+
                     // Fetch user's applications (applicant's loan submissions or staff's assigned cases)
                     try {
                         const appsRes = await adminApi.getApplications({ limit: '1000' }) as any;
-                        const allApps = appsRes?.data || [];
+                        const allApps = Array.isArray(appsRes?.data) ? appsRes.data : (Array.isArray(appsRes) ? appsRes : []);
                         if (isStaffUser) {
                             const staffApps = allApps.filter((app: any) => {
-                                const sId = (app.assignedStaffId || '').toString().toLowerCase();
+                                const sId = (app.assignedStaffId || app.assignedStaff?.id || app.assignedStaff?.staffId || '').toString().toLowerCase();
                                 const uId = (userId || '').toLowerCase();
                                 const stfId = (foundUser.staffId || '').toLowerCase();
-                                const sEmail = (app.assignedStaffEmail || '').toString().toLowerCase();
+                                const fUserId = (foundUser.id || '').toLowerCase();
+                                const sEmail = (app.assignedStaffEmail || app.assignedStaff?.email || '').toString().toLowerCase();
                                 const uEmail = (foundUser.email || '').toLowerCase();
-                                return (sId && (sId === uId || sId === stfId)) ||
-                                       (sEmail && sEmail === uEmail);
+                                const staffFullName = `${foundUser.firstName || ''} ${foundUser.lastName || ''}`.trim().toLowerCase();
+                                const assignedName = (app.assignedStaffName || app.staffName || app.assignedOfficer || '').toString().trim().toLowerCase();
+
+                                return (
+                                    (sId && (sId === uId || sId === stfId || sId === fUserId)) ||
+                                    (sEmail && uEmail && sEmail === uEmail) ||
+                                    (staffFullName && assignedName && (assignedName === staffFullName || assignedName.includes(staffFullName)))
+                                );
                             });
                             setUserApplications(staffApps);
                         } else {
-                            const userApps = allApps.filter((app: any) => 
-                                app.userId === userId || app.user_id === userId || app.applicantId === userId
+                            const userApps = allApps.filter((app: any) =>
+                                app.userId === userId || app.user_id === userId || app.applicantId === userId || app.studentId === userId
                             );
                             setUserApplications(userApps);
                         }
@@ -169,27 +177,18 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                         setUserDocuments([]);
                     }
 
-                    // If staff user, fetch available offices and SES mailbox folders
+                    // If staff user, fetch available branch offices
                     if (isStaffUser) {
                         try {
-                            const [offRes, foldersRes]: [any, any] = await Promise.all([
-                                referenceApi.getOffices().catch(() => ({ data: [] })),
-                                mailApi.getFolders().catch(() => ({ data: [] }))
-                            ]);
+                            const offRes: any = await referenceApi.getOffices().catch(() => ({ data: [] }));
                             const offList = offRes?.success && Array.isArray(offRes.data) ? offRes.data : (Array.isArray(offRes) ? offRes : []);
                             setOffices(offList);
-
-                            const fList = foldersRes?.success && Array.isArray(foldersRes.data) ? foldersRes.data : [];
-                            setS3Folders(fList);
 
                             setStaffForm({
                                 staffId: foundUser.staffId || "",
                                 firstName: foundUser.firstName || "",
                                 lastName: foundUser.lastName || "",
                                 phoneNumber: foundUser.phoneNumber || foundUser.mobile || "",
-                                mailboxEmail: foundUser.mailboxEmail || "",
-                                mailboxPrefix: foundUser.mailboxPrefix || "",
-                                canAccessSupport: !!foundUser.canAccessSupport,
                                 officeId: foundUser.officeId || "",
                                 officeLocation: foundUser.officeLocation || (foundUser.office ? `${foundUser.office.name}, ${foundUser.office.city}` : ""),
                                 isOnLeave: !!foundUser.isOnLeave,
@@ -211,6 +210,78 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
 
         fetchUserDetails();
     }, [userId]);
+
+    // Helper to determine whether an assigned case is a bank application or an intake lead
+    const isApplicationRecord = (app: any) => {
+        const s = (app.status || "").toLowerCase();
+        const bw = (app.bankWorkflowStatus || "").toUpperCase();
+        return Boolean(
+            app.submittedToBankAt ||
+            app.bankSubmissionId ||
+            (bw && bw !== "NONE" && bw !== "") ||
+            ["submitted_to_bank", "routed_multiparty", "file_logged", "under_bank_review", "processing", "sanctioned", "approved", "disbursed", "disbursement_confirmed"].includes(s)
+        );
+    };
+
+    const staffMetrics = useMemo(() => {
+        let bankAppsCount = 0;
+        let leadsCount = 0;
+        let totalValue = 0;
+
+        userApplications.forEach((app: any) => {
+            if (isApplicationRecord(app)) {
+                bankAppsCount++;
+            } else {
+                leadsCount++;
+            }
+            const amt = Number(app.amount || app.loanAmount || 0);
+            if (!isNaN(amt)) {
+                totalValue += amt;
+            }
+        });
+
+        const formattedTotalValue = totalValue >= 10000000
+            ? `₹${(totalValue / 10000000).toFixed(2)} Cr`
+            : totalValue >= 100000
+                ? `₹${(totalValue / 100000).toFixed(2)} Lakhs`
+                : `₹${totalValue.toLocaleString('en-IN')}`;
+
+        return {
+            bankAppsCount,
+            leadsCount,
+            totalValue,
+            formattedTotalValue,
+        };
+    }, [userApplications]);
+
+    const filteredStaffCases = useMemo(() => {
+        return userApplications.filter((app: any) => {
+            const isApp = isApplicationRecord(app);
+            if (caseTypeFilter === "application" && !isApp) return false;
+            if (caseTypeFilter === "lead" && isApp) return false;
+
+            if (caseStatusFilter !== "all") {
+                const s = (app.status || "").toLowerCase();
+                if (s !== caseStatusFilter.toLowerCase()) return false;
+            }
+
+            if (caseSearchTerm.trim()) {
+                const q = caseSearchTerm.toLowerCase();
+                const name = `${app.firstName || ''} ${app.lastName || ''} ${app.fullName || ''} ${app.studentName || ''}`.toLowerCase();
+                const email = (app.email || app.user?.email || '').toLowerCase();
+                const phone = (app.phone || app.mobile || app.user?.phoneNumber || '').toLowerCase();
+                const appNum = (app.applicationNumber || app.id || '').toLowerCase();
+                const uni = (app.universityName || app.college || '').toLowerCase();
+                const bank = (app.bank || '').toLowerCase();
+
+                if (!name.includes(q) && !email.includes(q) && !phone.includes(q) && !appNum.includes(q) && !uni.includes(q) && !bank.includes(q)) {
+                    return false;
+                }
+            }
+
+            return true;
+        });
+    }, [userApplications, caseTypeFilter, caseStatusFilter, caseSearchTerm]);
 
     const handleUpdateBankAssignment = async (bankShortName: string) => {
         if (!userData) return;
@@ -246,13 +317,6 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
         if (!userData) return;
         setSavingStaff(true);
         try {
-            let cleanPrefix = staffForm.mailboxPrefix ? staffForm.mailboxPrefix.trim() : "";
-            if (cleanPrefix && !cleanPrefix.endsWith("/")) {
-                cleanPrefix = `${cleanPrefix}/`;
-            }
-
-            const cleanEmail = staffForm.mailboxEmail ? staffForm.mailboxEmail.trim().toLowerCase() : "";
-
             const payload: any = {
                 userId: userData.id,
                 email: userData.email,
@@ -260,9 +324,6 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                 lastName: staffForm.lastName,
                 phoneNumber: staffForm.phoneNumber,
                 staffId: staffForm.staffId,
-                mailboxEmail: cleanEmail,
-                mailboxPrefix: cleanPrefix,
-                canAccessSupport: staffForm.canAccessSupport,
                 officeId: staffForm.officeId,
                 officeLocation: staffForm.officeLocation,
                 isOnLeave: staffForm.isOnLeave,
@@ -286,37 +347,13 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
             }));
 
             setShowEditStaffModal(false);
-            alert("Staff profile & mailbox configuration saved successfully!");
+            alert("Staff profile & operational settings saved successfully!");
         } catch (err: any) {
             console.error("Error updating staff settings:", err);
             alert("Failed to update staff settings: " + (err.message || err));
         } finally {
             setSavingStaff(false);
         }
-    };
-
-    const handleAutoSuggestMailbox = () => {
-        const cleanFirst = (staffForm.firstName || userData?.firstName || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
-        const cleanLast = (staffForm.lastName || userData?.lastName || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
-        if (!cleanFirst) {
-            alert("Please enter a first name first.");
-            return;
-        }
-
-        const alias = cleanLast ? `${cleanFirst}.${cleanLast}@vidyaloans.in` : `${cleanFirst}@vidyaloans.in`;
-
-        const matched = s3Folders.find((f: any) => {
-            const slug = (f.prefix || "").replace(/^staff\//, "").replace(/\/$/, "").toLowerCase();
-            return slug === cleanFirst;
-        });
-
-        const prefix = matched ? matched.prefix : `${cleanFirst}/`;
-
-        setStaffForm((prev: any) => ({
-            ...prev,
-            mailboxEmail: alias,
-            mailboxPrefix: prefix,
-        }));
     };
 
     const handleToggleLeaveQuick = async () => {
@@ -399,13 +436,13 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
             {/* Header */}
             <div className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
                 <div className="max-w-6xl mx-auto px-6 py-4">
-                    <button
+                    {/* <button
                         onClick={handleBack}
                         className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-900 mb-4 transition-colors"
                     >
                         <span className="material-symbols-outlined text-[18px]">arrow_back</span>
                         Back to Dashboard
-                    </button>
+                    </button> */}
 
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div className="flex items-center gap-6">
@@ -425,23 +462,16 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                                     <span className="text-[12px] font-bold text-slate-500 uppercase tracking-wider">
                                         ID: {userId}
                                     </span>
-                                    <span className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wide border ${
-                                        userData.role?.includes("admin")
+                                    <span className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wide border ${userData.role?.includes("admin")
                                             ? "bg-slate-900 text-white border-slate-900"
                                             : userData.role?.includes("staff")
-                                            ? "bg-blue-50 text-blue-700 border-blue-200"
-                                            : userData.role?.includes("bank")
-                                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                            : "bg-indigo-50 text-indigo-700 border-indigo-200"
-                                    }`}>
+                                                ? "bg-blue-50 text-blue-700 border-blue-200"
+                                                : userData.role?.includes("bank")
+                                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                                    : "bg-indigo-50 text-indigo-700 border-indigo-200"
+                                        }`}>
                                         {userData.role?.replace("_", " ") || "USER"}
                                     </span>
-                                    {userData.mailboxEmail && (
-                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-800 border border-blue-200 rounded text-xs font-semibold">
-                                            <span className="material-symbols-outlined text-[14px] text-blue-600">mail</span>
-                                            <span className="font-mono">{userData.mailboxEmail}</span>
-                                        </span>
-                                    )}
                                     {comparedBankPartner && (userData.role?.includes("bank") || userData.bank) && (
                                         <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded text-xs font-black shadow-xs">
                                             {comparedBankPartner.logoUrl ? (
@@ -452,7 +482,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                                             <span>Assigned Bank: {comparedBankPartner.name} ({comparedBankPartner.shortName})</span>
                                         </span>
                                     )}
-                                    { (userData.createdAt || userData.created_at) && (
+                                    {(userData.createdAt || userData.created_at) && (
                                         <span className="text-[11px] font-medium text-slate-500">
                                             Joined: {new Date(userData.createdAt || userData.created_at).toLocaleString('en-US', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })} IST (GMT+5:30)
                                         </span>
@@ -469,19 +499,8 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                                     className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer shadow-sm flex items-center gap-1.5"
                                 >
                                     <span className="material-symbols-outlined text-[16px]">manage_accounts</span>
-                                    Assign Mail & Settings
+                                    Edit Staff Profile
                                 </button>
-                                {userData.mailboxPrefix && (
-                                    <button
-                                        type="button"
-                                        onClick={() => window.open(`/staff/inbox?folder=${encodeURIComponent(userData.mailboxPrefix)}`, '_blank')}
-                                        className="px-3.5 py-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer shadow-2xs flex items-center gap-1.5"
-                                        title="Open Staff Inbox"
-                                    >
-                                        <span className="material-symbols-outlined text-[16px] text-indigo-600">inbox</span>
-                                        Staff Inbox
-                                    </button>
-                                )}
                             </div>
                         )}
                     </div>
@@ -493,12 +512,10 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                     const isBank = (userData?.role || "").toLowerCase().includes("bank");
                     const tabs = [
                         { id: "profile", label: isStaff ? "Staff Identity & Profile" : "Profile Information", icon: "badge" },
-                        { id: "applications", label: isStaff ? "Assigned Applications & Leads" : "Applications", icon: "description", count: userApplications.length },
-                        ...(isStaff ? [
-                            { id: "mailbox", label: "Assigned Mailbox & Routing", icon: "mail" },
-                        ] : [
+                        { id: "applications", label: isStaff ? "Assigned Applications & Leads" : "Applications", icon: isStaff ? "assignment_ind" : "description", count: userApplications.length },
+                        ...(!isStaff ? [
                             { id: "documents", label: "Documents", icon: "folder", count: userDocuments.length },
-                        ]),
+                        ] : []),
                         ...(isBank ? [
                             { id: "bank_compare", label: "Bank Profile & Compare", icon: "account_balance" },
                         ] : []),
@@ -510,11 +527,10 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                                 <button
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id as any)}
-                                    className={`py-4 font-bold text-[13px] uppercase tracking-wide border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap cursor-pointer ${
-                                        activeTab === tab.id
+                                    className={`py-4 font-bold text-[13px] uppercase tracking-wide border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap cursor-pointer ${activeTab === tab.id
                                             ? tab.id === "bank_compare" ? "border-emerald-600 text-emerald-600" : "border-indigo-600 text-indigo-600"
                                             : "border-transparent text-slate-500 hover:text-slate-700"
-                                    }`}
+                                        }`}
                                 >
                                     <span className="material-symbols-outlined text-[18px]">{tab.icon}</span>
                                     {tab.label}
@@ -728,13 +744,12 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                                                         {userData.staffId}
                                                     </span>
                                                 )}
-                                                <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border ${
-                                                    userData.isResigned 
-                                                        ? "bg-rose-50 text-rose-700 border-rose-200" 
-                                                        : userData.isOnLeave 
-                                                        ? "bg-amber-50 text-amber-700 border-amber-200" 
-                                                        : "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                                }`}>
+                                                <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border ${userData.isResigned
+                                                        ? "bg-rose-50 text-rose-700 border-rose-200"
+                                                        : userData.isOnLeave
+                                                            ? "bg-amber-50 text-amber-700 border-amber-200"
+                                                            : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                                    }`}>
                                                     {userData.isResigned ? "Resigned" : (userData.isOnLeave ? "On Leave" : "Active Staff")}
                                                 </span>
                                             </div>
@@ -755,71 +770,63 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                                         <button
                                             type="button"
                                             onClick={() => setShowEditStaffModal(true)}
-                                            className="px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer shadow-sm flex items-center gap-1.5"
+                                            className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer shadow-sm flex items-center gap-1.5"
                                         >
-                                            <span className="material-symbols-outlined text-[16px]">mail</span>
-                                            Assign Mail & Settings
+                                            <span className="material-symbols-outlined text-[16px]">manage_accounts</span>
+                                            Edit Staff Profile
                                         </button>
-                                        {userData.mailboxPrefix && (
-                                            <button
-                                                type="button"
-                                                onClick={() => window.open(`/staff/inbox?folder=${encodeURIComponent(userData.mailboxPrefix)}`, '_blank')}
-                                                className="px-3.5 py-2.5 bg-white hover:bg-slate-50 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer shadow-2xs flex items-center gap-1.5"
-                                                title="Open Staff S3 Mailbox"
-                                            >
-                                                <span className="material-symbols-outlined text-[16px]">inbox</span>
-                                                Staff Inbox
-                                            </button>
-                                        )}
                                     </div>
                                 </div>
 
-                                {/* SES Mailbox & Routing Specs */}
+                                {/* Dynamic Caseload & Assigned Portfolio Overview */}
                                 <div>
                                     <h3 className="text-xs font-black uppercase tracking-widest text-indigo-900 mb-3 flex items-center gap-1.5">
-                                        <span className="material-symbols-outlined text-[16px] text-indigo-600">mark_email_read</span>
-                                        Assigned SES Mailbox & Storage Routing
+                                        <span className="material-symbols-outlined text-[16px] text-indigo-600">analytics</span>
+                                        Assigned Caseload & Portfolio Overview
                                     </h3>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                                        <div className="p-4 bg-white/80 rounded-xl border border-indigo-100 shadow-2xs">
-                                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Official SES Mailbox</span>
-                                            {userData.mailboxEmail ? (
-                                                <div className="flex items-center gap-1.5 text-indigo-950 font-bold text-sm">
-                                                    <span className="material-symbols-outlined text-[16px] text-indigo-600">mail</span>
-                                                    <span className="font-mono text-xs">{userData.mailboxEmail}</span>
-                                                </div>
-                                            ) : (
-                                                <div className="flex items-center gap-1 text-amber-600 text-xs font-bold">
-                                                    <span className="material-symbols-outlined text-[14px]">warning</span>
-                                                    <span>No Mailbox Assigned</span>
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        <div className="p-4 bg-white/80 rounded-xl border border-indigo-100 shadow-2xs">
-                                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">S3 Mail Storage Prefix</span>
-                                            {userData.mailboxPrefix ? (
-                                                <div className="flex items-center gap-1.5 text-slate-900 font-bold text-sm">
-                                                    <span className="material-symbols-outlined text-[16px] text-indigo-600">folder_shared</span>
-                                                    <span className="font-mono text-xs bg-slate-100 px-2 py-0.5 rounded border border-slate-200">{userData.mailboxPrefix}</span>
-                                                </div>
-                                            ) : (
-                                                <span className="text-xs text-slate-400 font-semibold">Default / Isolated</span>
-                                            )}
-                                        </div>
-
-                                        <div className="p-4 bg-white/80 rounded-xl border border-indigo-100 shadow-2xs">
-                                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Shared Support Inbox</span>
-                                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-wide border ${
-                                                userData.canAccessSupport 
-                                                    ? "bg-emerald-50 text-emerald-800 border-emerald-200" 
-                                                    : "bg-slate-50 text-slate-600 border-slate-200"
-                                            }`}>
-                                                <span className="material-symbols-outlined text-[13px]">
-                                                    {userData.canAccessSupport ? "check_circle" : "block"}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                                        <div className="p-4 bg-white/90 backdrop-blur rounded-xl border border-indigo-100 shadow-2xs">
+                                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Total Assigned Cases</span>
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-xl font-black text-slate-900">{userApplications.length}</span>
+                                                <span className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                                                    <span className="material-symbols-outlined text-[18px]">assignment_ind</span>
                                                 </span>
-                                                {userData.canAccessSupport ? "Full Team Access" : "Restricted / Own Only"}
-                                            </span>
+                                            </div>
+                                            <span className="text-[10px] text-indigo-600 font-semibold mt-1 block">Active total cases</span>
+                                        </div>
+
+                                        <div className="p-4 bg-white/90 backdrop-blur rounded-xl border border-indigo-100 shadow-2xs">
+                                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Active Loan Applications</span>
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-xl font-black text-indigo-700">{staffMetrics.bankAppsCount}</span>
+                                                <span className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                                                    <span className="material-symbols-outlined text-[18px]">account_balance</span>
+                                                </span>
+                                            </div>
+                                            <span className="text-[10px] text-slate-500 font-medium mt-1 block">In bank processing</span>
+                                        </div>
+
+                                        <div className="p-4 bg-white/90 backdrop-blur rounded-xl border border-indigo-100 shadow-2xs">
+                                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Assigned Leads & Intake</span>
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-xl font-black text-amber-600">{staffMetrics.leadsCount}</span>
+                                                <span className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+                                                    <span className="material-symbols-outlined text-[18px]">contact_mail</span>
+                                                </span>
+                                            </div>
+                                            <span className="text-[10px] text-slate-500 font-medium mt-1 block">Pre-submission verification</span>
+                                        </div>
+
+                                        <div className="p-4 bg-white/90 backdrop-blur rounded-xl border border-indigo-100 shadow-2xs">
+                                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Total Pipeline Value</span>
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-base font-black text-emerald-700">{staffMetrics.formattedTotalValue}</span>
+                                                <span className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                                                    <span className="material-symbols-outlined text-[18px]">payments</span>
+                                                </span>
+                                            </div>
+                                            <span className="text-[10px] text-slate-500 font-medium mt-1 block">Assigned portfolio volume</span>
                                         </div>
                                     </div>
                                 </div>
@@ -837,8 +844,8 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                                         </p>
                                     </div>
                                     <div>
-                                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Active Leads / Apps</p>
-                                        <p className="font-bold text-indigo-700">{userApplications.length} assigned</p>
+                                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Active Leads & Apps</p>
+                                        <p className="font-bold text-indigo-700">{userApplications.length} cases ({staffMetrics.bankAppsCount} apps, {staffMetrics.leadsCount} leads)</p>
                                     </div>
                                     <div>
                                         <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Quick Status Action</p>
@@ -846,22 +853,20 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                                             <button
                                                 type="button"
                                                 onClick={handleToggleLeaveQuick}
-                                                className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border cursor-pointer transition-all ${
-                                                    userData.isOnLeave
+                                                className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border cursor-pointer transition-all ${userData.isOnLeave
                                                         ? "bg-amber-600 text-white border-amber-600"
                                                         : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                                                }`}
+                                                    }`}
                                             >
                                                 {userData.isOnLeave ? "On Leave" : "Set Leave"}
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={handleToggleResignedQuick}
-                                                className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border cursor-pointer transition-all ${
-                                                    userData.isResigned
+                                                className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border cursor-pointer transition-all ${userData.isResigned
                                                         ? "bg-rose-600 text-white border-rose-600"
                                                         : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                                                }`}
+                                                    }`}
                                             >
                                                 {userData.isResigned ? "Resigned" : "Resign"}
                                             </button>
@@ -921,21 +926,21 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                                             </p>
                                         </div>
                                         <div>
-                                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Official SES Mailbox</p>
+                                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Staff ID Code</p>
                                             <p className="text-[14px] font-semibold text-indigo-700 font-mono">
-                                                {userData.mailboxEmail || <span className="text-slate-400 font-sans">Not Assigned</span>}
+                                                {userData.staffId || <span className="text-slate-400 font-sans">Not Assigned</span>}
                                             </p>
                                         </div>
                                         <div>
-                                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">S3 Mail Storage Prefix</p>
-                                            <p className="text-[14px] font-semibold text-slate-900 font-mono">
-                                                {userData.mailboxPrefix || <span className="text-slate-400 font-sans">Default Isolated</span>}
+                                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Assigned Cases Workload</p>
+                                            <p className="text-[14px] font-bold text-slate-900">
+                                                {userApplications.length} Cases ({staffMetrics.bankAppsCount} Apps, {staffMetrics.leadsCount} Leads)
                                             </p>
                                         </div>
                                         <div>
-                                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Support Inbox Access</p>
+                                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Operational Availability</p>
                                             <p className="text-[14px] font-semibold text-slate-900">
-                                                {userData.canAccessSupport ? "Shared Access (Full Support Team)" : "Restricted (Own Mailbox Only)"}
+                                                {userData.isResigned ? "Resigned / Inactive" : userData.isOnLeave ? "On Temporary Leave" : "Active & Processing Cases"}
                                             </p>
                                         </div>
                                     </>
@@ -958,13 +963,12 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                                 )}
                                 <div>
                                     <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Account Status</p>
-                                    <span className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wide border ${
-                                        userData.isResigned 
-                                            ? "bg-rose-50 text-rose-700 border-rose-200" 
-                                            : userData.isOnLeave 
-                                            ? "bg-amber-50 text-amber-700 border-amber-200" 
-                                            : "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                    }`}>
+                                    <span className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wide border ${userData.isResigned
+                                            ? "bg-rose-50 text-rose-700 border-rose-200"
+                                            : userData.isOnLeave
+                                                ? "bg-amber-50 text-amber-700 border-amber-200"
+                                                : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                        }`}>
                                         {userData.isResigned ? "Resigned" : (userData.isOnLeave ? "On Leave" : "Active")}
                                     </span>
                                 </div>
@@ -1075,15 +1079,14 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                                                     <td className="px-6 py-4 text-[12px] font-semibold text-slate-700">{app.bank || "—"}</td>
                                                     <td className="px-6 py-4 text-[12px] font-semibold text-slate-700">{app.loanType || "—"}</td>
                                                     <td className="px-6 py-4">
-                                                        <span className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wide border ${
-                                                            app.status === "approved"
+                                                        <span className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wide border ${app.status === "approved"
                                                                 ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                                                                 : app.status === "rejected"
-                                                                ? "bg-rose-50 text-rose-700 border-rose-200"
-                                                                : app.status === "processing"
-                                                                ? "bg-indigo-50 text-indigo-700 border-indigo-200"
-                                                                : "bg-amber-50 text-amber-700 border-amber-200"
-                                                        }`}>
+                                                                    ? "bg-rose-50 text-rose-700 border-rose-200"
+                                                                    : app.status === "processing"
+                                                                        ? "bg-indigo-50 text-indigo-700 border-indigo-200"
+                                                                        : "bg-amber-50 text-amber-700 border-amber-200"
+                                                            }`}>
                                                             {app.status || "Pending"}
                                                         </span>
                                                     </td>
@@ -1147,15 +1150,14 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
 
                                         <div>
                                             <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">Status</p>
-                                            <span className={`inline-block px-3 py-1 rounded text-[11px] font-bold uppercase tracking-wide border ${
-                                                selectedApplication.status === "approved"
+                                            <span className={`inline-block px-3 py-1 rounded text-[11px] font-bold uppercase tracking-wide border ${selectedApplication.status === "approved"
                                                     ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                                                     : selectedApplication.status === "rejected"
-                                                    ? "bg-rose-50 text-rose-700 border-rose-200"
-                                                    : selectedApplication.status === "processing"
-                                                    ? "bg-indigo-50 text-indigo-700 border-indigo-200"
-                                                    : "bg-amber-50 text-amber-700 border-amber-200"
-                                            }`}>
+                                                        ? "bg-rose-50 text-rose-700 border-rose-200"
+                                                        : selectedApplication.status === "processing"
+                                                            ? "bg-indigo-50 text-indigo-700 border-indigo-200"
+                                                            : "bg-amber-50 text-amber-700 border-amber-200"
+                                                }`}>
                                                 {selectedApplication.status || "Pending"}
                                             </span>
                                         </div>
@@ -1237,90 +1239,228 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                     </>
                 )}
 
-                {/* Staff Assigned Applications Tab */}
+                {/* Staff Assigned Applications & Leads Tab */}
                 {activeTab === "applications" && (userData.role || "").toLowerCase().includes("staff") && (
                     <div className="space-y-6">
-                        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                        {/* Header & KPI Summary */}
+                        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                             <div>
                                 <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                                    <span className="material-symbols-outlined text-[20px] text-indigo-600">assignment_ind</span>
+                                    <span className="material-symbols-outlined text-[22px] text-indigo-600">assignment_ind</span>
                                     Applications & Leads Assigned to {userData.firstName} {userData.lastName}
                                 </h3>
                                 <p className="text-xs text-slate-500 mt-1">
-                                    Track student loan applications and applicant cases routed to this officer for verification and processing.
+                                    Track student loan cases and early intake leads routed to this officer with real-time status and financial parameters.
                                 </p>
                             </div>
-                            <div className="flex items-center gap-2">
-                                <span className="px-3 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-bold border border-indigo-100">
-                                    Total Assigned: {userApplications.length}
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <span className="px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-xl text-xs font-bold border border-indigo-100 flex items-center gap-1.5 shadow-2xs">
+                                    <span className="material-symbols-outlined text-[15px]">folder_shared</span>
+                                    Total: {userApplications.length}
+                                </span>
+                                <span className="px-3 py-1.5 bg-blue-50 text-blue-700 rounded-xl text-xs font-bold border border-blue-100 flex items-center gap-1.5 shadow-2xs">
+                                    <span className="material-symbols-outlined text-[15px]">account_balance</span>
+                                    Apps: {staffMetrics.bankAppsCount}
+                                </span>
+                                <span className="px-3 py-1.5 bg-amber-50 text-amber-700 rounded-xl text-xs font-bold border border-amber-100 flex items-center gap-1.5 shadow-2xs">
+                                    <span className="material-symbols-outlined text-[15px]">contact_mail</span>
+                                    Leads: {staffMetrics.leadsCount}
                                 </span>
                             </div>
                         </div>
 
+                        {/* Filters & Search Controls */}
+                        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+                            {/* Segmented Filter Pills */}
+                            <div className="flex items-center bg-slate-100 p-1 rounded-xl gap-1">
+                                <button
+                                    type="button"
+                                    onClick={() => setCaseTypeFilter("all")}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${caseTypeFilter === "all"
+                                            ? "bg-white text-indigo-600 shadow-xs"
+                                            : "text-slate-600 hover:text-slate-900"
+                                        }`}
+                                >
+                                    All Cases ({userApplications.length})
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setCaseTypeFilter("application")}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${caseTypeFilter === "application"
+                                            ? "bg-white text-blue-600 shadow-xs"
+                                            : "text-slate-600 hover:text-slate-900"
+                                        }`}
+                                >
+                                    Loan Applications ({staffMetrics.bankAppsCount})
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setCaseTypeFilter("lead")}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${caseTypeFilter === "lead"
+                                            ? "bg-white text-amber-600 shadow-xs"
+                                            : "text-slate-600 hover:text-slate-900"
+                                        }`}
+                                >
+                                    Leads & Intake ({staffMetrics.leadsCount})
+                                </button>
+                            </div>
+
+                            {/* Search and Status Dropdown */}
+                            <div className="flex items-center gap-2 flex-1 sm:max-w-md justify-end">
+                                <div className="relative flex-1">
+                                    <span className="material-symbols-outlined absolute left-3 top-2.5 text-[18px] text-slate-400">search</span>
+                                    <input
+                                        type="text"
+                                        value={caseSearchTerm}
+                                        onChange={(e) => setCaseSearchTerm(e.target.value)}
+                                        placeholder="Search student, email, ID..."
+                                        className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                                    />
+                                    {caseSearchTerm && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setCaseSearchTerm("")}
+                                            className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600"
+                                        >
+                                            <span className="material-symbols-outlined text-[16px]">close</span>
+                                        </button>
+                                    )}
+                                </div>
+                                <select
+                                    value={caseStatusFilter}
+                                    onChange={(e) => setCaseStatusFilter(e.target.value)}
+                                    className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
+                                >
+                                    <option value="all">All Statuses</option>
+                                    <option value="submitted">Submitted</option>
+                                    <option value="document_verification">Document Verification</option>
+                                    <option value="processing">Processing</option>
+                                    <option value="under_bank_review">Under Review</option>
+                                    <option value="file_logged">File Logged</option>
+                                    <option value="sanctioned">Sanctioned</option>
+                                    <option value="approved">Approved</option>
+                                    <option value="disbursed">Disbursed</option>
+                                    <option value="rejected">Rejected</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        {/* Cases Data Table */}
                         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                            {userApplications.length > 0 ? (
+                            {filteredStaffCases.length > 0 ? (
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-left">
                                         <thead className="bg-slate-50 border-b border-slate-200">
                                             <tr className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                                                <th className="px-6 py-3.5">Application ID</th>
+                                                <th className="px-6 py-3.5">Type & ID</th>
                                                 <th className="px-6 py-3.5">Borrower / Applicant</th>
+                                                <th className="px-6 py-3.5">University & Target</th>
                                                 <th className="px-6 py-3.5">Bank Partner</th>
-                                                <th className="px-6 py-3.5">Loan Type & Amount</th>
-                                                <th className="px-6 py-3.5">Status</th>
-                                                <th className="px-6 py-3.5">Assigned / Created</th>
+                                                <th className="px-6 py-3.5">Loan Amount</th>
+                                                <th className="px-6 py-3.5">Status & Stage</th>
+                                                <th className="px-6 py-3.5">Assigned Date</th>
                                                 <th className="px-6 py-3.5 text-right">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
-                                            {userApplications.map((app: any, idx: number) => {
-                                                const applicantName = app.fullName || app.studentName || [app.firstName, app.lastName].filter(Boolean).join(" ") || "Applicant";
-                                                const applicantContact = app.phone || app.mobile || app.email || "—";
+                                            {filteredStaffCases.map((app: any, idx: number) => {
+                                                const isApp = isApplicationRecord(app);
+                                                const applicantName = app.fullName || app.studentName || [app.firstName, app.lastName].filter(Boolean).join(" ") || (app.user?.firstName ? [app.user?.firstName, app.user?.lastName].filter(Boolean).join(" ") : "Applicant");
+                                                const applicantEmail = app.email || app.user?.email || "—";
+                                                const applicantPhone = app.phone || app.mobile || app.user?.phoneNumber || app.user?.mobile || "—";
+                                                const rawAmount = Number(app.amount || app.loanAmount || 0);
+                                                const formattedAmt = rawAmount > 0 ? `₹${rawAmount.toLocaleString('en-IN')}` : "—";
+                                                const university = app.universityName || app.college || app.targetUniversity || "—";
+                                                const country = app.country || app.studyDestination || "";
+                                                const course = app.courseName || app.course || app.degree || app.loanType || "Education Loan";
+                                                const appNum = app.applicationNumber || app.id?.slice(0, 8).toUpperCase();
+                                                const isSelected = selectedApplication?.id === app.id;
+
                                                 return (
-                                                    <tr key={app.id || idx} className="hover:bg-indigo-50/30 transition-colors">
+                                                    <tr key={app.id || idx} className={`hover:bg-indigo-50/30 transition-colors ${isSelected ? "bg-indigo-50/50" : ""}`}>
                                                         <td className="px-6 py-4">
-                                                            <div className="font-mono text-xs font-bold text-slate-900">
-                                                                {app.applicationNumber || app.id?.slice(0, 8).toUpperCase()}
+                                                            <div className="flex items-center gap-2">
+                                                                <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider border ${isApp
+                                                                        ? "bg-blue-50 text-blue-700 border-blue-200"
+                                                                        : "bg-amber-50 text-amber-700 border-amber-200"
+                                                                    }`}>
+                                                                    {isApp ? "Application" : "Lead"}
+                                                                </span>
+                                                            </div>
+                                                            <div className="font-mono text-xs font-bold text-slate-900 mt-1">
+                                                                {appNum}
                                                             </div>
                                                         </td>
                                                         <td className="px-6 py-4">
                                                             <div className="text-xs font-bold text-slate-900">{applicantName}</div>
-                                                            <div className="text-[11px] text-slate-500">{applicantContact}</div>
-                                                        </td>
-                                                        <td className="px-6 py-4 text-xs font-semibold text-slate-700">
-                                                            {app.bank || "General Pool"}
+                                                            <div className="text-[11px] text-slate-500 truncate max-w-[200px]">{applicantEmail}</div>
+                                                            <div className="text-[10px] text-slate-400 font-mono">{applicantPhone}</div>
                                                         </td>
                                                         <td className="px-6 py-4">
-                                                            <div className="text-xs font-bold text-slate-900">
-                                                                {app.loanAmount ? `₹${Number(app.loanAmount).toLocaleString()}` : "—"}
+                                                            <div className="text-xs font-semibold text-slate-900 line-clamp-1">{university}</div>
+                                                            <div className="text-[11px] text-slate-500 flex items-center gap-1.5 mt-0.5">
+                                                                {country && (
+                                                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600">
+                                                                        {country}
+                                                                    </span>
+                                                                )}
+                                                                <span className="truncate max-w-[140px]">{course}</span>
                                                             </div>
-                                                            <div className="text-[11px] text-slate-500">{app.loanType || "Education Loan"}</div>
                                                         </td>
                                                         <td className="px-6 py-4">
-                                                            <span className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wide border ${
-                                                                app.status === "approved"
-                                                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                                                    : app.status === "rejected"
-                                                                    ? "bg-rose-50 text-rose-700 border-rose-200"
-                                                                    : app.status === "processing"
-                                                                    ? "bg-indigo-50 text-indigo-700 border-indigo-200"
-                                                                    : "bg-amber-50 text-amber-700 border-amber-200"
-                                                            }`}>
-                                                                {app.status || "Pending"}
+                                                            <span className="text-xs font-semibold text-slate-800 bg-slate-100/80 px-2.5 py-1 rounded-md border border-slate-200 inline-block">
+                                                                {app.bank || "General Pool"}
                                                             </span>
                                                         </td>
-                                                        <td className="px-6 py-4 text-xs font-medium text-slate-500">
-                                                            {app.createdAt ? format(new Date(app.createdAt), "MMM d, yyyy") : "—"}
+                                                        <td className="px-6 py-4">
+                                                            <div className="text-xs font-bold text-indigo-700">
+                                                                {formattedAmt}
+                                                            </div>
+                                                            <div className="text-[10px] text-slate-400 uppercase tracking-wide">
+                                                                {app.loanType || "Education"}
+                                                            </div>
                                                         </td>
-                                                        <td className="px-6 py-4 text-right">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => setSelectedApplication(app)}
-                                                                className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-indigo-600 hover:text-white text-slate-500 inline-flex items-center justify-center transition-all cursor-pointer"
-                                                                title="View Details"
-                                                            >
-                                                                <span className="material-symbols-outlined text-[16px]">visibility</span>
-                                                            </button>
+                                                        <td className="px-6 py-4">
+                                                            <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide border inline-block ${["approved", "sanctioned", "disbursed", "disbursement_confirmed"].includes(app.status)
+                                                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                                                    : ["rejected", "cancelled"].includes(app.status)
+                                                                        ? "bg-rose-50 text-rose-700 border-rose-200"
+                                                                        : ["processing", "submitted_to_bank", "file_logged", "under_bank_review"].includes(app.status)
+                                                                            ? "bg-blue-50 text-blue-700 border-blue-200"
+                                                                            : "bg-amber-50 text-amber-700 border-amber-200"
+                                                                }`}>
+                                                                {(app.status || "Pending").replace(/_/g, " ")}
+                                                            </span>
+                                                            {app.stage && (
+                                                                <div className="text-[10px] text-slate-400 mt-1 capitalize truncate max-w-[120px]">
+                                                                    {app.stage.replace(/_/g, " ")}
+                                                                </div>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-6 py-4 text-xs font-medium text-slate-500 whitespace-nowrap">
+                                                            {app.assignedAt ? format(new Date(app.assignedAt), "MMM d, yyyy") : (app.submittedAt || app.createdAt ? format(new Date(app.submittedAt || app.createdAt), "MMM d, yyyy") : "—")}
+                                                        </td>
+                                                        <td className="px-6 py-4 text-right whitespace-nowrap">
+                                                            <div className="flex items-center justify-end gap-1.5">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setSelectedApplication(app)}
+                                                                    className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer ${isSelected
+                                                                            ? "bg-indigo-600 text-white"
+                                                                            : "bg-slate-100 hover:bg-indigo-600 hover:text-white text-slate-500"
+                                                                        }`}
+                                                                    title="View Case Details"
+                                                                >
+                                                                    <span className="material-symbols-outlined text-[16px]">visibility</span>
+                                                                </button>
+                                                                <Link
+                                                                    href={`/admin/applications?search=${encodeURIComponent(app.applicationNumber || app.id)}`}
+                                                                    className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-all cursor-pointer"
+                                                                    title="Open in Applications Manager"
+                                                                >
+                                                                    <span className="material-symbols-outlined text-[16px]">open_in_new</span>
+                                                                </Link>
+                                                            </div>
                                                         </td>
                                                     </tr>
                                                 );
@@ -1330,58 +1470,179 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                                 </div>
                             ) : (
                                 <div className="py-20 text-center">
-                                    <span className="material-symbols-outlined text-[48px] text-slate-300 mx-auto block mb-3">folder_open</span>
-                                    <p className="text-slate-700 font-bold text-sm">No applications assigned yet</p>
+                                    <span className="material-symbols-outlined text-[48px] text-slate-300 mx-auto block mb-3">
+                                        {userApplications.length === 0 ? "folder_open" : "filter_list_off"}
+                                    </span>
+                                    <p className="text-slate-700 font-bold text-sm">
+                                        {userApplications.length === 0 ? "No applications or leads assigned yet" : "No matching assigned cases found"}
+                                    </p>
                                     <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-                                        When student loan applications are assigned to this officer, they will appear here with full tracking history.
+                                        {userApplications.length === 0
+                                            ? "When student loan applications or leads are assigned to this officer, they will appear here dynamically."
+                                            : "Try adjusting your search criteria or filter tabs above."}
                                     </p>
                                 </div>
                             )}
                         </div>
 
-                        {/* Staff Selected Application Details Drawer */}
+                        {/* Staff Selected Application / Lead Details Drawer */}
                         {selectedApplication && (
-                            <div className="bg-white rounded-2xl border border-indigo-200 shadow-md p-8 relative">
-                                <div className="flex items-center justify-between mb-6 border-b border-slate-100 pb-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                                            <span className="material-symbols-outlined text-[22px]">description</span>
+                            <div className="bg-white rounded-2xl border-2 border-indigo-200 shadow-xl p-8 relative animate-in fade-in duration-200">
+                                <div className="flex items-start justify-between mb-6 border-b border-slate-100 pb-5">
+                                    <div className="flex items-center gap-3.5">
+                                        <div className="w-12 h-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-sm">
+                                            <span className="material-symbols-outlined text-[24px]">
+                                                {isApplicationRecord(selectedApplication) ? "account_balance" : "contact_mail"}
+                                            </span>
                                         </div>
                                         <div>
-                                            <h3 className="text-base font-bold text-slate-900">
-                                                Application {selectedApplication.applicationNumber || selectedApplication.id?.slice(0, 8).toUpperCase()}
-                                            </h3>
-                                            <p className="text-xs text-slate-500">Applicant: {selectedApplication.fullName || selectedApplication.studentName || selectedApplication.email || "—"}</p>
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <h3 className="text-lg font-black text-slate-900">
+                                                    {selectedApplication.applicationNumber || selectedApplication.id?.slice(0, 8).toUpperCase()}
+                                                </h3>
+                                                <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border ${isApplicationRecord(selectedApplication)
+                                                        ? "bg-blue-50 text-blue-700 border-blue-200"
+                                                        : "bg-amber-50 text-amber-700 border-amber-200"
+                                                    }`}>
+                                                    {isApplicationRecord(selectedApplication) ? "Loan Application" : "Intake Lead"}
+                                                </span>
+                                                <span className="px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-slate-100 text-slate-700">
+                                                    {(selectedApplication.status || "Pending").replace(/_/g, " ")}
+                                                </span>
+                                            </div>
+                                            <p className="text-xs text-slate-500 mt-0.5">
+                                                Applicant: <span className="font-bold text-slate-800">{selectedApplication.fullName || selectedApplication.studentName || [selectedApplication.firstName, selectedApplication.lastName].filter(Boolean).join(" ") || "Student Applicant"}</span>
+                                            </p>
                                         </div>
                                     </div>
                                     <button
                                         onClick={() => setSelectedApplication(null)}
-                                        className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-all cursor-pointer"
+                                        className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-all cursor-pointer"
                                         title="Close"
                                     >
                                         <span className="material-symbols-outlined text-[18px]">close</span>
                                     </button>
                                 </div>
 
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-xs">
-                                    <div className="p-3 bg-slate-50 rounded-xl">
-                                        <span className="text-[10px] font-bold uppercase text-slate-400 block mb-0.5">Lending Bank</span>
-                                        <span className="font-bold text-slate-900">{selectedApplication.bank || "—"}</span>
+                                {/* Quick Parameter Cards */}
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+                                    <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
+                                        <span className="text-[10px] font-bold uppercase text-slate-400 block mb-0.5">Lending Partner</span>
+                                        <span className="font-bold text-slate-900 text-xs">{selectedApplication.bank || "General Pool"}</span>
                                     </div>
-                                    <div className="p-3 bg-slate-50 rounded-xl">
+                                    <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
                                         <span className="text-[10px] font-bold uppercase text-slate-400 block mb-0.5">Loan Amount</span>
                                         <span className="font-bold text-indigo-700 text-sm">
-                                            {selectedApplication.loanAmount ? `₹${Number(selectedApplication.loanAmount).toLocaleString()}` : "—"}
+                                            {Number(selectedApplication.amount || selectedApplication.loanAmount || 0) > 0
+                                                ? `₹${Number(selectedApplication.amount || selectedApplication.loanAmount).toLocaleString('en-IN')}`
+                                                : "—"}
                                         </span>
                                     </div>
-                                    <div className="p-3 bg-slate-50 rounded-xl">
+                                    <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
                                         <span className="text-[10px] font-bold uppercase text-slate-400 block mb-0.5">Loan Type</span>
-                                        <span className="font-bold text-slate-900">{selectedApplication.loanType || "Education Loan"}</span>
+                                        <span className="font-bold text-slate-900 text-xs">{selectedApplication.loanType || "Education Loan"}</span>
                                     </div>
-                                    <div className="p-3 bg-slate-50 rounded-xl">
-                                        <span className="text-[10px] font-bold uppercase text-slate-400 block mb-0.5">Current Status</span>
-                                        <span className="font-bold uppercase tracking-wider text-indigo-600">{selectedApplication.status || "Pending"}</span>
+                                    <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
+                                        <span className="text-[10px] font-bold uppercase text-slate-400 block mb-0.5">Assigned Officer</span>
+                                        <span className="font-bold text-slate-900 text-xs">{selectedApplication.assignedStaffName || `${userData.firstName} ${userData.lastName}`}</span>
                                     </div>
+                                </div>
+
+                                {/* Deep Dossier Grid */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
+                                    {/* Borrower & Contact Details */}
+                                    <div className="p-4 bg-slate-50/70 rounded-2xl border border-slate-200/80 space-y-3">
+                                        <h4 className="font-bold text-slate-900 flex items-center gap-2 border-b border-slate-200 pb-2">
+                                            <span className="material-symbols-outlined text-[16px] text-indigo-600">person</span>
+                                            Borrower Contact & Personal Details
+                                        </h4>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <span className="text-[10px] text-slate-400 uppercase font-semibold block">Email</span>
+                                                <span className="font-bold text-slate-800 break-all">{selectedApplication.email || selectedApplication.user?.email || "—"}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-[10px] text-slate-400 uppercase font-semibold block">Phone</span>
+                                                <span className="font-mono font-bold text-slate-800">{selectedApplication.phone || selectedApplication.mobile || selectedApplication.user?.phoneNumber || "—"}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-[10px] text-slate-400 uppercase font-semibold block">Gender / DOB</span>
+                                                <span className="font-medium text-slate-700">
+                                                    {selectedApplication.gender || "—"} {selectedApplication.dateOfBirth ? `(${format(new Date(selectedApplication.dateOfBirth), "dd/MM/yyyy")})` : ""}
+                                                </span>
+                                            </div>
+                                            <div>
+                                                <span className="text-[10px] text-slate-400 uppercase font-semibold block">Location</span>
+                                                <span className="font-medium text-slate-700">{selectedApplication.address || selectedApplication.city || "—"} {selectedApplication.pincode ? `(${selectedApplication.pincode})` : ""}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* University & Academics */}
+                                    <div className="p-4 bg-slate-50/70 rounded-2xl border border-slate-200/80 space-y-3">
+                                        <h4 className="font-bold text-slate-900 flex items-center gap-2 border-b border-slate-200 pb-2">
+                                            <span className="material-symbols-outlined text-[16px] text-indigo-600">school</span>
+                                            Academic & Study Destination
+                                        </h4>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="col-span-2">
+                                                <span className="text-[10px] text-slate-400 uppercase font-semibold block">University Name</span>
+                                                <span className="font-bold text-slate-800">{selectedApplication.universityName || selectedApplication.college || "—"}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-[10px] text-slate-400 uppercase font-semibold block">Target Country</span>
+                                                <span className="font-bold text-slate-800">{selectedApplication.country || selectedApplication.studyDestination || "—"}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-[10px] text-slate-400 uppercase font-semibold block">Course Name</span>
+                                                <span className="font-semibold text-slate-800">{selectedApplication.courseName || selectedApplication.loanType || "—"}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Co-Applicant Profile */}
+                                    {selectedApplication.hasCoApplicant && (
+                                        <div className="p-4 bg-slate-50/70 rounded-2xl border border-slate-200/80 space-y-3 md:col-span-2">
+                                            <h4 className="font-bold text-slate-900 flex items-center gap-2 border-b border-slate-200 pb-2">
+                                                <span className="material-symbols-outlined text-[16px] text-indigo-600">group</span>
+                                                Co-Applicant / Guarantor Information
+                                            </h4>
+                                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                                <div>
+                                                    <span className="text-[10px] text-slate-400 uppercase font-semibold block">Co-Applicant Name</span>
+                                                    <span className="font-bold text-slate-800">{selectedApplication.coApplicantName || "—"}</span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-[10px] text-slate-400 uppercase font-semibold block">Relation</span>
+                                                    <span className="font-semibold text-slate-800 capitalize">{selectedApplication.coApplicantRelation || "—"}</span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-[10px] text-slate-400 uppercase font-semibold block">Contact Number</span>
+                                                    <span className="font-mono text-slate-800">{selectedApplication.coApplicantPhone || "—"}</span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-[10px] text-slate-400 uppercase font-semibold block">Declared Income</span>
+                                                    <span className="font-bold text-emerald-700">
+                                                        {selectedApplication.coApplicantIncome ? `₹${Number(selectedApplication.coApplicantIncome).toLocaleString('en-IN')}` : "—"}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Drawer Bottom Action */}
+                                <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
+                                    <span className="text-xs text-slate-400">
+                                        Assigned: {selectedApplication.assignedAt ? format(new Date(selectedApplication.assignedAt), "MMM d, yyyy h:mm a") : "—"}
+                                    </span>
+                                    <Link
+                                        href={`/admin/applications?search=${encodeURIComponent(selectedApplication.applicationNumber || selectedApplication.id)}`}
+                                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all shadow-xs"
+                                    >
+                                        <span>Open Full Case File</span>
+                                        <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+                                    </Link>
                                 </div>
                             </div>
                         )}
@@ -1470,9 +1731,8 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                                                 <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest">{userData.email}</p>
                                             </div>
                                         </div>
-                                        <span className={`px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-wider ${
-                                            userData.role?.includes('bank') ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-700'
-                                        }`}>
+                                        <span className={`px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-wider ${userData.role?.includes('bank') ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-700'
+                                            }`}>
                                             {userData.role?.toUpperCase() || 'USER'}
                                         </span>
                                     </div>
@@ -1516,11 +1776,10 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                                             type="button"
                                             onClick={() => handleUpdateBankAssignment(comparedBankPartner.shortName)}
                                             disabled={updatingBank || userData.bank === comparedBankPartner.shortName}
-                                            className={`w-full py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                                                userData.bank === comparedBankPartner.shortName
+                                            className={`w-full py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${userData.bank === comparedBankPartner.shortName
                                                     ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 cursor-default'
                                                     : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md'
-                                            }`}
+                                                }`}
                                         >
                                             <span className="material-symbols-outlined text-[16px]">
                                                 {userData.bank === comparedBankPartner.shortName ? 'check_circle' : 'link'}
@@ -1623,150 +1882,9 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                         </div>
                     </div>
                 )}
-
-                {/* Staff Assigned Mailbox & Routing Tab */}
-                {activeTab === "mailbox" && (
-                    <div className="space-y-6">
-                        {/* Mailbox Status & Hero Bar */}
-                        <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-800 rounded-2xl p-8 text-white shadow-lg relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-80 h-80 bg-white/10 rounded-full blur-3xl pointer-events-none" />
-                            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-                                <div className="space-y-2">
-                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-xs font-bold uppercase tracking-wider text-indigo-100">
-                                        <span className="material-symbols-outlined text-[16px]">verified</span>
-                                        SES Real-Time Inbound Routing
-                                    </div>
-                                    <h2 className="text-2xl font-black tracking-tight">
-                                        {userData.mailboxEmail || `${(userData.firstName || "staff").toLowerCase()}@vidyaloans.in`}
-                                    </h2>
-                                    <p className="text-indigo-100 text-xs max-w-xl leading-relaxed">
-                                        Emails routed to this SES mailbox are automatically sorted into AWS S3 storage under prefix{" "}
-                                        <span className="font-mono bg-white/20 px-1.5 py-0.5 rounded font-bold">{userData.mailboxPrefix || "isolated/"}</span>.
-                                    </p>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowEditStaffModal(true)}
-                                        className="px-4 py-2.5 bg-white text-indigo-900 hover:bg-indigo-50 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer shadow-md flex items-center gap-2"
-                                    >
-                                        <span className="material-symbols-outlined text-[18px]">tune</span>
-                                        Configure Mailbox
-                                    </button>
-                                    {userData.mailboxPrefix && (
-                                        <button
-                                            type="button"
-                                            onClick={() => window.open(`/staff/inbox?folder=${encodeURIComponent(userData.mailboxPrefix)}`, '_blank')}
-                                            className="px-4 py-2.5 bg-indigo-500/40 hover:bg-indigo-500/60 text-white border border-white/30 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer shadow-sm flex items-center gap-2"
-                                        >
-                                            <span className="material-symbols-outlined text-[18px]">launch</span>
-                                            Open Inbox
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Mailbox Architecture & Permissions Grid */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                                <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold mb-4">
-                                    <span className="material-symbols-outlined text-[20px]">alternate_email</span>
-                                </div>
-                                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">SES Mailbox Identifier</span>
-                                <p className="font-mono font-bold text-slate-900 text-sm truncate">
-                                    {userData.mailboxEmail || "Not Assigned"}
-                                </p>
-                                <p className="text-[11px] text-slate-500 mt-2">
-                                    Used for sending/receiving borrower loan queries & correspondence.
-                                </p>
-                            </div>
-
-                            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                                <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold mb-4">
-                                    <span className="material-symbols-outlined text-[20px]">folder_special</span>
-                                </div>
-                                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">S3 Folder Storage Path</span>
-                                <p className="font-mono font-bold text-slate-900 text-sm">
-                                    {userData.mailboxPrefix ? `vidyaloans-incoming-emails/${userData.mailboxPrefix}` : "Default isolated"}
-                                </p>
-                                <p className="text-[11px] text-slate-500 mt-2">
-                                    Raw MIME messages and parsed JSON bodies are synced to this path.
-                                </p>
-                            </div>
-
-                            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold mb-4">
-                                    <span className="material-symbols-outlined text-[20px]">groups</span>
-                                </div>
-                                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Support Team Access</span>
-                                <div className="flex items-center gap-2 mt-1">
-                                    <span className={`w-2 h-2 rounded-full ${userData.canAccessSupport ? "bg-emerald-500" : "bg-slate-400"}`} />
-                                    <span className="font-bold text-slate-900 text-sm">
-                                        {userData.canAccessSupport ? "Shared Support Access" : "Isolated Folder Only"}
-                                    </span>
-                                </div>
-                                <p className="text-[11px] text-slate-500 mt-2">
-                                    {userData.canAccessSupport 
-                                        ? "Can read shared incoming/ and support/ team queues." 
-                                        : "Can only view their own assigned S3 folder."}
-                                </p>
-                            </div>
-                        </div>
-
-                        {/* S3 Buckets & Detected Folders */}
-                        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
-                            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                                <div>
-                                    <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                                        <span className="material-symbols-outlined text-[18px] text-indigo-600">cloud</span>
-                                        Available S3 Storage Folders Detected in SES Bucket
-                                    </h4>
-                                    <p className="text-xs text-slate-500 mt-0.5">
-                                        Click any detected folder to assign it directly as this staff member's storage prefix.
-                                    </p>
-                                </div>
-                                <span className="text-xs font-mono font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg">
-                                    {s3Folders.length} Folders Found
-                                </span>
-                            </div>
-
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                                {s3Folders.map((folder: string, idx: number) => {
-                                    const isCurrent = userData.mailboxPrefix === folder;
-                                    return (
-                                        <button
-                                            key={idx}
-                                            type="button"
-                                            onClick={() => {
-                                                setStaffForm(prev => ({ ...prev, mailboxPrefix: folder }));
-                                                setShowEditStaffModal(true);
-                                            }}
-                                            className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
-                                                isCurrent
-                                                    ? "bg-indigo-50 border-indigo-300 ring-2 ring-indigo-500/20 shadow-xs"
-                                                    : "bg-slate-50/70 border-slate-200 hover:bg-white hover:border-slate-300 hover:shadow-xs"
-                                            }`}
-                                        >
-                                            <div className="flex items-center justify-between mb-2">
-                                                <span className="material-symbols-outlined text-[18px] text-slate-400">folder</span>
-                                                {isCurrent && (
-                                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-indigo-600 text-white">
-                                                        Assigned
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <span className="font-mono text-xs font-bold text-slate-800 truncate">{folder}</span>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    </div>
-                )}
             </div>
 
-            {/* Edit Staff Settings & Mailbox Assignment Modal */}
+            {/* Edit Staff Settings Modal */}
             {showEditStaffModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
                     <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-2xl w-full p-6 sm:p-8 max-h-[90vh] overflow-y-auto space-y-6">
@@ -1777,10 +1895,10 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                                 </div>
                                 <div>
                                     <h3 className="text-lg font-black text-slate-900 tracking-tight">
-                                        Staff Operational & Mailbox Settings
+                                        Staff Operational Profile & Branch Settings
                                     </h3>
                                     <p className="text-xs text-slate-500 mt-0.5">
-                                        Configure identity, SES inbound email routing, office branch, and status.
+                                        Configure identity, designations, operational department, and office assignment.
                                     </p>
                                 </div>
                             </div>
@@ -1890,83 +2008,6 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                                             </option>
                                         ))}
                                     </select>
-                                </div>
-                            </div>
-
-                            {/* SES Mailbox Assignment with Auto-Suggest */}
-                            <div className="p-4 bg-indigo-50/60 rounded-2xl border border-indigo-100 space-y-3">
-                                <div className="flex items-center justify-between">
-                                    <label className="text-[11px] font-black uppercase tracking-wider text-indigo-950 flex items-center gap-1.5">
-                                        <span className="material-symbols-outlined text-[16px] text-indigo-600">mail</span>
-                                        Assigned SES Mailbox Email
-                                    </label>
-                                    <button
-                                        type="button"
-                                        onClick={handleAutoSuggestMailbox}
-                                        className="text-[10px] font-black uppercase tracking-wider text-indigo-600 hover:text-indigo-800 bg-white px-2.5 py-1 rounded-md border border-indigo-200 cursor-pointer shadow-2xs hover:bg-indigo-50 transition-all flex items-center gap-1"
-                                    >
-                                        <span className="material-symbols-outlined text-[12px]">auto_fix_high</span>
-                                        Auto-Suggest
-                                    </button>
-                                </div>
-                                <input
-                                    type="email"
-                                    value={staffForm.mailboxEmail}
-                                    onChange={(e) => setStaffForm({ ...staffForm, mailboxEmail: e.target.value })}
-                                    placeholder="e.g. laila@vidyaloans.in"
-                                    className="w-full px-3.5 py-2.5 bg-white border border-indigo-200 rounded-xl text-xs font-mono font-bold text-indigo-950 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                                />
-                                <p className="text-[10px] text-indigo-800/80">
-                                    Inbound mail sent to this address via AWS SES is delivered directly into this staff member's inbox.
-                                </p>
-                            </div>
-
-                            {/* S3 Storage Prefix & Support Access */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="text-[11px] font-bold uppercase tracking-wider text-slate-600 block mb-1.5">
-                                        S3 Folder Storage Prefix
-                                    </label>
-                                    <div className="flex gap-2">
-                                        <select
-                                            value={s3Folders.includes(staffForm.mailboxPrefix) ? staffForm.mailboxPrefix : "custom"}
-                                            onChange={(e) => {
-                                                if (e.target.value !== "custom") {
-                                                    setStaffForm({ ...staffForm, mailboxPrefix: e.target.value });
-                                                }
-                                            }}
-                                            className="w-1/2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-semibold text-slate-900 focus:outline-none cursor-pointer"
-                                        >
-                                            <option value="">(Select Folder)</option>
-                                            {s3Folders.map((f: string, i: number) => (
-                                                <option key={i} value={f}>{f}</option>
-                                            ))}
-                                            <option value="custom">Custom...</option>
-                                        </select>
-                                        <input
-                                            type="text"
-                                            value={staffForm.mailboxPrefix}
-                                            onChange={(e) => setStaffForm({ ...staffForm, mailboxPrefix: e.target.value })}
-                                            placeholder="e.g. laila/"
-                                            className="w-1/2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                                        />
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 mt-1">S3 bucket folder path (must end with /)</p>
-                                </div>
-
-                                <div className="flex flex-col justify-center">
-                                    <label className="flex items-center gap-2.5 p-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100/70 transition-all cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={staffForm.canAccessSupport}
-                                            onChange={(e) => setStaffForm({ ...staffForm, canAccessSupport: e.target.checked })}
-                                            className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
-                                        />
-                                        <div>
-                                            <span className="text-xs font-bold text-slate-900 block">Support Team Shared Access</span>
-                                            <span className="text-[10px] text-slate-500 block">Can read shared incoming/ & support/ folders</span>
-                                        </div>
-                                    </label>
                                 </div>
                             </div>
 

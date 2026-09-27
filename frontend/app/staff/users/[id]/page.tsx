@@ -71,7 +71,7 @@ const STAGES_CONFIG: Record<string, Stage> = {
     document_verification: { order: 3, label: 'Documents', icon: 'verified', progress: 40 },
     submit_to_bank: { order: 4, label: 'Submit to Bank', icon: 'account_balance', progress: 50 },
     credit_check: { order: 5, label: 'Credit Check', icon: 'credit_score', progress: 75 },
-    bank_review: { order: 6, label: 'Bank Review', icon: 'rate_review', progress: 90 },
+    bank_review: { order: 6, label: 'Review', icon: 'rate_review', progress: 90 },
     sanction: { order: 7, label: 'Sanction', icon: 'assignment_turned_in', progress: 95 },
     disbursement: { order: 8, label: 'Disbursed', icon: 'payments', progress: 100 },
 };

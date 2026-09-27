@@ -1813,8 +1813,11 @@ const ApplicationDetailView: React.FC<ApplicationDetailViewProps> = ({
                           bankParam = application.assignedBank || application.lender || "IDFC FIRST Bank";
                         }
                       }
+                      if (bankParam.includes(',')) {
+                        bankParam = bankParam.split(',')[0].trim();
+                      }
                       const appNo = application.applicationNumber || `APP-${(application.id || application._id || 'UNKNOWN').slice(-6)}`;
-                      router.push(`/staff/chat-customer?bankName=${encodeURIComponent(bankParam)}&applicationId=${application.id || application._id}&applicationNumber=${encodeURIComponent(appNo)}`);
+                      router.push(`/staff/chat-customer?bankName=${encodeURIComponent(bankParam.trim())}&applicationId=${application.id || application._id}&applicationNumber=${encodeURIComponent(appNo)}`);
                     }}
                     className="flex items-center gap-2 px-5 py-2.5 bg-[#6605c7] hover:bg-[#5204a3] text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:scale-[1.03] active:scale-[0.97] transition-all shadow-md shadow-purple-600/20 cursor-pointer"
                   >

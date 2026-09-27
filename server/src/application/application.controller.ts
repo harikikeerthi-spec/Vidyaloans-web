@@ -246,6 +246,7 @@ export class ApplicationController {
         @Query('userId') userId?: string,
         @Query('excludeStatus') excludeStatus?: string,
         @Query('includeUnassigned') includeUnassigned?: string,
+        @Query('assignedStaffId') assignedStaffIdQuery?: string,
         @Request() req?: any,
     ) {
         let dbBankName: string | undefined = bank;
@@ -262,13 +263,15 @@ export class ApplicationController {
 
         const user = req?.user;
         // Per-staff isolation: staff role users see ONLY applications assigned to them.
-        // Admins and super_admins see all applications (no filter applied).
+        // Admins and super_admins see all applications (no filter applied), unless assignedStaffId query is passed.
         let assignedStaffId: string | undefined = undefined;
         let staffEmail: string | undefined = undefined;
         if (user && user.role === 'staff') {
             // Pass both the user ID and email — service resolves all matching candidate IDs
             assignedStaffId = user.id || user.uid;
             staffEmail = user.email;
+        } else if (assignedStaffIdQuery) {
+            assignedStaffId = assignedStaffIdQuery;
         }
 
         return this.applicationService.getAllApplications({

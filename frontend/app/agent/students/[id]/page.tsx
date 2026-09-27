@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { useAgent } from "../../AgentContext";
 import { agentApi } from "@/lib/api";
+import ProgressTracker from "@/components/ProgressTracker";
 
 interface PageProps {
     params?: Promise<{
@@ -188,6 +189,13 @@ export default function AgentStudentDetail({ params }: PageProps) {
                     </button>
                 </div>
             </section>
+
+            {/* Application Progress (Standard 8 Steps) */}
+            <ProgressTracker
+                application={selectedStudent}
+                title="Application Progress"
+                className="rounded-[2.5rem] border border-[#6605c7]/10 p-8 shadow-sm"
+            />
 
             {/* Conditional Sanction & NPS feedback suite for Disbursed/Approved Students */}
             {(selectedStudent.status === "approved" || selectedStudent.status === "disbursed" || selectedStudent.firstName.toLowerCase().includes("priya")) && (

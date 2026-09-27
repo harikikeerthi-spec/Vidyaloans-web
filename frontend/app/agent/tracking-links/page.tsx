@@ -15,7 +15,7 @@ interface StudentTracker {
     lastViewed: string;
     views: number;
     status: string;
-    currentStageIndex: number; // 0 to 5 matching: Documents Submitted, Documents Verified, Application Sent, Bank Review, Sanction, Disbursement
+    currentStageIndex: number; // 0 to 7 matching: Created, Submitted, Documents, Submit to Bank, Credit Check, Review, Sanction, Disbursed
 }
 
 export default function AgentTrackingLinks() {
@@ -35,7 +35,7 @@ export default function AgentTrackingLinks() {
             lastViewed: "22-Jun 13:10",
             views: 12,
             status: "Active ✅",
-            currentStageIndex: 3 // Bank Review in Progress
+            currentStageIndex: 5 // Review in Progress
         },
         {
             id: "ST-002",
@@ -49,7 +49,7 @@ export default function AgentTrackingLinks() {
             lastViewed: "20-Jun 09:44",
             views: 8,
             status: "Active ✅",
-            currentStageIndex: 1 // Documents Verified
+            currentStageIndex: 2 // Documents
         },
         {
             id: "ST-003",
@@ -63,21 +63,23 @@ export default function AgentTrackingLinks() {
             lastViewed: "Not opened yet",
             views: 0,
             status: "⚠️ Never opened",
-            currentStageIndex: 0 // Documents Submitted
+            currentStageIndex: 0 // Created
         }
     ];
 
     const [trackers, setTrackers] = useState<StudentTracker[]>(initialTrackers);
     const [selectedTracker, setSelectedTracker] = useState<StudentTracker>(initialTrackers[0]);
 
-    // Stages helper matching 14.2
+    // Stages matching the standard 8 application progress steps
     const trackingStages = [
-        { label: "Documents Submitted", desc: "Successfully received student academic & financial files" },
-        { label: "Documents Verified", desc: "VidyaLoans screening checks complete" },
-        { label: "Application Sent to Bank", desc: "Sent files directly to the respective lender portals" },
-        { label: "Bank Review in Progress", desc: "Current underwriting evaluation phase" },
-        { label: "Sanction Decision", desc: "Bank sign-off validation and sanction issuance" },
-        { label: "Loan Disbursement", desc: "Funds disbursement dispatch release" }
+        { label: "Created", desc: "Application registered and draft created", icon: "bolt" },
+        { label: "Submitted", desc: "Application officially submitted for processing", icon: "send" },
+        { label: "Documents", desc: "VidyaLoans KYC & document screening checks complete", icon: "verified" },
+        { label: "Submit to Bank", desc: "Files forwarded directly to respective lender portals", icon: "account_balance" },
+        { label: "Credit Check", desc: "Credit bureau score and borrower eligibility verification", icon: "credit_score" },
+        { label: "Review", desc: "Current underwriting evaluation phase", icon: "rate_review" },
+        { label: "Sanction", desc: "Bank sanction decision sign-off and offer issuance", icon: "assignment_turned_in" },
+        { label: "Disbursed", desc: "Funds disbursement dispatch release", icon: "payments" }
     ];
 
     const getTrackingUrl = (leadId: string, token: string) => {
@@ -229,12 +231,14 @@ export default function AgentTrackingLinks() {
                             return (
                                 <div key={idx} className="relative space-y-0.5">
                                     {/* Bubble indicator */}
-                                    <span className={`absolute -left-[25px] w-4.5 h-4.5 rounded-full flex items-center justify-center border font-bold text-[9px] shadow-sm ${
-                                        isCompleted ? 'bg-emerald-500 text-white border-emerald-500' :
-                                        isCurrent ? 'bg-indigo-600 text-white border-indigo-600 animate-pulse' :
-                                        'bg-white text-gray-400 border-gray-200'
+                                    <span className={`absolute -left-[27px] w-6 h-6 rounded-full flex items-center justify-center border font-bold text-[11px] shadow-sm transition-all ${
+                                        isCompleted ? 'bg-emerald-500 text-white border-emerald-500 shadow-emerald-500/20' :
+                                        isCurrent ? 'bg-white text-[#6605c7] border-[#6605c7] shadow-[#6605c7]/20 scale-110' :
+                                        'bg-white text-gray-300 border-gray-200'
                                     }`}>
-                                        {isCompleted ? "✓" : isCurrent ? "🔄" : "⏳"}
+                                        <span className={`material-symbols-outlined text-[13px] ${isCurrent ? 'animate-pulse' : ''}`}>
+                                            {isCompleted ? "check" : stage.icon}
+                                        </span>
                                     </span>
                                     
                                     <div className="pl-2">

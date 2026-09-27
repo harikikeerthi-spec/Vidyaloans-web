@@ -932,7 +932,7 @@ export default function RemindersPage() {
                                     <div>
                                         <h3 className="text-[14px] font-black text-slate-800 uppercase tracking-wider">Internal Notes</h3>
                                         <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
-                                            {selectedFollowUp.studentName} — {selectedFollowUp.appNumber}
+                                            {selectedFollowUp.studentName} {selectedFollowUp.appNumber && selectedFollowUp.appNumber !== '—' ? `— ${selectedFollowUp.appNumber}` : ''}
                                         </p>
                                     </div>
                                 </div>

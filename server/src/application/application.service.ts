@@ -13,12 +13,14 @@ import * as fs from 'fs';
 import { AssignmentService } from '../assignment/assignment.service';
 
 const APPLICATION_STAGES = {
-  application_submitted: { order: 1, label: 'Application Submitted', progress: 10 },
-  document_verification: { order: 2, label: 'Documents', progress: 30 },
-  credit_check: { order: 3, label: 'Credit Check', progress: 50 },
-  bank_review: { order: 4, label: 'Bank Review', progress: 70 },
-  sanction: { order: 5, label: 'Sanction', progress: 90 },
-  disbursement: { order: 6, label: 'Disbursement', progress: 100 },
+  application_created: { order: 1, label: 'Created', progress: 10 },
+  application_submitted: { order: 2, label: 'Submitted', progress: 25 },
+  document_verification: { order: 3, label: 'Documents', progress: 40 },
+  submit_to_bank: { order: 4, label: 'Submit to Bank', progress: 50 },
+  credit_check: { order: 5, label: 'Credit Check', progress: 75 },
+  bank_review: { order: 6, label: 'Review', progress: 90 },
+  sanction: { order: 7, label: 'Sanction', progress: 95 },
+  disbursement: { order: 8, label: 'Disbursed', progress: 100 },
 };
 
 const REQUIRED_DOCUMENTS = {

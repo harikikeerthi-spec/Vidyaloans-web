@@ -104,6 +104,14 @@ export const SecureStatementUploadFlow: React.FC<SecureStatementUploadFlowProps>
       const sId = data.statementId || data.id;
       setStatementId(sId);
 
+      if (data.isBankStatement === false || data.status === "INVALID_DOCUMENT_TYPE") {
+        setErrorMessage(
+          data.message ||
+            `AI Document Verification Failed: The uploaded document is detected as "${data.detectedType || 'Non-Bank Document'}", not an official bank statement. Please upload a valid bank account statement.`
+        );
+        return;
+      }
+
       if (data.isEncrypted || data.status === "PROTECTED_WAITING_PASSWORD") {
         setNeedsPassword(true);
         setMaskedAccount(data.maskedAccount || "•••• •••• ••••");
@@ -148,6 +156,14 @@ export const SecureStatementUploadFlow: React.FC<SecureStatementUploadFlowProps>
         setAttemptsRemaining(0);
         setErrorMessage(
           "Statement locked due to 5 consecutive failed unlock attempts. Please wait 30 minutes before trying again."
+        );
+        return;
+      }
+
+      if (data.status === "INVALID_DOCUMENT_TYPE" || data.isBankStatement === false) {
+        setErrorMessage(
+          data.message ||
+            `AI Document Verification Failed: The unlocked document is identified as "${data.detectedType || 'Non-Bank Document'}", not an official bank statement. Please upload a valid bank account statement.`
         );
         return;
       }

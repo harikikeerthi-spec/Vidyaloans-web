@@ -437,29 +437,38 @@ export default function BankDashboard() {
     const funnelStats = useMemo(() => {
         if (!stats?.statusStats) {
             return [
-                { stage: "Pre-Screening", count: 12, pct: 100, color: "bg-blue-500" },
-                { stage: "Verification", count: 10, pct: 83, color: "bg-purple-500" },
-                { stage: "Risk Evaluation", count: 8, pct: 66, color: "bg-indigo-500" },
-                { stage: "Final Review", count: 5, pct: 41, color: "bg-[#6605c7]" },
-                { stage: "Disbursed / Payout", count: 4, pct: 33, color: "bg-emerald-500" }
+                { stage: "Created", count: 15, pct: 100, color: "bg-blue-500", icon: "bolt" },
+                { stage: "Submitted", count: 12, pct: 85, color: "bg-blue-600", icon: "send" },
+                { stage: "Documents", count: 10, pct: 75, color: "bg-purple-500", icon: "verified" },
+                { stage: "Submit to Bank", count: 9, pct: 68, color: "bg-purple-600", icon: "account_balance" },
+                { stage: "Credit Check", count: 8, pct: 60, color: "bg-indigo-500", icon: "credit_score" },
+                { stage: "Review", count: 6, pct: 45, color: "bg-[#6605c7]", icon: "rate_review" },
+                { stage: "Sanction", count: 5, pct: 38, color: "bg-teal-500", icon: "assignment_turned_in" },
+                { stage: "Disbursed", count: 4, pct: 30, color: "bg-emerald-500", icon: "payments" }
             ];
         }
 
         const s = stats.statusStats;
-        const preScreening = (s.pending || 0) + (s.submitted || 0) + (s.processing || 0) + (s.approved || 0) + (s.disbursed || 0) + (s.under_bank_review || 0);
-        const verification = (s.processing || 0) + (s.approved || 0) + (s.disbursed || 0) + (s.under_bank_review || 0);
-        const riskEvaluation = (s.under_bank_review || 0) + (s.approved || 0) + (s.disbursed || 0);
-        const finalReview = (s.approved || 0) + (s.disbursed || 0);
+        const total = (s.pending || 0) + (s.submitted || 0) + (s.processing || 0) + (s.approved || 0) + (s.disbursed || 0) + (s.under_bank_review || 0);
+        const max = total || 1;
+        const created = total;
+        const submitted = (s.submitted || 0) + (s.processing || 0) + (s.approved || 0) + (s.disbursed || 0) + (s.under_bank_review || 0);
+        const documents = (s.processing || 0) + (s.approved || 0) + (s.disbursed || 0) + (s.under_bank_review || 0);
+        const submitToBank = (s.processing || 0) + (s.approved || 0) + (s.disbursed || 0) + (s.under_bank_review || 0);
+        const creditCheck = (s.under_bank_review || 0) + (s.approved || 0) + (s.disbursed || 0);
+        const review = (s.under_bank_review || 0) + (s.approved || 0) + (s.disbursed || 0);
+        const sanction = (s.approved || 0) + (s.disbursed || 0);
         const disbursed = s.disbursed || 0;
 
-        const max = preScreening || 1;
-
         return [
-            { stage: "Pre-Screening", count: preScreening, pct: 100, color: "bg-blue-500" },
-            { stage: "Verification", count: verification, pct: Math.round((verification / max) * 100), color: "bg-purple-500" },
-            { stage: "Risk Evaluation", count: riskEvaluation, pct: Math.round((riskEvaluation / max) * 100), color: "bg-indigo-500" },
-            { stage: "Final Review", count: finalReview, pct: Math.round((finalReview / max) * 100), color: "bg-[#6605c7]" },
-            { stage: "Disbursed / Payout", count: disbursed, pct: Math.round((disbursed / max) * 100), color: "bg-emerald-500" }
+            { stage: "Created", count: created, pct: 100, color: "bg-blue-500", icon: "bolt" },
+            { stage: "Submitted", count: submitted, pct: Math.round((submitted / max) * 100), color: "bg-blue-600", icon: "send" },
+            { stage: "Documents", count: documents, pct: Math.round((documents / max) * 100), color: "bg-purple-500", icon: "verified" },
+            { stage: "Submit to Bank", count: submitToBank, pct: Math.round((submitToBank / max) * 100), color: "bg-purple-600", icon: "account_balance" },
+            { stage: "Credit Check", count: creditCheck, pct: Math.round((creditCheck / max) * 100), color: "bg-indigo-500", icon: "credit_score" },
+            { stage: "Review", count: review, pct: Math.round((review / max) * 100), color: "bg-[#6605c7]", icon: "rate_review" },
+            { stage: "Sanction", count: sanction, pct: Math.round((sanction / max) * 100), color: "bg-teal-500", icon: "assignment_turned_in" },
+            { stage: "Disbursed", count: disbursed, pct: Math.round((disbursed / max) * 100), color: "bg-emerald-500", icon: "payments" }
         ];
     }, [stats]);
 
@@ -774,22 +783,20 @@ export default function BankDashboard() {
                     </div>
                 </div>
 
-                <div className="flex flex-col lg:flex-row gap-2 h-auto lg:h-32">
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
                     {funnelStats.map((item, idx) => {
                         const isEmpty = item.count === 0;
                         return (
-                            <div key={idx} className={`relative flex-1 p-5 rounded-2xl transition-all group flex flex-col justify-center border border-transparent ${isEmpty ? 'bg-gray-50/40 opacity-50 grayscale' : 'bg-gray-50/80 hover:bg-white hover:border-gray-200 hover:shadow-lg'}`}>
-                                {idx !== funnelStats.length - 1 && (
-                                    <div className="hidden lg:block absolute -right-4 top-1/2 -translate-y-1/2 z-10 text-gray-300 pointer-events-none">
-                                        <span className="material-symbols-outlined text-4xl">chevron_right</span>
-                                    </div>
-                                )}
+                            <div key={idx} className={`relative p-3.5 sm:p-4 rounded-2xl transition-all group flex flex-col justify-between border border-transparent min-h-[120px] ${isEmpty ? 'bg-gray-50/40 opacity-50 grayscale' : 'bg-gray-50/80 hover:bg-white hover:border-gray-200 hover:shadow-md'}`}>
                                 <div className="relative z-10 flex flex-col items-center text-center">
-                                    <span className={`text-[10px] font-black uppercase tracking-widest ${isEmpty ? 'text-gray-400' : 'text-[#6605c7]'}`}>Phase 0{idx + 1}</span>
-                                    <h4 className={`text-sm font-black uppercase tracking-tight mt-1 ${isEmpty ? 'text-gray-500' : 'text-gray-900'}`}>{item.stage}</h4>
-                                    <div className="mt-3 flex items-baseline gap-1">
-                                        <span className={`font-mono text-2xl font-black leading-none ${isEmpty ? 'text-gray-400' : 'text-gray-900'}`}>{item.count}</span>
-                                        <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">files</span>
+                                    <div className="flex items-center gap-1.5 mb-1.5">
+                                        <span className="material-symbols-outlined text-[15px] text-[#6605c7]">{item.icon}</span>
+                                        <span className={`text-[9px] font-black uppercase tracking-widest ${isEmpty ? 'text-gray-400' : 'text-[#6605c7]'}`}>0{idx + 1}</span>
+                                    </div>
+                                    <h4 className={`text-xs font-black uppercase tracking-tight text-center truncate w-full ${isEmpty ? 'text-gray-500' : 'text-gray-900'}`}>{item.stage}</h4>
+                                    <div className="mt-2.5 flex items-baseline gap-1">
+                                        <span className={`font-mono text-xl font-black leading-none ${isEmpty ? 'text-gray-400' : 'text-gray-900'}`}>{item.count}</span>
+                                        <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">files</span>
                                     </div>
                                 </div>
                                 <div className={`absolute bottom-0 left-0 right-0 h-1 rounded-b-2xl ${item.color} ${isEmpty ? 'opacity-30' : 'opacity-100'}`} style={{ width: `${item.pct}%` }} />
