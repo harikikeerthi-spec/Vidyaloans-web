@@ -1,4 +1,5 @@
 "use client";
+import { exportUniversityComparisonPdf } from "@/lib/exportUniversityComparisonPdf";
 
 type University = {
   id: string;
@@ -22,6 +23,7 @@ type University = {
 
 interface MetricComparisonProps {
   universities: University[];
+  onExportPdf?: () => void;
 }
 
 const detailedMetrics = [
@@ -87,7 +89,16 @@ const detailedMetrics = [
 
 export default function MetricComparison({
   universities,
+  onExportPdf,
 }: MetricComparisonProps) {
+  const handleExport = () => {
+    if (onExportPdf) {
+      onExportPdf();
+    } else {
+      exportUniversityComparisonPdf({ universities });
+    }
+  };
+
   const getExtremeValue = (key: string, inverse: boolean) => {
     const values = universities.map((u) => (u[key as keyof University] as number) || 0);
     return inverse ? Math.min(...values) : Math.max(...values);
@@ -218,8 +229,11 @@ export default function MetricComparison({
 
       {/* Primary Export Actions */}
       <div className="flex gap-3 justify-end">
-        <button className="px-6 py-3.5 bg-gradient-to-r from-[#6605c7] to-[#8b24e5] text-white rounded-2xl hover:opacity-90 transition-all font-black text-[11px] uppercase tracking-widest cursor-pointer shadow-md shadow-[#6605c7]/20">
-          📊 Export Granular Analysis Report
+        <button
+          onClick={handleExport}
+          className="px-6 py-3.5 bg-gradient-to-r from-[#6605c7] to-[#8b24e5] text-white rounded-2xl hover:opacity-90 active:scale-[0.98] transition-all font-black text-[11px] uppercase tracking-widest cursor-pointer shadow-md shadow-[#6605c7]/20 flex items-center gap-2"
+        >
+          <span>📊 Export Granular Analysis Report</span>
         </button>
       </div>
     </div>

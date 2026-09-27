@@ -1,4 +1,5 @@
 "use client";
+import { exportUniversityComparisonPdf } from "@/lib/exportUniversityComparisonPdf";
 
 type University = {
   id: string;
@@ -22,6 +23,8 @@ type University = {
 
 interface ComparisonGridProps {
   universities: University[];
+  onExportPdf?: () => void;
+  onSaveShortlist?: () => void;
 }
 
 const metrics = [
@@ -60,7 +63,30 @@ const metrics = [
 
 export default function ComparisonGrid({
   universities,
+  onExportPdf,
+  onSaveShortlist,
 }: ComparisonGridProps) {
+  const handleExport = () => {
+    if (onExportPdf) {
+      onExportPdf();
+    } else {
+      exportUniversityComparisonPdf({ universities });
+    }
+  };
+
+  const handleSave = () => {
+    if (onSaveShortlist) {
+      onSaveShortlist();
+    } else {
+      try {
+        localStorage.setItem("vidyaloans_saved_shortlist", JSON.stringify(universities));
+        alert("Universities shortlisted and saved to your browser session.");
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  };
+
   return (
     <div className="bg-white/70 backdrop-blur-xl border border-white p-6 rounded-[2.5rem] shadow-[0_20px_50px_-15px_rgba(102,5,199,0.1)] overflow-hidden">
       <div className="overflow-x-auto">
@@ -167,11 +193,17 @@ export default function ComparisonGrid({
 
       {/* Bottom Action Pane */}
       <div className="border-t border-gray-100/60 mt-6 pt-6 flex flex-wrap gap-3 justify-end">
-        <button className="px-5 py-3 border border-[#6605c7]/20 text-[#6605c7] rounded-xl hover:bg-[#6605c7]/5 transition-all font-black text-[11px] uppercase tracking-widest cursor-pointer shadow-sm">
-          💾 Save Shortlist
+        <button
+          onClick={handleSave}
+          className="px-5 py-3 border border-[#6605c7]/20 text-[#6605c7] rounded-xl hover:bg-[#6605c7]/5 transition-all font-black text-[11px] uppercase tracking-widest cursor-pointer shadow-sm flex items-center gap-2"
+        >
+          <span>💾 Save Shortlist</span>
         </button>
-        <button className="px-5 py-3 bg-gradient-to-r from-[#6605c7] to-[#8b24e5] text-white rounded-xl hover:opacity-90 transition-all font-black text-[11px] uppercase tracking-widest cursor-pointer shadow-md shadow-[#6605c7]/20">
-          📊 Export comparison PDF
+        <button
+          onClick={handleExport}
+          className="px-5 py-3 bg-gradient-to-r from-[#6605c7] to-[#8b24e5] text-white rounded-xl hover:opacity-90 active:scale-[0.98] transition-all font-black text-[11px] uppercase tracking-widest cursor-pointer shadow-md shadow-[#6605c7]/20 flex items-center gap-2"
+        >
+          <span>📊 Export comparison PDF</span>
         </button>
       </div>
     </div>

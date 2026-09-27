@@ -416,8 +416,22 @@ export class UsersController {
                         console.warn('[adminCreateUser] Agent welcome email non-blocking failed:', emailErr?.message);
                     }
                 }
+            } else if (body.role === 'bank' || body.role === 'partner_bank') {
+                // Bank person registration: dispatch welcome email with dedicated Bank Login URL
+                try {
+                    const officerName = `${body.firstName || ''} ${body.lastName || ''}`.trim() || 'Bank Officer';
+                    await this.emailService.sendBankUserWelcomeEmail(
+                        newUser.email,
+                        officerName,
+                        newUser.id,
+                        body.bank || 'Lending Partner Bank',
+                        body.officeLocation || body.office || 'Central Lending Desk'
+                    );
+                } catch (emailErr: any) {
+                    console.warn('[adminCreateUser] Bank welcome email non-blocking failed:', emailErr?.message);
+                }
             } else {
-                // Send standard welcome email for non-agents
+                // Send standard welcome email for other non-agents
                 try {
                     await this.emailService.sendMail(
                         newUser.email,

@@ -384,6 +384,16 @@ export class StaffProfileService {
         });
       }
 
+      if (mappedStatus === 'verified' && (linkedStudentId || userDoc?.userId)) {
+        this.eventEmitter.emit('document.verified', {
+          userId: linkedStudentId || userDoc?.userId,
+          documentId: userDoc?.id || docId,
+          documentType: doc.docType,
+          documentName: doc.docName || doc.docType,
+          verifiedAt: new Date().toISOString(),
+        });
+      }
+
       // If approved, parse OCR details and store in the 'parents' table
       if (mappedStatus === 'verified') {
         const docType = doc.docType || '';

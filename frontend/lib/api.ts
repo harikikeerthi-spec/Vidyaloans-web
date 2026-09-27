@@ -1585,6 +1585,9 @@ export const documentApi = {
             method: "POST",
             body: JSON.stringify({ rejectionReason }),
         }),
+
+    downloadVerifiedDocumentsZip: (userId: string, onlyVerified = true) =>
+        fetchBlob(HttpApiPaths.documents.exportZip(userId, onlyVerified)),
 };
 
 

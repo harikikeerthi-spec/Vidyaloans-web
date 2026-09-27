@@ -5,6 +5,7 @@ import { useState, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { documentApi, staffProfileApi } from "@/lib/api";
 import { getProfileDocumentRequirements, getDocumentRequirementName } from "@/lib/documentRequirements";
+import JSZip from "jszip";
 
 export const DOCUMENT_OPTIONS_GROUPED = [
     {
@@ -200,6 +201,165 @@ export default function DocumentsTab() {
     const [rejectDoc, setRejectDoc] = useState<any | null>(null);
     const [rejectReason, setRejectReason] = useState("");
     const [actionLoading, setActionLoading] = useState<string | null>(null); // docId being actioned
+
+    // ZIP export state
+    const [isZipping, setIsZipping] = useState(false);
+    const [zipProgressText, setZipProgressText] = useState("");
+    const [zipSuccessToast, setZipSuccessToast] = useState<string | null>(null);
+
+    // Dynamic Export All as ZIP handler
+    const handleExportVerifiedZip = async () => {
+        // Collect only verified and uploaded documents
+        const verifiedDocs = allDocuments.filter((d) => {
+            const s = (d.status || "").toLowerCase();
+            return (s === "approved" || s === "verified") && Boolean(d.uploaded || d.filePath);
+        });
+
+        if (verifiedDocs.length === 0) {
+            alert("No verified documents found for this student. Only documents that have been reviewed and verified can be exported as ZIP.");
+            return;
+        }
+
+        setIsZipping(true);
+        setZipProgressText(`Preparing ${verifiedDocs.length} verified doc${verifiedDocs.length > 1 ? "s" : ""}...`);
+
+        const studentName = userData ? `${userData.firstName || ''} ${userData.lastName || ''}`.trim() : 'Student';
+        const cleanStudentName = (studentName || 'Student').replace(/[^a-zA-Z0-9_-]/g, '_');
+        const dateStr = new Date().toISOString().slice(0, 10);
+        const fileName = `${cleanStudentName}_Verified_Documents_${dateStr}.zip`;
+
+        try {
+            let zipBlob: Blob | null = null;
+
+            // Strategy 1: Attempt server-side generation
+            try {
+                const serverBlob = await documentApi.downloadVerifiedDocumentsZip(userId, true);
+                if (serverBlob && serverBlob.size > 100) {
+                    zipBlob = serverBlob;
+                }
+            } catch (serverErr) {
+                console.info("Server-side zip endpoint not yet loaded or returned error, packaging directly in browser:", serverErr);
+            }
+
+            // Strategy 2: Seamless client-side packaging with JSZip if server endpoint unavailable
+            if (!zipBlob) {
+                const zip = new JSZip();
+                const usedNames = new Set<string>();
+
+                for (let i = 0; i < verifiedDocs.length; i++) {
+                    const doc = verifiedDocs[i];
+                    const docLabel = getDocLabel(doc, userData);
+                    setZipProgressText(`Fetching ${i + 1}/${verifiedDocs.length}: ${docLabel.slice(0, 18)}...`);
+
+                    let fileBlob: Blob | null = null;
+                    let fileExt = ".pdf";
+
+                    // Fetch the document blob from the live view route
+                    try {
+                        const viewUrl = `/api/documents/view/${encodeURIComponent(userId)}/${encodeURIComponent(doc.docType)}`;
+                        const res = await fetch(viewUrl);
+                        if (res.ok) {
+                            fileBlob = await res.blob();
+                            const ct = res.headers.get("content-type") || fileBlob.type || "";
+                            if (ct.includes("png")) fileExt = ".png";
+                            else if (ct.includes("jpeg") || ct.includes("jpg")) fileExt = ".jpg";
+                            else if (ct.includes("html")) fileExt = ".html";
+                            else fileExt = ".pdf";
+                        }
+                    } catch (fetchErr) {
+                        console.warn(`Failed to fetch document ${doc.docType}:`, fetchErr);
+                    }
+
+                    if (!fileBlob || fileBlob.size === 0) {
+                        // Create informative text placeholder if binary file was missing
+                        const fallbackText = `Document: ${docLabel}\nType: ${doc.docType}\nStatus: Verified\nStudent: ${studentName} (${userId})\nUploaded At: ${doc.updatedAt || doc.createdAt || 'N/A'}\n\nNote: Original file could not be retrieved from storage during ZIP packaging.`;
+                        fileBlob = new Blob([fallbackText], { type: "text/plain" });
+                        fileExt = ".txt";
+                    }
+
+                    const cleanLabel = docLabel.replace(/[^a-zA-Z0-9_-]/g, '_');
+                    let baseName = `${String(i + 1).padStart(2, '0')}_${cleanLabel}${fileExt}`;
+                    let counter = 1;
+                    while (usedNames.has(baseName.toLowerCase())) {
+                        baseName = `${String(i + 1).padStart(2, '0')}_${cleanLabel}_(${counter})${fileExt}`;
+                        counter++;
+                    }
+                    usedNames.add(baseName.toLowerCase());
+
+                    zip.file(baseName, fileBlob);
+                }
+
+                // Add Executive Verification Manifest TXT
+                const dateFormatted = new Date().toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' });
+                const manifestContent = [
+                    `================================================================================`,
+                    `VIDYA LOANS — OFFICIAL VERIFIED DOCUMENTS DOSSIER`,
+                    `================================================================================`,
+                    `Applicant Name    : ${studentName}`,
+                    `User ID           : ${userId}`,
+                    `Export Timestamp  : ${dateFormatted}`,
+                    `Verified Count    : ${verifiedDocs.length} Verified Documents`,
+                    `================================================================================`,
+                    ``,
+                    `VERIFIED DOCUMENTS INCLUDED IN THIS ARCHIVE:`,
+                    ...verifiedDocs.map((d, idx) => {
+                        const label = getDocLabel(d, userData);
+                        const type = d.docType || 'other';
+                        const updated = d.updatedAt || d.uploadedAt || d.createdAt || 'N/A';
+                        return `  ${String(idx + 1).padStart(2, '0')}. [VERIFIED] ${label} (${type}) — Updated: ${updated}`;
+                    }),
+                    ``,
+                    `================================================================================`,
+                    `CERTIFICATION:`,
+                    `All documents included in this package have been reviewed, cross-checked, and`,
+                    `verified by Vidya Loans authorized loan processing staff for banking submission.`,
+                    `Vidya Loans Education Finance Portal | https://www.vidyaloans.in`,
+                    `================================================================================`,
+                ].join('\r\n');
+
+                zip.file("00_Verification_Manifest.txt", manifestContent);
+
+                setZipProgressText("Compressing archive...");
+                zipBlob = await zip.generateAsync(
+                    {
+                        type: "blob",
+                        compression: "DEFLATE",
+                        compressionOptions: { level: 6 },
+                    },
+                    (meta) => {
+                        setZipProgressText(`Packaging ${meta.percent.toFixed(0)}%...`);
+                    }
+                );
+            }
+
+            const blobUrl = window.URL.createObjectURL(zipBlob);
+            const a = document.createElement("a");
+            a.style.display = "none";
+            a.href = blobUrl;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
+
+            // Log activity in staff audit trail
+            staffProfileApi.logActivity({
+                type: 'download',
+                msg: `Exported ${verifiedDocs.length} verified documents as ZIP archive for ${studentName}`,
+                icon: 'folder_zip',
+                color: 'bg-emerald-50 text-emerald-700 border-emerald-100'
+            }).catch(console.error);
+
+            setZipSuccessToast(`Successfully downloaded ${verifiedDocs.length} verified documents as ZIP.`);
+            setTimeout(() => setZipSuccessToast(null), 4000);
+        } catch (err: any) {
+            console.error("ZIP export failed:", err);
+            alert(err?.message || "Failed to download verified documents ZIP.");
+        } finally {
+            setIsZipping(false);
+            setZipProgressText("");
+        }
+    };
 
     // Direct upload handler for interactive dropzones
     const handleDirectUpload = async (docType: string, file: File, docName?: string) => {
@@ -515,13 +675,47 @@ export default function DocumentsTab() {
                         Student, Parents &amp; Co-Applicant required documents for loan verification
                     </p>
                 </div>
-                <button
-                    onClick={() => openUploadModal()}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-semibold transition-all shadow-sm cursor-pointer border-0"
-                >
-                    <span className="material-symbols-outlined text-[16px]">upload_file</span>
-                    <span>Upload Document</span>
-                </button>
+                <div className="flex flex-wrap items-center gap-2.5">
+                    <button
+                        onClick={handleExportVerifiedZip}
+                        disabled={isZipping || stats.verified === 0}
+                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer border ${
+                            stats.verified > 0
+                                ? "bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600 hover:shadow-md active:scale-[0.98]"
+                                : "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60"
+                        }`}
+                        title={
+                            stats.verified > 0
+                                ? `Combine and download all ${stats.verified} verified documents as a ZIP archive`
+                                : "No verified documents available to export"
+                        }
+                    >
+                        {isZipping ? (
+                            <>
+                                <span className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin shrink-0" />
+                                <span>{zipProgressText || "Packaging ZIP..."}</span>
+                            </>
+                        ) : (
+                            <>
+                                <span className="material-symbols-outlined text-[18px]">folder_zip</span>
+                                <span>Export All as ZIP</span>
+                                {stats.verified > 0 && (
+                                    <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-white/25 text-white ml-0.5">
+                                        {stats.verified}
+                                    </span>
+                                )}
+                            </>
+                        )}
+                    </button>
+
+                    <button
+                        onClick={() => openUploadModal()}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-semibold transition-all shadow-sm cursor-pointer border-0"
+                    >
+                        <span className="material-symbols-outlined text-[16px]">upload_file</span>
+                        <span>Upload Document</span>
+                    </button>
+                </div>
             </div>
 
             {/* Stats Row */}
@@ -1247,6 +1441,16 @@ export default function DocumentsTab() {
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            {/* Dynamic Export Toast Notification */}
+            {zipSuccessToast && (
+                <div className="fixed bottom-8 right-8 z-[70] animate-in fade-in slide-in-from-bottom-5 duration-300">
+                    <div className="bg-slate-900/95 backdrop-blur-md text-white px-5 py-3.5 rounded-2xl shadow-2xl border border-white/10 flex items-center gap-3 text-xs font-bold">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                        <span>{zipSuccessToast}</span>
+                    </div>
+                </div>
+            )}
         </motion.div>
     );
 }

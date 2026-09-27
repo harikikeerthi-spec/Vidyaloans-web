@@ -3597,99 +3597,67 @@ export const EVVTestAgent: React.FC<{
               <EVVGradientAreaChart metrics={evvResult.monthlyMetrics} />
             </div>
 
-            {/* Right Column: EVV Grade Benchmarks Scale (Monthly EVV Table Removed per Spec) */}
-            <div className="lg:col-span-5 bg-white/70 border border-violet-100/70 rounded-3xl p-5 shadow-sm space-y-4">
-              <div className="flex items-center justify-between">
-                <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-violet-600 text-sm">workspace_premium</span>
-                  EVV Grade Scale & Benchmarks
-                </h4>
-                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Underwriting</span>
-              </div>
-
-                <div className="overflow-x-auto border border-violet-100/70 rounded-2xl bg-white/50">
-                  <table className="w-full text-xs font-semibold text-slate-700">
+            {/* Right Column: Premium EVV Grade Benchmarks Scale matching VidyaLoans design */}
+            <div className="lg:col-span-5">
+              <div className="premium-table-container my-0 shadow-sm border border-slate-200/80">
+                <div className="table-header">
+                  <h3><span className="icon text-base">🏆</span> EVV Grade Scale &amp; Benchmarks</h3>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="premium-table">
                     <thead>
-                      <tr className="border-b border-violet-100 bg-violet-50/40 text-slate-400 text-[9px] font-black uppercase tracking-widest">
-                        <th className="text-left px-3 py-2">Grade</th>
-                        <th className="text-center px-2 py-2">Score</th>
-                        <th className="text-center px-2 py-2">Risk</th>
-                        <th className="text-left px-3 py-2">Assessment</th>
+                      <tr>
+                        <th>Grade</th>
+                        <th>Score</th>
+                        <th>Risk</th>
+                        <th>Assessment</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-violet-50 text-[10px]">
-                      <tr className={`transition-colors ${evvResult?.overallEVV >= 90 ? "bg-emerald-100/60 font-bold" : "hover:bg-violet-50/20"}`}>
-                        <td className="px-3 py-2 font-black text-emerald-700">
-                          <span className="px-1.5 py-0.5 bg-emerald-100 border border-emerald-200 rounded text-emerald-800 text-[10px]">A+</span>
-                        </td>
-                        <td className="px-2 py-2 text-center font-mono font-bold text-slate-800">90–100</td>
-                        <td className="px-2 py-2 text-center">
-                          <span className="px-1.5 py-0.5 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded text-[8px] font-black uppercase">Low</span>
-                        </td>
-                        <td className="px-3 py-2 text-slate-600 font-medium">Excellent liquidity & balance stability</td>
+                    <tbody>
+                      <tr className={evvResult?.overallEVV >= 90 ? "active-row" : ""}>
+                        <td><span className="badge badge-success">A+</span></td>
+                        <td><strong>90–100</strong></td>
+                        <td><span className="text-success">LOW</span></td>
+                        <td>Excellent liquidity &amp; balance stability</td>
                       </tr>
-
-                      <tr className={`transition-colors ${(evvResult?.overallEVV >= 80 && evvResult?.overallEVV < 90) ? "bg-emerald-100/60 font-bold" : "hover:bg-violet-50/20"}`}>
-                        <td className="px-3 py-2 font-black text-emerald-600">
-                          <span className="px-1.5 py-0.5 bg-emerald-50 border border-emerald-200 rounded text-emerald-700 text-[10px]">A</span>
-                        </td>
-                        <td className="px-2 py-2 text-center font-mono font-bold text-slate-800">80–89</td>
-                        <td className="px-2 py-2 text-center">
-                          <span className="px-1.5 py-0.5 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded text-[8px] font-black uppercase">Low</span>
-                        </td>
-                        <td className="px-3 py-2 text-slate-600 font-medium">Prime credit worthiness & high deposits</td>
+                      <tr className={(evvResult?.overallEVV >= 80 && evvResult?.overallEVV < 90) ? "active-row" : ""}>
+                        <td><span className="badge badge-success">A</span></td>
+                        <td><strong>80–89</strong></td>
+                        <td><span className="text-success">LOW</span></td>
+                        <td>Prime credit worthiness &amp; high deposits</td>
                       </tr>
-
-                      <tr className={`transition-colors ${(evvResult?.overallEVV >= 70 && evvResult?.overallEVV < 80) ? "bg-indigo-100/60 font-bold" : "hover:bg-violet-50/20"}`}>
-                        <td className="px-3 py-2 font-black text-indigo-600">
-                          <span className="px-1.5 py-0.5 bg-indigo-50 border border-indigo-200 rounded text-indigo-700 text-[10px]">B</span>
-                        </td>
-                        <td className="px-2 py-2 text-center font-mono font-bold text-slate-800">70–79</td>
-                        <td className="px-2 py-2 text-center">
-                          <span className="px-1.5 py-0.5 bg-blue-50 border border-blue-200 text-blue-700 rounded text-[8px] font-black uppercase">Low/Med</span>
-                        </td>
-                        <td className="px-3 py-2 text-slate-600 font-medium">Good liquidity, suitable for approval</td>
+                      <tr className={(evvResult?.overallEVV >= 70 && evvResult?.overallEVV < 80) ? "active-row" : ""}>
+                        <td><span className="badge badge-warning">B</span></td>
+                        <td><strong>70–79</strong></td>
+                        <td><span className="text-warning">LOW/MED</span></td>
+                        <td>Good liquidity, suitable for approval</td>
                       </tr>
-
-                      <tr className={`transition-colors ${(evvResult?.overallEVV >= 55 && evvResult?.overallEVV < 70) ? "bg-amber-100/60 font-bold" : "hover:bg-violet-50/20"}`}>
-                        <td className="px-3 py-2 font-black text-amber-600">
-                          <span className="px-1.5 py-0.5 bg-amber-50 border border-amber-200 rounded text-amber-700 text-[10px]">C</span>
-                        </td>
-                        <td className="px-2 py-2 text-center font-mono font-bold text-slate-800">55–69</td>
-                        <td className="px-2 py-2 text-center">
-                          <span className="px-1.5 py-0.5 bg-amber-50 border border-amber-200 text-amber-700 rounded text-[8px] font-black uppercase">Medium</span>
-                        </td>
-                        <td className="px-3 py-2 text-slate-600 font-medium">Moderate balance variance; co-app recommended</td>
+                      <tr className={(evvResult?.overallEVV >= 55 && evvResult?.overallEVV < 70) ? "active-row" : ""}>
+                        <td><span className="badge badge-alert">C</span></td>
+                        <td><strong>55–69</strong></td>
+                        <td><span className="text-alert">MEDIUM</span></td>
+                        <td>Moderate balance variance; co-app recommended</td>
                       </tr>
-
-                      <tr className={`transition-colors ${(evvResult?.overallEVV >= 40 && evvResult?.overallEVV < 55) ? "bg-rose-100/60 font-bold" : "hover:bg-violet-50/20"}`}>
-                        <td className="px-3 py-2 font-black text-rose-600">
-                          <span className="px-1.5 py-0.5 bg-rose-50 border border-rose-200 rounded text-rose-700 text-[10px]">D</span>
-                        </td>
-                        <td className="px-2 py-2 text-center font-mono font-bold text-slate-800">40–54</td>
-                        <td className="px-2 py-2 text-center">
-                          <span className="px-1.5 py-0.5 bg-rose-50 border border-rose-200 text-rose-700 rounded text-[8px] font-black uppercase">High</span>
-                        </td>
-                        <td className="px-3 py-2 text-slate-600 font-medium">High risk warning; fluctuating cash flows</td>
+                      <tr className={(evvResult?.overallEVV >= 40 && evvResult?.overallEVV < 55) ? "active-row" : ""}>
+                        <td><span className="badge badge-danger">D</span></td>
+                        <td><strong>40–54</strong></td>
+                        <td><span className="text-danger">HIGH</span></td>
+                        <td>High risk warning; fluctuating cash flows</td>
                       </tr>
-
-                      <tr className={`transition-colors ${(evvResult && evvResult.overallEVV < 40) ? "bg-rose-200/60 font-bold" : "hover:bg-violet-50/20"}`}>
-                        <td className="px-3 py-2 font-black text-rose-700">
-                          <span className="px-1.5 py-0.5 bg-rose-100 border border-rose-300 rounded text-rose-800 text-[10px]">F</span>
-                        </td>
-                        <td className="px-2 py-2 text-center font-mono font-bold text-slate-800">0–39</td>
-                        <td className="px-2 py-2 text-center">
-                          <span className="px-1.5 py-0.5 bg-rose-100 border border-rose-300 text-rose-800 rounded text-[8px] font-black uppercase">Critical</span>
-                        </td>
-                        <td className="px-3 py-2 text-slate-600 font-medium">Critical risk profile & statement anomalies</td>
+                      <tr className={(evvResult && evvResult.overallEVV < 40) ? "active-row" : ""}>
+                        <td><span className="badge badge-critical">F</span></td>
+                        <td><strong>0–39</strong></td>
+                        <td><span className="text-critical">CRITICAL</span></td>
+                        <td>Critical risk profile &amp; statement anomalies</td>
                       </tr>
                     </tbody>
                   </table>
                 </div>
               </div>
             </div>
-          );
-        })()}
+          </div>
+        );
+      })()}
 
           {/* Sampled Interval Balances & Audit Points Breakdown */}
           <div className="bg-white/90 border border-violet-100/90 rounded-3xl p-6 shadow-sm space-y-4">

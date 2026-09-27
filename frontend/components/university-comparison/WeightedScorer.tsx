@@ -1,4 +1,5 @@
 "use client";
+import { exportUniversityComparisonPdf } from "@/lib/exportUniversityComparisonPdf";
 
 type University = {
   id: string;
@@ -30,13 +31,37 @@ interface WeightedScorerProps {
     culture: number;
   };
   onWeightsChange: (weights: any) => void;
+  onExportPdf?: () => void;
+  onSaveShortlist?: () => void;
 }
 
 export default function WeightedScorer({
   universities,
   weights,
   onWeightsChange,
+  onExportPdf,
+  onSaveShortlist,
 }: WeightedScorerProps) {
+  const handleExport = () => {
+    if (onExportPdf) {
+      onExportPdf();
+    } else {
+      exportUniversityComparisonPdf({ universities, weights });
+    }
+  };
+
+  const handleSave = () => {
+    if (onSaveShortlist) {
+      onSaveShortlist();
+    } else {
+      try {
+        localStorage.setItem("vidyaloans_saved_shortlist", JSON.stringify(universities));
+        alert("Prioritized matrix shortlisted and saved to your browser session.");
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  };
   const calculateWeightedScore = (uni: University) => {
     // Normalize scores (0-100 scale)
     const costScore = 100 - (uni.tuition || 40000) / 750; // Lower cost = higher score
@@ -255,11 +280,17 @@ export default function WeightedScorer({
 
       {/* Primary Export Actions */}
       <div className="flex gap-3 justify-end">
-        <button className="px-6 py-3.5 border border-[#6605c7]/20 text-[#6605c7] rounded-2xl hover:bg-[#6605c7]/5 transition-all font-black text-[11px] uppercase tracking-widest cursor-pointer shadow-sm">
-          📋 Save Prioritized Matrix
+        <button
+          onClick={handleSave}
+          className="px-6 py-3.5 border border-[#6605c7]/20 text-[#6605c7] rounded-2xl hover:bg-[#6605c7]/5 transition-all font-black text-[11px] uppercase tracking-widest cursor-pointer shadow-sm flex items-center gap-2"
+        >
+          <span>📋 Save Prioritized Matrix</span>
         </button>
-        <button className="px-6 py-3.5 bg-gradient-to-r from-[#6605c7] to-[#8b24e5] text-white rounded-2xl hover:opacity-90 transition-all font-black text-[11px] uppercase tracking-widest cursor-pointer shadow-md shadow-[#6605c7]/20">
-          📊 Export Ranked Verdict
+        <button
+          onClick={handleExport}
+          className="px-6 py-3.5 bg-gradient-to-r from-[#6605c7] to-[#8b24e5] text-white rounded-2xl hover:opacity-90 active:scale-[0.98] transition-all font-black text-[11px] uppercase tracking-widest cursor-pointer shadow-md shadow-[#6605c7]/20 flex items-center gap-2"
+        >
+          <span>📊 Export Ranked Verdict</span>
         </button>
       </div>
     </div>

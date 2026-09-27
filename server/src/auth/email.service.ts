@@ -2758,4 +2758,243 @@ export class EmailService {
       return false;
     }
   }
+
+  /**
+   * Send an email notification to student when a document is verified/accepted by staff
+   */
+  async sendDocumentVerifiedEmail(
+    email: string,
+    studentName: string,
+    documentName: string,
+    documentType?: string,
+  ) {
+    const formattedDocName = (documentName || documentType || 'Document').replace(/_/g, ' ').toUpperCase();
+    const frontendUrl = (process.env.FRONTEND_URL || 'https://www.vidyaloans.in').replace(/\/$/, '');
+    const dashboardLink = `${frontendUrl}/login`;
+
+    const mailOptions = {
+      from: this.getFromAddress(),
+      to: email,
+      subject: `✅ Document Verified: Your ${formattedDocName} is Approved - VidyaLoans`,
+      text: `Hello ${studentName},\n\nGreat news! Your uploaded document "${formattedDocName}" has been successfully reviewed and verified by our loan verification team.\n\nYour education loan application is progressing smoothly. You can log in to your dashboard anytime to track your progress.\n\nDashboard: ${dashboardLink}\n\nBest regards,\nVidyaLoans Verification Team`,
+      html: `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #1e293b; background-color: #f8fafc;">
+          <div style="background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.04); border: 1px solid #e2e8f0;">
+            <!-- Header -->
+            <div style="background: linear-gradient(135deg, #059669 0%, #10b981 50%, #047857 100%); padding: 32px 25px; text-align: center;">
+              <span style="display: inline-block; background: rgba(255, 255, 255, 0.2); border: 1px solid rgba(255, 255, 255, 0.35); color: #ffffff; padding: 5px 14px; border-radius: 20px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 12px;">
+                Official Verification Update
+              </span>
+              <h1 style="color: #ffffff; margin: 0 0 6px 0; font-size: 22px; font-weight: 800; letter-spacing: -0.5px;">
+                Document Verified Successfully
+              </h1>
+              <p style="color: #ecfdf5; margin: 0; font-size: 14px; font-weight: 500;">
+                Your loan dossier has been updated with approved status
+              </p>
+            </div>
+
+            <!-- Content Area -->
+            <div style="padding: 32px 28px;">
+              <p style="font-size: 15px; color: #334155; line-height: 1.6; margin: 0 0 18px 0;">
+                Hello <strong>${studentName || 'Student'}</strong>,
+              </p>
+              <p style="font-size: 15px; color: #334155; line-height: 1.6; margin: 0 0 20px 0;">
+                We are pleased to inform you that your uploaded document <strong>"${formattedDocName}"</strong> has been thoroughly reviewed and <strong>officially verified</strong> by our loan verification desk.
+              </p>
+
+              <!-- Document Details Card -->
+              <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 20px 22px; margin: 22px 0;">
+                <div style="margin-bottom: 14px;">
+                  <span style="display: inline-block; background: #dcfce7; color: #15803d; border: 1px solid #86efac; padding: 4px 10px; border-radius: 6px; font-weight: 800; font-size: 11px; text-transform: uppercase;">
+                    ✓ Status: Verified &amp; Approved
+                  </span>
+                </div>
+                <table cellpadding="0" cellspacing="0" width="100%" style="font-size: 14px; border-collapse: collapse;">
+                  <tr>
+                    <td style="padding: 6px 0; color: #64748b; font-weight: 600; width: 140px;">Document:</td>
+                    <td style="padding: 6px 0; color: #0f172a; font-weight: 700;">${formattedDocName}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 6px 0; color: #64748b; font-weight: 600;">Verified Timestamp:</td>
+                    <td style="padding: 6px 0; color: #0f172a; font-weight: 600;">${new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 6px 0; color: #64748b; font-weight: 600;">Review Desk:</td>
+                    <td style="padding: 6px 0; color: #0f172a; font-weight: 600;">VidyaLoans Verification Operations</td>
+                  </tr>
+                </table>
+              </div>
+
+              <p style="font-size: 14px; color: #475569; line-height: 1.6; margin: 0 0 24px 0;">
+                This document is now cleared and attached to your application dossier for bank submission. You can view your updated application progress on your student portal.
+              </p>
+
+              <!-- CTA Button -->
+              <div style="text-align: center; margin: 28px 0 20px 0;">
+                <a href="${dashboardLink}" target="_blank" style="display: inline-block; background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: #ffffff; text-decoration: none; padding: 14px 34px; border-radius: 10px; font-weight: 700; font-size: 14px; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);">
+                  View Student Dashboard →
+                </a>
+              </div>
+
+              <hr style="border: none; border-top: 1px solid #f1f5f9; margin: 28px 0 18px 0;" />
+              <p style="font-size: 12px; color: #94a3b8; text-align: center; margin: 0; line-height: 1.4;">
+                VidyaLoans Document Verification Desk • Support: <a href="mailto:support@vidyaloans.in" style="color: #059669; text-decoration: none;">support@vidyaloans.in</a><br>
+                This is an automated notification sent to your registered email.
+              </p>
+            </div>
+          </div>
+        </div>
+      `,
+    };
+
+    try {
+      console.log(`[EmailService] PREPARING TO SEND DOCUMENT VERIFIED EMAIL`);
+      console.log(`[EmailService] Target Email: ${email}`);
+      console.log(`[EmailService] Document Name: ${formattedDocName}`);
+      console.log(`--------------------------------`);
+
+      if (this.hasCredentials()) {
+        await this.transporter.sendMail(mailOptions);
+        console.log(`[EmailService] Document verified email sent successfully to ${email}`);
+        return true;
+      } else {
+        console.log(`[EmailService] Email credentials not configured – document verified email logged to console:`);
+        console.log(`Target: ${email} | Document: ${formattedDocName}`);
+        return true;
+      }
+    } catch (error: any) {
+      console.error(`[EmailService] Failed to send document verified email to ${email}:`, error?.message || error);
+      return false;
+    }
+  }
+
+  /**
+   * Send official welcome & login activation email to newly registered Bank Partner Officer
+   */
+  async sendBankUserWelcomeEmail(
+    email: string,
+    officerName: string,
+    userId: string,
+    bankName: string,
+    branchLocation?: string,
+  ) {
+    const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '');
+    const bankLoginUrl = `${frontendUrl}/bank/login`;
+
+    const mailOptions = {
+      from: `"VidyaLoans Bank Network" <${process.env.EMAIL_USER || 'noreply@vidyaloans.in'}>`,
+      to: email,
+      subject: `🏦 Welcome to VidyaLoans Bank Partner Portal - Your ${bankName} Officer Account is Active`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Welcome to VidyaLoans Bank Portal</title>
+        </head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 30px 10px;">
+          <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1); border: 1px solid #e2e8f0;">
+            
+            <!-- Header Banner -->
+            <div style="background: linear-gradient(135deg, #091e3a 0%, #1e3a8a 50%, #2563eb 100%); padding: 35px 30px; text-align: center;">
+              <span style="display: inline-block; background: rgba(255, 255, 255, 0.18); border: 1px solid rgba(255, 255, 255, 0.3); color: #ffffff; padding: 5px 14px; border-radius: 20px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px;">
+                Institutional Lending Partner Portal
+              </span>
+              <h1 style="color: #ffffff; margin: 0 0 8px 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px;">
+                Welcome, ${officerName}!
+              </h1>
+              <p style="color: #bfdbfe; margin: 0; font-size: 14px; font-weight: 500;">
+                Your Bank Partner Officer Account for <strong>${bankName}</strong> is active.
+              </p>
+            </div>
+
+            <!-- Content Area -->
+            <div style="padding: 32px 30px;">
+              <p style="font-size: 15px; color: #334155; line-height: 1.6; margin: 0 0 20px 0;">
+                Dear <strong>${officerName}</strong>,<br><br>
+                An official bank officer account has been created for you on the VidyaLoans Institutional Lending Network. You can now access student loan dossiers, review verified KYC and academic documents, and process loan sanctions through your dedicated bank workspace.
+              </p>
+
+              <!-- Officer Account Overview Card -->
+              <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 24px; margin: 24px 0;">
+                <h3 style="margin: 0 0 14px 0; font-size: 13px; font-weight: 800; color: #1e3a8a; text-transform: uppercase; letter-spacing: 0.8px;">
+                  Bank Officer Credentials
+                </h3>
+                <table cellpadding="0" cellspacing="0" width="100%" style="font-size: 14px; border-collapse: collapse;">
+                  <tr>
+                    <td style="padding: 8px 0; color: #64748b; font-weight: 600; width: 160px; border-bottom: 1px dashed #e2e8f0;">Lending Partner:</td>
+                    <td style="padding: 8px 0; color: #0f172a; font-weight: 700; border-bottom: 1px dashed #e2e8f0;">${bankName}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0; color: #64748b; font-weight: 600; border-bottom: 1px dashed #e2e8f0;">Officer ID:</td>
+                    <td style="padding: 8px 0; color: #0f172a; font-weight: 700; border-bottom: 1px dashed #e2e8f0;">
+                      <code style="background: #dbeafe; color: #1e40af; padding: 3px 8px; border-radius: 6px; font-family: monospace;">${userId}</code>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0; color: #64748b; font-weight: 600; border-bottom: 1px dashed #e2e8f0;">Registered Email:</td>
+                    <td style="padding: 8px 0; color: #0f172a; font-weight: 600; border-bottom: 1px dashed #e2e8f0;">${email}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0; color: #64748b; font-weight: 600; border-bottom: 1px dashed #e2e8f0;">Branch / Location:</td>
+                    <td style="padding: 8px 0; color: #0f172a; font-weight: 600; border-bottom: 1px dashed #e2e8f0;">${branchLocation || 'Central Lending Desk'}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0; color: #64748b; font-weight: 600;">Portal Access:</td>
+                    <td style="padding: 8px 0; color: #059669; font-weight: 700;">Active • Bank Partner Desk</td>
+                  </tr>
+                </table>
+              </div>
+
+              <!-- How to Log In -->
+              <div style="background-color: #eff6ff; border-left: 4px solid #2563eb; padding: 16px 20px; border-radius: 8px; margin: 24px 0;">
+                <p style="margin: 0; font-size: 13px; color: #1e40af; font-weight: 600; line-height: 1.5;">
+                  🔑 <strong>How to Access:</strong> Use the dedicated Bank Login link below and enter your registered email address <strong>(${email})</strong>. You will receive an instant, secure One-Time Password (OTP) to log in.
+                </p>
+              </div>
+
+              <!-- CTA Button -->
+              <div style="text-align: center; margin: 32px 0 24px 0;">
+                <a href="${bankLoginUrl}" target="_blank" style="display: inline-block; background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); color: #ffffff; text-decoration: none; padding: 16px 36px; border-radius: 12px; font-weight: 700; font-size: 15px; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);">
+                  🚀 Log In to Bank Partner Portal →
+                </a>
+              </div>
+
+              <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px; margin: 20px 0; text-align: center;">
+                <p style="font-size: 12px; color: #64748b; margin: 0 0 4px 0; font-weight: 600;">Direct Bank Login URL:</p>
+                <a href="${bankLoginUrl}" style="color: #2563eb; font-weight: 700; font-size: 13px; word-break: break-all; text-decoration: underline;">
+                  ${bankLoginUrl}
+                </a>
+              </div>
+
+              <hr style="border: none; border-top: 1px solid #f1f5f9; margin: 30px 0 20px 0;" />
+              <p style="font-size: 12px; color: #94a3b8; text-align: center; margin: 0; line-height: 1.4;">
+                VidyaLoans Institutional Lending Desk • Support: <a href="mailto:banking@vidyaloans.in" style="color: #2563eb;">banking@vidyaloans.in</a><br>
+                This is an official automated onboarding notification for authorized bank personnel.
+              </p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+      text: `Welcome ${officerName}!\n\nYour Bank Partner Officer Account for ${bankName} has been activated on VidyaLoans.\n\nOfficer ID: ${userId}\nRegistered Email: ${email}\nLending Partner: ${bankName}\n\nAccess the Bank Partner Portal using your dedicated login link:\n${bankLoginUrl}\n\nEnter your registered email (${email}) to receive your secure OTP and log in.`,
+    };
+
+    try {
+      console.log(`[EmailService] Sending bank welcome email to: ${email} (Officer ID: ${userId}, Bank: ${bankName})`);
+      if (this.hasCredentials()) {
+        await this.transporter.sendMail(mailOptions);
+        console.log(`[EmailService] Bank welcome email sent successfully to ${email}`);
+        return true;
+      } else {
+        console.log(`[EmailService] EMAIL CREDENTIALS NOT CONFIGURED – Bank Welcome Email logged to console:`);
+        console.log(`Target: ${email} | Login Link: ${bankLoginUrl} | Bank: ${bankName}`);
+        return true;
+      }
+    } catch (err: any) {
+      console.error(`[EmailService] Failed to send bank welcome email to ${email}:`, err?.message || err);
+      return false;
+    }
+  }
 }

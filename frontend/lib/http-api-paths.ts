@@ -78,6 +78,8 @@ export const HttpApiPaths = {
         verifyByDocId: (docId: string) => `${HTTP_API_PREFIX}/documents/${enc(docId)}/verify`,
         accept: (docId: string) => `${HTTP_API_PREFIX}/documents/${enc(docId)}/accept`,
         reject: (docId: string) => `${HTTP_API_PREFIX}/documents/${enc(docId)}/reject`,
+        exportZip: (userId: string, onlyVerified: boolean = true) =>
+            `${HTTP_API_PREFIX}/documents/${enc(userId)}/zip${httpApiQuery({ onlyVerified })}`,
     },
 
     staffProfiles: {

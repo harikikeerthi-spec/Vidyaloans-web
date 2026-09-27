@@ -1072,3 +1072,103 @@ input[type="range"]::-moz-range-thumb:hover {
   color: var(--royal-accent);
   box-shadow: 0 2px 4px rgba(15, 23, 42, 0.05);
 }
+
+/* Container & Dashboard Layout matching VidyaLoans */
+.premium-table-container {
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.03);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  overflow: hidden;
+  margin: 20px 0;
+  border: 1px solid #f1f5f9;
+}
+
+.table-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid #f1f5f9;
+  background: #fafafc; /* Very subtle grey-purple tint */
+}
+
+.table-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1e1b4b; /* Deep purple/navy from the sidebar */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Core Table Styles */
+.premium-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.premium-table th {
+  padding: 16px 24px;
+  background-color: #ffffff;
+  color: #64748b;
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 2px solid #f1f5f9;
+}
+
+.premium-table td {
+  padding: 16px 24px;
+  color: #334155;
+  font-size: 14px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+
+/* Hover & Active States */
+.premium-table tbody tr:hover {
+  background-color: #f8fafc;
+  transition: background-color 0.2s ease;
+}
+
+/* Highlighted row for current grade (e.g., Grade C) */
+.premium-table tbody tr.active-row {
+  background-color: #fffaf5; 
+  border-left: 4px solid #f97316; /* Orange highlight indicator */
+}
+
+.premium-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Typography Enhancements */
+.premium-table strong {
+  color: #0f172a;
+  font-weight: 600;
+}
+
+/* Status Badges */
+.badge {
+  padding: 6px 12px;
+  border-radius: 8px; /* Slightly squared matching modern UI */
+  font-weight: 700;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+}
+
+.badge-success { background-color: #dcfce7; color: #15803d; }
+.badge-warning { background-color: #fef3c7; color: #b45309; }
+.badge-alert { background-color: #ffedd5; color: #c2410c; box-shadow: 0 0 0 1px #fdba74 inset; }
+.badge-danger { background-color: #fee2e2; color: #b91c1c; }
+.badge-critical { background-color: #fecdd3; color: #be123c; }
+
+/* Text Color Utilities */
+.text-success { color: #15803d; font-weight: 600; font-size: 13px; }
+.text-warning { color: #b45309; font-weight: 600; font-size: 13px; }
+.text-alert { color: #c2410c; font-weight: 600; font-size: 13px; }
+.text-danger { color: #b91c1c; font-weight: 600; font-size: 13px; }
+.text-critical { color: #be123c; font-weight: 600; font-size: 13px; }

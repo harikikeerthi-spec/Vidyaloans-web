@@ -506,7 +506,26 @@ export class NotificationService {
           verifiedAt: payload.verifiedAt,
         }
       );
-    } catch (error) {
+
+      // Fetch student's registered email and dispatch verification email notification
+      if (payload.userId) {
+        const { data: student } = await this.db
+          .from('User')
+          .select('email, firstName, lastName')
+          .eq('id', payload.userId)
+          .maybeSingle();
+
+        if (student?.email) {
+          const studentName = `${student.firstName || ''} ${student.lastName || ''}`.trim() || 'Student';
+          await this.emailService.sendDocumentVerifiedEmail(
+            student.email,
+            studentName,
+            docName,
+            payload.documentType,
+          );
+        }
+      }
+    } catch (error: any) {
       this.logger.error(`Failed to handle document verified event: ${error.message}`);
     }
   }

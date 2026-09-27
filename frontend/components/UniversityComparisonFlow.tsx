@@ -7,6 +7,7 @@ import WeightedScorer from "./university-comparison/WeightedScorer";
 import { aiApi, referenceApi } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
+import { exportUniversityComparisonPdf } from "@/lib/exportUniversityComparisonPdf";
 
 type University = {
   id: string;
@@ -57,6 +58,44 @@ export default function UniversityComparisonFlow({
     reputation: 15,
     culture: 10,
   });
+
+  // Export & Shortlist Feedback State
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 4000);
+  };
+
+  const handleExportPdf = async () => {
+    if (selectedUnis.length < 2) {
+      alert("Please select at least 2 universities to export comparison.");
+      return;
+    }
+    showToast("Preparing official University Comparison PDF...");
+    await exportUniversityComparisonPdf({
+      universities: selectedUnis,
+      aiReport,
+      weights,
+    });
+  };
+
+  const handleSaveShortlist = () => {
+    if (selectedUnis.length === 0) return;
+    try {
+      localStorage.setItem("vidyaloans_saved_shortlist", JSON.stringify(selectedUnis));
+      const uniIds = selectedUnis.map((u) => u.slug || u.id).join(",");
+      if (typeof window !== "undefined" && navigator?.clipboard) {
+        const shareUrl = `${window.location.origin}/compare-universities?unis=${encodeURIComponent(uniIds)}`;
+        navigator.clipboard.writeText(shareUrl).catch(() => {});
+      }
+      showToast(`Shortlist saved! (${selectedUnis.length} universities saved, link copied)`);
+    } catch (e) {
+      showToast("Shortlist saved to your browser session.");
+    }
+  };
 
   const demoUnis: University[] = [
     {
@@ -722,23 +761,34 @@ export default function UniversityComparisonFlow({
               </button>
             </div>
 
-            <button
-              onClick={generateAiInsights}
-              disabled={isGeneratingAi}
-              className="group relative px-6 py-3.5 bg-gradient-to-r from-amber-500 via-orange-500 to-[#6605c7] text-white text-[11px] font-black uppercase tracking-widest rounded-2xl shadow-xl hover:shadow-orange-500/20 active:scale-[0.98] transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
-            >
-              {isGeneratingAi ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                  <span>Synthesizing...</span>
-                </>
-              ) : (
-                <>
-                  <span>✨ Generate AI Comparison Report</span>
-                  <span className="material-symbols-outlined text-sm group-hover:translate-x-0.5 transition-transform">arrow_forward</span>
-                </>
-              )}
-            </button>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={handleExportPdf}
+                className="px-5 py-3.5 bg-white hover:bg-purple-50 text-[#6605c7] border border-[#6605c7]/20 text-[11px] font-black uppercase tracking-widest rounded-2xl shadow-sm hover:shadow-md active:scale-[0.98] transition-all flex items-center gap-2 cursor-pointer"
+                title="Export high-resolution university comparison PDF"
+              >
+                <span className="material-symbols-outlined text-[17px]">picture_as_pdf</span>
+                <span>Export PDF</span>
+              </button>
+
+              <button
+                onClick={generateAiInsights}
+                disabled={isGeneratingAi}
+                className="group relative px-6 py-3.5 bg-gradient-to-r from-amber-500 via-orange-500 to-[#6605c7] text-white text-[11px] font-black uppercase tracking-widest rounded-2xl shadow-xl hover:shadow-orange-500/20 active:scale-[0.98] transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                {isGeneratingAi ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                    <span>Synthesizing...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>✨ Generate AI Comparison Report</span>
+                    <span className="material-symbols-outlined text-sm group-hover:translate-x-0.5 transition-transform">arrow_forward</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         )}
 
@@ -836,16 +886,25 @@ export default function UniversityComparisonFlow({
         {selectedUnis.length >= 2 ? (
           <div className="mt-6">
             {viewMode === "grid" && (
-              <ComparisonGrid universities={selectedUnis} />
+              <ComparisonGrid
+                universities={selectedUnis}
+                onExportPdf={handleExportPdf}
+                onSaveShortlist={handleSaveShortlist}
+              />
             )}
             {viewMode === "metrics" && (
-              <MetricComparison universities={selectedUnis} />
+              <MetricComparison
+                universities={selectedUnis}
+                onExportPdf={handleExportPdf}
+              />
             )}
             {viewMode === "weighted" && (
               <WeightedScorer
                 universities={selectedUnis}
                 weights={weights}
                 onWeightsChange={setWeights}
+                onExportPdf={handleExportPdf}
+                onSaveShortlist={handleSaveShortlist}
               />
             )}
           </div>
@@ -860,6 +919,16 @@ export default function UniversityComparisonFlow({
             <p className="text-[11px] text-gray-400 font-bold uppercase tracking-widest">
               Use the search or click popular colleges above
             </p>
+          </div>
+        )}
+
+        {/* Dynamic Toast Feedback */}
+        {toastMessage && (
+          <div className="fixed bottom-8 right-8 z-50 animate-in fade-in slide-in-from-bottom-5 duration-300">
+            <div className="bg-gray-900/95 backdrop-blur-md text-white px-5 py-3.5 rounded-2xl shadow-2xl border border-white/10 flex items-center gap-3 text-xs font-bold">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span>{toastMessage}</span>
+            </div>
           </div>
         )}
       </div>

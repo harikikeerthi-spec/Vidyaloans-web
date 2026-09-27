@@ -30,6 +30,8 @@ import type { Response } from 'express';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as crypto from 'crypto';
+import { Writable } from 'stream';
+import archiver = require('archiver');
 
 // ── Use in-memory storage — files go straight to S3, never touch disk ──────
 const storage = memoryStorage();
@@ -880,6 +882,192 @@ export class DocumentController {
 
     const url = `/api/documents/view/${userId}/${docType}`;
     return { success: true, url, docType, filePath: doc.filePath };
+  }
+
+  // ─── Export Verified Documents as ZIP ────────────────────────────────────
+  @Get('export-zip/:userId')
+  async exportVerifiedDocumentsZipAlias(
+    @Param('userId') userId: string,
+    @Query('onlyVerified') onlyVerified: string,
+    @Res() res: Response,
+  ) {
+    return this.exportVerifiedDocumentsZip(userId, onlyVerified, res);
+  }
+
+  @Get(':userId/zip')
+  async exportVerifiedDocumentsZip(
+    @Param('userId') userId: string,
+    @Query('onlyVerified') onlyVerified: string,
+    @Res() res: Response,
+  ) {
+    console.log(`[DocumentController] Building verified documents ZIP for User ID: ${userId}`);
+
+    const user = await this.usersService.findById(userId).catch(() => null);
+    const studentName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : 'Student';
+    const cleanStudentName = (studentName || 'Student').replace(/[^a-zA-Z0-9_-]/g, '_');
+
+    const documents = await this.usersService.getUserDocuments(userId).catch(() => []);
+    const requireOnlyVerified = onlyVerified !== 'false';
+
+    const verifiedDocs = (documents || []).filter((doc: any) => {
+      const isUploaded = Boolean(doc.uploaded || doc.filePath || doc.fileUrl);
+      if (!isUploaded) return false;
+      if (!requireOnlyVerified) return true;
+      const status = (doc.status || '').toLowerCase();
+      return status === 'verified' || status === 'approved';
+    });
+
+    if (verifiedDocs.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: `No ${requireOnlyVerified ? 'verified' : 'uploaded'} documents found for ${studentName || 'this student'}.`,
+      });
+    }
+
+    const archive = typeof (archiver as any) === 'function'
+      ? (archiver as any)('zip', { zlib: { level: 9 } })
+      : new (archiver as any).ZipArchive({ zlib: { level: 9 } });
+
+    const chunks: Buffer[] = [];
+    const outputStream = new Writable({
+      write(chunk, encoding, callback) {
+        chunks.push(chunk);
+        callback();
+      },
+    });
+    archive.pipe(outputStream);
+
+    const usedFileNames = new Set<string>();
+
+    for (let i = 0; i < verifiedDocs.length; i++) {
+      const doc = verifiedDocs[i];
+      let rawName = doc.docName || doc.docType || `document_${i + 1}`;
+      let baseName = rawName.replace(/[^a-zA-Z0-9._ -]/g, '_').trim();
+      let ext = doc.fileName ? path.extname(doc.fileName) : '';
+      if (!ext && doc.filePath) ext = path.extname(doc.filePath);
+      if (!ext) ext = '.pdf';
+
+      if (!baseName.toLowerCase().endsWith(ext.toLowerCase())) {
+        baseName = `${baseName}${ext}`;
+      }
+
+      // Ensure unique filename inside zip
+      let finalName = baseName;
+      let counter = 1;
+      while (usedFileNames.has(finalName.toLowerCase())) {
+        const nameWithoutExt = path.basename(baseName, ext);
+        finalName = `${nameWithoutExt}_(${counter})${ext}`;
+        counter++;
+      }
+      usedFileNames.add(finalName.toLowerCase());
+
+      let fileBuffer: Buffer | null = null;
+
+      // 1. Check local file on disk
+      const userUploadsDir = path.join(process.cwd(), 'uploads', userId);
+      if (fs.existsSync(userUploadsDir)) {
+        const subdirs = fs.readdirSync(userUploadsDir);
+        const normalizedReq = (doc.docType || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const matchedSubdir = subdirs.find((sd) => {
+          const normSd = sd.toLowerCase().replace(/[^a-z0-9]/g, '');
+          return normSd === normalizedReq || normSd.includes(normalizedReq) || normalizedReq.includes(normSd);
+        });
+        if (matchedSubdir) {
+          const targetDir = path.join(userUploadsDir, matchedSubdir);
+          const files = fs.readdirSync(targetDir);
+          if (files.length > 0) {
+            try {
+              fileBuffer = fs.readFileSync(path.join(targetDir, files[0]));
+            } catch (readErr) {
+              console.warn(`[ZIP] Failed to read local file:`, readErr);
+            }
+          }
+        }
+      }
+
+      // 2. DigiLocker record
+      if (!fileBuffer && doc.filePath && doc.filePath.startsWith('in.gov.')) {
+        const certHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>DigiLocker Verified Record - ${rawName}</title>
+<style>body{font-family:system-ui,sans-serif;background:#f8fafc;padding:30px;color:#0f172a}.card{background:#ffffff;padding:32px;border-radius:12px;border:1px solid #e2e8f0;max-width:600px;margin:0 auto;box-shadow:0 4px 12px rgba(0,0,0,0.06)}.badge{display:inline-block;background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;padding:4px 10px;border-radius:6px;font-weight:700;font-size:12px;text-transform:uppercase;margin-bottom:16px}.title{font-size:18px;font-weight:800;color:#1e1b4b;margin-bottom:8px}.meta{font-size:13px;color:#475569;margin-bottom:6px}.footer{margin-top:24px;padding-top:16px;border-top:1px solid #f1f5f9;font-size:11px;color:#94a3b8;text-align:center}</style></head>
+<body><div class="card"><span class="badge">✓ Verified via DigiLocker</span><div class="title">${rawName}</div><div class="meta"><strong>Student:</strong> ${studentName} (${userId})</div><div class="meta"><strong>DigiLocker URI:</strong> ${doc.filePath}</div><div class="meta"><strong>Verification Status:</strong> Officially Verified</div><div class="meta"><strong>Verified Timestamp:</strong> ${doc.updatedAt || doc.createdAt || new Date().toISOString()}</div><div class="footer">Vidya Loans Document Security & Verification Network</div></div></body></html>`;
+        fileBuffer = Buffer.from(certHtml, 'utf-8');
+        finalName = finalName.replace(/\.pdf$/i, '.html');
+      }
+
+      // 3. S3 candidate keys
+      if (!fileBuffer) {
+        const fileExt = doc.filePath ? path.extname(doc.filePath) : '';
+        const s3CandidateKeys = Array.from(
+          new Set([
+            doc.filePath,
+            `vault/${userId}/${doc.docType}${fileExt}`,
+            `vault/${userId}/${doc.docType}`,
+            `documents/${userId}/${doc.docType}`,
+            `documents/${userId}/${doc.docType}${fileExt}`,
+          ]),
+        ).filter(Boolean);
+
+        for (const s3KeyCandidate of s3CandidateKeys) {
+          try {
+            const s3Data = await this.s3Service.getFileBuffer(s3KeyCandidate);
+            if (s3Data && s3Data.buffer) {
+              fileBuffer = s3Data.buffer;
+              break;
+            }
+          } catch (err: any) {}
+        }
+      }
+
+      // 4. Fallback if file buffer not found
+      if (!fileBuffer) {
+        fileBuffer = this.createNotFoundPdfBuffer(userId, doc.docType, doc.docName);
+      }
+
+      archive.append(fileBuffer, { name: finalName });
+    }
+
+    // Add Executive Verification Manifest TXT
+    const dateFormatted = new Date().toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' });
+    const manifestContent = [
+      `================================================================================`,
+      `VIDYA LOANS — OFFICIAL VERIFIED DOCUMENTS DOSSIER`,
+      `================================================================================`,
+      `Applicant Name    : ${studentName}`,
+      `User ID           : ${userId}`,
+      `Export Timestamp  : ${dateFormatted}`,
+      `Verified Count    : ${verifiedDocs.length} Documents Compiled`,
+      `================================================================================`,
+      ``,
+      `INCLUDED VERIFIED DOCUMENTS:`,
+      ...verifiedDocs.map((d: any, idx: number) => {
+        const label = d.docName || d.docType || 'Document';
+        const type = d.docType || 'other';
+        const updated = d.updatedAt || d.createdAt || 'N/A';
+        return `  ${String(idx + 1).padStart(2, '0')}. [VERIFIED] ${label} (${type}) — Updated: ${updated}`;
+      }),
+      ``,
+      `================================================================================`,
+      `NOTICE: All documents bundled in this archive have been verified and approved by`,
+      `authorized Vidya Loans staff members for education loan processing.`,
+      `Portal: https://www.vidyaloans.in | Support: support@vidyaloans.in`,
+      `================================================================================`,
+    ].join('\r\n');
+
+    archive.append(Buffer.from(manifestContent, 'utf-8'), { name: '00_Verification_Manifest.txt' });
+
+    const bufferPromise = new Promise<Buffer>((resolve, reject) => {
+      outputStream.on('finish', () => resolve(Buffer.concat(chunks)));
+      archive.on('error', reject);
+    });
+
+    await archive.finalize();
+    const zipBuffer = await bufferPromise;
+
+    const zipFileName = `${cleanStudentName}_Verified_Documents.zip`;
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${zipFileName}"`);
+    res.setHeader('Content-Length', zipBuffer.length);
+    res.status(200).send(zipBuffer);
   }
 
   // ─── List user documents ─────────────────────────────────────────────────
