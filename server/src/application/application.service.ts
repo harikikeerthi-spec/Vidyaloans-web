@@ -1136,10 +1136,40 @@ export class ApplicationService {
       if (uDoc && uDoc.filePath) {
         doc = {
           ...uDoc,
-          docName: uDoc.docType ? uDoc.docType.replace(/_/g, ' ').toUpperCase() : 'Document',
+          docName: uDoc.docName || (uDoc.docType ? uDoc.docType.replace(/_/g, ' ').toUpperCase() : 'Document'),
           filePath: uDoc.filePath,
           fileName: uDoc.fileName || uDoc.docType
         };
+      }
+    }
+
+    if (!doc || !doc.filePath) {
+      let application: any = null;
+      const { data: appById } = await this.db.from('LoanApplication').select('userId, id').eq('id', applicationId).maybeSingle();
+      if (appById) {
+        application = appById;
+      } else {
+        const { data: appByNum } = await this.db.from('LoanApplication').select('userId, id').eq('applicationNumber', applicationId).maybeSingle();
+        application = appByNum;
+      }
+
+      if (application?.userId) {
+        const { data: uDocs } = await this.db.from('UserDocument').select('*').eq('userId', application.userId);
+        const match = uDocs?.find((u: any) =>
+          String(u.id) === String(documentId) ||
+          String(u.id) === String(documentId).replace('vault_', '') ||
+          `vault_${u.id}` === String(documentId) ||
+          String(u.docType) === String(documentId) ||
+          String(u.docType) === String(documentId).replace('vault_', '')
+        );
+        if (match && match.filePath) {
+          doc = {
+            ...match,
+            docName: match.docName || (match.docType ? match.docType.replace(/_/g, ' ').toUpperCase() : 'Document'),
+            filePath: match.filePath,
+            fileName: match.fileName || match.docType
+          };
+        }
       }
     }
     return doc;
@@ -1597,15 +1627,50 @@ export class ApplicationService {
             await this.emailService.sendApplicationSentToBankEmail(email, userName, bankName, latestApp);
             try {
               const bankIdStr = (latestApp.bank || bankName).toLowerCase().replace(/[^a-z0-9]/g, '');
-              const fallbackEmails: Record<string, string> = {
-                avanse: 'avansebank01@gmail.com',
-                auxilo: 'auxilobank01@gmail.com',
-                idfc: 'idfcbank01@gmail.com',
-                poonawalla: 'poonawallabank01@gmail.com',
-                credila: 'credilabank01@gmail.com',
-              };
-              const targetBankEmail = fallbackEmails[bankIdStr] || `${bankIdStr}bank01@gmail.com`;
-              await this.emailService.sendNewApplicationNotificationToBank(targetBankEmail, bankName, latestApp, userName);
+              const recipientEmails = new Set<string>();
+
+              // Query bank users from User table
+              const { data: bankUsers } = await this.supabase
+                .from('User')
+                .select('email, bank, role, firstName, lastName')
+                .in('role', ['bank', 'partner_bank', 'BANK']);
+
+              if (bankUsers && bankUsers.length > 0) {
+                for (const u of bankUsers) {
+                  if (!u.email) continue;
+                  const uBank = (u.bank || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                  const uName = `${u.firstName || ''} ${u.lastName || ''}`.toLowerCase().replace(/[^a-z0-9]/g, '');
+                  if (
+                    (uBank && (uBank === bankIdStr || bankIdStr.includes(uBank) || uBank.includes(bankIdStr))) ||
+                    (uName && (uName.includes(bankIdStr) || bankIdStr.includes(uName)))
+                  ) {
+                    recipientEmails.add(u.email.trim());
+                  }
+                }
+              }
+
+              // Also check Bank table
+              const { data: bankProfile } = await this.supabase
+                .from('Bank')
+                .select('email')
+                .eq('shortName', latestApp.bank || bankName)
+                .maybeSingle();
+              if (bankProfile?.email) {
+                recipientEmails.add(bankProfile.email.trim());
+              }
+
+              if (recipientEmails.size === 0) {
+                const fallbackEmails: Record<string, string> = {
+                  avanse: 'avansebank01@gmail.com',
+                  auxilo: 'auxilobank01@gmail.com',
+                  idfc: 'idfcbank01@gmail.com',
+                  poonawalla: 'poonawallabank01@gmail.com',
+                  credila: 'credilabank01@gmail.com',
+                };
+                recipientEmails.add(fallbackEmails[bankIdStr] || `${bankIdStr}bank01@gmail.com`);
+              }
+
+              await this.emailService.sendNewApplicationNotificationToBank(Array.from(recipientEmails), bankName, latestApp, userName);
             } catch (bErr) {
               console.error('[ApplicationService] Failed to send bank notification email:', bErr);
             }

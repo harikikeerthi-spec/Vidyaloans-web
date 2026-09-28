@@ -47,6 +47,8 @@ async function bootstrap() {
       url.includes('/documents/upload') ||
       url.includes('/documents/complete-upload') ||
       url.includes('/auth/upload-document') ||
+      url.includes('/statements/upload') ||
+      url.includes('/statements/') ||
       url.includes('/upload-statement') ||
       url.includes('/auth/send-otp') ||
       url.includes('/auth/verify-otp') ||

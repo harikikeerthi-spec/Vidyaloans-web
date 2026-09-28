@@ -5,7 +5,6 @@ import { motion } from "framer-motion";
 import { format, differenceInDays, parseISO } from "date-fns";
 import { StatusBadge } from "@/components/bank/SharedUI";
 import Link from "next/link";
-import ProgressTracker from "@/components/ProgressTracker";
 
 interface BankApplicationDetailViewProps {
     app: any;
@@ -144,24 +143,182 @@ export default function BankApplicationDetailView({
     const aadhaarVal = getNationalId(["aadhar", "aadhaar"], [app.aadhaarNumber, app.aadhaar, app.aadharNumber, app.aadhar, app.user?.aadhaarNumber, app.user?.aadhaar, app.user?.aadharNumber]);
     const passportVal = getNationalId(["passport"], [app.passportNumber, app.passport, app.user?.passportNumber, app.user?.passport]);
 
-    // CIBIL details
-    const cibilScore = app.cibilScore || app.cibil || app.creditScore || app.user?.cibilScore || app.user?.cibil;
+    // CIBIL & Credit Score details
+    const cibilScore =
+        app.cibilScore ||
+        app.cibil ||
+        app.creditScore ||
+        app.user?.cibilScore ||
+        app.user?.cibil ||
+        app.user?.creditScore ||
+        app.eligibilityCheck?.credit ||
+        app.eligibility?.credit;
     const cibilNum = Number(cibilScore) || 0;
     let cibilRating = "Pending";
     let cibilBadgeClass = "bg-slate-100 text-slate-600 border-slate-200";
     if (cibilNum >= 750) {
-        cibilRating = "Excellent";
+        cibilRating = "Prime Score (Excellent)";
         cibilBadgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
     } else if (cibilNum >= 700) {
-        cibilRating = "Good";
+        cibilRating = "Good (Low Risk)";
         cibilBadgeClass = "bg-emerald-50 text-emerald-600 border-emerald-200";
     } else if (cibilNum >= 650) {
-        cibilRating = "Fair";
+        cibilRating = "Fair (Moderate Risk)";
         cibilBadgeClass = "bg-amber-50 text-amber-700 border-amber-200";
     } else if (cibilNum > 0) {
-        cibilRating = "Needs Review";
+        cibilRating = "Needs Review (Subprime)";
         cibilBadgeClass = "bg-rose-50 text-rose-700 border-rose-200";
     }
+
+    // Dynamic Entrance & English Scores Extraction
+    let parsedTests: Record<string, any> = {};
+    try {
+        const rawTests = app.tests || app.user?.tests || app.academicProfile?.tests;
+        if (typeof rawTests === "string") {
+            parsedTests = JSON.parse(rawTests);
+        } else if (rawTests && typeof rawTests === "object") {
+            parsedTests = rawTests;
+        }
+    } catch (_) {}
+
+    // Entrance Exam (GRE, GMAT, SAT, ACT, etc.)
+    const entranceTestNameRaw =
+        app.entranceTest ||
+        app.user?.entranceTest ||
+        app.academicProfile?.entranceTest ||
+        (parsedTests.gre ? "GRE" : parsedTests.gmat ? "GMAT" : parsedTests.sat ? "SAT" : parsedTests.act ? "ACT" : app.greScore ? "GRE" : app.gmatScore ? "GMAT" : app.satScore ? "SAT" : "");
+
+    const entranceTestName = entranceTestNameRaw ? String(entranceTestNameRaw).trim().toUpperCase() : "";
+
+    const entranceScoreVal =
+        app.entranceScore ||
+        app.user?.entranceScore ||
+        app.academicProfile?.entranceScore ||
+        (entranceTestName === "GRE" ? (parsedTests.gre || app.greScore) :
+         entranceTestName === "GMAT" ? (parsedTests.gmat || app.gmatScore) :
+         entranceTestName === "SAT" ? (parsedTests.sat || app.satScore) :
+         entranceTestName === "ACT" ? (parsedTests.act || app.actScore) :
+         (parsedTests.gre || app.greScore || parsedTests.gmat || app.gmatScore || parsedTests.sat || app.satScore));
+
+    const entranceMax = entranceTestName.includes("GRE")
+        ? 340
+        : entranceTestName.includes("GMAT")
+        ? 800
+        : entranceTestName.includes("SAT")
+        ? 1600
+        : entranceTestName.includes("ACT")
+        ? 36
+        : null;
+
+    // English Language Exam (IELTS, TOEFL, PTE, Duolingo, etc.)
+    const englishTestNameRaw =
+        app.englishTest ||
+        app.user?.englishTest ||
+        app.academicProfile?.englishTest ||
+        (parsedTests.ielts ? "IELTS" : parsedTests.toefl ? "TOEFL" : parsedTests.pte ? "PTE" : parsedTests.duolingo ? "Duolingo" : app.ieltsScore ? "IELTS" : app.toeflScore ? "TOEFL" : "");
+
+    const englishTestName = englishTestNameRaw ? String(englishTestNameRaw).trim().toUpperCase() : "";
+
+    const englishScoreVal =
+        app.englishScore ||
+        app.user?.englishScore ||
+        app.academicProfile?.englishScore ||
+        (englishTestName === "IELTS" ? (parsedTests.ielts || app.ieltsScore) :
+         englishTestName === "TOEFL" ? (parsedTests.toefl || app.toeflScore) :
+         englishTestName === "PTE" ? (parsedTests.pte || app.pteScore) :
+         englishTestName === "DUOLINGO" ? (parsedTests.duolingo || app.duolingoScore) :
+         (parsedTests.ielts || app.ieltsScore || parsedTests.toefl || app.toeflScore || parsedTests.pte || parsedTests.duolingo));
+
+    const englishUnit = englishTestName.includes("IELTS")
+        ? "Band"
+        : englishTestName.includes("TOEFL")
+        ? "/ 120"
+        : englishTestName.includes("PTE")
+        ? "/ 90"
+        : englishTestName.includes("DUOLINGO")
+        ? "/ 160"
+        : "";
+
+    // Undergrad GPA / Aggregate
+    const rawGpaVal =
+        app.gpa ??
+        app.academicPercentage ??
+        app.percentage ??
+        app.user?.gpa ??
+        app.user?.academicPercentage ??
+        app.academicProfile?.gpa;
+
+    const gpaNum = Number(rawGpaVal);
+    let gpaDisplayStr = "Under Review";
+    let gpaUnitStr = "";
+    if (rawGpaVal !== undefined && rawGpaVal !== null && String(rawGpaVal).trim() !== "" && String(rawGpaVal) !== "0") {
+        if (!isNaN(gpaNum)) {
+            if (gpaNum <= 10) {
+                gpaDisplayStr = `${gpaNum.toFixed(1).replace(/\.0$/, "")} CGPA`;
+                gpaUnitStr = "Scale of 10.0";
+            } else {
+                gpaDisplayStr = `${gpaNum}%`;
+                gpaUnitStr = "Aggregate Marks";
+            }
+        } else {
+            gpaDisplayStr = String(rawGpaVal);
+            gpaUnitStr = "Academic Score";
+        }
+    }
+
+    // Past Academic Backlogs
+    const rawBacklogsVal = app.backlogs ?? app.user?.backlogs ?? app.academicProfile?.backlogs ?? app.pastBacklogs;
+    const backlogsNum = rawBacklogsVal !== undefined && rawBacklogsVal !== null && rawBacklogsVal !== "" ? Number(rawBacklogsVal) : 0;
+
+    // Existing Debts & Dynamic FOIR calculation
+    const existingDebtsEmi = Number(
+        app.existingDebts ||
+        app.monthlyEmi ||
+        app.existingEmi ||
+        app.debts ||
+        app.coApplicantDebts ||
+        0
+    );
+
+    const annualIncomeVal = Number(
+        app.coApplicantIncome ||
+        app.annualIncome ||
+        app.user?.annualIncome ||
+        0
+    );
+    const monthlyIncomeVal = annualIncomeVal > 0 ? Math.round(annualIncomeVal / 12) : 0;
+    const requestedLoanAmt = Number(app.amount || app.loanAmount || 0);
+    // Estimated projected EMI: roughly ~1.2% per month for standard education loan
+    const projectedEmi = requestedLoanAmt > 0 ? Math.round(requestedLoanAmt * 0.012) : 0;
+
+    let foirText = "FOIR: Nil Existing Obligations";
+    let foirBadgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
+
+    if (monthlyIncomeVal > 0) {
+        const totalMonthlyObligation = existingDebtsEmi + (existingDebtsEmi > 0 ? 0 : projectedEmi);
+        const foirPercent = Math.min(100, Math.max(0, Math.round((totalMonthlyObligation / monthlyIncomeVal) * 100)));
+        if (foirPercent < 35) {
+            foirText = `FOIR: ${foirPercent}% (Safe / High Repayment Capacity)`;
+            foirBadgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
+        } else if (foirPercent <= 50) {
+            foirText = `FOIR: ${foirPercent}% (Optimal Underwriting Limit)`;
+            foirBadgeClass = "bg-blue-50 text-blue-700 border-blue-200";
+        } else if (foirPercent <= 65) {
+            foirText = `FOIR: ${foirPercent}% (Moderate / Conditional)`;
+            foirBadgeClass = "bg-amber-50 text-amber-700 border-amber-200";
+        } else {
+            foirText = `FOIR: ${foirPercent}% (High Debt Burden)`;
+            foirBadgeClass = "bg-rose-50 text-rose-700 border-rose-200";
+        }
+    } else if (existingDebtsEmi > 0) {
+        foirText = "FOIR: Pending Income Verification";
+        foirBadgeClass = "bg-slate-50 text-slate-700 border-slate-200";
+    }
+
+    // Dynamic Collateral details
+    const hasCollateral = Boolean(app.hasCollateral || app.collateralOffered || app.collateralType || (Number(app.collateralValue) > 0));
+    const collateralVal = Number(app.collateralValue) || 0;
+    const collateralTypeStr = app.collateralType || "Residential / Commercial Property";
 
     const handleRemarkSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -346,15 +503,6 @@ export default function BankApplicationDetailView({
                     </div>
                 </div>
             </div>
-
-            {/* Application Progress (Standard 8 Steps) */}
-            <ProgressTracker
-                application={app}
-                documents={uploadedDocs}
-                compact={false}
-                title="Application Progress"
-                className="rounded-2xl border-slate-200/90 shadow-2xs"
-            />
 
             {/* Navigation Tabs Bar */}
             <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-1.5 flex items-center gap-1.5 overflow-x-auto custom-scrollbar">
@@ -559,26 +707,87 @@ export default function BankApplicationDetailView({
                             </h3>
                             <div className="grid grid-cols-2 gap-3 text-xs">
                                 <div className="bg-[#F8FAFC] p-4 rounded-xl border border-slate-200/70">
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">GRE Score</span>
-                                    <span className="text-xl font-black text-slate-900 font-mono">
-                                        {app.greScore || "324"} <span className="text-xs font-medium text-slate-500">/ 340</span>
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">
+                                        {entranceTestName ? `${entranceTestName} Score` : "Entrance Exam (GRE / GMAT)"}
                                     </span>
+                                    {entranceScoreVal ? (
+                                        <>
+                                            <span className="text-xl font-black text-slate-900 font-mono block">
+                                                {entranceScoreVal}{" "}
+                                                {entranceMax && <span className="text-xs font-medium text-slate-500">/ {entranceMax}</span>}
+                                            </span>
+                                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 mt-1 inline-block">
+                                                Verified Score
+                                            </span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span className="text-sm font-bold text-slate-500 font-mono block">
+                                                Not Taken / Waived
+                                            </span>
+                                            <span className="text-[10px] font-medium text-slate-400 mt-1 block">
+                                                No GRE / GMAT required
+                                            </span>
+                                        </>
+                                    )}
                                 </div>
                                 <div className="bg-[#F8FAFC] p-4 rounded-xl border border-slate-200/70">
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">IELTS / TOEFL Score</span>
-                                    <span className="text-xl font-black text-slate-900 font-mono">
-                                        {app.ieltsScore || "7.5"} <span className="text-xs font-medium text-slate-500">Band</span>
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">
+                                        {englishTestName ? `${englishTestName} Score` : "English Proficiency (IELTS / TOEFL)"}
                                     </span>
+                                    {englishScoreVal ? (
+                                        <>
+                                            <span className="text-xl font-black text-slate-900 font-mono block">
+                                                {englishScoreVal}{" "}
+                                                {englishUnit && <span className="text-xs font-medium text-slate-500">{englishUnit}</span>}
+                                            </span>
+                                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 mt-1 inline-block">
+                                                Verified Proficiency
+                                            </span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span className="text-sm font-bold text-slate-500 font-mono block">
+                                                Waived / English Medium
+                                            </span>
+                                            <span className="text-[10px] font-medium text-slate-400 mt-1 block">
+                                                Medium of Instruction: English
+                                            </span>
+                                        </>
+                                    )}
                                 </div>
                                 <div className="bg-[#F8FAFC] p-4 rounded-xl border border-slate-200/70">
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Undergrad GPA / %</span>
-                                    <span className="text-xl font-black text-slate-900 font-mono">
-                                        {app.academicPercentage || app.percentage || "8.4"} <span className="text-xs font-medium text-slate-500">CGPA</span>
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Undergrad GPA / Aggregate</span>
+                                    <span className="text-xl font-black text-slate-900 font-mono block">
+                                        {gpaDisplayStr}
                                     </span>
+                                    {gpaUnitStr && (
+                                        <span className="text-[10px] font-medium text-slate-400 mt-1 block">
+                                            {gpaUnitStr}
+                                        </span>
+                                    )}
                                 </div>
                                 <div className="bg-[#F8FAFC] p-4 rounded-xl border border-slate-200/70">
                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Past Academic Backlogs</span>
-                                    <span className="text-xl font-black text-emerald-700 font-mono">0 Backlogs</span>
+                                    {backlogsNum > 0 ? (
+                                        <>
+                                            <span className="text-xl font-black text-amber-700 font-mono block">
+                                                {backlogsNum} Backlog{backlogsNum > 1 ? "s" : ""}
+                                            </span>
+                                            <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 mt-1 inline-block">
+                                                Subject Clearance Check Required
+                                            </span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span className="text-xl font-black text-emerald-700 font-mono block">
+                                                0 Backlogs
+                                            </span>
+                                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 mt-1 inline-block">
+                                                Clean Academic Record
+                                            </span>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -599,29 +808,29 @@ export default function BankApplicationDetailView({
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-xs">
                                 <div className="bg-[#F8FAFC] p-3.5 rounded-xl border border-slate-200/70">
                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Co-Applicant Name</span>
-                                    <span className="text-sm font-bold text-slate-900">{app.coApplicantName || app.coApplicant || "Robert Doe"}</span>
+                                    <span className="text-sm font-bold text-slate-900">{app.coApplicantName || app.coApplicant || app.user?.coApplicantName || "Not Assigned"}</span>
                                 </div>
                                 <div className="bg-[#F8FAFC] p-3.5 rounded-xl border border-slate-200/70">
                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Relationship</span>
-                                    <span className="text-sm font-bold text-slate-900">{app.coApplicantRelation || app.relation || "Father"}</span>
+                                    <span className="text-sm font-bold text-slate-900">{app.coApplicantRelation || app.relation || app.user?.coApplicantRelation || "N/A"}</span>
                                 </div>
                                 <div className="bg-[#F8FAFC] p-3.5 rounded-xl border border-slate-200/70">
                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Occupation & Industry</span>
-                                    <span className="text-sm font-bold text-slate-900">{app.coApplicantOccupation || app.occupation || "Senior Salaried Professional"}</span>
+                                    <span className="text-sm font-bold text-slate-900">{app.coApplicantOccupation || app.occupation || app.employmentType || "Salaried / Business"}</span>
                                 </div>
                                 <div className="bg-[#F8FAFC] p-3.5 rounded-xl border border-slate-200/70">
                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Annual Gross Income</span>
                                     <span className="text-base font-black text-emerald-700 font-mono">
-                                        {app.coApplicantIncome ? `₹${Number(app.coApplicantIncome).toLocaleString("en-IN")}` : "₹18,50,000"} / yr
+                                        {app.coApplicantIncome ? `₹${Number(app.coApplicantIncome).toLocaleString("en-IN")} / yr` : annualIncomeVal > 0 ? `₹${annualIncomeVal.toLocaleString("en-IN")} / yr` : "Not Disclosed"}
                                     </span>
                                 </div>
                                 <div className="bg-[#F8FAFC] p-3.5 rounded-xl border border-slate-200/70">
                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Co-Applicant PAN</span>
-                                    <span className="font-mono text-sm font-bold text-slate-900 uppercase">{app.coApplicantPan || "ABCDE1234F"}</span>
+                                    <span className="font-mono text-sm font-bold text-slate-900 uppercase">{app.coApplicantPan || app.user?.coApplicantPan || "Under Verification"}</span>
                                 </div>
                                 <div className="bg-[#F8FAFC] p-3.5 rounded-xl border border-slate-200/70">
                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Co-Applicant Contact</span>
-                                    <span className="font-mono text-sm font-bold text-slate-900">{app.coApplicantMobile || "+91 98765 00000"}</span>
+                                    <span className="font-mono text-sm font-bold text-slate-900">{app.coApplicantPhone || app.coApplicantMobile || app.user?.coApplicantPhone || app.user?.coApplicantMobile || "N/A"}</span>
                                 </div>
                             </div>
                         </div>
@@ -637,29 +846,68 @@ export default function BankApplicationDetailView({
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-xs">
                                 <div className="bg-[#F8FAFC] p-4 rounded-xl border border-slate-200/70">
                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Bureau Score (CIBIL)</span>
-                                    <span className="text-2xl font-black text-slate-900 font-mono block">
-                                        {cibilNum > 0 ? cibilNum : "765"}
-                                    </span>
-                                    <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md border mt-1 inline-block ${cibilBadgeClass}`}>
-                                        Grade: {cibilRating === "Pending" ? "Prime Score" : cibilRating}
-                                    </span>
+                                    {cibilNum > 0 ? (
+                                        <>
+                                            <span className="text-2xl font-black text-slate-900 font-mono block">
+                                                {cibilNum} <span className="text-xs font-medium text-slate-500">/ 900</span>
+                                            </span>
+                                            <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md border mt-1 inline-block ${cibilBadgeClass}`}>
+                                                Grade: {cibilRating}
+                                            </span>
+                                        </>
+                                    ) : app.evvScore ? (
+                                        <>
+                                            <span className="text-2xl font-black text-indigo-700 font-mono block">
+                                                {app.evvScore} <span className="text-xs font-medium text-slate-500">/ 100 EVV</span>
+                                            </span>
+                                            <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md border border-indigo-200 bg-indigo-50 text-indigo-700 mt-1 inline-block">
+                                                Engine Grade: {app.evvGrade || "Evaluated"}
+                                            </span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span className="text-lg font-bold text-slate-500 font-mono block">
+                                                Pending Bureau Check
+                                            </span>
+                                            <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-md border mt-1 inline-block bg-slate-100 text-slate-600 border-slate-200">
+                                                Score Generation In Progress
+                                            </span>
+                                        </>
+                                    )}
                                 </div>
                                 <div className="bg-[#F8FAFC] p-4 rounded-xl border border-slate-200/70">
                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Existing Debts / EMIs</span>
                                     <span className="text-2xl font-black text-slate-900 font-mono block">
-                                        ₹12,400 <span className="text-xs font-medium text-slate-500">/ mo</span>
+                                        {existingDebtsEmi > 0 ? (
+                                            <>₹{existingDebtsEmi.toLocaleString("en-IN")} <span className="text-xs font-medium text-slate-500">/ mo</span></>
+                                        ) : (
+                                            <span className="text-lg font-bold text-emerald-700 font-mono">₹0 <span className="text-xs font-medium text-emerald-600">(Nil Debts)</span></span>
+                                        )}
                                     </span>
-                                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 uppercase px-2 py-0.5 rounded-md mt-1 inline-block">
-                                        FOIR: &lt; 25% (Safe)
+                                    <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-md border mt-1 inline-block ${foirBadgeClass}`}>
+                                        {foirText}
                                     </span>
                                 </div>
                                 <div className="bg-[#F8FAFC] p-4 rounded-xl border border-slate-200/70 sm:col-span-2">
                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Collateral Assessment</span>
                                     <span className="text-sm font-bold text-slate-800 block">
-                                        {app.collateralOffered || app.hasCollateral
-                                            ? `Secured Collateral: ${app.collateralType || "Residential Property"} (Valuation: ₹${(Number(app.collateralValue) || 7500000).toLocaleString("en-IN")})`
-                                            : "Clean Unsecured Student Education Loan (Zero Collateral Required)"}
+                                        {hasCollateral ? (
+                                            <span className="text-purple-900 font-bold">
+                                                Secured Collateral: {collateralTypeStr}
+                                                {collateralVal > 0 ? ` (Valuation: ₹${collateralVal.toLocaleString("en-IN")})` : " (Pledged under Title Search)"}
+                                                {app.collateralDetails ? ` — ${app.collateralDetails}` : ""}
+                                            </span>
+                                        ) : (
+                                            <span className="text-slate-700 font-medium">
+                                                Clean Unsecured Student Education Loan (Zero Collateral Pledged / Not Required)
+                                            </span>
+                                        )}
                                     </span>
+                                    {hasCollateral && collateralVal > 0 && requestedLoanAmt > 0 && (
+                                        <span className="text-[10px] font-semibold text-slate-500 mt-1 block">
+                                            Collateral Coverage: {Math.round((collateralVal / requestedLoanAmt) * 100)}% of requested loan amount
+                                        </span>
+                                    )}
                                 </div>
                             </div>
                         </div>

@@ -41,6 +41,46 @@ function DossierLayoutInner({ children }: { children: React.ReactNode }) {
     const router = useRouter();
     const pathname = usePathname();
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [emailWarning, setEmailWarning] = useState("");
+
+    const handleEmailInput = (raw: string) => {
+        const lowered = raw.toLowerCase();
+        setCoAppEmail(lowered);
+        if (!raw) {
+            setEmailWarning("");
+            return;
+        }
+        if (/[A-Z]/.test(raw)) {
+            setEmailWarning("Email addresses must be lowercase. Auto-corrected to lowercase.");
+            return;
+        }
+        if (/[^a-z0-9._%+\-@]/.test(lowered)) {
+            setEmailWarning("Email contains invalid characters. Only letters, digits, and . _ % + - @ allowed.");
+            return;
+        }
+        setEmailWarning("");
+    };
+
+    const handlePhoneInput = (val: string) => {
+        let clean = val;
+        if (clean.startsWith("+91")) clean = clean.slice(3);
+        else if (clean.startsWith("+")) clean = clean.slice(1);
+        clean = clean.replace(/\D/g, "");
+        if (clean.length === 12 && clean.startsWith("91")) clean = clean.slice(2);
+        else if (clean.length === 11 && clean.startsWith("0")) clean = clean.slice(1);
+        setCoAppPhone(clean.slice(0, 10));
+    };
+
+    const handleIncomeInput = (val: string) => {
+        const clean = val.replace(/\D/g, "").slice(0, 8);
+        setCoAppIncome(clean);
+    };
+
+    useEffect(() => {
+        if (!isCoAppModalOpen) {
+            setEmailWarning("");
+        }
+    }, [isCoAppModalOpen]);
 
     const handleRefresh = () => {
         setIsRefreshing(true);
@@ -306,37 +346,104 @@ function DossierLayoutInner({ children }: { children: React.ReactNode }) {
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-[9px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Annual Income (INR)</label>
-                                    <input
-                                        type="number"
-                                        value={coAppIncome}
-                                        onChange={(e) => setCoAppIncome(e.target.value)}
-                                        placeholder="Example: 600000"
-                                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                                    />
+                                    <div className="flex justify-between items-center mb-1.5">
+                                        <label className="block text-[9px] font-black uppercase tracking-wider text-slate-500">Annual Income (INR)</label>
+                                        <span className="text-[9px] font-semibold text-slate-400">
+                                            {coAppIncome ? `${coAppIncome.length}/8 digits` : "Max 8 digits"}
+                                        </span>
+                                    </div>
+                                    <div className="relative">
+                                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
+                                        <input
+                                            type="text"
+                                            inputMode="numeric"
+                                            maxLength={8}
+                                            value={coAppIncome}
+                                            onChange={(e) => handleIncomeInput(e.target.value)}
+                                            placeholder="Example: 600000"
+                                            className="w-full pl-8 pr-3 py-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-mono"
+                                        />
+                                    </div>
+                                    {coAppIncome ? (
+                                        <p className="text-[10px] text-indigo-600 font-semibold mt-1">
+                                            ₹{Number(coAppIncome).toLocaleString('en-IN')} / year
+                                        </p>
+                                    ) : null}
                                 </div>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-[9px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Phone Number</label>
-                                    <input
-                                        type="tel"
-                                        value={coAppPhone}
-                                        onChange={(e) => setCoAppPhone(e.target.value)}
-                                        placeholder="Enter 10-digit mobile number"
-                                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                                    />
+                                    <div className="flex justify-between items-center mb-1.5">
+                                        <label className="block text-[9px] font-black uppercase tracking-wider text-slate-500">Phone Number (India)</label>
+                                        <span className={`text-[9px] font-semibold ${coAppPhone?.length === 10 ? "text-emerald-600 font-bold" : "text-slate-400"}`}>
+                                            {coAppPhone?.length || 0}/10 digits
+                                        </span>
+                                    </div>
+                                    <div className="flex rounded-xl overflow-hidden shadow-2xs border border-gray-200 focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 transition-all">
+                                        <div className="inline-flex items-center gap-1.5 px-3 py-3 bg-gray-100/90 border-r border-gray-200 text-xs font-bold text-slate-700 select-none shrink-0">
+                                            <span className="text-base leading-none">🇮🇳</span>
+                                            <span>+91</span>
+                                        </div>
+                                        <div className="relative flex-1 bg-gray-50">
+                                            <input
+                                                type="tel"
+                                                inputMode="numeric"
+                                                maxLength={10}
+                                                value={coAppPhone}
+                                                onChange={(e) => handlePhoneInput(e.target.value)}
+                                                placeholder="98765 43210"
+                                                className="w-full p-3 bg-transparent text-xs font-semibold text-slate-800 focus:outline-none pr-8 font-mono"
+                                            />
+                                            {coAppPhone?.length === 10 && /^[6-9]/.test(coAppPhone) && (
+                                                <span className="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 text-emerald-500 text-[18px]">
+                                                    check_circle
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    {coAppPhone && coAppPhone.length > 0 && !/^[6-9]/.test(coAppPhone) ? (
+                                        <p className="text-[10px] text-amber-600 font-medium mt-1 flex items-center gap-1">
+                                            <span className="material-symbols-outlined text-[13px]">warning</span>
+                                            Indian mobile numbers start with 6, 7, 8, or 9
+                                        </p>
+                                    ) : coAppPhone?.length === 10 ? (
+                                        <p className="text-[10px] text-emerald-600 font-medium mt-1 flex items-center gap-1">
+                                            <span className="material-symbols-outlined text-[13px]">check_circle</span>
+                                            Valid Indian number (+91 {coAppPhone.slice(0, 5)} {coAppPhone.slice(5)})
+                                        </p>
+                                    ) : coAppPhone && coAppPhone.length > 0 ? (
+                                        <p className="text-[10px] text-slate-400 font-medium mt-1">
+                                            Enter 10-digit Indian mobile ({10 - coAppPhone.length} more digits)
+                                        </p>
+                                    ) : null}
                                 </div>
                                 <div>
                                     <label className="block text-[9px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Email Address</label>
-                                    <input
-                                        type="email"
-                                        value={coAppEmail}
-                                        onChange={(e) => setCoAppEmail(e.target.value)}
-                                        placeholder="example@mail.com"
-                                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                                    />
+                                    <div className="relative">
+                                        <input
+                                            type="email"
+                                            value={coAppEmail}
+                                            onChange={(e) => handleEmailInput(e.target.value)}
+                                            placeholder="example@mail.com"
+                                            className={`w-full p-3 bg-gray-50 border rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 transition-all ${
+                                                emailWarning
+                                                    ? "border-amber-400 focus:ring-amber-500/20 focus:border-amber-500"
+                                                    : "border-gray-200 focus:ring-indigo-500/20 focus:border-indigo-500"
+                                            }`}
+                                        />
+                                        {coAppEmail && !emailWarning && /^[a-z0-9._%+\-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(coAppEmail) && (
+                                            <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-emerald-500 text-[18px]">
+                                                check_circle
+                                            </span>
+                                        )}
+                                    </div>
+                                    {emailWarning && (
+                                        <p className="text-[10px] text-amber-600 font-medium mt-1 flex items-center gap-1">
+                                            <span className="material-symbols-outlined text-[13px]">warning</span>
+                                            {emailWarning}
+                                        </p>
+                                    )}
                                 </div>
                             </div>
                         </div>

@@ -6,12 +6,35 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { adminApi } from "@/lib/api";
 
-type BlockType = "heading" | "container" | "text" | "image" | "video" | "button" | "list" | "quote" | "code" | "divider" | "spacer" | "tags";
+type BlockType = "heading" | "container" | "split_content" | "text" | "image" | "video" | "button" | "list" | "quote" | "code" | "divider" | "spacer" | "tags";
+
+interface SplitConfig {
+    layoutType: "image_text" | "text_text" | "text_image";
+    ratio?: "50_50" | "40_60" | "60_40" | "33_67";
+    verticalAlign?: "top" | "center" | "bottom";
+    cardStyle?: "clean" | "card" | "gradient" | "bordered";
+    leftTitle?: string;
+    leftContent?: string;
+    leftImageUrl?: string;
+    leftImageCaption?: string;
+    leftImageAlt?: string;
+    leftItems?: string[];
+    rightTitle?: string;
+    rightContent?: string;
+    rightImageUrl?: string;
+    rightImageCaption?: string;
+    rightImageAlt?: string;
+    rightItems?: string[];
+    buttonText?: string;
+    buttonUrl?: string;
+    buttonNewTab?: boolean;
+}
 
 interface Block {
     id: string;
     type: BlockType;
     content: string;
+    splitConfig?: SplitConfig;
     style?: {
         fontSize?: string;
         fontFamily?: string;
@@ -29,6 +52,7 @@ interface Block {
 
 const ELEMENT_TYPES: { type: BlockType; label: string; icon: string; color: string; desc: string }[] = [
     { type: "heading", label: "Heading", icon: "title", color: "blue", desc: "Drag to add" },
+    { type: "split_content", label: "Split 2-Column", icon: "view_column", color: "indigo", desc: "Left/right matter or image & content" },
     { type: "container", label: "Container", icon: "view_agenda", color: "purple", desc: "Drag to add" },
     { type: "text", label: "Text & Live Editor", icon: "text_fields", color: "green", desc: "Drag to add" },
     { type: "image", label: "Image", icon: "image", color: "orange", desc: "Drag to add" },
@@ -283,6 +307,7 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
         const defaults: Record<BlockType, string> = {
             heading: "New Heading",
             container: "",
+            split_content: "",
             text: "Enter your text here...",
             image: "https://images.unsplash.com/photo-1434030216411-0b793f4b4173?q=80&w=800",
             video: "https://www.youtube.com/embed/dQw4w9WgXcQ",
@@ -294,11 +319,56 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
             spacer: "",
             tags: "iPhoneAir, PriceDrop, AmazonDeals, TechNews",
         };
+
+        const defaultSplitConfig: SplitConfig = {
+            layoutType: "image_text",
+            ratio: "50_50",
+            verticalAlign: "center",
+            cardStyle: "clean",
+            leftTitle: "Study Abroad Opportunities",
+            leftContent: "Explore thousands of globally accredited programs across top universities worldwide with comprehensive counselor guidance.",
+            leftImageUrl: "https://images.unsplash.com/photo-1523240795612-9a054b0db644?q=80&w=800",
+            leftImageCaption: "Campus academic excellence & global careers",
+            leftImageAlt: "University students on campus",
+            leftItems: ["100% Comprehensive funding", "Verified bank partners"],
+            rightTitle: "Collateral-Free Education Loans",
+            rightContent: "Secure up to ₹75 Lakhs without submitting physical property collateral. Fast approval in 48 hours with low rates.",
+            rightItems: [
+                "Up to ₹75 Lakhs collateral-free limit",
+                "Interest rate from 8.5% p.a. with 80E tax deduction",
+                "Moratorium: Course duration + 6-12 months",
+            ],
+            buttonText: "Check Eligibility & Apply",
+            buttonUrl: "/apply",
+            buttonNewTab: true,
+        };
+
         return {
             id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
             type,
             content: defaults[type],
+            splitConfig: (type === "split_content" || type === "container") ? defaultSplitConfig : undefined,
         };
+    };
+
+    const updateSplitConfig = (blockId: string, updates: Partial<SplitConfig>) => {
+        setBlocks((prev) =>
+            prev.map((b) => {
+                if (b.id !== blockId) return b;
+                return {
+                    ...b,
+                    splitConfig: {
+                        ...(b.splitConfig || {
+                            layoutType: "image_text",
+                            ratio: "50_50",
+                            verticalAlign: "center",
+                            cardStyle: "clean",
+                        }),
+                        ...updates,
+                    },
+                };
+            })
+        );
     };
 
     // Drag handlers for sidebar elements
@@ -476,8 +546,46 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
                             return `<hr class="my-10 border-gray-200" />`;
                         case "spacer":
                             return `<div class="h-12"></div>`;
-                        case "container":
-                            return `<div class="p-6 bg-gray-50 rounded-xl my-6">${b.content}</div>`;
+                        case "split_content":
+                        case "container": {
+                            const config = b.splitConfig || {};
+                            const layout = config.layoutType || "image_text";
+                            const ratio = config.ratio || "50_50";
+                            let leftSpan = "md:col-span-6";
+                            let rightSpan = "md:col-span-6";
+                            if (ratio === "40_60") { leftSpan = "md:col-span-5"; rightSpan = "md:col-span-7"; }
+                            else if (ratio === "60_40") { leftSpan = "md:col-span-7"; rightSpan = "md:col-span-5"; }
+                            else if (ratio === "33_67") { leftSpan = "md:col-span-4"; rightSpan = "md:col-span-8"; }
+
+                            const renderImg = (url?: string, caption?: string) => `
+                                <div class="rounded-2xl overflow-hidden shadow-md border border-slate-200 bg-slate-100">
+                                    <img src="${url || 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?q=80&w=800'}" class="w-full h-full object-cover max-h-[420px]" alt="Blog visual" />
+                                    ${caption ? `<div class="p-2 bg-slate-900/70 text-white text-[11px] text-center">${caption}</div>` : ''}
+                                </div>`;
+
+                            const renderTxt = (title?: string, content?: string, items?: string[], btnText?: string, btnUrl?: string) => `
+                                <div class="flex flex-col justify-center">
+                                    ${title ? `<h3 class="text-2xl font-bold text-slate-900 mb-2">${title}</h3>` : ''}
+                                    ${content ? `<p class="text-slate-600 text-sm leading-relaxed mb-4">${content}</p>` : ''}
+                                    ${(items && items.length > 0) ? `<ul class="space-y-1.5 mb-4 pl-0 list-none">${items.map(it => `<li class="flex items-center gap-2 text-xs text-slate-700 font-medium"><span class="text-emerald-500 font-bold">✓</span><span>${it}</span></li>`).join('')}</ul>` : ''}
+                                    ${btnText ? `<div class="pt-1"><a href="${btnUrl || '#'}" class="inline-block px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-bold shadow-md hover:bg-indigo-700">${btnText} &rarr;</a></div>` : ''}
+                                </div>`;
+
+                            let leftHtml = "";
+                            let rightHtml = "";
+                            if (layout === "image_text") {
+                                leftHtml = renderImg(config.leftImageUrl, config.leftImageCaption);
+                                rightHtml = renderTxt(config.rightTitle, config.rightContent, config.rightItems, config.buttonText, config.buttonUrl);
+                            } else if (layout === "text_image") {
+                                leftHtml = renderTxt(config.leftTitle, config.leftContent, config.leftItems, config.buttonText, config.buttonUrl);
+                                rightHtml = renderImg(config.rightImageUrl, config.rightImageCaption);
+                            } else {
+                                leftHtml = renderTxt(config.leftTitle, config.leftContent, config.leftItems);
+                                rightHtml = renderTxt(config.rightTitle, config.rightContent, config.rightItems, config.buttonText, config.buttonUrl);
+                            }
+
+                            return `<div class="blog-split-container not-prose my-8 p-6 bg-slate-50/70 rounded-3xl border border-slate-200/80"><div class="grid grid-cols-1 md:grid-cols-12 gap-8 items-center"><div class="${leftSpan}">${leftHtml}</div><div class="${rightSpan}">${rightHtml}</div></div></div>`;
+                        }
                         case "tags": {
                             const tagList = (b.content || "").split(",").map((t) => t.trim()).filter(Boolean);
                             const pills = tagList.map((t) => `<span class="inline-block px-3 py-1 bg-purple-50 text-purple-700 text-xs font-bold rounded-full mr-2 mb-2 border border-purple-200">#${t.replace(/^#/, "")}</span>`).join("");
@@ -804,11 +912,225 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
             case "spacer":
                 return <div className="h-12 border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center text-gray-400 text-sm">Spacer</div>;
             case "container":
+            case "split_content": {
+                const config = block.splitConfig || {
+                    layoutType: "image_text",
+                    ratio: "50_50",
+                    leftTitle: "Left Title / Heading",
+                    leftContent: "Left side matter and paragraph details...",
+                    leftImageUrl: "https://images.unsplash.com/photo-1523240795612-9a054b0db644?q=80&w=800",
+                    rightTitle: "Right Title / Heading",
+                    rightContent: "Right side matter and paragraph details...",
+                    rightItems: ["First key highlight", "Second key benefit"],
+                    buttonText: "Learn More & Apply",
+                    buttonUrl: "/apply",
+                };
+                const layout = config.layoutType || "image_text";
+                const ratio = config.ratio || "50_50";
+
+                let leftColSpan = "w-full md:w-1/2";
+                let rightColSpan = "w-full md:w-1/2";
+                if (ratio === "40_60") { leftColSpan = "w-full md:w-5/12"; rightColSpan = "w-full md:w-7/12"; }
+                else if (ratio === "60_40") { leftColSpan = "w-full md:w-7/12"; rightColSpan = "w-full md:w-5/12"; }
+                else if (ratio === "33_67") { leftColSpan = "w-full md:w-4/12"; rightColSpan = "w-full md:w-8/12"; }
+
                 return (
-                    <div className="p-6 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
-                        <p className="text-gray-400 text-sm">Container - Drop elements here</p>
+                    <div className="p-5 bg-gradient-to-br from-slate-50 to-indigo-50/30 rounded-2xl border-2 border-indigo-200/80 shadow-xs space-y-4">
+                        {/* Control Bar: Mode, Ratio, Swap */}
+                        <div className="flex items-center justify-between gap-2 flex-wrap border-b border-indigo-100 pb-3">
+                            <div className="flex items-center gap-2">
+                                <span className="px-2.5 py-1 bg-indigo-600 text-white text-[10px] font-black uppercase tracking-wider rounded-md flex items-center gap-1">
+                                    <span className="material-symbols-outlined text-[13px]">view_column</span>
+                                    2-Column Split
+                                </span>
+                                <div className="flex items-center bg-white p-0.5 rounded-lg border border-slate-200 text-xs font-bold">
+                                    <button
+                                        type="button"
+                                        onClick={() => updateSplitConfig(block.id, { layoutType: "image_text" })}
+                                        className={`px-2 py-1 rounded transition-colors ${layout === "image_text" ? "bg-indigo-600 text-white font-black" : "text-slate-600 hover:text-slate-900"}`}
+                                    >
+                                        🖼️ Left Image + 📝 Right Content
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => updateSplitConfig(block.id, { layoutType: "text_text" })}
+                                        className={`px-2 py-1 rounded transition-colors ${layout === "text_text" ? "bg-indigo-600 text-white font-black" : "text-slate-600 hover:text-slate-900"}`}
+                                    >
+                                        📝 Left Matter + 📝 Right Matter
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => updateSplitConfig(block.id, { layoutType: "text_image" })}
+                                        className={`px-2 py-1 rounded transition-colors ${layout === "text_image" ? "bg-indigo-600 text-white font-black" : "text-slate-600 hover:text-slate-900"}`}
+                                    >
+                                        📝 Left Content + 🖼️ Right Image
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                {/* Ratio Selector */}
+                                <div className="flex items-center bg-white p-0.5 rounded-lg border border-slate-200 text-[10px] font-bold">
+                                    {(["50_50", "40_60", "60_40", "33_67"] as const).map((r) => (
+                                        <button
+                                            key={r}
+                                            type="button"
+                                            onClick={() => updateSplitConfig(block.id, { ratio: r })}
+                                            className={`px-1.5 py-0.5 rounded ${ratio === r ? "bg-indigo-100 text-indigo-700 font-black" : "text-slate-500"}`}
+                                        >
+                                            {r.replace("_", ":")}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {/* Swap Button */}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        if (layout === "image_text") {
+                                            updateSplitConfig(block.id, { layoutType: "text_image" });
+                                        } else if (layout === "text_image") {
+                                            updateSplitConfig(block.id, { layoutType: "image_text" });
+                                        } else {
+                                            // swap contents
+                                            updateSplitConfig(block.id, {
+                                                leftTitle: config.rightTitle,
+                                                leftContent: config.rightContent,
+                                                rightTitle: config.leftTitle,
+                                                rightContent: config.leftContent,
+                                            });
+                                        }
+                                    }}
+                                    className="px-2.5 py-1 bg-white hover:bg-slate-50 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer"
+                                    title="Swap Left and Right Columns"
+                                >
+                                    <span className="material-symbols-outlined text-[14px]">swap_horiz</span>
+                                    Swap Sides
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Interactive Columns Preview */}
+                        <div className="flex flex-col md:flex-row gap-6 items-center">
+                            {/* LEFT COLUMN */}
+                            <div className={`${leftColSpan} space-y-3`}>
+                                {(layout === "image_text") ? (
+                                    <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-2">
+                                        <div className="relative rounded-lg overflow-hidden border border-slate-200 group bg-slate-900 h-44">
+                                            <img
+                                                src={config.leftImageUrl || "https://images.unsplash.com/photo-1523240795612-9a054b0db644?q=80&w=800"}
+                                                alt={config.leftImageAlt || "Left side image"}
+                                                className="w-full h-full object-cover"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold uppercase text-slate-500">Left Image URL</label>
+                                            <input
+                                                type="text"
+                                                value={config.leftImageUrl || ""}
+                                                onChange={(e) => updateSplitConfig(block.id, { leftImageUrl: e.target.value })}
+                                                placeholder="https://images.unsplash.com/..."
+                                                className="w-full px-2.5 py-1 text-xs border border-slate-200 rounded-lg text-slate-800 font-mono"
+                                            />
+                                        </div>
+                                        <input
+                                            type="text"
+                                            value={config.leftImageCaption || ""}
+                                            onChange={(e) => updateSplitConfig(block.id, { leftImageCaption: e.target.value })}
+                                            placeholder="Caption under left image (optional)..."
+                                            className="w-full px-2.5 py-1 text-xs border border-slate-200 rounded-lg text-slate-600 italic"
+                                        />
+                                    </div>
+                                ) : (
+                                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-2">
+                                        <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 block">Left Matter / Content</span>
+                                        <input
+                                            type="text"
+                                            value={config.leftTitle || ""}
+                                            onChange={(e) => updateSplitConfig(block.id, { leftTitle: e.target.value })}
+                                            placeholder="Left Side Heading..."
+                                            className="w-full font-bold text-base text-slate-900 border-b border-slate-200 pb-1 focus:outline-none focus:border-indigo-500"
+                                        />
+                                        <textarea
+                                            value={config.leftContent || ""}
+                                            onChange={(e) => updateSplitConfig(block.id, { leftContent: e.target.value })}
+                                            placeholder="Left side matter description and content details..."
+                                            rows={3}
+                                            className="w-full text-xs text-slate-700 leading-relaxed border border-slate-200 rounded-lg p-2 focus:outline-none focus:border-indigo-500"
+                                        />
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* RIGHT COLUMN */}
+                            <div className={`${rightColSpan} space-y-3`}>
+                                {(layout === "text_image") ? (
+                                    <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-2">
+                                        <div className="relative rounded-lg overflow-hidden border border-slate-200 group bg-slate-900 h-44">
+                                            <img
+                                                src={config.rightImageUrl || "https://images.unsplash.com/photo-1523240795612-9a054b0db644?q=80&w=800"}
+                                                alt={config.rightImageAlt || "Right side image"}
+                                                className="w-full h-full object-cover"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold uppercase text-slate-500">Right Image URL</label>
+                                            <input
+                                                type="text"
+                                                value={config.rightImageUrl || ""}
+                                                onChange={(e) => updateSplitConfig(block.id, { rightImageUrl: e.target.value })}
+                                                placeholder="https://images.unsplash.com/..."
+                                                className="w-full px-2.5 py-1 text-xs border border-slate-200 rounded-lg text-slate-800 font-mono"
+                                            />
+                                        </div>
+                                        <input
+                                            type="text"
+                                            value={config.rightImageCaption || ""}
+                                            onChange={(e) => updateSplitConfig(block.id, { rightImageCaption: e.target.value })}
+                                            placeholder="Caption under right image (optional)..."
+                                            className="w-full px-2.5 py-1 text-xs border border-slate-200 rounded-lg text-slate-600 italic"
+                                        />
+                                    </div>
+                                ) : (
+                                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-2">
+                                        <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 block">Right Matter / Content</span>
+                                        <input
+                                            type="text"
+                                            value={config.rightTitle || ""}
+                                            onChange={(e) => updateSplitConfig(block.id, { rightTitle: e.target.value })}
+                                            placeholder="Right Side Heading..."
+                                            className="w-full font-bold text-base text-slate-900 border-b border-slate-200 pb-1 focus:outline-none focus:border-indigo-500"
+                                        />
+                                        <textarea
+                                            value={config.rightContent || ""}
+                                            onChange={(e) => updateSplitConfig(block.id, { rightContent: e.target.value })}
+                                            placeholder="Right side matter description and content details..."
+                                            rows={3}
+                                            className="w-full text-xs text-slate-700 leading-relaxed border border-slate-200 rounded-lg p-2 focus:outline-none focus:border-indigo-500"
+                                        />
+                                        <div className="flex items-center gap-2 pt-1">
+                                            <input
+                                                type="text"
+                                                value={config.buttonText || ""}
+                                                onChange={(e) => updateSplitConfig(block.id, { buttonText: e.target.value })}
+                                                placeholder="Button label (optional)..."
+                                                className="w-1/2 px-2.5 py-1 text-xs border border-slate-200 rounded-lg text-slate-800"
+                                            />
+                                            <input
+                                                type="text"
+                                                value={config.buttonUrl || ""}
+                                                onChange={(e) => updateSplitConfig(block.id, { buttonUrl: e.target.value })}
+                                                placeholder="Button URL (/apply)..."
+                                                className="w-1/2 px-2.5 py-1 text-xs border border-slate-200 rounded-lg text-slate-800 font-mono"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 );
+            }
             case "tags": {
                 const tagList = (block.content || "").split(",").map((t) => t.trim()).filter(Boolean);
                 return (

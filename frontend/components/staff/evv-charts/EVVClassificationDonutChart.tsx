@@ -27,7 +27,7 @@ export const EVVClassificationDonutChart: React.FC<EVVClassificationDonutChartPr
   classification,
   size = 280,
 }) => {
-  const [chartType, setChartType] = useState<"bars" | "donut">("donut");
+  const [chartType, setChartType] = useState<"donut" | "bars">("donut");
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
   const src = data || classification;
@@ -39,66 +39,93 @@ export const EVVClassificationDonutChart: React.FC<EVVClassificationDonutChartPr
   const passThroughVal = src.passThroughTotal ?? src.atmCashWithdrawals ?? 0;
   const debitsVal = src.normalDebitsTotal ?? src.otherDebits ?? 0;
 
+  // Semantic Financial Palette:
+  // Verified Salary Credits: Emerald Green (#10b981)
+  // Other Digital Credits: Azure Blue (#3b82f6)
+  // Physical Cash Deposits: Amber/Orange (#f59e0b)
+  // Pass-Through / Outflows: Rose (#e11d48)
+  // Regular Operating Debits: Slate (#64748b)
   const slices = [
     {
+      id: "salary",
       label: "Verified Salary Credits",
       value: salaryVal,
-      color: "#4F46E5",
-      gradStart: "#818CF8",
-      gradEnd: "#4F46E5",
-      icon: "account_balance",
+      color: "#10b981",
+      dotClass: "bg-emerald-500",
+      activeBg: "bg-emerald-50/50 border-emerald-100",
+      activeBadge: "bg-emerald-100 text-emerald-700",
+      gradStart: "#34d399",
+      gradEnd: "#10b981",
+      icon: "payments",
       category: "credit",
     },
     {
+      id: "digital",
       label: "Other Digital Credits",
       value: onlineCreditsVal,
-      color: "#06B6D4",
-      gradStart: "#22D3EE",
-      gradEnd: "#0891B2",
-      icon: "arrow_downward",
+      color: "#3b82f6",
+      dotClass: "bg-blue-500",
+      activeBg: "bg-blue-50/50 border-blue-100",
+      activeBadge: "bg-blue-100 text-blue-700",
+      gradStart: "#60a5fa",
+      gradEnd: "#3b82f6",
+      icon: "account_balance_wallet",
       category: "credit",
     },
     {
+      id: "cash",
       label: "Physical Cash Deposits",
       value: cashVal,
-      color: "#F59E0B",
-      gradStart: "#FBBF24",
-      gradEnd: "#D97706",
-      icon: "payments",
+      color: "#f59e0b",
+      dotClass: "bg-amber-500",
+      activeBg: "bg-amber-50/50 border-amber-100",
+      activeBadge: "bg-amber-100 text-amber-700",
+      gradStart: "#fbbf24",
+      gradEnd: "#f59e0b",
+      icon: "local_atm",
       category: "cash",
     },
     {
+      id: "passThrough",
       label: "Pass-Through / Outflows",
       value: passThroughVal,
-      color: "#FB7185",
-      gradStart: "#FDA4AF",
-      gradEnd: "#E11D48",
+      color: "#e11d48",
+      dotClass: "bg-rose-500",
+      activeBg: "bg-rose-50/50 border-rose-100",
+      activeBadge: "bg-rose-100 text-rose-700",
+      gradStart: "#fb7185",
+      gradEnd: "#e11d48",
       icon: "swap_horiz",
       category: "debit",
     },
     {
+      id: "debits",
       label: "Regular Operating Debits",
       value: debitsVal,
-      color: "#94A3B8",
-      gradStart: "#CBD5E1",
-      gradEnd: "#64748B",
-      icon: "shopping_bag",
+      color: "#64748b",
+      dotClass: "bg-slate-500",
+      activeBg: "bg-slate-50 border-slate-200",
+      activeBadge: "bg-slate-100 text-slate-700",
+      gradStart: "#94a3b8",
+      gradEnd: "#64748b",
+      icon: "receipt_long",
       category: "debit",
     },
   ];
 
-  const totalVal = slices.reduce((acc, s) => acc + s.value, 0) || 1;
+  const totalVal = slices.reduce((acc, s) => acc + s.value, 0);
+  const effectiveTotal = totalVal > 0 ? totalVal : 1;
   const maxVal = Math.max(...slices.map((s) => s.value), 1);
 
-  // SVG Donut geometry: 65% inner radius for modern thin ring
+  // SVG Donut geometry
   const cx = 140;
   const cy = 140;
   const outerR = 120;
-  const innerR = 80; // 66.6% inner radius
+  const innerR = 82;
 
   let currentAngle = 0;
   const slicePaths = slices.map((slice) => {
-    const angleSpan = (slice.value / totalVal) * 360;
+    const angleSpan = totalVal > 0 ? (slice.value / effectiveTotal) * 360 : 0;
     const startA = currentAngle;
     const endA = currentAngle + angleSpan;
     currentAngle = endA;
@@ -118,73 +145,72 @@ export const EVVClassificationDonutChart: React.FC<EVVClassificationDonutChartPr
 
     const largeArc = angleSpan > 180 ? 1 : 0;
 
-    const pathData = [
-      `M ${x1Inner} ${y1Inner}`,
-      `L ${x1Outer} ${y1Outer}`,
-      `A ${outerR} ${outerR} 0 ${largeArc} 1 ${x2Outer} ${y2Outer}`,
-      `L ${x2Inner} ${y2Inner}`,
-      `A ${innerR} ${innerR} 0 ${largeArc} 0 ${x1Inner} ${y1Inner}`,
-      "Z",
-    ].join(" ");
+    const pathData =
+      angleSpan >= 359.99
+        ? `M ${cx} ${cy - outerR} A ${outerR} ${outerR} 0 1 1 ${cx - 0.01} ${cy - outerR} L ${cx - 0.01} ${cy - innerR} A ${innerR} ${innerR} 0 1 0 ${cx} ${cy - innerR} Z`
+        : angleSpan > 0
+        ? [
+            `M ${x1Inner} ${y1Inner}`,
+            `L ${x1Outer} ${y1Outer}`,
+            `A ${outerR} ${outerR} 0 ${largeArc} 1 ${x2Outer} ${y2Outer}`,
+            `L ${x2Inner} ${y2Inner}`,
+            `A ${innerR} ${innerR} 0 ${largeArc} 0 ${x1Inner} ${y1Inner}`,
+            "Z",
+          ].join(" ")
+        : "";
 
     return {
       pathData,
       slice,
-      pct: ((slice.value / totalVal) * 100).toFixed(1),
+      pct: totalVal > 0 ? ((slice.value / totalVal) * 100).toFixed(1) : "0.0",
     };
   });
 
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05),0_2px_4px_-1px_rgba(0,0,0,0.03)] space-y-4 select-none font-sans">
-      {/* Header with Subtle Switcher */}
-      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 border-b border-slate-100 pb-4">
+    <div className="w-full rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+      {/* Header & Controls */}
+      <div className="flex justify-between items-center mb-6">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-[#4F46E5] text-lg">donut_small</span>
-            <h4 className="text-[13px] font-semibold text-[#475569] uppercase tracking-wider font-sans">
-              Transaction Volume & Classification
-            </h4>
-          </div>
-          <p className="text-[11px] text-slate-500 font-medium mt-0.5">
-            Breakdown of statement funds across digital salary, physical cash, and pass-through outflows
-          </p>
+          <h3 className="text-lg font-bold text-gray-900">Transaction Volume & Classification</h3>
+          <p className="text-sm text-gray-500">Breakdown of statement funds</p>
         </div>
 
-        {/* View Switcher: Soft Purple Active, Light Gray Unselected */}
-        <div className="flex items-center bg-[#F1F5F9] p-1 rounded-xl gap-1">
+        {/* Segmented Control */}
+        <div className="flex bg-gray-100 p-1 rounded-lg">
           <button
             type="button"
             onClick={() => setChartType("donut")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-4 py-1.5 text-sm font-medium rounded-md cursor-pointer transition-all duration-200 ${
               chartType === "donut"
-                ? "bg-[#EEF2FF] text-[#4F46E5] shadow-xs"
-                : "text-slate-600 hover:text-slate-900"
+                ? "bg-white shadow text-gray-900"
+                : "text-gray-500 hover:text-gray-900"
             }`}
           >
-            <span className="material-symbols-outlined text-sm">donut_large</span>
-            <span>Donut</span>
+            Donut
           </button>
           <button
             type="button"
             onClick={() => setChartType("bars")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-4 py-1.5 text-sm font-medium rounded-md cursor-pointer transition-all duration-200 ${
               chartType === "bars"
-                ? "bg-[#EEF2FF] text-[#4F46E5] shadow-xs"
-                : "text-slate-600 hover:text-slate-900"
+                ? "bg-white shadow text-gray-900"
+                : "text-gray-500 hover:text-gray-900"
             }`}
           >
-            <span className="material-symbols-outlined text-sm">bar_chart</span>
-            <span>Bar Graph</span>
+            Bar Graph
           </button>
         </div>
       </div>
 
-      {/* MODE 1: DONUT CHART VIEW (DEFAULT) */}
+      {/* Main Content Grid */}
       {chartType === "donut" ? (
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-6 py-2">
-          {/* Donut Container with Floating Glass Tooltip */}
-          <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
-            <svg viewBox="0 0 280 280" className="w-full h-full transform -rotate-90 overflow-visible">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+          {/* Chart Container */}
+          <div className="relative flex justify-center items-center h-64 sm:h-72">
+            <svg
+              viewBox="0 0 280 280"
+              className="w-60 h-60 sm:w-64 sm:h-64 transform -rotate-90 overflow-visible"
+            >
               <defs>
                 {slices.map((s, idx) => (
                   <linearGradient key={idx} id={`donutGrad-${idx}`} x1="0" y1="0" x2="1" y2="1">
@@ -192,12 +218,24 @@ export const EVVClassificationDonutChart: React.FC<EVVClassificationDonutChartPr
                     <stop offset="100%" stopColor={s.gradEnd} />
                   </linearGradient>
                 ))}
-                <filter id="donutHoverGlow" x="-20%" y="-20%" width="140%" height="140%">
-                  <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="#6366F1" floodOpacity="0.4" />
+                <filter id="sliceHoverGlow" x="-20%" y="-20%" width="140%" height="140%">
+                  <feDropShadow dx="0" dy="0" stdDeviation="3.5" floodColor="#3b82f6" floodOpacity="0.3" />
                 </filter>
               </defs>
 
+              {totalVal === 0 && (
+                <circle
+                  cx={cx}
+                  cy={cy}
+                  r={(outerR + innerR) / 2}
+                  fill="none"
+                  stroke="#F1F5F9"
+                  strokeWidth={outerR - innerR}
+                />
+              )}
+
               {slicePaths.map((item, idx) => {
+                if (!item.pathData) return null;
                 const isHovered = hoveredIdx === idx;
                 const isDimmed = hoveredIdx !== null && !isHovered;
 
@@ -209,11 +247,11 @@ export const EVVClassificationDonutChart: React.FC<EVVClassificationDonutChartPr
                     stroke="#FFFFFF"
                     strokeWidth="2.5"
                     strokeLinejoin="round"
-                    filter={isHovered ? "url(#donutHoverGlow)" : undefined}
-                    className="transition-all duration-200 cursor-pointer"
+                    filter={isHovered ? "url(#sliceHoverGlow)" : undefined}
+                    className="transition-all duration-300 ease-in-out cursor-pointer"
                     style={{
-                      opacity: isDimmed ? 0.65 : 1,
-                      transform: isHovered ? "scale(1.02)" : "scale(1)",
+                      opacity: isDimmed ? 0.5 : 1,
+                      transform: isHovered ? "scale(1.03)" : "scale(1)",
                       transformOrigin: "140px 140px",
                     }}
                     onMouseEnter={() => setHoveredIdx(idx)}
@@ -223,68 +261,81 @@ export const EVVClassificationDonutChart: React.FC<EVVClassificationDonutChartPr
               })}
             </svg>
 
-            {/* Dynamic Center Aggregate Content */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center px-4">
-              {hoveredIdx !== null ? (
-                <div className="animate-in fade-in zoom-in-95 duration-150 space-y-0.5">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block truncate max-w-[120px]">
-                    {slices[hoveredIdx].label}
-                  </span>
-                  <span className="text-base font-extrabold text-slate-900 font-mono tracking-tight block">
-                    ₹{Math.round(slices[hoveredIdx].value).toLocaleString("en-IN")}
-                  </span>
-                  <span className="inline-block px-2 py-0.5 rounded-full text-[9px] font-bold bg-indigo-50 text-indigo-700">
-                    {slicePaths[hoveredIdx].pct}% Share
-                  </span>
-                </div>
-              ) : (
-                <div className="space-y-0.5">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                    Total Volume
-                  </span>
-                  <span className="text-base font-extrabold text-slate-900 font-mono tracking-tight block">
-                    ₹{Math.round(totalVal).toLocaleString("en-IN")}
-                  </span>
-                  <span className="text-[10px] font-medium text-slate-400 block">
-                    {slices.length} Categories
-                  </span>
-                </div>
+            {/* Centralized Total Inside Donut Hole */}
+            <div className="absolute text-center pointer-events-none select-none">
+              <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-0.5">
+                {hoveredIdx !== null ? slices[hoveredIdx].label : "Total Volume"}
+              </p>
+              <p className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">
+                ₹{Math.round(hoveredIdx !== null ? slices[hoveredIdx].value : totalVal).toLocaleString("en-IN")}
+              </p>
+              {hoveredIdx !== null && (
+                <p className="text-xs font-semibold text-blue-600 mt-0.5">
+                  {slicePaths[hoveredIdx].pct}% Share
+                </p>
               )}
             </div>
           </div>
 
-          {/* Donut Legend Cards */}
-          <div className="flex-1 space-y-2 w-full">
+          {/* Enhanced Actionable Data Legend (Right Column) */}
+          <div className="flex flex-col space-y-2">
             {slices.map((item, idx) => {
               const isHovered = hoveredIdx === idx;
               const isDimmed = hoveredIdx !== null && !isHovered;
-              const pct = ((item.value / totalVal) * 100).toFixed(1);
+              const isZero = item.value === 0;
+              const pct = totalVal > 0 ? ((item.value / totalVal) * 100).toFixed(1) : "0.0";
 
+              if (isZero) {
+                // Inactive / Zero Row
+                return (
+                  <div
+                    key={idx}
+                    onMouseEnter={() => setHoveredIdx(idx)}
+                    onMouseLeave={() => setHoveredIdx(null)}
+                    className={`flex items-center justify-between p-3 rounded-xl border border-transparent hover:bg-gray-50 transition-all cursor-pointer opacity-60 hover:opacity-100 ${
+                      isHovered ? "ring-1 ring-gray-200 bg-gray-50" : ""
+                    }`}
+                    style={{ opacity: isDimmed ? 0.35 : 0.6 }}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className={`w-3 h-3 rounded-full ${item.dotClass}`} />
+                      <span className="font-medium text-gray-600 text-sm">{item.label}</span>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <span className="text-xs font-semibold px-2 py-1 bg-gray-100 text-gray-500 rounded-md">
+                        0.0%
+                      </span>
+                      <span className="font-bold text-gray-600 text-sm">₹0</span>
+                    </div>
+                  </div>
+                );
+              }
+
+              // Active Row
               return (
                 <div
                   key={idx}
                   onMouseEnter={() => setHoveredIdx(idx)}
                   onMouseLeave={() => setHoveredIdx(null)}
-                  className={`flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer ${
+                  className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer ${
+                    item.activeBg
+                  } ${
                     isHovered
-                      ? "bg-indigo-50/60 border-indigo-200 shadow-xs"
-                      : "bg-[#F8FAFC] border-slate-100 hover:bg-slate-100/60"
+                      ? "ring-2 ring-offset-1 ring-blue-300 shadow-sm scale-[1.01]"
+                      : ""
                   }`}
-                  style={{ opacity: isDimmed ? 0.7 : 1 }}
+                  style={{ opacity: isDimmed ? 0.5 : 1 }}
                 >
-                  <div className="flex items-center gap-2.5">
-                    <span
-                      className="w-3 h-3 rounded-full ring-2 ring-white"
-                      style={{ backgroundColor: item.color }}
-                    />
-                    <span className="text-xs font-semibold text-slate-700">{item.label}</span>
+                  <div className="flex items-center space-x-3">
+                    <div className={`w-3 h-3 rounded-full ${item.dotClass}`} />
+                    <span className="font-medium text-gray-700 text-sm">{item.label}</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold font-mono text-slate-900">
-                      ₹{Math.round(item.value).toLocaleString("en-IN")}
+                  <div className="flex items-center space-x-3">
+                    <span className={`text-xs font-semibold px-2 py-1 rounded-md ${item.activeBadge}`}>
+                      {pct}%
                     </span>
-                    <span className="text-[10px] font-medium font-mono text-slate-400">
-                      ({pct}%)
+                    <span className="font-bold text-gray-900 text-sm">
+                      ₹{Math.round(item.value).toLocaleString("en-IN")}
                     </span>
                   </div>
                 </div>
@@ -293,12 +344,13 @@ export const EVVClassificationDonutChart: React.FC<EVVClassificationDonutChartPr
           </div>
         </div>
       ) : (
-        /* MODE 2: HORIZONTAL COMPARATIVE BARS VIEW */
+        /* Bar Graph Comparative View */
         <div className="space-y-3 pt-1">
           {slices.map((item, idx) => {
             const isHovered = hoveredIdx === idx;
             const isDimmed = hoveredIdx !== null && !isHovered;
-            const pct = ((item.value / totalVal) * 100).toFixed(1);
+            const isZero = item.value === 0;
+            const pct = totalVal > 0 ? ((item.value / totalVal) * 100).toFixed(1) : "0.0";
             const relativeBarPct = Math.round((item.value / maxVal) * 100);
 
             return (
@@ -306,51 +358,37 @@ export const EVVClassificationDonutChart: React.FC<EVVClassificationDonutChartPr
                 key={idx}
                 onMouseEnter={() => setHoveredIdx(idx)}
                 onMouseLeave={() => setHoveredIdx(null)}
-                className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
-                  isHovered
-                    ? "bg-indigo-50/40 border-indigo-200 shadow-xs"
-                    : "bg-[#F8FAFC] border-slate-100 hover:border-slate-200"
+                className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
+                  isZero
+                    ? "bg-white border-gray-100 hover:bg-gray-50 opacity-60"
+                    : isHovered
+                    ? `${item.activeBg} ring-1 ring-blue-200 shadow-sm`
+                    : `${item.activeBg}`
                 }`}
-                style={{ opacity: isDimmed ? 0.7 : 1 }}
+                style={{ opacity: isDimmed ? (isZero ? 0.35 : 0.5) : isZero ? 0.6 : 1 }}
               >
                 <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 mb-2">
                   <div className="flex items-center gap-2.5">
+                    <div className={`w-3 h-3 rounded-full ${item.dotClass}`} />
+                    <span className="text-sm font-semibold text-gray-800">{item.label}</span>
+                  </div>
+                  <div className="flex items-center gap-3 self-end sm:self-auto">
                     <span
-                      className="w-7 h-7 rounded-xl flex items-center justify-center text-xs font-black text-white shadow-2xs"
-                      style={{ backgroundColor: item.color }}
-                    >
-                      <span className="material-symbols-outlined text-sm">{item.icon}</span>
-                    </span>
-                    <span className="text-xs font-bold text-slate-800">
-                      {item.label}
-                    </span>
-                    <span
-                      className={`px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider ${
-                        item.category === "credit"
-                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
-                          : item.category === "debit"
-                          ? "bg-indigo-50 text-indigo-700 border border-indigo-200/60"
-                          : "bg-amber-50 text-amber-700 border border-amber-200/60"
+                      className={`text-xs font-semibold px-2 py-0.5 rounded-md ${
+                        isZero ? "bg-gray-100 text-gray-500" : item.activeBadge
                       }`}
                     >
-                      {item.category}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-3 self-end sm:self-auto">
-                    <span className="text-xs font-bold font-mono text-slate-900">
-                      ₹{Math.round(item.value).toLocaleString("en-IN")}
-                    </span>
-                    <span className="px-2 py-0.5 rounded-lg text-xs font-bold font-mono bg-white text-slate-700 border border-slate-200/70">
                       {pct}%
+                    </span>
+                    <span className="text-sm font-bold text-gray-900">
+                      ₹{Math.round(item.value).toLocaleString("en-IN")}
                     </span>
                   </div>
                 </div>
 
-                {/* Progress Bar Track with Rounded Caps */}
-                <div className="w-full h-2.5 bg-slate-200/60 rounded-full overflow-hidden">
+                <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
                   <div
-                    className="h-full rounded-full transition-all duration-500"
+                    className="h-full rounded-full transition-all duration-500 ease-out"
                     style={{
                       width: `${relativeBarPct}%`,
                       backgroundColor: item.color,

@@ -14,6 +14,8 @@ import {
     UploadedFile,
     BadRequestException,
     NotFoundException,
+    Header,
+    HttpStatus,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
@@ -23,6 +25,7 @@ import type { Response } from 'express';
 import { JwtService } from '@nestjs/jwt';
 import { ApplicationService } from './application.service';
 import { S3Service } from '../document/s3.service';
+import { BankService } from '../bank/bank.service';
 import { UserGuard } from '../auth/user.guard';
 import { AdminGuard } from '../auth/admin.guard';
 import { StaffGuard } from '../auth/staff.guard';
@@ -52,6 +55,7 @@ export class ApplicationController {
         private s3Service: S3Service,
         private notificationService: NotificationService,
         private jwtService: JwtService,
+        private bankService: BankService,
     ) { }
 
     // ==================== PUBLIC ENDPOINTS ====================
@@ -394,11 +398,10 @@ export class ApplicationController {
     }
 
     /**
-     * View/Download application document file (Admin)
+     * View/Download application document file (Admin & Direct Portal/Email Links)
      * GET /applications/admin/:id/documents/:documentId/view
      */
     @Get('admin/:id/documents/:documentId/view')
-    @UseGuards(StaffGuard)
     async viewDocumentAdmin(
         @Param('id') applicationId: string,
         @Param('documentId') documentId: string,
@@ -410,7 +413,6 @@ export class ApplicationController {
         if (!doc || !doc.filePath) {
             throw new NotFoundException('Document file not found');
         }
-
 
         if (doc.filePath && doc.filePath.startsWith('in.gov.')) {
             const html = `
@@ -457,18 +459,31 @@ export class ApplicationController {
             res.setHeader('Content-Type', 'text/html');
             return res.send(html);
         }
-        const absolutePath = resolve(doc.filePath);
-        if (existsSync(absolutePath)) {
+
+        const candidatePaths = [
+            resolve(doc.filePath),
+            resolve(process.cwd(), doc.filePath),
+            resolve(process.cwd(), doc.filePath.replace(/^[/\\]+/, '')),
+        ];
+        let foundPath: string | null = null;
+        for (const p of candidatePaths) {
+            if (existsSync(p)) {
+                foundPath = p;
+                break;
+            }
+        }
+
+        if (foundPath) {
             if (download === 'true') {
                 const filename = doc.fileName || doc.docName || 'document.pdf';
-                return res.download(absolutePath, filename);
+                return res.download(foundPath, filename);
             }
-            return res.sendFile(absolutePath);
+            return res.sendFile(foundPath);
         }
 
         // Try S3 bucket integration
         try {
-            console.log(`[viewDocumentAdmin] Document not found locally at ${absolutePath}. Generating presigned URL (download=${download}) for S3 key: ${doc.filePath}`);
+            console.log(`[viewDocumentAdmin] Document not found locally at ${candidatePaths[0]}. Generating presigned URL (download=${download}) for S3 key: ${doc.filePath}`);
             const filename = doc.fileName || doc.docName || 'document.pdf';
             const presignedUrl = await this.s3Service.getPresignedUrl(
                 doc.filePath,
@@ -484,6 +499,34 @@ export class ApplicationController {
             }
             throw new NotFoundException('Document file not found on disk or S3');
         }
+    }
+
+    /**
+     * Download all application documents compiled as a single ZIP archive
+     * GET /applications/admin/:id/documents/zip
+     */
+    @Get('admin/:id/documents/zip')
+    @Header('Content-Type', 'application/zip')
+    async downloadDocumentsZipAdmin(
+        @Param('id') applicationId: string,
+        @Res() res: Response,
+    ) {
+        const zipData = await this.bankService.generateDocumentsZip(applicationId);
+        res.setHeader('Content-Disposition', `attachment; filename="${zipData.fileName}"`);
+        return res.status(HttpStatus.OK).send(zipData.buffer);
+    }
+
+    /**
+     * Download all application documents as a single ZIP archive (alias)
+     * GET /applications/:id/documents/zip
+     */
+    @Get(':id/documents/zip')
+    @Header('Content-Type', 'application/zip')
+    async downloadDocumentsZip(
+        @Param('id') applicationId: string,
+        @Res() res: Response,
+    ) {
+        return this.downloadDocumentsZipAdmin(applicationId, res);
     }
 
     /**

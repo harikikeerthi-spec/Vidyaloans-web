@@ -3501,33 +3501,30 @@ export const EVVTestAgent: React.FC<{
 
           {/* SECTION D: Transaction Classification & Candidate Confirmation */}
           {evvResult.deterministicEngineResult && (
-            <div
-              className="bg-white border border-[#E2E8F0] rounded-2xl p-6 shadow-sm space-y-4 no-print"
-              style={{
-                boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
-              }}
-            >
-              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 border-b border-[#E2E8F0] pb-4">
+            <div className="w-full rounded-2xl border border-gray-200 shadow-sm bg-white p-6 space-y-6 no-print transition-all">
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-gray-100 pb-4">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-indigo-600 text-lg">rate_review</span>
-                    <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider font-sans">
+                    <span className="material-symbols-outlined text-indigo-600 text-xl">rate_review</span>
+                    <h4 className="text-base font-bold text-gray-900 uppercase tracking-wider font-sans">
                       Section D: Transaction Classification & Candidate Confirmation
                     </h4>
                   </div>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
+                  <p className="text-xs text-gray-500 mt-1">
                     Review algorithmic candidates. Overrides immediately re-score statement and are saved to the audit trail.
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2 flex-wrap">
-                  {/* View mode toggle */}
-                  <div className="flex items-center bg-[#F1F5F9] p-1 rounded-xl gap-1 no-print border border-[#E2E8F0]">
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  {/* View mode toggle: iOS-style pill segmented control */}
+                  <div className="flex items-center bg-gray-100 p-1 rounded-xl border border-gray-200/60">
                     <button
                       type="button"
                       onClick={() => setClassificationsView("donut")}
-                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                        classificationsView === "donut" ? "bg-[#EEF2FF] text-[#4F46E5] shadow-2xs font-bold" : "text-slate-600 hover:text-slate-900"
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer flex items-center gap-1.5 transition-all duration-300 ease-in-out ${
+                        classificationsView === "donut"
+                          ? "bg-white text-gray-900 shadow-sm"
+                          : "text-gray-500 hover:text-gray-900"
                       }`}
                     >
                       <span className="material-symbols-outlined text-sm">donut_large</span>
@@ -3536,8 +3533,10 @@ export const EVVTestAgent: React.FC<{
                     <button
                       type="button"
                       onClick={() => setClassificationsView("table")}
-                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                        classificationsView === "table" ? "bg-[#EEF2FF] text-[#4F46E5] shadow-2xs font-bold" : "text-slate-600 hover:text-slate-900"
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer flex items-center gap-1.5 transition-all duration-300 ease-in-out ${
+                        classificationsView === "table"
+                          ? "bg-white text-gray-900 shadow-sm"
+                          : "text-gray-500 hover:text-gray-900"
                       }`}
                     >
                       <span className="material-symbols-outlined text-sm">table_rows</span>
@@ -3546,8 +3545,10 @@ export const EVVTestAgent: React.FC<{
                     <button
                       type="button"
                       onClick={() => setClassificationsView("both")}
-                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                        classificationsView === "both" ? "bg-[#EEF2FF] text-[#4F46E5] shadow-2xs font-bold" : "text-slate-600 hover:text-slate-900"
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer flex items-center gap-1.5 transition-all duration-300 ease-in-out ${
+                        classificationsView === "both"
+                          ? "bg-white text-gray-900 shadow-sm"
+                          : "text-gray-500 hover:text-gray-900"
                       }`}
                     >
                       <span className="material-symbols-outlined text-sm">dashboard</span>
@@ -3555,16 +3556,16 @@ export const EVVTestAgent: React.FC<{
                     </button>
                   </div>
 
-                  {/* Tabs for Candidates */}
+                  {/* Tabs for Candidates: iOS-style pill segmented control */}
                   {(classificationsView === "table" || classificationsView === "both") && (
-                    <div className="flex items-center gap-1.5 bg-[#F1F5F9] p-1 rounded-xl border border-[#E2E8F0]">
+                    <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl border border-gray-200/60">
                       <button
                         type="button"
                         onClick={() => setActiveCandidateTab("bounces")}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all duration-300 ease-in-out ${
                           activeCandidateTab === "bounces"
-                            ? "bg-[#EEF2FF] text-[#4F46E5] shadow-2xs font-bold"
-                            : "text-slate-600 hover:text-slate-900"
+                            ? "bg-white text-gray-900 shadow-sm"
+                            : "text-gray-500 hover:text-gray-900"
                         }`}
                       >
                         Bounces ({evvResult.deterministicEngineResult.component3.candidates.length})
@@ -3572,10 +3573,10 @@ export const EVVTestAgent: React.FC<{
                       <button
                         type="button"
                         onClick={() => setActiveCandidateTab("cash")}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all duration-300 ease-in-out ${
                           activeCandidateTab === "cash"
-                            ? "bg-[#EEF2FF] text-[#4F46E5] shadow-2xs font-bold"
-                            : "text-slate-600 hover:text-slate-900"
+                            ? "bg-white text-gray-900 shadow-sm"
+                            : "text-gray-500 hover:text-gray-900"
                         }`}
                       >
                         Cash Deposits ({evvResult.deterministicEngineResult.component5.candidates.length})
@@ -3583,10 +3584,10 @@ export const EVVTestAgent: React.FC<{
                       <button
                         type="button"
                         onClick={() => setActiveCandidateTab("passThrough")}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all duration-300 ease-in-out ${
                           activeCandidateTab === "passThrough"
-                            ? "bg-[#EEF2FF] text-[#4F46E5] shadow-2xs font-bold"
-                            : "text-slate-600 hover:text-slate-900"
+                            ? "bg-white text-gray-900 shadow-sm"
+                            : "text-gray-500 hover:text-gray-900"
                         }`}
                       >
                         Pass-Through ({evvResult.deterministicEngineResult.component6.passThroughCandidates.length})
@@ -3596,21 +3597,19 @@ export const EVVTestAgent: React.FC<{
                 </div>
               </div>
 
-              {/* Classification Donut Chart View */}
+              {/* Classification Donut Chart View: Full Spatial Efficiency */}
               {(classificationsView === "donut" || classificationsView === "both") && (
-                <div className="flex justify-center w-full my-2">
-                  <div className="w-full max-w-md">
-                    <EVVClassificationDonutChart
-                      data={{
-                        bouncesCount: evvResult.sixComponent?.component3?.confirmedBounces || 0,
-                        cashDepositsTotal: evvResult.sixComponent?.component5?.totalCashDeposits || 0,
-                        digitalCreditsTotal: Math.max(0, evvResult.monthlyMetrics.reduce((s, m) => s + (m.credits || 0), 0) - (evvResult.sixComponent?.component5?.totalCashDeposits || 0)),
-                        passThroughTotal: evvResult.sixComponent?.component6?.passThroughEvents?.reduce((s: number, e: any) => s + (e.amount || 0), 0) || 0,
-                        normalDebitsTotal: evvResult.monthlyMetrics.reduce((s, m) => s + (m.debits || 0), 0),
-                        salaryCreditsTotal: (evvResult.deterministicEngineResult as any)?.salaryInflows?.reduce((s: number, i: any) => s + (i.amount || 0), 0) || 0,
-                      }}
-                    />
-                  </div>
+                <div className="w-full">
+                  <EVVClassificationDonutChart
+                    data={{
+                      bouncesCount: evvResult.sixComponent?.component3?.confirmedBounces || 0,
+                      cashDepositsTotal: evvResult.sixComponent?.component5?.totalCashDeposits || 0,
+                      digitalCreditsTotal: Math.max(0, evvResult.monthlyMetrics.reduce((s, m) => s + (m.credits || 0), 0) - (evvResult.sixComponent?.component5?.totalCashDeposits || 0)),
+                      passThroughTotal: evvResult.sixComponent?.component6?.passThroughEvents?.reduce((s: number, e: any) => s + (e.amount || 0), 0) || 0,
+                      normalDebitsTotal: evvResult.monthlyMetrics.reduce((s, m) => s + (m.debits || 0), 0),
+                      salaryCreditsTotal: (evvResult.deterministicEngineResult as any)?.salaryInflows?.reduce((s: number, i: any) => s + (i.amount || 0), 0) || 0,
+                    }}
+                  />
                 </div>
               )}
 

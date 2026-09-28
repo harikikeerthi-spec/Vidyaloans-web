@@ -30,12 +30,31 @@ function LoginContent() {
     const { login, isAuthenticated, isLoading } = useAuth();
 
     const [email, setEmail] = useState("");
+    const [emailError, setEmailError] = useState("");
     const [otp, setOtp] = useState(["", "", "", "", "", ""]);
     const [step, setStep] = useState<"email" | "otp">("email");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [resendDisabled, setResendDisabled] = useState(false);
     const [countdown, setCountdown] = useState(0);
+
+    const handleEmailChange = (raw: string) => {
+        // Auto-lowercase the entire email
+        const lowered = raw.toLowerCase();
+        setEmail(lowered);
+        if (!raw) { setEmailError(""); return; }
+        // Check for uppercase letters
+        if (/[A-Z]/.test(raw)) {
+            setEmailError("Email addresses must be lowercase. We've corrected it for you.");
+            return;
+        }
+        // Check for characters not valid in an email (allow a-z 0-9 . _ % + - @ and domain chars)
+        if (/[^a-z0-9._%+\-@]/.test(lowered)) {
+            setEmailError("Email contains invalid characters. Only letters, digits, and . _ % + - @ are allowed.");
+            return;
+        }
+        setEmailError("");
+    };
     const [referralCode, setReferralCode] = useState<string | null>(null);
 
     const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -348,12 +367,22 @@ function LoginContent() {
                                 <input
                                     type="email"
                                     value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
+                                    onChange={(e) => handleEmailChange(e.target.value)}
                                     disabled={step === "otp" || loading}
                                     placeholder="you@example.com"
-                                    className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-4 focus:ring-[#6605c7]/5 focus:bg-white transition-all disabled:opacity-60 disabled:cursor-not-allowed font-medium"
+                                    className={`w-full pl-12 pr-4 py-4 bg-gray-50 border rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-4 focus:bg-white transition-all disabled:opacity-60 disabled:cursor-not-allowed font-medium ${
+                                        emailError
+                                            ? "border-amber-400 focus:ring-amber-500/10"
+                                            : "border-gray-100 focus:ring-[#6605c7]/5"
+                                    }`}
                                     required
                                 />
+                                {emailError && step === "email" && (
+                                    <div className="flex items-center gap-1.5 mt-2 px-1">
+                                        <span className="material-symbols-outlined text-amber-500 text-sm">warning</span>
+                                        <span className="text-[11px] font-semibold text-amber-600">{emailError}</span>
+                                    </div>
+                                )}
                                 {step === "otp" && (
                                     <button
                                         type="button"

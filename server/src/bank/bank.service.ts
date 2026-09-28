@@ -187,20 +187,33 @@ export class BankService {
    * Category A: Retrieve application documents list
    */
   async getDocuments(applicationId: string): Promise<any[]> {
-    const { data: application, error: appError } = await this.db
+    let application: any = null;
+    const { data: appById } = await this.db
       .from('LoanApplication')
-      .select('userId, id, loanType')
+      .select('userId, id, loanType, applicationNumber')
       .eq('id', applicationId)
-      .single();
+      .maybeSingle();
 
-    if (appError || !application) {
+    if (appById) {
+      application = appById;
+    } else {
+      const { data: appByNum } = await this.db
+        .from('LoanApplication')
+        .select('userId, id, loanType, applicationNumber')
+        .eq('applicationNumber', applicationId)
+        .maybeSingle();
+      application = appByNum;
+    }
+
+    if (!application) {
       return [];
     }
 
+    const targetAppId = application.id;
     const { data: documents, error: docsError } = await this.db
       .from('ApplicationDocument')
       .select('*')
-      .eq('applicationId', applicationId);
+      .eq('applicationId', targetAppId);
 
     if (docsError) throw docsError;
     const docs = documents || [];
@@ -285,14 +298,12 @@ export class BankService {
 
     const documents = await this.getDocuments(applicationId);
     const uploadedDocs = (documents || []).filter(
-      (doc: any) => doc.filePath && doc.status !== 'not_uploaded'
+      (doc: any) => doc.filePath && doc.filePath.trim().length > 0
     );
 
-    if (uploadedDocs.length === 0) {
-      throw new NotFoundException(`No uploaded student documents found for App ID: ${applicationId}`);
-    }
-
-    const archive = new (archiver as any).ZipArchive({ zlib: { level: 9 } });
+    const archive = typeof (archiver as any) === 'function'
+      ? (archiver as any)('zip', { zlib: { level: 9 } })
+      : new (archiver as any).ZipArchive({ zlib: { level: 9 } });
     const chunks: Buffer[] = [];
     const outputStream = new Writable({
       write(chunk, encoding, callback) {
@@ -301,6 +312,10 @@ export class BankService {
       }
     });
     archive.pipe(outputStream);
+
+    if (uploadedDocs.length === 0) {
+      archive.append('No uploaded student document files found for this application.', { name: 'NOTICE.txt' });
+    }
 
     const s3Client = this.getS3Client();
     const bucket = (process.env.AWS_S3_BUCKET_NAME || '').trim();
@@ -357,10 +372,21 @@ export class BankService {
         continue;
       }
 
-      // 2. Check if local file exists
-      const absolutePath = resolve(doc.filePath);
-      if (existsSync(absolutePath)) {
-        archive.file(absolutePath, { name: filename });
+      // 2. Check if local file exists (checking candidate paths)
+      const candidatePaths = [
+        resolve(doc.filePath),
+        resolve(process.cwd(), doc.filePath),
+        resolve(process.cwd(), doc.filePath.replace(/^[/\\]+/, '')),
+      ];
+      let foundPath: string | null = null;
+      for (const p of candidatePaths) {
+        if (existsSync(p)) {
+          foundPath = p;
+          break;
+        }
+      }
+      if (foundPath) {
+        archive.file(foundPath, { name: filename });
         continue;
       }
 
@@ -1491,6 +1517,52 @@ export class BankService {
           if (!data.motherEmail) {
             data.motherEmail = userFamily?.motherEmail || motherParent?.email || null;
           }
+
+          // Academic & Score fallbacks
+          if (!data.entranceTest && userRec.entranceTest) data.entranceTest = userRec.entranceTest;
+          if (!data.entranceScore && userRec.entranceScore) data.entranceScore = userRec.entranceScore;
+          if (!data.englishTest && userRec.englishTest) data.englishTest = userRec.englishTest;
+          if (!data.englishScore && userRec.englishScore) data.englishScore = userRec.englishScore;
+          if (!data.gpa && userRec.gpa) data.gpa = userRec.gpa;
+          if (!data.tests && userRec.tests) data.tests = userRec.tests;
+          if (data.workExperience === undefined || data.workExperience === null) {
+            if (userRec.workExp !== undefined && userRec.workExp !== null) data.workExperience = userRec.workExp;
+          }
+
+          // UserAcademicProfile enrichment
+          try {
+            const { data: acadRec } = await this.db
+              .from('UserAcademicProfile')
+              .select('*')
+              .eq('userId', data.userId)
+              .maybeSingle();
+            if (acadRec) {
+              data.academicProfile = acadRec;
+              if (!data.entranceTest && acadRec.entranceTest) data.entranceTest = acadRec.entranceTest;
+              if (!data.entranceScore && acadRec.entranceScore) data.entranceScore = acadRec.entranceScore;
+              if (!data.englishTest && acadRec.englishTest) data.englishTest = acadRec.englishTest;
+              if (!data.englishScore && acadRec.englishScore) data.englishScore = acadRec.englishScore;
+              if (!data.gpa && acadRec.gpa) data.gpa = acadRec.gpa;
+            }
+          } catch (_) {}
+
+          // LoanEligibilityCheck / CIBIL enrichment
+          try {
+            const { data: eligRec } = await this.db
+              .from('LoanEligibilityCheck')
+              .select('*')
+              .eq('userId', data.userId)
+              .order('createdAt', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            if (eligRec) {
+              data.eligibilityCheck = eligRec;
+              if (!data.cibilScore && !data.creditScore && eligRec.credit) {
+                data.cibilScore = eligRec.credit;
+                data.creditScore = eligRec.credit;
+              }
+            }
+          } catch (_) {}
         }
       } catch (err) {
         console.warn('[BankService.getFileDetail] Error enriching user/parent details:', err);

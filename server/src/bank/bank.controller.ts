@@ -132,6 +132,7 @@ export class BankController {
       body.bankId,
       body.bankName,
       submittedBy,
+      body.remarks,
     );
   }
 

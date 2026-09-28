@@ -30,6 +30,7 @@ export class BankWorkflowController {
       bankId: string;
       bankName: string;
       submittedBy: string;
+      remarks?: string;
     },
     @Res() res: Response,
   ) {
@@ -39,6 +40,7 @@ export class BankWorkflowController {
         body.bankId,
         body.bankName,
         body.submittedBy,
+        body.remarks,
       );
       return res.status(201).json(result);
     } catch (error: any) {

@@ -650,6 +650,7 @@ export class UsersController {
                     coApplicantPhone: user.coApplicantPhone || '',
                     coApplicantEmail: user.coApplicantEmail || '',
                     coApplicantRelation: user.coApplicantRelation || '',
+                    coApplicantIncome: user.coApplicantIncome || user.coApplicant?.income || user.coApplicant?.monthlyIncome || '',
                     permanentAddress: user.permanentAddress || '',
                     gender: user.gender || '',
                     documentVerified: user.documentVerified || false,

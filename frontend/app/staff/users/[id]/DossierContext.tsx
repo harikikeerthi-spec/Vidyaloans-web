@@ -151,45 +151,117 @@ export function UserDossierProvider({ userId, children }: { userId: string; chil
             }
         }
 
+        // Clean phone for India dynamic 10-digit format
+        let cleanPhone = (phone || "").toString();
+        if (cleanPhone.startsWith("+91")) cleanPhone = cleanPhone.slice(3);
+        else if (cleanPhone.startsWith("+")) cleanPhone = cleanPhone.slice(1);
+        cleanPhone = cleanPhone.replace(/\D/g, "");
+        if (cleanPhone.length === 12 && cleanPhone.startsWith("91")) cleanPhone = cleanPhone.slice(2);
+        else if (cleanPhone.length === 11 && cleanPhone.startsWith("0")) cleanPhone = cleanPhone.slice(1);
+        cleanPhone = cleanPhone.slice(0, 10);
+
+        // Clean income to max 8 digits
+        const cleanIncome = (income || "").toString().replace(/\D/g, "").slice(0, 8);
+
         setCoAppName(name);
         setCoAppRelation(relation);
-        setCoAppPhone(phone);
-        setCoAppEmail(email);
-        setCoAppIncome(income);
+        setCoAppPhone(cleanPhone);
+        setCoAppEmail((email || "").toString().trim().toLowerCase());
+        setCoAppIncome(cleanIncome);
         setIsCoAppModalOpen(true);
     };
 
     const handleSaveCoApp = async () => {
+        const cleanPhone = (coAppPhone || "").replace(/\D/g, "");
+        if (cleanPhone && cleanPhone.length !== 10) {
+            alert("Please enter a valid 10-digit Indian phone number.");
+            return;
+        }
+        if (cleanPhone && !/^[6-9]/.test(cleanPhone)) {
+            alert("Indian mobile numbers must start with 6, 7, 8, or 9.");
+            return;
+        }
+
+        const trimmedEmail = (coAppEmail || "").trim().toLowerCase();
+        if (trimmedEmail && !/^[a-z0-9._%+\-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(trimmedEmail)) {
+            alert("Please enter a valid email address.");
+            return;
+        }
+
+        const cleanIncome = (coAppIncome || "").toString().replace(/\D/g, "").slice(0, 8);
+        if (cleanIncome && cleanIncome.length > 8) {
+            alert("Annual income cannot exceed 8 digits.");
+            return;
+        }
+
         try {
             setActionLoading(true);
+            const formattedPhone = cleanPhone.length === 10 ? `+91 ${cleanPhone}` : cleanPhone;
             const updatedCoApp = {
                 name: coAppName,
                 relation: coAppRelation,
                 relationship: coAppRelation,
-                mobile: coAppPhone,
-                phone: coAppPhone,
-                email: coAppEmail,
-                monthlyIncome: coAppIncome,
-                income: coAppIncome
+                mobile: formattedPhone || cleanPhone,
+                phone: formattedPhone || cleanPhone,
+                email: trimmedEmail,
+                monthlyIncome: cleanIncome,
+                income: cleanIncome
             };
             
             // 1. Update user profile
             await documentApi.updateProfile(userId, { coApplicant: updatedCoApp });
 
-            // 2. Update active applications if any
+            // 2. Sync to parents table and server user details
+            try {
+                await adminApi.updateUserDetails({
+                    userId,
+                    email: userData?.email || '',
+                    coApplicant: updatedCoApp,
+                });
+            } catch (uErr) {
+                console.warn("adminApi.updateUserDetails notice:", uErr);
+            }
+
+            // 3. Update active applications if any
             if (userApplications && userApplications.length > 0) {
                 for (const app of userApplications) {
                     await adminApi.updateApplication(app.id, {
                         coApplicantName: coAppName,
                         coApplicantRelation: coAppRelation,
-                        coApplicantPhone: coAppPhone,
-                        coApplicantEmail: coAppEmail,
-                        coApplicantIncome: coAppIncome ? parseFloat(coAppIncome) : null,
+                        coApplicantPhone: formattedPhone || cleanPhone,
+                        coApplicantEmail: trimmedEmail,
+                        coApplicantIncome: cleanIncome ? parseFloat(cleanIncome) : null,
                     });
                 }
             }
 
-            // 3. Reload data
+            // 4. Update in-memory state immediately so UI updates with zero delay
+            setUserData((prev: any) => {
+                if (!prev) return prev;
+                return {
+                    ...prev,
+                    coApplicant: updatedCoApp,
+                    coApplicantName: coAppName,
+                    coApplicantRelation: coAppRelation,
+                    coApplicantPhone: formattedPhone || cleanPhone,
+                    coApplicantEmail: trimmedEmail,
+                    coApplicantIncome: cleanIncome,
+                };
+            });
+
+            setUserApplications((prevApps: any[]) => {
+                if (!Array.isArray(prevApps)) return prevApps;
+                return prevApps.map((app: any) => ({
+                    ...app,
+                    coApplicantName: coAppName,
+                    coApplicantRelation: coAppRelation,
+                    coApplicantPhone: formattedPhone || cleanPhone,
+                    coApplicantEmail: trimmedEmail,
+                    coApplicantIncome: cleanIncome ? parseFloat(cleanIncome) : null,
+                }));
+            });
+
+            // 5. Reload data
             await refreshData();
 
             setIsCoAppModalOpen(false);

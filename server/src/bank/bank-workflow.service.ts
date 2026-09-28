@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { resolve } from 'path';
-import { existsSync } from 'fs';
+import { existsSync, statSync } from 'fs';
 import { SupabaseService } from '../supabase/supabase.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { EmailService } from '../auth/email.service';
@@ -99,6 +99,197 @@ export class BankWorkflowService {
   }
 
   /**
+   * Resolves recipient email addresses for a bank:
+   * 1. Bank user accounts registered in `User` table (role = 'bank' | 'partner_bank' | 'BANK') matching bankId or bankName
+   * 2. Bank official email registered in `Bank` table
+   * 3. Fallback bank partner email if none found
+   */
+  async resolveBankUserEmails(bankId: string, bankName?: string): Promise<string[]> {
+    const emails = new Set<string>();
+    const cleanId = (bankId || '').trim().toLowerCase();
+    const cleanName = (bankName || '').trim().toLowerCase();
+
+    // 1. Query bank users from User table matching this bankId or bankName
+    try {
+      const { data: bankUsers } = await this.db.client
+        .from('User')
+        .select('id, email, firstName, lastName, bank, role')
+        .in('role', ['bank', 'partner_bank', 'BANK']);
+
+      if (bankUsers && bankUsers.length > 0) {
+        for (const u of bankUsers) {
+          if (!u.email) continue;
+          const uBank = (u.bank || '').trim().toLowerCase();
+          const uName = `${u.firstName || ''} ${u.lastName || ''}`.trim().toLowerCase();
+
+          const isMatch =
+            (uBank && (uBank === cleanId || cleanId.includes(uBank) || uBank.includes(cleanId) || (cleanName && (cleanName.includes(uBank) || uBank.includes(cleanName))))) ||
+            (uName && (uName.includes(cleanId) || (cleanName && cleanName.includes(uName))));
+
+          if (isMatch) {
+            emails.add(u.email.trim());
+          }
+        }
+      }
+    } catch (e: any) {
+      console.warn('[BankWorkflowService] Error fetching bank users from User table:', e.message);
+    }
+
+    // 2. Query Bank profile table
+    try {
+      const { data: bankProfile } = await this.db.client
+        .from('Bank')
+        .select('email')
+        .eq('shortName', bankId)
+        .maybeSingle();
+      if (bankProfile?.email) {
+        emails.add(bankProfile.email.trim());
+      }
+    } catch (e: any) {
+      console.warn('[BankWorkflowService] Error fetching bank profile email:', e.message);
+    }
+
+    // 3. Fallbacks if no emails found
+    if (emails.size === 0) {
+      const fallbackEmails: Record<string, string> = {
+        avanse: 'avansebank01@gmail.com',
+        auxilo: 'auxilobank01@gmail.com',
+        idfc: 'idfcbank01@gmail.com',
+        poonawalla: 'poonawallabank01@gmail.com',
+        credila: 'credilabank01@gmail.com',
+      };
+      emails.add(fallbackEmails[cleanId] || `${cleanId}bank01@gmail.com`);
+    }
+
+    console.log(`[BankWorkflowService] Resolved ${emails.size} bank recipient(s) for bank "${bankName || bankId}":`, Array.from(emails));
+    return Array.from(emails);
+  }
+
+  /**
+   * Enriches application record with full student, academic, parent, co-applicant, and credit details
+   */
+  async enrichApplicationForBankEmail(application: any): Promise<any> {
+    const enriched = { ...application };
+
+    if (application.userId) {
+      // 1. User table
+      try {
+        const { data: userRec } = await this.db.client
+          .from('User')
+          .select('*')
+          .eq('id', application.userId)
+          .maybeSingle();
+        if (userRec) {
+          enriched.user = userRec;
+          if (!enriched.firstName && userRec.firstName) enriched.firstName = userRec.firstName;
+          if (!enriched.lastName && userRec.lastName) enriched.lastName = userRec.lastName;
+          if (!enriched.email && userRec.email) enriched.email = userRec.email;
+          if (!enriched.phone && (userRec.phoneNumber || userRec.mobile)) enriched.phone = userRec.phoneNumber || userRec.mobile;
+          if (!enriched.gender && userRec.gender) enriched.gender = userRec.gender;
+          if (!enriched.dateOfBirth && userRec.dateOfBirth) enriched.dateOfBirth = userRec.dateOfBirth;
+          if (!enriched.address && userRec.permanentAddress) enriched.address = userRec.permanentAddress;
+          if (!enriched.city && userRec.city) enriched.city = userRec.city;
+          if (!enriched.state && userRec.state) enriched.state = userRec.state;
+          if (!enriched.pincode && userRec.pincode) enriched.pincode = userRec.pincode;
+          if (!enriched.country && (userRec.studyDestination || userRec.country)) enriched.country = userRec.studyDestination || userRec.country;
+          if (!enriched.entranceTest && userRec.entranceTest) enriched.entranceTest = userRec.entranceTest;
+          if (!enriched.entranceScore && userRec.entranceScore) enriched.entranceScore = userRec.entranceScore;
+          if (!enriched.englishTest && userRec.englishTest) enriched.englishTest = userRec.englishTest;
+          if (!enriched.englishScore && userRec.englishScore) enriched.englishScore = userRec.englishScore;
+          if (!enriched.gpa && userRec.gpa) enriched.gpa = userRec.gpa;
+          if (!enriched.tests && userRec.tests) enriched.tests = userRec.tests;
+          if (!enriched.universityName && userRec.targetUniversity) enriched.universityName = userRec.targetUniversity;
+          if (!enriched.courseName && userRec.courseName) enriched.courseName = userRec.courseName;
+
+          let userCoApp: any = null;
+          if (userRec.coApplicant) {
+            try {
+              userCoApp = typeof userRec.coApplicant === 'string' ? JSON.parse(userRec.coApplicant) : userRec.coApplicant;
+            } catch (_) {}
+          }
+          if (!enriched.coApplicantName) enriched.coApplicantName = userRec.coApplicantName || userCoApp?.name || userCoApp?.coApplicantName || null;
+          if (!enriched.coApplicantRelation) enriched.coApplicantRelation = userRec.coApplicantRelation || userCoApp?.relation || userCoApp?.coApplicantRelation || null;
+          if (!enriched.coApplicantPhone) enriched.coApplicantPhone = userRec.coApplicantPhone || userCoApp?.phone || userCoApp?.mobile || null;
+          if (!enriched.coApplicantEmail) enriched.coApplicantEmail = userRec.coApplicantEmail || userCoApp?.email || null;
+          if (!enriched.coApplicantIncome && (userCoApp?.income || userCoApp?.annualIncome)) {
+            enriched.coApplicantIncome = parseFloat(userCoApp.income || userCoApp.annualIncome);
+          }
+        }
+      } catch (err) {
+        console.warn('[BankWorkflowService] Error enriching user details for email:', err);
+      }
+
+      // 2. Parents table
+      try {
+        const { data: parentsRec } = await this.db.client
+          .from('parents')
+          .select('*')
+          .eq('userId', application.userId);
+        if (parentsRec && parentsRec.length > 0) {
+          const coAppParent = parentsRec.find((p: any) => (p.relation || '').toLowerCase() === 'coapplicant');
+          if (coAppParent) {
+            if (!enriched.coApplicantName) enriched.coApplicantName = coAppParent.name;
+            if (!enriched.coApplicantRelation) enriched.coApplicantRelation = coAppParent.relation;
+            if (!enriched.coApplicantPhone) enriched.coApplicantPhone = coAppParent.phone || coAppParent.mobile;
+            if (!enriched.coApplicantEmail) enriched.coApplicantEmail = coAppParent.email;
+          }
+        }
+      } catch (_) {}
+
+      // 3. UserAcademicProfile
+      try {
+        const { data: acadRec } = await this.db.client
+          .from('UserAcademicProfile')
+          .select('*')
+          .eq('userId', application.userId)
+          .maybeSingle();
+        if (acadRec) {
+          if (!enriched.entranceTest && acadRec.entranceTest) enriched.entranceTest = acadRec.entranceTest;
+          if (!enriched.entranceScore && acadRec.entranceScore) enriched.entranceScore = acadRec.entranceScore;
+          if (!enriched.englishTest && acadRec.englishTest) enriched.englishTest = acadRec.englishTest;
+          if (!enriched.englishScore && acadRec.englishScore) enriched.englishScore = acadRec.englishScore;
+          if (!enriched.gpa && acadRec.gpa) enriched.gpa = acadRec.gpa;
+        }
+      } catch (_) {}
+
+      // 4. LoanEligibilityCheck
+      try {
+        const { data: eligRec } = await this.db.client
+          .from('LoanEligibilityCheck')
+          .select('*')
+          .eq('userId', application.userId)
+          .order('createdAt', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (eligRec?.credit) {
+          if (!enriched.cibilScore && !enriched.creditScore) {
+            enriched.cibilScore = eligRec.credit;
+            enriched.creditScore = eligRec.credit;
+          }
+        }
+      } catch (_) {}
+
+      // 5. Documents list
+      try {
+        const { data: appDocs } = await this.db.client
+          .from('ApplicationDocument')
+          .select('id, docType, docName, fileName, status')
+          .eq('applicationId', application.id);
+        const { data: userDocs } = await this.db.client
+          .from('UserDocument')
+          .select('id, docType, docName, fileName, status')
+          .eq('userId', application.userId);
+
+        const allDocs = [...(appDocs || []), ...(userDocs || [])];
+        const uniqueDocs = Array.from(new Map(allDocs.map((d: any) => [d.docType || d.id, d])).values());
+        enriched.documents = uniqueDocs;
+      } catch (_) {}
+    }
+
+    return enriched;
+  }
+
+  /**
    * Share application with a bank (SUBMITTED_TO_BANK)
    */
   async submitApplicationToBank(
@@ -106,6 +297,7 @@ export class BankWorkflowService {
     bankId: string,
     bankName: string,
     submittedBy: string,
+    remarks?: string,
   ) {
     // Get application
     const { data: application, error: appError } = await this.db.client
@@ -217,32 +409,21 @@ export class BankWorkflowService {
       console.warn('[BankWorkflowService] Failed to load student details for email:', e.message);
     }
 
-    // Fetch bank registered email from Bank table
-    let bankEmail = '';
-    try {
-      const { data: bankProfile } = await this.db.client
-        .from('Bank')
-        .select('email')
-        .eq('shortName', bankId)
-        .single();
-      if (bankProfile?.email) {
-        bankEmail = bankProfile.email;
-      }
-    } catch (e: any) {
-      console.warn('[BankWorkflowService] Failed to load bank profile email:', e.message);
-    }
+    // 1. Resolve all target bank user recipient emails (from User role='bank', Bank profile, etc.)
+    const targetEmails = await this.resolveBankUserEmails(bankId, bankName);
 
-    const fallbackEmails: Record<string, string> = {
-      avanse: 'avansebank01@gmail.com',
-      auxilo: 'auxilobank01@gmail.com',
-      idfc: 'idfcbank01@gmail.com',
-      poonawalla: 'poonawallabank01@gmail.com',
-      credila: 'credilabank01@gmail.com',
-    };
-    const targetEmail = bankEmail || fallbackEmails[bankId] || `${bankId}bank01@gmail.com`;
+    // 2. Fully enrich application details with student, academic, co-app, credit, and docs
+    const enrichedApplication = await this.enrichApplicationForBankEmail(application);
 
-    // 1. Send email alert to bank
-    await this.emailService.sendNewApplicationNotificationToBank(targetEmail, bankName, application, studentName).catch(err => {
+    // 3. Send detailed email notification to bank user(s)
+    await this.emailService.sendNewApplicationNotificationToBank(
+      targetEmails,
+      bankName,
+      enrichedApplication,
+      studentName,
+      submittedBy,
+      remarks,
+    ).catch(err => {
       console.error('[BankWorkflowService] Failed to send bank notification email:', err);
     });
 
@@ -332,15 +513,33 @@ export class BankWorkflowService {
 
       documents = [...mergedAppDocs, ...extraVaultDocs];
 
-      // Prepare email file attachments for valid local files
+      // Prepare email file attachments for valid local files (under 9MB SES limit)
+      let totalAttachmentSize = 0;
       for (const doc of documents) {
-        if (doc.filePath) {
-          const absPath = resolve(doc.filePath);
-          if (existsSync(absPath)) {
-            attachments.push({
-              filename: doc.fileName || `${doc.name}.pdf`,
-              path: absPath,
-            });
+        if (doc.filePath && !doc.filePath.startsWith('in.gov.')) {
+          const candidatePaths = [
+            resolve(doc.filePath),
+            resolve(process.cwd(), doc.filePath),
+            resolve(process.cwd(), doc.filePath.replace(/^[/\\]+/, '')),
+          ];
+          let foundPath: string | null = null;
+          for (const p of candidatePaths) {
+            if (existsSync(p)) {
+              foundPath = p;
+              break;
+            }
+          }
+          if (foundPath) {
+            try {
+              const fileStats = statSync(foundPath);
+              if (totalAttachmentSize + fileStats.size < 9 * 1024 * 1024) {
+                attachments.push({
+                  filename: doc.fileName || `${doc.name}.pdf`,
+                  path: foundPath,
+                });
+                totalAttachmentSize += fileStats.size;
+              }
+            } catch (err) {}
           }
         }
       }
@@ -2666,32 +2865,21 @@ export class BankWorkflowService {
       // Record in workflow history
       await this.recordWorkflowHistory(submission.id, applicationId, null, 'SUBMITTED_TO_BANK', submittedBy, 'Application shared with bank via multiparty routing');
 
-      // Fetch bank registered email from Bank table
-      let bankEmail = '';
-      try {
-        const { data: bankProfile } = await this.db.client
-          .from('Bank')
-          .select('email')
-          .eq('shortName', bankId)
-          .single();
-        if (bankProfile?.email) {
-          bankEmail = bankProfile.email;
-        }
-      } catch (e: any) {
-        console.warn('[BankWorkflowService] Failed to load bank profile email:', e.message);
-      }
+      // 1. Resolve target bank user recipient emails
+      const targetEmails = await this.resolveBankUserEmails(bankId, bankName);
 
-      const fallbackEmails: Record<string, string> = {
-        avanse: 'avansebank01@gmail.com',
-        auxilo: 'auxilobank01@gmail.com',
-        idfc: 'idfcbank01@gmail.com',
-        poonawalla: 'poonawallabank01@gmail.com',
-        credila: 'credilabank01@gmail.com',
-      };
-      const targetEmail = bankEmail || fallbackEmails[bankId] || `${bankId}bank01@gmail.com`;
+      // 2. Fully enrich application details
+      const enrichedApplication = await this.enrichApplicationForBankEmail(application);
 
-      // 1. Send email alert to bank
-      await this.emailService.sendNewApplicationNotificationToBank(targetEmail, bankName, application, studentName).catch(err => {
+      // 3. Send email alert to bank user(s)
+      await this.emailService.sendNewApplicationNotificationToBank(
+        targetEmails,
+        bankName,
+        enrichedApplication,
+        studentName,
+        submittedBy,
+        'Application routed via multi-bank submission',
+      ).catch(err => {
         console.error('[BankWorkflowService] Failed to send bank notification email:', err);
       });
 

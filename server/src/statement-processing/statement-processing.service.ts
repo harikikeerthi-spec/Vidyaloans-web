@@ -6,6 +6,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
+import * as fs from 'fs';
 import { PrismaService } from '../prisma/prisma.service';
 import { EncryptionStorageService } from './services/encryption-storage.service';
 import { TempArtifactService } from './services/temp-artifact.service';
@@ -72,11 +73,20 @@ export class StatementProcessingService {
     applicationId: string,
     coApplicantId?: string,
   ): Promise<StatementUploadDto> {
-    if (!file || !file.buffer || file.buffer.length === 0) {
-      throw new BadRequestException('Statement file buffer is required');
+    let fileBuffer = file?.buffer;
+    if ((!fileBuffer || fileBuffer.length === 0) && file?.path && fs.existsSync(file.path)) {
+      try {
+        fileBuffer = fs.readFileSync(file.path);
+      } catch (readErr: any) {
+        this.logger.warn(`Failed to read file from disk path: ${readErr.message}`);
+      }
     }
 
-    const sizeBytes = file.buffer.length;
+    if (!file || !fileBuffer || fileBuffer.length === 0) {
+      throw new BadRequestException('Statement file buffer is required. Please upload a valid bank statement file.');
+    }
+
+    const sizeBytes = fileBuffer.length;
     const maxSizeBytes = 25 * 1024 * 1024; // 25 MB
     if (sizeBytes > maxSizeBytes) {
       throw new BadRequestException('Statement file exceeds maximum allowed size (25MB)');
@@ -95,17 +105,17 @@ export class StatementProcessingService {
     }
 
     if (isPdf) {
-      const headerStr = file.buffer.subarray(0, 10).toString('latin1');
+      const headerStr = fileBuffer.subarray(0, 1024).toString('latin1');
       if (!headerStr.includes('%PDF')) {
-        throw new BadRequestException('Invalid PDF file header structure');
+        throw new BadRequestException('Invalid PDF file header structure. Please ensure this is an authentic PDF file.');
       }
     }
 
     // SHA-256 hash of original file
-    const fileHashSha256 = this.storage.computeSha256(file.buffer);
+    const fileHashSha256 = this.storage.computeSha256(fileBuffer);
 
     // Encrypt at rest
-    const { storageKey } = await this.storage.storeEncrypted(file.buffer, 'statement_orig');
+    const { storageKey } = await this.storage.storeEncrypted(fileBuffer, 'statement_orig');
 
     // Check encryption status if PDF
     let encryptionStatus: any = 'NOT_ENCRYPTED';
@@ -114,7 +124,7 @@ export class StatementProcessingService {
 
     if (isPdf) {
       try {
-        const check = await this.pdfWorker.checkPdfEncryption(file.buffer);
+        const check = await this.pdfWorker.checkPdfEncryption(fileBuffer);
         if (check.isEncrypted) {
           encryptionStatus = 'PASSWORD_REQUIRED';
           processingStatus = 'PASSWORD_REQUIRED';
@@ -176,10 +186,10 @@ export class StatementProcessingService {
         let unencryptedResult: PdfUnlockResult | null = null;
 
         if (isPdf) {
-          unencryptedResult = await this.pdfWorker.unlockAndExtract(file.buffer, undefined);
+          unencryptedResult = await this.pdfWorker.unlockAndExtract(fileBuffer, undefined);
           extractedText = unencryptedResult.extractedText || '';
         } else if (isCsv) {
-          extractedText = file.buffer.toString('utf-8', 0, Math.min(file.buffer.length, 10000));
+          extractedText = fileBuffer.toString('utf-8', 0, Math.min(fileBuffer.length, 10000));
         }
 
         // Run AI Document Verification: verify whether it is a bank statement or not
@@ -231,7 +241,7 @@ export class StatementProcessingService {
             created.id,
             unencryptedResult,
             unencryptedResult.isOcrUsed ? 'OCR' : 'TEXT',
-            file.buffer,
+            fileBuffer,
           );
           transactions = (unencryptedResult.preliminaryTransactions || []).map((tx) => {
             let parsedDate: Date;
@@ -254,7 +264,7 @@ export class StatementProcessingService {
             };
           });
         } else if (isCsv) {
-          await this.handleCsvExtraction(created.id, file.buffer);
+          await this.handleCsvExtraction(created.id, fileBuffer);
         }
 
         const dto = this.mapUploadToDto(created);

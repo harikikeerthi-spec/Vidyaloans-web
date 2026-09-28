@@ -7,6 +7,7 @@ import {
   UploadedFile,
   UseInterceptors,
   Request,
+  Logger,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { StatementProcessingService } from './statement-processing.service';
@@ -20,6 +21,8 @@ import {
 @Controller('statements')
 @UseInterceptors(PasswordRedactionInterceptor)
 export class StatementProcessingController {
+  private readonly logger = new Logger(StatementProcessingController.name);
+
   constructor(private readonly statementService: StatementProcessingService) {}
 
   /**
@@ -34,63 +37,82 @@ export class StatementProcessingController {
     @Body('coApplicantId') coApplicantId: string,
     @Request() req: any,
   ) {
-    const userId = req.user?.id || req.body?.userId || 'applicant-self';
-    const upload = await this.statementService.uploadStatement(
-      file,
-      userId,
-      applicationId || 'app-default',
-      coApplicantId,
-    );
+    try {
+      if (!file) {
+        return {
+          success: false,
+          isEncrypted: false,
+          isBankStatement: false,
+          message: 'No statement file was uploaded. Please select a valid bank statement PDF or CSV.',
+        };
+      }
 
-    // If AI rejected the document as not a bank statement
-    if (upload.isBankStatement === false) {
+      const userId = req.user?.id || req.body?.userId || 'applicant-self';
+      const upload = await this.statementService.uploadStatement(
+        file,
+        userId,
+        applicationId || 'app-default',
+        coApplicantId,
+      );
+
+      // If AI rejected the document as not a bank statement
+      if (upload.isBankStatement === false) {
+        return {
+          success: false,
+          statement: upload,
+          statementId: upload.id,
+          id: upload.id,
+          isEncrypted: false,
+          isBankStatement: false,
+          status: 'INVALID_DOCUMENT_TYPE',
+          detectedType: upload.detectedType,
+          reason: upload.reason,
+          aiVerification: upload.aiVerification,
+          message: upload.reason
+            ? `AI Document Verification Failed: The uploaded document is detected as "${upload.detectedType}", not an official bank statement. ${upload.reason}`
+            : `AI Document Verification Failed: The uploaded document is not a bank statement (Detected: ${upload.detectedType || 'Non-bank file'}).`,
+        };
+      }
+
+      const isEncrypted = upload.encryptionStatus === 'PASSWORD_REQUIRED' || upload.encryptionStatus === 'UNKNOWN';
+      if (isEncrypted) {
+        return {
+          success: false,
+          statement: upload,
+          statementId: upload.id,
+          id: upload.id,
+          isEncrypted: true,
+          status: 'PROTECTED_WAITING_PASSWORD',
+          bankName: upload.bankName,
+          maskedAccount: upload.accountNumberMasked,
+          attemptsRemaining: Math.max(0, 5 - upload.passwordAttemptCount),
+          message: 'This bank statement is password protected. Please provide the document password to proceed.',
+        };
+      }
+
       return {
-        success: false,
+        success: true,
         statement: upload,
         statementId: upload.id,
         id: upload.id,
         isEncrypted: false,
-        isBankStatement: false,
-        status: 'INVALID_DOCUMENT_TYPE',
-        detectedType: upload.detectedType,
-        reason: upload.reason,
+        isBankStatement: true,
         aiVerification: upload.aiVerification,
-        message: upload.reason
-          ? `AI Document Verification Failed: The uploaded document is detected as "${upload.detectedType}", not an official bank statement. ${upload.reason}`
-          : `AI Document Verification Failed: The uploaded document is not a bank statement (Detected: ${upload.detectedType || 'Non-bank file'}).`,
-      };
-    }
-
-    const isEncrypted = upload.encryptionStatus === 'PASSWORD_REQUIRED';
-    if (isEncrypted) {
-      return {
-        success: false,
-        statement: upload,
-        statementId: upload.id,
-        id: upload.id,
-        isEncrypted: true,
-        status: 'PROTECTED_WAITING_PASSWORD',
+        status: upload.processingStatus || 'EXTRACTED',
         bankName: upload.bankName,
         maskedAccount: upload.accountNumberMasked,
         attemptsRemaining: Math.max(0, 5 - upload.passwordAttemptCount),
-        message: 'This bank statement is password protected. Please provide the document password to proceed.',
+        transactions: upload.transactions || [],
+      };
+    } catch (err: any) {
+      this.logger.error(`Statement upload failed: ${err.message}`, err.stack);
+      return {
+        success: false,
+        isEncrypted: false,
+        isBankStatement: false,
+        message: err.message || 'An error occurred while uploading and verifying the bank statement.',
       };
     }
-
-    return {
-      success: true,
-      statement: upload,
-      statementId: upload.id,
-      id: upload.id,
-      isEncrypted: false,
-      isBankStatement: true,
-      aiVerification: upload.aiVerification,
-      status: upload.processingStatus || 'EXTRACTED',
-      bankName: upload.bankName,
-      maskedAccount: upload.accountNumberMasked,
-      attemptsRemaining: Math.max(0, 5 - upload.passwordAttemptCount),
-      transactions: upload.transactions || [],
-    };
   }
 
   /**

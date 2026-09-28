@@ -9,7 +9,7 @@ import UserSupportTicketsView from "@/components/UserSupportTicketsView";
 import AdminBlogBuilder from "@/components/AdminBlogBuilder";
 
 // Block builder types for Blog CMS
-type BlockType = "heading" | "container" | "text" | "image" | "video" | "button" | "list" | "quote" | "code" | "divider" | "spacer";
+type BlockType = "heading" | "container" | "split_content" | "text" | "image" | "video" | "button" | "list" | "quote" | "code" | "divider" | "spacer";
 
 interface Block {
     id: string;
@@ -27,6 +27,7 @@ interface Block {
 
 const ELEMENT_TYPES: { type: BlockType; label: string; icon: string; color: string; desc: string }[] = [
     { type: "heading", label: "Heading", icon: "title", color: "blue", desc: "Drag or click to add" },
+    { type: "split_content", label: "Split 2-Column", icon: "view_column", color: "indigo", desc: "Left/right matter or image & content" },
     { type: "container", label: "Container", icon: "view_agenda", color: "purple", desc: "Drag or click to add" },
     { type: "text", label: "Text Box", icon: "text_fields", color: "green", desc: "Drag or click to add" },
     { type: "image", label: "Image", icon: "image", color: "orange", desc: "Drag or click to add" },
@@ -124,6 +125,7 @@ export default function ITDashboardPage() {
         const defaults: Record<BlockType, string> = {
             heading: "Article Section Heading",
             container: "",
+            split_content: "",
             text: "Enter your detailed article text here...",
             image: "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?q=80&w=800",
             video: "https://www.youtube.com/embed/dQw4w9WgXcQ",

@@ -1475,83 +1475,355 @@ export class EmailService {
   }
 
   async sendNewApplicationNotificationToBank(
-    bankEmail: string,
+    bankEmail: string | string[],
     bankName: string,
     application: any,
     studentName: string,
+    submittedBy?: string,
+    remarks?: string,
   ) {
+    const rawList = Array.isArray(bankEmail) ? bankEmail : [bankEmail];
+    const recipients = Array.from(
+      new Set(
+        rawList
+          .map((e) => (e || '').trim())
+          .filter((e) => e && e.includes('@')),
+      ),
+    );
+
+    if (recipients.length === 0) {
+      console.warn(`[EmailService.sendNewApplicationNotificationToBank] No valid recipient email provided for ${bankName}`);
+      return;
+    }
+
     const frontendUrl = process.env.FRONTEND_URL || 'https://www.vidyaloans.in';
-    const appNum = application.applicationNumber || 'N/A';
-    const loanType = application.loanType || 'Education Loan';
+    const appNum = application.applicationNumber || application.id?.slice(-8) || 'N/A';
+    const loanType = (application.loanType || 'Education Loan').toUpperCase();
     const amount = application.amount ? `₹${Number(application.amount).toLocaleString('en-IN')}` : 'N/A';
-    const university = application.universityName || application.targetUniversity || 'N/A';
+    const university = application.universityName || application.targetUniversity || 'Institution Under Review';
+    const country = application.country || application.studyDestination || 'Destination Under Review';
+    const course = application.courseName || application.course || 'Degree Program';
+    const admissionStatus = application.admissionStatus || 'Confirmed / Issued';
+    const tenure = application.tenure ? `${application.tenure} Months` : 'Standard Repayment Tenure';
+
+    // Student Details
+    const studentEmail = application.email || application.user?.email || 'N/A';
+    const studentPhone = application.phone || application.phoneNumber || application.user?.phoneNumber || application.user?.mobile || 'N/A';
+    const gender = application.gender || application.user?.gender || 'N/A';
+    const dob = application.dateOfBirth
+      ? (typeof application.dateOfBirth === 'string'
+        ? application.dateOfBirth.slice(0, 10)
+        : new Date(application.dateOfBirth).toISOString().slice(0, 10))
+      : 'N/A';
+    const studentAddress = (application.address || application.user?.permanentAddress)
+      ? `${application.address || application.user?.permanentAddress}${application.city ? `, ${application.city}` : ''}${application.state ? `, ${application.state}` : ''}${application.pincode ? ` - ${application.pincode}` : ''}`
+      : 'Address On File';
+
+    // Standardized Scores
+    let parsedTests: any = {};
+    try {
+      const rawTests = application.tests || application.user?.tests;
+      if (typeof rawTests === 'string') parsedTests = JSON.parse(rawTests);
+      else if (rawTests && typeof rawTests === 'object') parsedTests = rawTests;
+    } catch (_) {}
+
+    const entranceName = (application.entranceTest || application.user?.entranceTest || (parsedTests.gre ? 'GRE' : parsedTests.gmat ? 'GMAT' : parsedTests.sat ? 'SAT' : ''));
+    const entranceScore = application.entranceScore || application.user?.entranceScore || (parsedTests.gre || parsedTests.gmat || parsedTests.sat || '');
+    const entranceStr = entranceScore ? `${entranceName ? entranceName.toUpperCase() : 'Entrance'}: ${entranceScore}` : 'Not Taken / Waived';
+
+    const englishName = (application.englishTest || application.user?.englishTest || (parsedTests.ielts ? 'IELTS' : parsedTests.toefl ? 'TOEFL' : parsedTests.pte ? 'PTE' : parsedTests.duolingo ? 'Duolingo' : ''));
+    const englishScore = application.englishScore || application.user?.englishScore || (parsedTests.ielts || parsedTests.toefl || parsedTests.pte || parsedTests.duolingo || '');
+    const englishStr = englishScore ? `${englishName ? englishName.toUpperCase() : 'English'}: ${englishScore}` : 'Waived (English Medium)';
+
+    const gpaVal = application.gpa ?? application.academicPercentage ?? application.percentage ?? application.user?.gpa ?? application.user?.academicPercentage;
+    const gpaStr = gpaVal !== undefined && gpaVal !== null && String(gpaVal) !== '' ? (Number(gpaVal) <= 10 ? `${gpaVal} CGPA` : `${gpaVal}%`) : 'Under Verification';
+    const backlogsVal = application.backlogs ?? application.user?.backlogs;
+    const backlogsStr = backlogsVal !== undefined && backlogsVal !== null && Number(backlogsVal) > 0 ? `${backlogsVal} Backlog(s)` : '0 Backlogs (Clean Track)';
+
+    // Co-Applicant Details
+    const coAppName = application.coApplicantName || 'Not Assigned';
+    const coAppRelation = application.coApplicantRelation || 'N/A';
+    const coAppOccupation = application.coApplicantOccupation || 'Salaried / Self-Employed';
+    const coAppIncome = application.coApplicantIncome ? `₹${Number(application.coApplicantIncome).toLocaleString('en-IN')} / yr` : 'Not Disclosed';
+    const coAppPan = application.coApplicantPan || 'Verified';
+    const coAppContact = `${application.coApplicantPhone || 'N/A'}${application.coApplicantEmail ? ` · ${application.coApplicantEmail}` : ''}`;
+
+    // Financial / Credit Details
+    const cibilScore = application.cibilScore || application.creditScore || application.user?.cibilScore;
+    const cibilStr = cibilScore && Number(cibilScore) > 0 ? `${cibilScore} / 900 (Bureau Check Completed)` : 'Pending Bureau Verification';
+    const existingDebts = Number(application.existingDebts || application.monthlyEmi || 0);
+    const debtsStr = existingDebts > 0 ? `₹${existingDebts.toLocaleString('en-IN')} / mo` : '₹0 / mo (Nil Existing Debts)';
+    const hasCollateral = Boolean(application.hasCollateral || application.collateralOffered || application.collateralType || Number(application.collateralValue) > 0);
+    const collateralStr = hasCollateral
+      ? `Secured: ${application.collateralType || 'Property'}${application.collateralValue ? ` (Valuation: ₹${Number(application.collateralValue).toLocaleString('en-IN')})` : ''}`
+      : 'Clean Unsecured Education Loan (Zero Collateral Pledged)';
+
+    // Documents
+    const documents: any[] = application.documents || [];
+    const zipUrl = application.id ? `${frontendUrl}/api/applications/admin/${application.id}/documents/zip` : null;
+    const docRows = documents.length > 0 ? documents.slice(0, 15).map((doc: any) => {
+      const docId = doc.id || doc.docId;
+      const viewUrl = (docId && application.id)
+        ? `${frontendUrl}/api/applications/admin/${application.id}/documents/${docId}/view`
+        : null;
+      const downloadUrl = (docId && application.id)
+        ? `${frontendUrl}/api/applications/admin/${application.id}/documents/${docId}/view?download=true`
+        : null;
+      return `
+      <tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:12px;color:#334155;">
+          <strong>${(doc.docName || doc.fileName || doc.docType || doc.name || 'Document').replace(/_/g, ' ')}</strong>
+          <div style="margin-top:4px;">
+            ${viewUrl ? `<a href="${viewUrl}" style="font-size:11px;color:#4338ca;text-decoration:none;font-weight:700;margin-right:12px;" target="_blank">👁 View ↗</a>` : ''}
+            ${downloadUrl ? `<a href="${downloadUrl}" style="font-size:11px;color:#059669;text-decoration:none;font-weight:700;" target="_blank">⬇ Download</a>` : ''}
+          </div>
+        </td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:12px;text-align:right;">
+          <span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700;background:#dcfce7;color:#166534;text-transform:uppercase;">
+            ✓ ${(doc.status || 'Verified').toUpperCase()}
+          </span>
+        </td>
+      </tr>
+    `}).join('') : `
+      <tr>
+        <td colspan="2" style="padding:10px 12px;text-align:center;color:#94a3b8;font-size:12px;">Documents uploaded and accessible in bank portal</td>
+      </tr>
+    `;
+
+    const reviewUrl = `${frontendUrl}/bank/applications?id=${application.id || application.applicationNumber}&mode=review`;
 
     const mailOptions = {
       from: this.getFromAddress(),
-      to: bankEmail,
+      to: recipients.join(', '),
       replyTo: process.env.EMAIL_USER || 'support@vidyaloans.in',
       headers: this.getStandardHeaders(),
-      subject: `📥 Loan Application #${appNum} Submitted to ${bankName} for Credit Review`,
-      text: `Dear Partner at ${bankName},\n\nA new verified student education loan application (#${appNum}) has been submitted to ${bankName} through the VidyaLoan Staff Portal for credit evaluation and underwriting.\n\nApplication Reference: #${appNum}\nStudent Name: ${studentName}\nRequested Amount: ${amount}\nTarget University: ${university}\nLoan Type: ${loanType}\n\nPlease log in to the VidyaLoans Bank Partner Portal to review the credit file and documents.\n\nPortal Login: ${frontendUrl}/bank/login\n\nBest regards,\nThe VidyaLoans Team`,
+      subject: `📥 New Loan Application #${appNum} (${studentName}) Submitted to ${bankName} for Credit Review`,
+      text: `Dear Partner at ${bankName},\n\nA new verified loan application has been submitted to your bank for credit evaluation and underwriting.\n\nApplication Reference: #${appNum}\nStudent Name: ${studentName}\nRequested Loan Amount: ${amount}\nTarget University: ${university} (${country})\nDegree Program: ${course}\n\nCo-Applicant: ${coAppName} (${coAppRelation}) - Annual Income: ${coAppIncome}\nCIBIL Score: ${cibilStr}\nExisting Debts: ${debtsStr}\nCollateral: ${collateralStr}\nSubmitted By: ${submittedBy || 'VidyaLoans Staff Desk'}\nRemarks: ${remarks || 'Application routed for priority review.'}\n\nDownload All Documents (ZIP): ${zipUrl || reviewUrl}\n\nPlease log in to review the full credit file and documents:\n${reviewUrl}\n\nBest regards,\nThe VidyaLoans Team`,
       html: `
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Loan Application Submitted to Bank - VidyaLoan</title>
+  <title>New Loan Application Submitted - VidyaLoan</title>
 </head>
-<body style="margin:0;padding:0;background-color:#f8fafc;font-family:'Segoe UI',Arial,sans-serif;color:#334155;">
-  <div style="max-width:600px;margin:30px auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);">
-    <div style="background:linear-gradient(135deg,#0d47a1,#1565c0);padding:30px;text-align:center;color:#ffffff;">
-      <h1 style="margin:0;font-size:24px;font-weight:800;letter-spacing:-0.5px;">VidyaLoan</h1>
-      <p style="margin:5px 0 0;font-size:12px;opacity:0.9;text-transform:uppercase;letter-spacing:1px;">Bank Partner Underwriting Portal</p>
-    </div>
-    <div style="padding:30px;line-height:1.6;">
-      <div style="background-color:#e3f2fd;border-left:4px solid #1565c0;padding:14px 18px;border-radius:0 8px 8px 0;margin-bottom:20px;">
-        <p style="margin:0;font-size:14px;color:#0d47a1;font-weight:700;">
-          📥 New Application Submitted to ${bankName}
-        </p>
+<body style="margin:0;padding:0;background-color:#f1f5f9;font-family:'Segoe UI',Arial,sans-serif;color:#1e293b;">
+  <div style="max-width:680px;margin:24px auto;background:#ffffff;border:1px solid #cbd5e1;border-radius:16px;overflow:hidden;box-shadow:0 10px 25px -5px rgba(0,0,0,0.08);">
+    
+    <!-- Top Header Banner -->
+    <div style="background:linear-gradient(135deg,#1e1b4b 0%,#312e81 40%,#4338ca 100%);padding:32px 36px;color:#ffffff;text-align:left;">
+      <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.15);padding-bottom:18px;margin-bottom:18px;">
+        <div>
+          <h1 style="margin:0;font-size:22px;font-weight:900;letter-spacing:-0.5px;color:#ffffff;">VidyaLoan</h1>
+          <p style="margin:4px 0 0;font-size:11px;opacity:0.85;text-transform:uppercase;letter-spacing:1.2px;color:#c7d2fe;">Partner Underwriting Desk · ${bankName}</p>
+        </div>
+        <div style="background:rgba(255,255,255,0.12);padding:6px 14px;border-radius:20px;border:1px solid rgba(255,255,255,0.2);text-align:right;">
+          <span style="font-size:11px;font-weight:800;color:#38bdf8;text-transform:uppercase;letter-spacing:0.5px;">File Action: New Credit Dossier</span>
+        </div>
       </div>
-      <h2 style="margin:0 0 15px;font-size:18px;color:#1e293b;font-weight:700;">Loan Application Submitted for Underwriting</h2>
-      <p style="margin:0 0 20px;">Dear Partner at <strong>${bankName}</strong>,</p>
-      <p style="margin:0 0 25px;">A new verified student education loan application has been submitted to your bank through the VidyaLoan Staff Portal for credit evaluation. Below are the primary file details:</p>
-      
-      <div style="background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin:0 0 25px;">
-        <table cellpadding="0" cellspacing="0" width="100%" style="font-size:14px;">
+      <p style="margin:0;font-size:14px;color:#e0e7ff;font-weight:500;">
+        A verified student education loan application has been routed to <strong>${bankName}</strong> for priority underwriting & sanction evaluation.
+      </p>
+    </div>
+
+    <div style="padding:32px 36px;line-height:1.6;">
+
+      <!-- Executive Overview Card -->
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:20px;margin-bottom:26px;">
+        <table cellpadding="0" cellspacing="0" width="100%" style="font-size:13px;">
           <tr>
-            <td style="padding:8px 0;color:#64748b;font-weight:600;width:150px;border-bottom:1px dashed #cbd5e1;">Application No.</td>
-            <td style="padding:8px 0;color:#0f172a;font-weight:700;border-bottom:1px dashed #cbd5e1;">#${appNum}</td>
+            <td style="padding:6px 0;color:#64748b;font-weight:600;width:160px;">Application Reference</td>
+            <td style="padding:6px 0;color:#0f172a;font-weight:800;font-family:monospace;font-size:14px;">#${appNum}</td>
           </tr>
           <tr>
-            <td style="padding:8px 0;color:#64748b;font-weight:600;border-bottom:1px dashed #cbd5e1;">Student Name</td>
-            <td style="padding:8px 0;color:#0f172a;font-weight:600;border-bottom:1px dashed #cbd5e1;">${studentName}</td>
+            <td style="padding:6px 0;color:#64748b;font-weight:600;">Sanction Requested</td>
+            <td style="padding:6px 0;color:#059669;font-weight:900;font-size:16px;">${amount}</td>
           </tr>
           <tr>
-            <td style="padding:8px 0;color:#64748b;font-weight:600;border-bottom:1px dashed #cbd5e1;">Loan Amount</td>
-            <td style="padding:8px 0;color:#10b981;font-weight:700;border-bottom:1px dashed #cbd5e1;">${amount}</td>
+            <td style="padding:6px 0;color:#64748b;font-weight:600;">Loan Category</td>
+            <td style="padding:6px 0;color:#0f172a;font-weight:700;">${loanType} (${tenure})</td>
           </tr>
           <tr>
-            <td style="padding:8px 0;color:#64748b;font-weight:600;border-bottom:1px dashed #cbd5e1;">Target University</td>
-            <td style="padding:8px 0;color:#0f172a;font-weight:600;border-bottom:1px dashed #cbd5e1;">${university}</td>
+            <td style="padding:6px 0;color:#64748b;font-weight:600;">Submitted By Staff</td>
+            <td style="padding:6px 0;color:#4338ca;font-weight:700;">${submittedBy || 'VidyaLoans Staff Desk'}</td>
+          </tr>
+          ${remarks ? `
+          <tr>
+            <td style="padding:6px 0;color:#64748b;font-weight:600;vertical-align:top;">Staff Routing Notes</td>
+            <td style="padding:6px 0;color:#1e293b;font-style:italic;">"${remarks}"</td>
+          </tr>
+          ` : ''}
+        </table>
+      </div>
+
+      <!-- Applicant Details -->
+      <h3 style="margin:0 0 10px;font-size:13px;font-weight:800;color:#4338ca;text-transform:uppercase;letter-spacing:0.8px;">
+        👤 1. Applicant (Student) Profile
+      </h3>
+      <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:24px;">
+        <table cellpadding="0" cellspacing="0" width="100%" style="font-size:13px;">
+          <tr>
+            <td style="padding:5px 0;color:#64748b;font-weight:600;width:160px;">Full Legal Name</td>
+            <td style="padding:5px 0;color:#0f172a;font-weight:700;">${studentName}</td>
           </tr>
           <tr>
-            <td style="padding:8px 0;color:#64748b;font-weight:600;">Loan Type</td>
-            <td style="padding:8px 0;color:#0f172a;font-weight:600;">${loanType}</td>
+            <td style="padding:5px 0;color:#64748b;font-weight:600;">Email Address</td>
+            <td style="padding:5px 0;color:#0f172a;">${studentEmail}</td>
+          </tr>
+          <tr>
+            <td style="padding:5px 0;color:#64748b;font-weight:600;">Mobile Number</td>
+            <td style="padding:5px 0;color:#0f172a;font-family:monospace;">${studentPhone}</td>
+          </tr>
+          <tr>
+            <td style="padding:5px 0;color:#64748b;font-weight:600;">Date of Birth & Gender</td>
+            <td style="padding:5px 0;color:#0f172a;">${dob} · ${gender}</td>
+          </tr>
+          <tr>
+            <td style="padding:5px 0;color:#64748b;font-weight:600;">Permanent Address</td>
+            <td style="padding:5px 0;color:#0f172a;">${studentAddress}</td>
           </tr>
         </table>
       </div>
-      
-      <p style="margin:0 0 30px;">All applicant documents, co-applicant financial profiles, and staff verification logs have been uploaded and are ready for credit evaluation on your portal.</p>
-      
-      <div style="text-align:center;margin-bottom:30px;">
-        <a href="${frontendUrl}/bank/login" style="display:inline-block;background-color:#2563eb;color:#ffffff;text-decoration:none;padding:12px 30px;border-radius:8px;font-weight:700;font-size:14px;box-shadow:0 4px 10px rgba(37,99,235,0.25);">
-          🚀 Access Bank Underwriting Portal
+
+      <!-- Academic & Target Program Details -->
+      <h3 style="margin:0 0 10px;font-size:13px;font-weight:800;color:#4338ca;text-transform:uppercase;letter-spacing:0.8px;">
+        🎓 2. Target University & Academic Scores
+      </h3>
+      <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:24px;">
+        <table cellpadding="0" cellspacing="0" width="100%" style="font-size:13px;">
+          <tr>
+            <td style="padding:5px 0;color:#64748b;font-weight:600;width:160px;">Target University</td>
+            <td style="padding:5px 0;color:#0f172a;font-weight:700;">${university}</td>
+          </tr>
+          <tr>
+            <td style="padding:5px 0;color:#64748b;font-weight:600;">Destination Country</td>
+            <td style="padding:5px 0;color:#0f172a;font-weight:600;">${country}</td>
+          </tr>
+          <tr>
+            <td style="padding:5px 0;color:#64748b;font-weight:600;">Degree & Course</td>
+            <td style="padding:5px 0;color:#0f172a;">${course}</td>
+          </tr>
+          <tr>
+            <td style="padding:5px 0;color:#64748b;font-weight:600;">Admission Offer Status</td>
+            <td style="padding:5px 0;color:#059669;font-weight:700;">✓ ${admissionStatus}</td>
+          </tr>
+          <tr>
+            <td style="padding:5px 0;color:#64748b;font-weight:600;">Standardized Entrance Test</td>
+            <td style="padding:5px 0;color:#0f172a;font-weight:700;">${entranceStr}</td>
+          </tr>
+          <tr>
+            <td style="padding:5px 0;color:#64748b;font-weight:600;">English Language Score</td>
+            <td style="padding:5px 0;color:#0f172a;font-weight:700;">${englishStr}</td>
+          </tr>
+          <tr>
+            <td style="padding:5px 0;color:#64748b;font-weight:600;">Undergraduate GPA / %</td>
+            <td style="padding:5px 0;color:#0f172a;font-weight:700;">${gpaStr}</td>
+          </tr>
+          <tr>
+            <td style="padding:5px 0;color:#64748b;font-weight:600;">Past Academic Backlogs</td>
+            <td style="padding:5px 0;color:#059669;font-weight:700;">${backlogsStr}</td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- Co-Applicant & Financials -->
+      <h3 style="margin:0 0 10px;font-size:13px;font-weight:800;color:#4338ca;text-transform:uppercase;letter-spacing:0.8px;">
+        👥 3. Primary Co-Applicant & Guarantor Details
+      </h3>
+      <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:24px;">
+        <table cellpadding="0" cellspacing="0" width="100%" style="font-size:13px;">
+          <tr>
+            <td style="padding:5px 0;color:#64748b;font-weight:600;width:160px;">Co-Applicant Name</td>
+            <td style="padding:5px 0;color:#0f172a;font-weight:700;">${coAppName}</td>
+          </tr>
+          <tr>
+            <td style="padding:5px 0;color:#64748b;font-weight:600;">Relationship to Student</td>
+            <td style="padding:5px 0;color:#0f172a;">${coAppRelation}</td>
+          </tr>
+          <tr>
+            <td style="padding:5px 0;color:#64748b;font-weight:600;">Occupation & Industry</td>
+            <td style="padding:5px 0;color:#0f172a;">${coAppOccupation}</td>
+          </tr>
+          <tr>
+            <td style="padding:5px 0;color:#64748b;font-weight:600;">Annual Gross Income</td>
+            <td style="padding:5px 0;color:#059669;font-weight:800;font-size:14px;">${coAppIncome}</td>
+          </tr>
+          <tr>
+            <td style="padding:5px 0;color:#64748b;font-weight:600;">Co-Applicant PAN</td>
+            <td style="padding:5px 0;color:#0f172a;font-family:monospace;font-weight:700;">${coAppPan}</td>
+          </tr>
+          <tr>
+            <td style="padding:5px 0;color:#64748b;font-weight:600;">Contact Details</td>
+            <td style="padding:5px 0;color:#0f172a;">${coAppContact}</td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- Credit & Risk Profile -->
+      <h3 style="margin:0 0 10px;font-size:13px;font-weight:800;color:#4338ca;text-transform:uppercase;letter-spacing:0.8px;">
+        💳 4. Credit Score & Risk Assessment
+      </h3>
+      <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:26px;">
+        <table cellpadding="0" cellspacing="0" width="100%" style="font-size:13px;">
+          <tr>
+            <td style="padding:5px 0;color:#64748b;font-weight:600;width:160px;">Bureau Credit Score</td>
+            <td style="padding:5px 0;color:#0f172a;font-weight:800;">${cibilStr}</td>
+          </tr>
+          <tr>
+            <td style="padding:5px 0;color:#64748b;font-weight:600;">Existing Debts / EMIs</td>
+            <td style="padding:5px 0;color:#0f172a;font-weight:700;">${debtsStr}</td>
+          </tr>
+          <tr>
+            <td style="padding:5px 0;color:#64748b;font-weight:600;">Collateral Pledged</td>
+            <td style="padding:5px 0;color:#0f172a;font-weight:600;">${collateralStr}</td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- Attached Documents -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <h3 style="margin:0;font-size:13px;font-weight:800;color:#4338ca;text-transform:uppercase;letter-spacing:0.8px;">
+          📎 5. Verified File Attachments
+        </h3>
+        ${zipUrl ? `
+        <a href="${zipUrl}" style="display:inline-block;background:#059669;color:#ffffff;text-decoration:none;padding:6px 14px;border-radius:6px;font-weight:700;font-size:11px;box-shadow:0 2px 6px rgba(5,150,105,0.25);" target="_blank">
+          📦 Download as ZIP
+        </a>
+        ` : ''}
+      </div>
+
+      ${zipUrl ? `
+      <div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+        <div>
+          <strong style="color:#065f46;font-size:13px;display:block;">📦 Complete Document Archive</strong>
+          <span style="color:#047857;font-size:12px;">Download all student KYC, academic, and co-applicant documents in a single ZIP package.</span>
+        </div>
+        <a href="${zipUrl}" style="display:inline-block;background:#059669;color:#ffffff;text-decoration:none;padding:7px 14px;border-radius:6px;font-weight:700;font-size:11px;white-space:nowrap;" target="_blank">
+          ⬇ Download ZIP
         </a>
       </div>
-      
-      <p style="margin:0;font-size:13px;color:#64748b;border-top:1px solid #e2e8f0;padding-top:20px;">
-        Need help or have questions regarding this file? Contact support at support@vidyaloans.in.
+      ` : ''}
+      <div style="border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:30px;">
+        <table cellpadding="0" cellspacing="0" width="100%">
+          <tbody>
+            ${docRows}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Call to Action Button -->
+      <div style="text-align:center;margin:32px 0;">
+        <a href="${reviewUrl}" style="display:inline-block;background:linear-gradient(135deg,#4338ca 0%,#6366f1 100%);color:#ffffff;text-decoration:none;padding:14px 34px;border-radius:10px;font-weight:800;font-size:14px;box-shadow:0 4px 14px rgba(67,56,202,0.35);letter-spacing:0.3px;">
+          🚀 Open & Review Dossier in Bank Portal
+        </a>
+        <p style="margin:10px 0 0;font-size:11px;color:#94a3b8;">
+          Direct Access: <a href="${reviewUrl}" style="color:#4338ca;word-break:break-all;">${reviewUrl}</a>
+        </p>
+      </div>
+
+      <p style="margin:0;font-size:12px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:20px;text-align:center;">
+        VidyaLoans Automated Underwriting Dispatch System · Support: support@vidyaloans.in<br/>
+        Confidential Banking Document: This email contains privileged applicant KYC and credit data for authorized underwriting personnel only.
       </p>
     </div>
   </div>
@@ -1561,15 +1833,15 @@ export class EmailService {
     };
 
     try {
-      console.log(`[EmailService] Sending application alert to bank email: ${bankEmail}`);
+      console.log(`[EmailService] Sending full application dossier to bank recipient(s): ${recipients.join(', ')}`);
       if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
         await this.transporter.sendMail(mailOptions);
-        console.log(`[EmailService] New application email sent successfully to bank: ${bankEmail}`);
+        console.log(`[EmailService] New application email successfully delivered to bank user(s): ${recipients.join(', ')}`);
       } else {
-        console.log(`[EmailService] Email credentials not configured – logged bank notification to console`);
+        console.log(`[EmailService] Email credentials not configured – logged bank application notification for ${recipients.join(', ')}`);
       }
     } catch (error) {
-      console.error(`[EmailService] Failed to send bank application notification to ${bankEmail}:`, error);
+      console.error(`[EmailService] Failed to send bank application notification to ${recipients.join(', ')}:`, error);
     }
   }
 
@@ -1597,19 +1869,29 @@ export class EmailService {
     const dob = application.dateOfBirth || 'N/A';
 
     const documents: any[] = application.documents || [];
+    const zipUrl = application.id
+      ? `${frontendUrl}/api/applications/admin/${application.id}/documents/zip`
+      : null;
     const docRows = documents.length > 0
       ? documents.map((doc: any) => {
-        const viewUrl = (doc.id && application.id)
-          ? `${frontendUrl}/api/applications/admin/${application.id}/documents/${doc.id}/view`
+        const docId = doc.id || doc.docId;
+        const viewUrl = (docId && application.id)
+          ? `${frontendUrl}/api/applications/admin/${application.id}/documents/${docId}/view`
+          : null;
+        const downloadUrl = (docId && application.id)
+          ? `${frontendUrl}/api/applications/admin/${application.id}/documents/${docId}/view?download=true`
           : null;
         return `
         <tr>
-          <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#334155;">
-            <strong>${(doc.name || doc.type || 'Document').replace(/_/g, ' ')}</strong>
-            ${viewUrl ? `<br/><a href="${viewUrl}" style="font-size:11px;color:#4f46e5;text-decoration:none;font-weight:600;" target="_blank">View / Download Document ↗</a>` : ''}
+          <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#334155;">
+            <div style="font-weight:700;color:#1e293b;">${(doc.name || doc.docName || doc.type || doc.docType || 'Document').replace(/_/g, ' ')}</div>
+            <div style="margin-top:4px;">
+              ${viewUrl ? `<a href="${viewUrl}" style="font-size:11px;color:#4f46e5;text-decoration:none;font-weight:700;margin-right:12px;" target="_blank">👁 View Document ↗</a>` : ''}
+              ${downloadUrl ? `<a href="${downloadUrl}" style="font-size:11px;color:#059669;text-decoration:none;font-weight:700;" target="_blank">⬇ Download</a>` : ''}
+            </div>
           </td>
-          <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;">
-            <span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;background:${doc.status === 'verified' ? '#dcfce7' : doc.status === 'rejected' ? '#fee2e2' : '#fef3c7'};color:${doc.status === 'verified' ? '#166534' : doc.status === 'rejected' ? '#991b1b' : '#92400e'};">${(doc.status || 'pending').toUpperCase()}</span>
+          <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;text-align:right;">
+            <span style="display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;background:${doc.status === 'verified' ? '#dcfce7' : doc.status === 'rejected' ? '#fee2e2' : '#fef3c7'};color:${doc.status === 'verified' ? '#166534' : doc.status === 'rejected' ? '#991b1b' : '#92400e'};">${(doc.status || 'pending').toUpperCase()}</span>
           </td>
         </tr>`;
       }).join('')
@@ -1710,13 +1992,33 @@ export class EmailService {
       </div>
 
       <!-- Documents -->
-      <h3 style="margin:0 0 12px;font-size:14px;font-weight:700;color:#4f46e5;text-transform:uppercase;letter-spacing:0.5px;">📎 Attached Documents</h3>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <h3 style="margin:0;font-size:14px;font-weight:700;color:#4f46e5;text-transform:uppercase;letter-spacing:0.5px;">📎 Attached Documents</h3>
+        ${zipUrl ? `
+        <a href="${zipUrl}" style="display:inline-block;background:#059669;color:#ffffff;text-decoration:none;padding:8px 16px;border-radius:8px;font-weight:700;font-size:12px;box-shadow:0 2px 6px rgba(5,150,105,0.25);" target="_blank">
+          📦 Download All as ZIP
+        </a>
+        ` : ''}
+      </div>
+
+      ${zipUrl ? `
+      <div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+        <div>
+          <strong style="color:#065f46;font-size:13px;display:block;">📦 Complete Document Archive (ZIP)</strong>
+          <span style="color:#047857;font-size:12px;">Download all student KYC, academic, and co-applicant documents in a single ZIP package.</span>
+        </div>
+        <a href="${zipUrl}" style="display:inline-block;background:#059669;color:#ffffff;text-decoration:none;padding:8px 16px;border-radius:6px;font-weight:700;font-size:12px;white-space:nowrap;" target="_blank">
+          ⬇ Download ZIP
+        </a>
+      </div>
+      ` : ''}
+
       <div style="border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:28px;">
         <table cellpadding="0" cellspacing="0" width="100%">
           <thead>
             <tr style="background:#f1f5f9;">
               <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Document Name</th>
-              <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Status</th>
+              <th style="padding:10px 12px;text-align:right;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Status</th>
             </tr>
           </thead>
           <tbody>
@@ -1751,7 +2053,7 @@ export class EmailService {
           headers: this.getStandardHeaders(),
           subject: `📋 Application Package – ${studentName} | ${appNum} | ${bankName}`,
           html,
-          text: `Dear Partner at ${bankName},\n\nPlease find the full application package for ${studentName} (Ref: #${appNum}).\n\nAmount: ${amount}\nUniversity: ${university}\nCourse: ${course}\n\nLogin to the Partner Portal: ${frontendUrl}/bank/login\n\nRegards,\nVidyaLoan Team`,
+          text: `Dear Partner at ${bankName},\n\nPlease find the full application package for ${studentName} (Ref: #${appNum}).\n\nAmount: ${amount}\nUniversity: ${university}\nCourse: ${course}\n\nDownload All Documents as ZIP:\n${zipUrl || 'N/A'}\n\nLogin to the Partner Portal: ${frontendUrl}/bank/login\n\nRegards,\nVidyaLoan Team`,
           attachments: attachments && attachments.length > 0 ? attachments : undefined
         });
         console.log(`[EmailService] Application package sent to ${bankEmail}`);

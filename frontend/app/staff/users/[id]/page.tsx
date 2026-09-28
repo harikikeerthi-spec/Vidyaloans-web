@@ -212,6 +212,7 @@ export default function ProfileTab() {
         relation: (typeof parsedCoAppObj === 'object' ? (parsedCoAppObj?.relation || parsedCoAppObj?.relationship || parsedCoAppObj?.coApplicantRelation) : "") || parsedFamilyObj?.coappRelation || parsedFamilyObj?.coApplicantRelation || userData?.coApplicantRelation || coappEntry.relation || firstAppWithCoApp?.coApplicantRelation || "",
         phone: (typeof parsedCoAppObj === 'object' ? (parsedCoAppObj?.mobile || parsedCoAppObj?.phone || parsedCoAppObj?.coApplicantPhone) : "") || parsedFamilyObj?.coappPhone || parsedFamilyObj?.coApplicantPhone || userData?.coApplicantPhone || coappEntry.phone || coappEntry.mobile || firstAppWithCoApp?.coApplicantPhone || "",
         email: (typeof parsedCoAppObj === 'object' ? (parsedCoAppObj?.email || parsedCoAppObj?.coApplicantEmail) : "") || parsedFamilyObj?.coappEmail || parsedFamilyObj?.coApplicantEmail || userData?.coApplicantEmail || coappEntry.email || firstAppWithCoApp?.coApplicantEmail || "",
+        income: (typeof parsedCoAppObj === 'object' ? (parsedCoAppObj?.monthlyIncome || parsedCoAppObj?.income || parsedCoAppObj?.annualIncome) : "") || parsedFamilyObj?.coappIncome || parsedFamilyObj?.coApplicantIncome || userData?.coApplicantIncome || firstAppWithCoApp?.coApplicantIncome || "",
         aadharNumber: (typeof parsedCoAppObj === 'object' ? (parsedCoAppObj?.aadharNumber || parsedCoAppObj?.aadhar) : "") || parsedFamilyObj?.coappAadhar || parsedFamilyObj?.coApplicantAadhar || userData?.coApplicantAadhar || coappEntry.aadharNumber || coappEntry.aadhar || "",
         panNumber: (typeof parsedCoAppObj === 'object' ? (parsedCoAppObj?.panNumber || parsedCoAppObj?.pan) : "") || parsedFamilyObj?.coappPan || parsedFamilyObj?.coApplicantPan || userData?.coApplicantPan || coappEntry.panNumber || coappEntry.pan || "",
     };
@@ -633,9 +634,17 @@ export default function ProfileTab() {
 
             coappName: coapplicantData?.name || parsedCoApp?.name || userData?.coApplicantName || firstAppWithCoApp?.coApplicantName || "",
             coappRelation: coapplicantData?.relation || parsedCoApp?.relation || parsedCoApp?.relationship || userData?.coApplicantRelation || firstAppWithCoApp?.coApplicantRelation || "",
-            coappPhone: coapplicantData?.phone || parsedCoApp?.mobile || parsedCoApp?.phone || parsedCoApp?.coApplicantPhone || userData?.coApplicantPhone || firstAppWithCoApp?.coApplicantPhone || "",
-            coappEmail: coapplicantData?.email || parsedCoApp?.email || parsedCoApp?.coApplicantEmail || userData?.coApplicantEmail || firstAppWithCoApp?.coApplicantEmail || "",
-            coappIncome: parsedCoApp?.monthlyIncome || userData?.coApplicantIncome || firstAppWithCoApp?.coApplicantIncome || "",
+            coappPhone: (() => {
+                let p = (coapplicantData?.phone || parsedCoApp?.mobile || parsedCoApp?.phone || parsedCoApp?.coApplicantPhone || userData?.coApplicantPhone || firstAppWithCoApp?.coApplicantPhone || "").toString();
+                if (p.startsWith("+91")) p = p.slice(3);
+                else if (p.startsWith("+")) p = p.slice(1);
+                let d = p.replace(/\D/g, "");
+                if (d.length === 12 && d.startsWith("91")) d = d.slice(2);
+                else if (d.length === 11 && d.startsWith("0")) d = d.slice(1);
+                return d.slice(0, 10);
+            })(),
+            coappEmail: (coapplicantData?.email || parsedCoApp?.email || parsedCoApp?.coApplicantEmail || userData?.coApplicantEmail || firstAppWithCoApp?.coApplicantEmail || "").toString().toLowerCase().trim(),
+            coappIncome: (parsedCoApp?.monthlyIncome || userData?.coApplicantIncome || firstAppWithCoApp?.coApplicantIncome || "").toString().replace(/\D/g, "").slice(0, 8),
             coappAadhar: coapplicantData?.aadharNumber || parsedCoApp?.aadharNumber || "",
             coappPan: coapplicantData?.panNumber || parsedCoApp?.panNumber || "",
 
@@ -1148,13 +1157,24 @@ export default function ProfileTab() {
 
                                         {/* Primary Co-Applicant */}
                                         <tr className="bg-[#F3E8FF]/20 hover:bg-[#F3E8FF]/30 transition-colors">
-                                            <td className="px-6 py-4 whitespace-nowrap font-semibold text-[#7C3AED]">Primary Co-Applicant</td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="font-semibold text-[#7C3AED]">Primary Co-Applicant</div>
+                                                {coapplicantData?.relation && (
+                                                    <span className="inline-block mt-1 px-2 py-0.5 text-[10px] font-bold rounded-md bg-purple-100 text-purple-700">
+                                                        {coapplicantData.relation}
+                                                    </span>
+                                                )}
+                                            </td>
                                             <td className="px-6 py-4 whitespace-nowrap font-semibold text-[#0F172A]">{coApp1Name}</td>
                                             <td className="px-6 py-4 whitespace-nowrap text-xs text-[#0F172A] font-medium">
-                                                <div className="mb-1 text-[#64748B]">Phone: <span className={coapplicantData?.phone ? "text-[#0F172A] font-medium" : "text-[#94A3B8] font-normal"}>{coapplicantData?.phone || "Pending"}</span></div>
+                                                {coapplicantData?.relation && (
+                                                    <div className="mb-1 text-[#64748B]">Relation: <span className="text-[#0F172A] font-semibold">{coapplicantData.relation}</span></div>
+                                                )}
+                                                <div className="mb-1 text-[#64748B]">Phone: <span className={coapplicantData?.phone ? "text-[#0F172A] font-medium font-mono" : "text-[#94A3B8] font-normal"}>{coapplicantData?.phone || "Pending"}</span></div>
                                                 <div className="mb-1 text-[#64748B]">Email: <span className={coapplicantData?.email ? "text-[#0F172A] font-medium" : "text-[#94A3B8] font-normal"}>{coapplicantData?.email || "Pending"}</span></div>
-                                                <div className="mb-1 text-[#64748B]">Aadhaar: <span className={coapplicantData?.aadharNumber ? "text-[#0F172A] font-medium" : "text-[#94A3B8] font-normal"}>{coapplicantData?.aadharNumber || "Pending"}</span></div>
-                                                <div className="text-[#64748B]">PAN: <span className={coapplicantData?.panNumber ? "text-[#0F172A] font-medium" : "text-[#94A3B8] font-normal"}>{coapplicantData?.panNumber || "Pending"}</span></div>
+                                                <div className="mb-1 text-[#64748B]">Annual Income: <span className={coapplicantData?.income ? "text-[#0F172A] font-bold" : "text-[#94A3B8] font-normal"}>{coapplicantData?.income ? `₹${Number(coapplicantData.income).toLocaleString('en-IN')}` : "Pending"}</span></div>
+                                                <div className="mb-1 text-[#64748B]">Aadhaar: <span className={coapplicantData?.aadharNumber ? "text-[#0F172A] font-medium font-mono" : "text-[#94A3B8] font-normal"}>{coapplicantData?.aadharNumber || "Pending"}</span></div>
+                                                <div className="text-[#64748B]">PAN: <span className={coapplicantData?.panNumber ? "text-[#0F172A] font-medium font-mono uppercase" : "text-[#94A3B8] font-normal"}>{coapplicantData?.panNumber || "Pending"}</span></div>
                                             </td>
                                         </tr>
 
@@ -2094,30 +2114,59 @@ export default function ProfileTab() {
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Income (₹/year)</label>
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Annual Income (INR)</label>
+                                                    <span className="text-[9px] font-semibold text-slate-400">
+                                                        {editForm.coappIncome ? `${editForm.coappIncome.length}/8 digits` : "Max 8 digits"}
+                                                    </span>
+                                                </div>
                                                 <input
-                                                    type="number"
+                                                    type="text"
+                                                    inputMode="numeric"
+                                                    maxLength={8}
                                                     value={editForm.coappIncome}
-                                                    onChange={(e) => setEditForm(prev => ({ ...prev, coappIncome: e.target.value }))}
-                                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-indigo-500"
+                                                    onChange={(e) => setEditForm(prev => ({ ...prev, coappIncome: e.target.value.replace(/\D/g, "").slice(0, 8) }))}
+                                                    placeholder="e.g. 600000"
+                                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-indigo-500 font-mono"
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Mobile / Phone</label>
-                                                <input
-                                                    type="text"
-                                                    value={editForm.coappPhone}
-                                                    onChange={(e) => setEditForm(prev => ({ ...prev, coappPhone: e.target.value }))}
-                                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-indigo-500"
-                                                    placeholder="e.g. 9876543210"
-                                                />
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Mobile / Phone (India)</label>
+                                                    <span className={`text-[9px] font-semibold ${editForm.coappPhone?.length === 10 ? "text-emerald-600 font-bold" : "text-slate-400"}`}>
+                                                        {editForm.coappPhone?.length || 0}/10 digits
+                                                    </span>
+                                                </div>
+                                                <div className="flex rounded-lg overflow-hidden border border-slate-200 focus-within:border-indigo-500">
+                                                    <div className="inline-flex items-center gap-1 px-2.5 py-2 bg-slate-50 border-r border-slate-200 text-xs font-bold text-slate-700 select-none shrink-0">
+                                                        <span>🇮🇳</span>
+                                                        <span>+91</span>
+                                                    </div>
+                                                    <input
+                                                        type="tel"
+                                                        inputMode="numeric"
+                                                        maxLength={10}
+                                                        value={editForm.coappPhone}
+                                                        onChange={(e) => {
+                                                            let val = e.target.value;
+                                                            if (val.startsWith("+91")) val = val.slice(3);
+                                                            else if (val.startsWith("+")) val = val.slice(1);
+                                                            let digits = val.replace(/\D/g, "");
+                                                            if (digits.length === 12 && digits.startsWith("91")) digits = digits.slice(2);
+                                                            else if (digits.length === 11 && digits.startsWith("0")) digits = digits.slice(1);
+                                                            setEditForm(prev => ({ ...prev, coappPhone: digits.slice(0, 10) }));
+                                                        }}
+                                                        className="flex-1 px-3 py-2 bg-white text-sm text-slate-800 focus:outline-none font-mono"
+                                                        placeholder="98765 43210"
+                                                    />
+                                                </div>
                                             </div>
                                             <div>
                                                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Email Address</label>
                                                 <input
                                                     type="email"
                                                     value={editForm.coappEmail}
-                                                    onChange={(e) => setEditForm(prev => ({ ...prev, coappEmail: e.target.value }))}
+                                                    onChange={(e) => setEditForm(prev => ({ ...prev, coappEmail: e.target.value.toLowerCase().replace(/[^a-z0-9._%+\-@]/g, "") }))}
                                                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-indigo-500"
                                                     placeholder="e.g. coapplicant@example.com"
                                                 />

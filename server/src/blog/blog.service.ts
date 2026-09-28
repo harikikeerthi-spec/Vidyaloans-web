@@ -455,6 +455,84 @@ export class BlogService {
             const pills = rawTags.map((t: string) => `<span class="inline-flex items-center px-3 py-1 bg-slate-100 hover:bg-purple-100 text-slate-700 hover:text-purple-800 text-xs font-bold rounded-full mr-2 mb-2 transition-colors border border-slate-200">#${t.replace(/^#/, '')}</span>`).join('');
             return `<div class="blog-tags-widget my-6 pt-4 border-t border-slate-100"${styleAttr}><p class="text-xs font-black uppercase tracking-wider text-slate-400 mb-2">${block.title || 'Tags & Topics'}</p><div class="flex flex-wrap gap-1">${pills}</div></div>`;
           }
+          case 'split_content':
+          case 'container': {
+            const config = block.splitConfig || {};
+            const layout = config.layoutType || 'image_text';
+            const ratio = config.ratio || '50_50';
+            const vAlign = config.verticalAlign || 'center';
+            const cardStyle = config.cardStyle || 'clean';
+
+            let leftSpan = 'md:col-span-6';
+            let rightSpan = 'md:col-span-6';
+            if (ratio === '40_60') { leftSpan = 'md:col-span-5'; rightSpan = 'md:col-span-7'; }
+            else if (ratio === '60_40') { leftSpan = 'md:col-span-7'; rightSpan = 'md:col-span-5'; }
+            else if (ratio === '33_67') { leftSpan = 'md:col-span-4'; rightSpan = 'md:col-span-8'; }
+
+            const alignClass = vAlign === 'top' ? 'items-start' : vAlign === 'bottom' ? 'items-end' : 'items-center';
+
+            let containerClass = 'blog-split-container not-prose my-8 p-5 sm:p-7 rounded-3xl transition-all';
+            if (cardStyle === 'card') {
+              containerClass += ' bg-white border border-slate-200/80 shadow-md shadow-slate-100/50';
+            } else if (cardStyle === 'gradient') {
+              containerClass += ' bg-gradient-to-br from-indigo-50/70 via-purple-50/40 to-slate-50 border border-indigo-100 shadow-sm';
+            } else if (cardStyle === 'bordered') {
+              containerClass += ' bg-slate-50/40 border-2 border-dashed border-slate-200';
+            } else {
+              containerClass += ' bg-transparent';
+            }
+
+            const renderImageCol = (imgUrl?: string, caption?: string, alt?: string) => {
+              const src = imgUrl || 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?q=80&w=800';
+              return `<div class="relative w-full overflow-hidden rounded-2xl shadow-md border border-slate-200/60 bg-slate-100 group">
+                <img src="${src}" alt="${alt || 'Blog illustration'}" class="w-full h-full object-cover max-h-[440px] transition-transform duration-500 hover:scale-[1.02]" />
+                ${caption ? `<div class="p-2.5 bg-slate-900/75 backdrop-blur-xs text-white text-[11px] font-medium text-center">${caption}</div>` : ''}
+              </div>`;
+            };
+
+            const renderContentCol = (title?: string, content?: string, items?: string[], btnText?: string, btnUrl?: string, btnNewTab?: boolean) => {
+              const titleHtml = title ? `<h3 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight mb-3 leading-snug">${title}</h3>` : '';
+              const contentHtml = content ? `<p class="text-slate-600 text-sm sm:text-base leading-relaxed mb-4 whitespace-pre-line">${content}</p>` : '';
+              const itemsHtml = (items && items.length > 0)
+                ? `<ul class="space-y-2 mb-5 pl-0 list-none">
+                    ${items.map(it => `<li class="flex items-start gap-2.5 text-xs sm:text-sm text-slate-700 font-medium">
+                      <span class="w-5 h-5 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 shadow-2xs">✓</span>
+                      <span>${it}</span>
+                    </li>`).join('')}
+                  </ul>`
+                : '';
+              const btnHtml = btnText ? `<div class="pt-1">
+                <a href="${btnUrl || '/apply'}"${btnNewTab ? ' target="_blank" rel="noopener noreferrer"' : ''} class="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-indigo-600/20 transition-all hover:scale-[1.02]">
+                  <span>${btnText}</span>
+                  <span class="material-symbols-outlined text-[16px]">arrow_forward</span>
+                </a>
+              </div>` : '';
+
+              return `<div class="flex flex-col justify-center">${titleHtml}${contentHtml}${itemsHtml}${btnHtml}</div>`;
+            };
+
+            let leftColHtml = '';
+            let rightColHtml = '';
+
+            if (layout === 'image_text') {
+              leftColHtml = renderImageCol(config.leftImageUrl, config.leftImageCaption, config.leftImageAlt);
+              rightColHtml = renderContentCol(config.rightTitle, config.rightContent, config.rightItems, config.buttonText, config.buttonUrl, config.buttonNewTab);
+            } else if (layout === 'text_image') {
+              leftColHtml = renderContentCol(config.leftTitle, config.leftContent, config.leftItems, config.buttonText, config.buttonUrl, config.buttonNewTab);
+              rightColHtml = renderImageCol(config.rightImageUrl, config.rightImageCaption, config.rightImageAlt);
+            } else {
+              // text_text: Left side matter and Right side matter
+              leftColHtml = renderContentCol(config.leftTitle, config.leftContent, config.leftItems);
+              rightColHtml = renderContentCol(config.rightTitle, config.rightContent, config.rightItems, config.buttonText, config.buttonUrl, config.buttonNewTab);
+            }
+
+            return `<div class="${containerClass}"${styleAttr}>
+              <div class="grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8 ${alignClass}">
+                <div class="${leftSpan} w-full">${leftColHtml}</div>
+                <div class="${rightSpan} w-full">${rightColHtml}</div>
+              </div>
+            </div>`;
+          }
           case 'divider':
             return `<hr${styleAttr} />`;
           case 'spacer':
