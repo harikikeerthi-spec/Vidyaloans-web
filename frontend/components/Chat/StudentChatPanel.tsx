@@ -240,7 +240,7 @@ export default function StudentChatPanel({ onClose }: StudentChatPanelProps) {
                         <button
                             type="button"
                             onClick={() => {
-                                const rawNumber = process.env.NEXT_PUBLIC_TWILIO_WHATSAPP_NUMBER || '+14155238886';
+                                const rawNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || process.env.NEXT_PUBLIC_AWS_WHATSAPP_NUMBER || '+918143797779';
                                 const cleanNumber = rawNumber.replace('whatsapp:', '').replace(/\D/g, '');
                                 const welcomeText = encodeURIComponent(`Hi Vidyaloan team, I am ${user?.firstName || 'applicant'} and I would like to connect with a mentor.`);
                                 window.open(`https://wa.me/${cleanNumber}?text=${welcomeText}`, '_blank');

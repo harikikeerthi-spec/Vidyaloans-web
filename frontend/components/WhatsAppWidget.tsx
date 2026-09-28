@@ -23,7 +23,7 @@ export default function WhatsAppWidget() {
     }, []);
 
     const openWhatsApp = () => {
-        const rawNumber = settings?.whatsappNumber || process.env.NEXT_PUBLIC_TWILIO_WHATSAPP_NUMBER || '+918143797779';
+        const rawNumber = settings?.whatsappNumber || process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || process.env.NEXT_PUBLIC_AWS_WHATSAPP_NUMBER || '+918143797779';
         const cleanNumber = rawNumber.replace(/[^0-9]/g, '');
         const siteName = settings?.siteName || "VidyaLoan";
         const message = encodeURIComponent(`Hi ${siteName} team! I'm interested in an education loan and would like to speak with a mentor.`);

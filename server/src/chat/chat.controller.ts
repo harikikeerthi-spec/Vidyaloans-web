@@ -64,7 +64,7 @@ export class ChatController {
         fullName || undefined
     );
     
-    const rawNumber = process.env.TWILIO_WHATSAPP_NUMBER || '+14155238886';
+    const rawNumber = process.env.AWS_WHATSAPP_PHONE_NUMBER || process.env.WHATSAPP_PHONE_NUMBER || '+918143797779';
     const cleanNumber = rawNumber.replace('whatsapp:', '').replace(/\D/g, '');
     
     return {

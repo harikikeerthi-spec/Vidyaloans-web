@@ -10,7 +10,7 @@ import {
 import { Server, Socket } from 'socket.io';
 import { UseGuards, Logger } from '@nestjs/common';
 import { ChatService } from './chat.service';
-import { TwilioService } from './twilio.service';
+import { AwsWhatsAppService } from './aws-whatsapp.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { OnEvent } from '@nestjs/event-emitter';
@@ -30,7 +30,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   constructor(
     private readonly chatService: ChatService,
-    private readonly twilioService: TwilioService,
+    private readonly whatsAppService: AwsWhatsAppService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService
   ) {}
@@ -274,10 +274,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // 3. Update WhatsApp Simulator if connected
       this.server.to(`sim_${cleanPhone}`).emit('wa_message_received', msg);
 
-      // 4. Send out via Twilio WhatsApp (Real)
+      // 4. Send out via AWS WhatsApp (Real)
       if (payload.customerPhone) {
-        await this.twilioService.sendWhatsAppMessage(payload.customerPhone, payload.content).catch(e => {
-            this.logger.error('Twilio Error (ignoring for simulation): ' + e.message);
+        await this.whatsAppService.sendWhatsAppMessage(payload.customerPhone, payload.content).catch(e => {
+            this.logger.error('AWS WhatsApp Error (ignoring for simulation): ' + e.message);
         });
       }
       

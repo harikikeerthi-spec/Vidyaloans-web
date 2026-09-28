@@ -1,6 +1,7 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { ChatService } from './chat.service';
-import { TwilioService } from './twilio.service';
+import { AwsWhatsAppService } from './aws-whatsapp.service';
+import { AwsSnsService } from './aws-sns.service';
 import { ChatGateway } from './chat.gateway';
 import { WhatsappController } from './whatsapp.controller';
 import { ChatController } from './chat.controller';
@@ -31,7 +32,22 @@ import { AiModule } from '../ai/ai.module';
       })
   ],
   controllers: [WhatsappController, ChatController, MultiPartyChatController],
-  providers: [ChatService, TwilioService, ChatGateway, MultiPartyChatService, EmailService, StudentNotificationService],
-  exports: [ChatService, MultiPartyChatService, EmailService, StudentNotificationService]
+  providers: [
+    ChatService,
+    AwsWhatsAppService,
+    AwsSnsService,
+    ChatGateway,
+    MultiPartyChatService,
+    EmailService,
+    StudentNotificationService,
+  ],
+  exports: [
+    ChatService,
+    AwsWhatsAppService,
+    AwsSnsService,
+    MultiPartyChatService,
+    EmailService,
+    StudentNotificationService,
+  ],
 })
 export class ChatModule {}

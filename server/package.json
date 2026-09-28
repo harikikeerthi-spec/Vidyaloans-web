@@ -23,6 +23,8 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1048.0",
+    "@aws-sdk/client-sns": "^3.1141.0",
+    "@aws-sdk/client-socialmessaging": "^3.1141.0",
     "@aws-sdk/s3-request-presigner": "^3.1048.0",
     "@nestjs/bullmq": "^11.0.4",
     "@nestjs/common": "^11.0.1",
@@ -63,7 +65,6 @@
     "sharp": "^0.34.5",
     "socket.io": "^4.8.3",
     "tesseract.js": "^7.0.0",
-    "twilio": "^5.13.1",
     "ws": "^8.21.3"
   },
   "devDependencies": {

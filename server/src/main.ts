@@ -29,8 +29,7 @@ async function bootstrap() {
     allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'x-csrf-token', 'x-selected-bank'],
   });
 
-  // ✅ CRITICAL: Twilio sends webhooks as application/x-www-form-urlencoded
-  // Without this, body.From and body.Body will always be undefined
+  // ✅ Webhook body parsers (supports both urlencoded and json for WhatsApp/SNS webhooks)
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
   app.use(express.json({ limit: '10mb' }));
 

@@ -96,7 +96,7 @@ export default function MentorsPage() {
                                             const res = await chatApi.connect() as any;
                                             window.open(res.whatsappUrl, '_blank');
                                         } catch (e) {
-                                            const rawNumber = process.env.NEXT_PUBLIC_TWILIO_WHATSAPP_NUMBER || '+14155238886';
+                                            const rawNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || process.env.NEXT_PUBLIC_AWS_WHATSAPP_NUMBER || '+918143797779';
                                             const cleanNumber = rawNumber.replace('whatsapp:', '').replace(/\D/g, '');
                                             window.open(`https://wa.me/${cleanNumber}`, '_blank');
                                         }
