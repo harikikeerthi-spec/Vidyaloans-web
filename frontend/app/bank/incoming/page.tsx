@@ -91,7 +91,8 @@ export default function IncomingQueuePage() {
                 setSelectedApp((prev: any) => ({
                     ...prev,
                     ...appRes,
-                    user: userObj || prev?.user || appRes?.user,
+                    _isDetailLoaded: true,
+                    user: userObj || appRes.user || prev?.user,
                     documents: docsRes || [],
                     statusHistory: appRes.statusHistory || []
                 }));
@@ -104,10 +105,10 @@ export default function IncomingQueuePage() {
     };
 
     useEffect(() => {
-        if (showViewAppDrawer && selectedApp && !selectedApp.documents) {
+        if (showViewAppDrawer && selectedApp?.id && !selectedApp._isDetailLoaded) {
             fetchSelectedAppDetails(selectedApp.id);
         }
-    }, [showViewAppDrawer, selectedApp]);
+    }, [showViewAppDrawer, selectedApp?.id, selectedApp?._isDetailLoaded]);
 
     const { user } = useAuth();
 
@@ -472,6 +473,7 @@ export default function IncomingQueuePage() {
                                 e.stopPropagation();
                                 setSelectedApp(row);
                                 setShowViewAppDrawer(true);
+                                fetchSelectedAppDetails(row.id);
                             }}
                             className="px-3.5 py-1.5 border border-[#D1D5DB] text-[#374151] hover:bg-[#F8F9FA] hover:text-gray-900 hover:border-gray-400 text-[10.5px] font-bold uppercase tracking-wider rounded-md transition-all shadow-sm flex items-center gap-1.5 active:scale-95"
                         >
@@ -963,7 +965,7 @@ export default function IncomingQueuePage() {
                                                 </div>
                                                 <div>
                                                     <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wider block">Gender</span>
-                                                    <span className="font-semibold text-gray-900 capitalize">{selectedApp.gender || selectedApp.user?.gender || "—"}</span>
+                                                    <span className="font-semibold text-gray-900 capitalize">{selectedApp.gender || selectedApp.user?.gender || selectedApp.user?.personal?.gender || selectedApp.student?.gender || "—"}</span>
                                                 </div>
                                                 <div>
                                                     <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wider block">Date of Birth</span>
@@ -1019,18 +1021,43 @@ export default function IncomingQueuePage() {
 
                                         {/* SECTION 3: RESIDENTIAL ADDRESS */}
                                         {(() => {
-                                            const fullAddr = selectedApp.address || selectedApp.permanentAddress || selectedApp.user?.permanentAddress || selectedApp.mailingAddress || "";
+                                            let userPermAddr = selectedApp.user?.permanentAddress;
+                                            if (typeof userPermAddr === 'object' && userPermAddr !== null) {
+                                                userPermAddr = [userPermAddr.address1, userPermAddr.address2, userPermAddr.city, userPermAddr.state, userPermAddr.pincode].filter(Boolean).join(", ");
+                                            } else if (typeof userPermAddr === 'string' && userPermAddr.startsWith('{')) {
+                                                try {
+                                                    const p = JSON.parse(userPermAddr);
+                                                    userPermAddr = [p.address1, p.address2, p.city, p.state, p.pincode].filter(Boolean).join(", ");
+                                                } catch (_) {}
+                                            }
+
+                                            let userMailAddr = selectedApp.user?.mailingAddress;
+                                            if (typeof userMailAddr === 'object' && userMailAddr !== null) {
+                                                userMailAddr = [userMailAddr.address1, userMailAddr.address2, userMailAddr.city, userMailAddr.state, userMailAddr.pincode].filter(Boolean).join(", ");
+                                            } else if (typeof userMailAddr === 'string' && userMailAddr.startsWith('{')) {
+                                                try {
+                                                    const p = JSON.parse(userMailAddr);
+                                                    userMailAddr = [p.address1, p.address2, p.city, p.state, p.pincode].filter(Boolean).join(", ");
+                                                } catch (_) {}
+                                            }
+
+                                            let appAddr = selectedApp.address;
+                                            if (typeof appAddr === 'object' && appAddr !== null) {
+                                                appAddr = [appAddr.address1, appAddr.address2, appAddr.city, appAddr.state, appAddr.pincode].filter(Boolean).join(", ");
+                                            }
+
+                                            const fullAddr = appAddr || selectedApp.permanentAddress || userPermAddr || userMailAddr || selectedApp.mailingAddress || "";
                                             let pincode = selectedApp.pincode || selectedApp.user?.pincode || "";
                                             let city = selectedApp.city || selectedApp.user?.city || "";
                                             let state = selectedApp.state || selectedApp.user?.state || "";
 
                                             if (!pincode && fullAddr) {
-                                                const pinMatch = fullAddr.match(/\b\d{6}\b/);
+                                                const pinMatch = String(fullAddr).match(/\b\d{6}\b/);
                                                 if (pinMatch) pincode = pinMatch[0];
                                             }
 
                                             if ((!city || !state) && fullAddr) {
-                                                const cleanAddr = fullAddr.replace(/\b\d{6}\b/, '').replace(/,\s*$/, '').trim();
+                                                const cleanAddr = String(fullAddr).replace(/\b\d{6}\b/, '').replace(/,\s*$/, '').trim();
                                                 const parts = cleanAddr.split(',').map((p: string) => p.trim()).filter(Boolean);
 
                                                 if (parts.length >= 2) {
@@ -1106,62 +1133,102 @@ export default function IncomingQueuePage() {
                                         </div>
 
                                         {/* SECTION 5: CO-APPLICANT DETAILS */}
-                                        <div className="bg-gray-50/50 p-4 rounded-2xl border border-gray-100/50 space-y-3 text-left">
-                                            <span className="text-[9px] font-black uppercase tracking-widest text-[#6605c7] block">Co-Applicant details</span>
-                                            {selectedApp.hasCoApplicant || selectedApp.coApplicantName ? (
-                                                <div className="grid grid-cols-2 gap-3 text-xs">
-                                                    <div>
-                                                        <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wider block">Name</span>
-                                                        <span className="font-semibold text-gray-900">{selectedApp.coApplicantName || "—"}</span>
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wider block">Relationship</span>
-                                                        <span className="font-semibold text-gray-900 capitalize">{selectedApp.coApplicantRelation || "—"}</span>
-                                                    </div>
-                                                    <div className="col-span-2">
-                                                        <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wider block">Email Address</span>
-                                                        <span className="font-semibold text-gray-900">{selectedApp.coApplicantEmail || "—"}</span>
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wider block">Phone Number</span>
-                                                        <span className="font-semibold text-gray-900">{selectedApp.coApplicantPhone || "—"}</span>
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wider block">Annual Income</span>
-                                                        <span className="font-semibold text-gray-900">
-                                                            {selectedApp.coApplicantIncome ? `₹${selectedApp.coApplicantIncome.toLocaleString("en-IN")}` : "—"}
-                                                        </span>
-                                                    </div>
+                                        {(() => {
+                                            let parsedCoApp = selectedApp.coApplicant || selectedApp.user?.coApplicant;
+                                            if (typeof parsedCoApp === 'string') {
+                                                try { parsedCoApp = JSON.parse(parsedCoApp); } catch (_) {}
+                                            }
+                                            const parentsList = selectedApp.parents || selectedApp.user?.parents || [];
+                                            const coAppParent = Array.isArray(parentsList) ? parentsList.find((p: any) => (p.relation || '').toLowerCase() === 'coapplicant') : null;
+
+                                            const coName = selectedApp.coApplicantName || selectedApp.user?.coApplicantName || parsedCoApp?.name || parsedCoApp?.coApplicantName || coAppParent?.name || "";
+                                            const coRelation = selectedApp.coApplicantRelation || selectedApp.user?.coApplicantRelation || parsedCoApp?.relation || parsedCoApp?.coApplicantRelation || coAppParent?.relation || "";
+                                            const coEmail = selectedApp.coApplicantEmail || selectedApp.user?.coApplicantEmail || parsedCoApp?.email || parsedCoApp?.coApplicantEmail || coAppParent?.email || "";
+                                            const coPhone = selectedApp.coApplicantPhone || selectedApp.user?.coApplicantPhone || parsedCoApp?.phone || parsedCoApp?.mobile || parsedCoApp?.phoneNumber || coAppParent?.phone || coAppParent?.mobile || "";
+                                            const rawIncome = selectedApp.coApplicantIncome || parsedCoApp?.income || parsedCoApp?.annualIncome;
+                                            const coIncome = rawIncome ? Number(rawIncome) : null;
+
+                                            const hasCoApp = Boolean(selectedApp.hasCoApplicant || coName || coEmail || coPhone || parsedCoApp || coAppParent);
+
+                                            return (
+                                                <div className="bg-gray-50/50 p-4 rounded-2xl border border-gray-100/50 space-y-3 text-left">
+                                                    <span className="text-[9px] font-black uppercase tracking-widest text-[#6605c7] block">Co-Applicant details</span>
+                                                    {hasCoApp ? (
+                                                        <div className="grid grid-cols-2 gap-3 text-xs">
+                                                            <div>
+                                                                <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wider block">Name</span>
+                                                                <span className="font-semibold text-gray-900">{coName || "—"}</span>
+                                                            </div>
+                                                            <div>
+                                                                <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wider block">Relationship</span>
+                                                                <span className="font-semibold text-gray-900 capitalize">{coRelation || "—"}</span>
+                                                            </div>
+                                                            <div className="col-span-2">
+                                                                <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wider block">Email Address</span>
+                                                                <span className="font-semibold text-gray-900">{coEmail || "—"}</span>
+                                                            </div>
+                                                            <div>
+                                                                <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wider block">Phone Number</span>
+                                                                <span className="font-semibold text-gray-900">{coPhone || "—"}</span>
+                                                            </div>
+                                                            <div>
+                                                                <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wider block">Annual Income</span>
+                                                                <span className="font-semibold text-gray-900">
+                                                                    {coIncome ? `₹${coIncome.toLocaleString("en-IN")}` : "—"}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-xs text-gray-400 italic block">No co-applicant added to this profile.</span>
+                                                    )}
                                                 </div>
-                                            ) : (
-                                                <span className="text-xs text-gray-400 italic block">No co-applicant added to this profile.</span>
-                                            )}
-                                        </div>
+                                            );
+                                        })()}
 
                                         {/* SECTION 6: PARENT DETAILS */}
-                                        <div className="bg-gray-50/50 p-4 rounded-2xl border border-gray-100/50 space-y-3 text-left">
-                                            <span className="text-[9px] font-black uppercase tracking-widest text-[#6605c7] block">Parent Details</span>
-                                            <div className="grid grid-cols-1 gap-3 text-xs">
-                                                <div>
-                                                    <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wider block">Father's Name</span>
-                                                    <span className="font-semibold text-gray-900 block">{selectedApp.fatherName || "—"}</span>
-                                                    {(selectedApp.fatherPhone || selectedApp.fatherEmail) && (
-                                                        <span className="text-[10px] text-gray-500 block mt-0.5">
-                                                            {[selectedApp.fatherPhone, selectedApp.fatherEmail].filter(Boolean).join(" | ")}
-                                                        </span>
-                                                    )}
+                                        {(() => {
+                                            let familyObj = selectedApp.family || selectedApp.user?.family;
+                                            if (typeof familyObj === 'string') {
+                                                try { familyObj = JSON.parse(familyObj); } catch (_) {}
+                                            }
+                                            const parentsList = selectedApp.parents || selectedApp.user?.parents || [];
+                                            const fatherRec = Array.isArray(parentsList) ? parentsList.find((p: any) => (p.relation || '').toLowerCase() === 'father') : null;
+                                            const motherRec = Array.isArray(parentsList) ? parentsList.find((p: any) => (p.relation || '').toLowerCase() === 'mother') : null;
+
+                                            const fatherName = selectedApp.fatherName || selectedApp.user?.fatherName || familyObj?.fatherName || fatherRec?.name || "—";
+                                            const fatherPhone = selectedApp.fatherPhone || familyObj?.fatherPhone || familyObj?.fatherMobile || fatherRec?.phone || fatherRec?.mobile || "";
+                                            const fatherEmail = selectedApp.fatherEmail || familyObj?.fatherEmail || fatherRec?.email || "";
+
+                                            const motherName = selectedApp.motherName || selectedApp.user?.motherName || familyObj?.motherName || motherRec?.name || "—";
+                                            const motherPhone = selectedApp.motherPhone || familyObj?.motherPhone || familyObj?.motherMobile || motherRec?.phone || motherRec?.mobile || "";
+                                            const motherEmail = selectedApp.motherEmail || familyObj?.motherEmail || motherRec?.email || "";
+
+                                            return (
+                                                <div className="bg-gray-50/50 p-4 rounded-2xl border border-gray-100/50 space-y-3 text-left">
+                                                    <span className="text-[9px] font-black uppercase tracking-widest text-[#6605c7] block">Parent Details</span>
+                                                    <div className="grid grid-cols-1 gap-3 text-xs">
+                                                        <div>
+                                                            <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wider block">Father's Name</span>
+                                                            <span className="font-semibold text-gray-900 block">{fatherName}</span>
+                                                            {(fatherPhone || fatherEmail) && (
+                                                                <span className="text-[10px] text-gray-500 block mt-0.5">
+                                                                    {[fatherPhone, fatherEmail].filter(Boolean).join(" | ")}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div className="border-t border-gray-100 pt-2">
+                                                            <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wider block">Mother's Name</span>
+                                                            <span className="font-semibold text-gray-900 block">{motherName}</span>
+                                                            {(motherPhone || motherEmail) && (
+                                                                <span className="text-[10px] text-gray-500 block mt-0.5">
+                                                                    {[motherPhone, motherEmail].filter(Boolean).join(" | ")}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <div className="border-t border-gray-100 pt-2">
-                                                    <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wider block">Mother's Name</span>
-                                                    <span className="font-semibold text-gray-900 block">{selectedApp.motherName || "—"}</span>
-                                                    {(selectedApp.motherPhone || selectedApp.motherEmail) && (
-                                                        <span className="text-[10px] text-gray-500 block mt-0.5">
-                                                            {[selectedApp.motherPhone, selectedApp.motherEmail].filter(Boolean).join(" | ")}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
+                                            );
+                                        })()}
 
                                         {/* SECTION 7: COLLATERAL INFO */}
                                         {(selectedApp.hasCollateral || selectedApp.collateralType) && (

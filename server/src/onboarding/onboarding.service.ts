@@ -330,13 +330,23 @@ export class OnboardingService {
           appUpdates.phone = updateData.phoneNumber || updateData.mobile;
           appUpdates.mobile = updateData.phoneNumber || updateData.mobile;
         }
+        if (updateData.gender) appUpdates.gender = updateData.gender;
+        if (permAddrStr) appUpdates.address = permAddrStr;
+        if (pincodeValue) appUpdates.pincode = pincodeValue;
         if (targetUniValue) appUpdates.universityName = targetUniValue;
         if (countryValue) appUpdates.countryOfEducation = countryValue;
         if (updateData.fatherName) appUpdates.fatherName = updateData.fatherName;
         if (updateData.motherName) appUpdates.motherName = updateData.motherName;
+        if (data.family?.fatherPhone || data.family?.fatherMobile) appUpdates.fatherPhone = data.family.fatherPhone || data.family.fatherMobile;
+        if (data.family?.fatherEmail) appUpdates.fatherEmail = data.family.fatherEmail;
+        if (data.family?.motherPhone || data.family?.motherMobile) appUpdates.motherPhone = data.family.motherPhone || data.family.motherMobile;
+        if (data.family?.motherEmail) appUpdates.motherEmail = data.family.motherEmail;
         if (data.coApplicant?.name) appUpdates.coApplicantName = data.coApplicant.name;
         if (data.coApplicant?.relation) appUpdates.coApplicantRelation = data.coApplicant.relation;
         if (data.coApplicant?.mobile || data.coApplicant?.phone) appUpdates.coApplicantPhone = data.coApplicant.mobile || data.coApplicant.phone;
+        if (data.coApplicant?.email) appUpdates.coApplicantEmail = data.coApplicant.email;
+        if (data.coApplicant?.income || data.coApplicant?.annualIncome) appUpdates.coApplicantIncome = parseFloat(data.coApplicant.income || data.coApplicant.annualIncome);
+        if (data.coApplicant?.name || data.coApplicant?.email || data.coApplicant?.phone || data.coApplicant?.mobile) appUpdates.hasCoApplicant = true;
 
         if (Object.keys(appUpdates).length > 0) {
           await this.db.from('LoanApplication').update(appUpdates).eq('userId', user.id);

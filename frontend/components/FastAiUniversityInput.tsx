@@ -47,13 +47,15 @@ export default function FastAiUniversityInput({
         return country.trim();
     }, [country, otherCountry]);
 
-    // Proactive background prefetch for country whenever dropdown opens
+    // Proactive background prefetch for country as soon as effectiveCountry changes or dropdown opens
     useEffect(() => {
-        if (!isOpen) return;
-        const cached = searchUniversitiesInstant("", effectiveCountry, 5);
-        if (cached.length < 5) {
+        if (!effectiveCountry) return;
+        const cached = searchUniversitiesInstant("", effectiveCountry, 10);
+        if (cached.length > 0) {
+            setAiAugmentedList(cached);
+        } else {
             setIsAiSearching(true);
-            fetchAiUniversities("", effectiveCountry || "Any")
+            fetchAiUniversities("", effectiveCountry)
                 .then(unis => {
                     if (unis && unis.length > 0) {
                         setAiAugmentedList(unis);
@@ -62,11 +64,31 @@ export default function FastAiUniversityInput({
                 .catch(() => {})
                 .finally(() => setIsAiSearching(false));
         }
-    }, [isOpen, effectiveCountry]);
+    }, [effectiveCountry]);
+
+    // When dropdown opens, ensure we have initial universities displayed
+    useEffect(() => {
+        if (isOpen && !value.trim()) {
+            const cached = searchUniversitiesInstant("", effectiveCountry, 10);
+            if (cached.length > 0) {
+                setAiAugmentedList(cached);
+            } else if (effectiveCountry) {
+                setIsAiSearching(true);
+                fetchAiUniversities("", effectiveCountry)
+                    .then(unis => {
+                        if (unis && unis.length > 0) {
+                            setAiAugmentedList(unis);
+                        }
+                    })
+                    .catch(() => {})
+                    .finally(() => setIsAiSearching(false));
+            }
+        }
+    }, [isOpen, effectiveCountry, value]);
 
     // 0ms Instant Client-Side Fuzzy & Alias Matcher
     const instantResults = useMemo(() => {
-        return searchUniversitiesInstant(value, effectiveCountry, 8);
+        return searchUniversitiesInstant(value, effectiveCountry, 10);
     }, [value, effectiveCountry]);
 
     // Combined Results: Instant + AI-discovered
@@ -83,13 +105,16 @@ export default function FastAiUniversityInput({
         return list.slice(0, 10);
     }, [instantResults, aiAugmentedList]);
 
-    // Background Asynchronous Live AI Search (150ms debounce)
+    // Background Asynchronous Live AI Search (200ms debounce)
     useEffect(() => {
         const query = (value || "").trim();
 
-        // If query is short, don't waste AI calls
-        if (query.length < 2) {
-            setAiAugmentedList([]);
+        // If query is empty, show default country universities
+        if (!query) {
+            const cached = searchUniversitiesInstant("", effectiveCountry, 10);
+            if (cached.length > 0) {
+                setAiAugmentedList(cached);
+            }
             setIsAiSearching(false);
             return;
         }
@@ -144,7 +169,7 @@ export default function FastAiUniversityInput({
                     setIsAiSearching(false);
                 }
             }
-        }, 150);
+        }, 200);
 
         return () => {
             clearTimeout(timer);
@@ -411,6 +436,13 @@ export default function FastAiUniversityInput({
                                     <span className="text-[10px] text-gray-400 font-medium">Click to select exact typed institution name</span>
                                 </div>
                             </button>
+                        )}
+
+                        {combinedResults.length === 0 && isAiSearching && (
+                            <div className="p-6 text-center text-gray-500 text-xs font-semibold flex flex-col items-center justify-center gap-2">
+                                <div className="w-5 h-5 border-2 border-[#6605c7] border-t-transparent rounded-full animate-spin" />
+                                <span>Searching top universities via AI...</span>
+                            </div>
                         )}
 
                         {combinedResults.length === 0 && !isAiSearching && (

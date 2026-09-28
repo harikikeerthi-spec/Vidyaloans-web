@@ -800,8 +800,10 @@ export default function DocumentVaultPage() {
                 const isPassport = docType.toLowerCase().includes('passport');
                 const isAadhaar = docType.toLowerCase().includes('aadhar') || docType.toLowerCase().includes('aadhaar') || docType.toLowerCase().includes('national_id');
 
-                const fatherName = extracted.father_name || extracted.fatherName || extracted.father_full_name;
-                const motherName = extracted.mother_name || extracted.motherName || extracted.mother_full_name;
+                const rawFatherName = extracted.father_name || extracted.fatherName || extracted.father_full_name || extracted.care_of || extracted.c_o || extracted.guardian_name;
+                const fatherName = rawFatherName && typeof rawFatherName === 'string' ? rawFatherName.replace(/^(c\/o|s\/o|d\/o|w\/o|care\s+of|son\s+of|daughter\s+of|wife\s+of)\s*[:\-\.]?\s*/i, '').trim() : undefined;
+                const rawMotherName = extracted.mother_name || extracted.motherName || extracted.mother_full_name;
+                const motherName = rawMotherName && typeof rawMotherName === 'string' ? rawMotherName.trim() : undefined;
                 const fullName = extracted.full_name || extracted.fullName || (extracted.given_names ? `${extracted.given_names} ${extracted.surname || ''}`.trim() : undefined) || extracted.person_name || extracted.holder_name || extracted.name || extracted.applicant_name;
                 const dob = extracted.dob || extracted.date_of_birth;
                 const docNum = extracted.passport_number || extracted.passportNo || extracted.aadhaarNumber || extracted.aadhar_number;
@@ -816,18 +818,97 @@ export default function DocumentVaultPage() {
                         if (!family || typeof family !== 'object') family = {};
 
                         const hasExistingPassport = !!(baseProfile.passportOriginalName || family.passportOriginalName);
+                        const shouldAnchorFromAadhaar = isAadhaar && !hasExistingPassport;
+
+                        const activeProf = getActiveProfile();
+                        const existingAadhaarName = activeProf.aadhaarOriginalName || activeProf.nameAsInAadhaar || family.aadhaarOriginalName || family.nameAsInAadhaar;
+                        const existingPassportName = activeProf.passportOriginalName || activeProf.nameAsInPassport || family.passportOriginalName || family.nameAsInPassport;
+
+                        // If Passport is uploaded after Aadhaar has already anchored student details:
+                        if (isPassport && existingAadhaarName && fullName && !areNamesMatching(fullName, existingAadhaarName)) {
+                            try {
+                                await documentApi.deleteFile(user.id, docType);
+                                await loadDocs(true);
+                            } catch (delErr) {
+                                console.error("Failed to delete rejected passport document:", delErr);
+                            }
+
+                            await Swal.fire({
+                                title: "Upload Rejected - Passport Name Mismatch",
+                                html: `<div class="text-left text-xs space-y-3 font-sans">
+                                    <p class="text-rose-600 font-bold">The name on your Passport does not match the student name on your verified Aadhaar Card.</p>
+                                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                                        <span class="block text-[10px] font-bold text-slate-400 uppercase">Aadhaar Card Name</span>
+                                        <span class="font-extrabold text-slate-800">${existingAadhaarName}</span>
+                                    </div>
+                                    <div class="p-3 bg-rose-50 rounded-xl border border-rose-200">
+                                        <span class="block text-[10px] font-bold text-rose-600 uppercase">Passport Extracted Name</span>
+                                        <span class="font-extrabold text-rose-900">${fullName}</span>
+                                    </div>
+                                    <p class="text-slate-600 font-medium pt-1">All identity documents must belong to the same student. This Passport upload has been rejected.</p>
+                                </div>`,
+                                icon: "error",
+                                confirmButtonText: "OK, UNDERSTOOD",
+                                confirmButtonColor: "#E11D48",
+                                customClass: {
+                                    popup: "rounded-3xl shadow-2xl border border-rose-100 font-sans p-6",
+                                    title: "text-lg font-black text-rose-900",
+                                    confirmButton: "px-6 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs uppercase tracking-wider rounded-xl border-0 cursor-pointer shadow-md"
+                                }
+                            });
+
+                            e.target.value = "";
+                            return;
+                        }
+
+                        // Symmetrically: if Aadhaar is uploaded after Passport has already anchored student details:
+                        if (isAadhaar && existingPassportName && fullName && !areNamesMatching(fullName, existingPassportName)) {
+                            try {
+                                await documentApi.deleteFile(user.id, docType);
+                                await loadDocs(true);
+                            } catch (delErr) {
+                                console.error("Failed to delete rejected aadhaar document:", delErr);
+                            }
+
+                            await Swal.fire({
+                                title: "Upload Rejected - Aadhaar Name Mismatch",
+                                html: `<div class="text-left text-xs space-y-3 font-sans">
+                                    <p class="text-rose-600 font-bold">The name on your Aadhaar Card does not match the student name on your verified Passport.</p>
+                                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                                        <span class="block text-[10px] font-bold text-slate-400 uppercase">Passport Record Name</span>
+                                        <span class="font-extrabold text-slate-800">${existingPassportName}</span>
+                                    </div>
+                                    <div class="p-3 bg-rose-50 rounded-xl border border-rose-200">
+                                        <span class="block text-[10px] font-bold text-rose-600 uppercase">Aadhaar Extracted Name</span>
+                                        <span class="font-extrabold text-rose-900">${fullName}</span>
+                                    </div>
+                                    <p class="text-slate-600 font-medium pt-1">All identity documents must belong to the same student. This Aadhaar upload has been rejected.</p>
+                                </div>`,
+                                icon: "error",
+                                confirmButtonText: "OK, UNDERSTOOD",
+                                confirmButtonColor: "#E11D48",
+                                customClass: {
+                                    popup: "rounded-3xl shadow-2xl border border-rose-100 font-sans p-6",
+                                    title: "text-lg font-black text-rose-900",
+                                    confirmButton: "px-6 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs uppercase tracking-wider rounded-xl border-0 cursor-pointer shadow-md"
+                                }
+                            });
+
+                            e.target.value = "";
+                            return;
+                        }
 
                         const updatedFamily = {
                             ...family,
-                            ...(isPassport && fatherName ? { fatherName } : {}),
-                            ...(isPassport && motherName ? { motherName } : {}),
+                            ...(isPassport && fatherName ? { fatherName } : (shouldAnchorFromAadhaar && fatherName ? { fatherName } : {})),
+                            ...(isPassport && motherName ? { motherName } : (shouldAnchorFromAadhaar && motherName ? { motherName } : {})),
                             ...(isPassport && fullName ? { passportOriginalName: fullName } : {}),
-                            ...(isAadhaar && fullName ? { aadhaarOriginalName: fullName } : {}),
+                            ...(isAadhaar && fullName ? { aadhaarOriginalName: fullName, nameAsInAadhaar: fullName } : {}),
                         };
 
                         let parsedFirstName: string | undefined = undefined;
                         let parsedLastName: string | undefined = undefined;
-                        if (fullName && (isPassport || !hasExistingPassport)) {
+                        if (fullName && (isPassport || shouldAnchorFromAadhaar)) {
                             const parts = fullName.trim().split(/\s+/);
                             if (parts.length === 1) {
                                 parsedFirstName = parts[0];
@@ -843,13 +924,13 @@ export default function DocumentVaultPage() {
                             ...(parsedFirstName ? { firstName: parsedFirstName } : {}),
                             ...(parsedLastName !== undefined ? { lastName: parsedLastName } : {}),
                             ...(isPassport && fullName ? { passportOriginalName: fullName, nameAsInPassport: fullName } : {}),
-                            ...(isAadhaar && fullName ? { aadhaarOriginalName: fullName } : {}),
-                            ...(dob && (isPassport || !hasExistingPassport) ? { dob, dateOfBirth: dob } : {}),
-                            ...(gender && (isPassport || !hasExistingPassport) ? { gender } : {}),
+                            ...(isAadhaar && fullName ? { aadhaarOriginalName: fullName, nameAsInAadhaar: fullName } : {}),
+                            ...(dob && (isPassport || shouldAnchorFromAadhaar) ? { dob, dateOfBirth: dob } : {}),
+                            ...(gender && (isPassport || shouldAnchorFromAadhaar) ? { gender } : {}),
                             ...(address ? { address } : {}),
                             family: updatedFamily,
-                            ...(isPassport && fatherName ? { fatherName } : {}),
-                            ...(isPassport && motherName ? { motherName } : {})
+                            ...(isPassport && fatherName ? { fatherName } : (shouldAnchorFromAadhaar && fatherName ? { fatherName } : {})),
+                            ...(isPassport && motherName ? { motherName } : (shouldAnchorFromAadhaar && motherName ? { motherName } : {}))
                         };
                         setProfile(updatedProfile);
                         await onboardingApi.submit(updatedProfile);
@@ -1030,7 +1111,7 @@ export default function DocumentVaultPage() {
             } else if (isStudentDoc && !isIdentityDocSlot(docType)) {
                 const extractedStudentName = extracted.full_name || extracted.fullName || (extracted.given_names ? `${extracted.given_names} ${extracted.surname || ''}`.trim() : undefined) || extracted.person_name || extracted.holder_name || extracted.name;
                 const activeProf = getActiveProfile();
-                const existingStudentName = activeProf.passportOriginalName || activeProf.nameAsInPassport || (activeProf.firstName ? `${activeProf.firstName} ${activeProf.lastName || ''}`.trim() : "");
+                const existingStudentName = activeProf.passportOriginalName || activeProf.nameAsInPassport || activeProf.aadhaarOriginalName || activeProf.nameAsInAadhaar || (activeProf.firstName ? `${activeProf.firstName} ${activeProf.lastName || ''}`.trim() : "");
 
                 if (extractedStudentName && existingStudentName && !areNamesMatching(extractedStudentName, existingStudentName)) {
                     // Reject upload & delete file from server!

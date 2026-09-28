@@ -82,6 +82,38 @@ export function registerAiDiscoveredUniversities(unis: any[], defaultCountry?: s
     return newlyAdded;
 }
 
+const COUNTRY_ALIASES: Record<string, string[]> = {
+    "united states": ["usa", "us", "u s a", "united states", "united states of america", "america"],
+    "united kingdom": ["uk", "u k", "united kingdom", "great britain", "britain", "england", "scotland", "wales"],
+    "germany": ["germany", "deutschland", "de"],
+    "canada": ["canada", "ca"],
+    "australia": ["australia", "aus", "au"],
+    "ireland": ["ireland", "ie"],
+    "new zealand": ["new zealand", "nz"],
+    "france": ["france", "fr"],
+    "netherlands": ["netherlands", "holland", "nl"],
+    "italy": ["italy", "italia", "it"],
+    "spain": ["spain", "espana", "es"],
+    "sweden": ["sweden", "se"],
+    "singapore": ["singapore", "sg"],
+    "india": ["india", "in"]
+};
+
+export function countriesMatch(c1: string, c2: string): boolean {
+    const a = clean(c1);
+    const b = clean(c2);
+    if (!a || !b) return true;
+    if (a === "any" || b === "any" || a === "other" || b === "other") return true;
+    if (a === b || a.includes(b) || b.includes(a)) return true;
+
+    for (const [key, aliases] of Object.entries(COUNTRY_ALIASES)) {
+        const aMatches = aliases.includes(a) || a === key || a.includes(key);
+        const bMatches = aliases.includes(b) || b === key || b.includes(key);
+        if (aMatches && bMatches) return true;
+    }
+    return false;
+}
+
 /**
  * Search across dynamically AI-discovered universities in memory (0ms)
  */
@@ -99,8 +131,7 @@ export function searchCachedUniversities(query: string, countryFilter?: string, 
     // Filter by country if specified
     if (countryClean && countryClean !== "any" && countryClean !== "other") {
         const countryMatches = list.filter(u => {
-            const uCountry = clean(u.country);
-            return uCountry.includes(countryClean) || countryClean.includes(uCountry);
+            return countriesMatch(u.country, countryClean) || countriesMatch(u.loc, countryClean);
         });
         if (countryMatches.length > 0) {
             list = countryMatches;
@@ -154,7 +185,7 @@ export function searchCachedUniversities(query: string, countryFilter?: string, 
         }
 
         if (countryClean && countryClean !== "any" && countryClean !== "other") {
-            if (uCountryClean.includes(countryClean) || countryClean.includes(uCountryClean)) {
+            if (countriesMatch(uCountryClean, countryClean) || countriesMatch(locClean, countryClean)) {
                 score += 250;
             }
         }

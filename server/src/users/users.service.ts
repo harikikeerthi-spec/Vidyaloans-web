@@ -38,8 +38,7 @@ export const USER_VALID_COLUMNS = new Set([
   'loanAmount',
   'admitStatus',
   'tests',
-  'family',
-  'coApplicant',
+  'registeredAtIndia',
   'officeId',
   'officeLocation',
   'bank',
@@ -1234,6 +1233,39 @@ export class UsersService implements OnModuleInit {
         }
       }
 
+      let family = currentUser.family;
+      if (typeof family === 'string') {
+        try { family = JSON.parse(family); } catch { family = {}; }
+      }
+      if (!family || typeof family !== 'object') {
+        family = {};
+      }
+
+      let coApplicant = currentUser.coApplicant;
+      if (typeof coApplicant === 'string') {
+        try { coApplicant = JSON.parse(coApplicant); } catch { coApplicant = {}; }
+      }
+      if (!coApplicant || typeof coApplicant !== 'object') {
+        coApplicant = {};
+      }
+
+      const studentFirstName = (currentUser.firstName || '').trim().toLowerCase();
+      const studentLastName = (currentUser.lastName || '').trim().toLowerCase();
+      const studentFullName = `${studentFirstName} ${studentLastName}`.trim().toLowerCase();
+      const passportOrigName = (family?.passportOriginalName || currentUser.passportOriginalName || '').trim().toLowerCase();
+      const aadhaarOrigName = (family?.aadhaarOriginalName || currentUser.aadhaarOriginalName || '').trim().toLowerCase();
+
+      const isInvalidName = (n?: string) => {
+        if (!n || !n.trim()) return true;
+        const lower = n.trim().toLowerCase();
+        if (['mother', 'father', 'coapplicant', 'student', 'na', 'n/a', 'none', 'null', 'undefined', 'enter name'].includes(lower)) return true;
+        if (studentFullName && studentFullName.length > 2 && (lower === studentFullName || (lower.includes(studentFullName) && lower.length <= studentFullName.length + 3))) return true;
+        if (passportOrigName && passportOrigName.length > 2 && (lower === passportOrigName || (lower.includes(passportOrigName) && lower.length <= passportOrigName.length + 3))) return true;
+        if (aadhaarOrigName && aadhaarOrigName.length > 2 && (lower === aadhaarOrigName || (lower.includes(aadhaarOrigName) && lower.length <= aadhaarOrigName.length + 3))) return true;
+        if (studentFirstName && studentFirstName.length > 2 && lower === studentFirstName) return true;
+        return false;
+      };
+
       // Automatically extract and set details for father, mother, coapplicant, brother, sister, spouse, guarantor, and custom document relations
       let relation: string | null = null;
       const normalizedDocType = (docType || '').toLowerCase();
@@ -1275,21 +1307,6 @@ export class UsersService implements OnModuleInit {
           ? (details.full_name || details.fullName || details.holder_name || details.name || details.printed_name || extractFullNameFromOcrRaw(details, docType))
           : (extractFullNameFromOcrRaw(details, docType) || details.full_name || details.fullName || details.name || details.holder_name || details.printed_name);
 
-        const studentFirstName = (currentUser.firstName || '').trim().toLowerCase();
-        const studentLastName = (currentUser.lastName || '').trim().toLowerCase();
-        const studentFullName = `${studentFirstName} ${studentLastName}`.trim().toLowerCase();
-        const passportOrigName = (currentUser.passportOriginalName || '').trim().toLowerCase();
-
-        const isInvalidName = (n?: string) => {
-          if (!n || !n.trim()) return true;
-          const lower = n.trim().toLowerCase();
-          if (['mother', 'father', 'coapplicant', 'student', 'na', 'n/a', 'none', 'null', 'undefined', 'enter name'].includes(lower)) return true;
-          if (studentFullName && studentFullName.length > 2 && (lower === studentFullName || (lower.includes(studentFullName) && lower.length <= studentFullName.length + 3))) return true;
-          if (passportOrigName && passportOrigName.length > 2 && (lower === passportOrigName || (lower.includes(passportOrigName) && lower.length <= passportOrigName.length + 3))) return true;
-          if (studentFirstName && studentFirstName.length > 2 && lower === studentFirstName) return true;
-          return false;
-        };
-
         const nameToSave = extractedName && typeof extractedName === 'string' && extractedName.trim() && !isInvalidName(extractedName) ? extractedName.trim() : undefined;
 
         // Clean Aadhar (12 digits) if present
@@ -1314,22 +1331,6 @@ export class UsersService implements OnModuleInit {
           } else if (cleanPan) {
             panNum = cleanPan;
           }
-        }
-
-        let family = currentUser.family;
-        if (typeof family === 'string') {
-          try { family = JSON.parse(family); } catch { family = {}; }
-        }
-        if (!family || typeof family !== 'object') {
-          family = {};
-        }
-
-        let coApplicant = currentUser.coApplicant;
-        if (typeof coApplicant === 'string') {
-          try { coApplicant = JSON.parse(coApplicant); } catch { coApplicant = {}; }
-        }
-        if (!coApplicant || typeof coApplicant !== 'object') {
-          coApplicant = {};
         }
 
         if (!family.relatives || typeof family.relatives !== 'object') {
@@ -1407,27 +1408,6 @@ export class UsersService implements OnModuleInit {
         const passportNum = details.passport_number || details.passportNumber || details.passport_no || extFields.passport_number || extFields.passportNumber;
         const passportDob = details.dob || details.date_of_birth || details.dateOfBirth || extFields.dob || extFields.date_of_birth;
         const passportGender = details.gender || details.sex || extFields.gender || extFields.sex;
-
-        let family = currentUser.family;
-        if (typeof family === 'string') {
-          try { family = JSON.parse(family); } catch { family = {}; }
-        }
-        if (!family || typeof family !== 'object') family = {};
-
-        const studentFirstName = (currentUser.firstName || '').trim().toLowerCase();
-        const studentLastName = (currentUser.lastName || '').trim().toLowerCase();
-        const studentFullName = `${studentFirstName} ${studentLastName}`.trim().toLowerCase();
-        const passportOrigName = (family?.passportOriginalName || currentUser.passportOriginalName || '').trim().toLowerCase();
-
-        const isInvalidName = (n?: string) => {
-          if (!n || !n.trim()) return true;
-          const lower = n.trim().toLowerCase();
-          if (['mother', 'father', 'coapplicant', 'student', 'na', 'n/a', 'none', 'null', 'undefined', 'enter name'].includes(lower)) return true;
-          if (studentFullName && studentFullName.length > 2 && (lower === studentFullName || (lower.includes(studentFullName) && lower.length <= studentFullName.length + 3))) return true;
-          if (passportOrigName && passportOrigName.length > 2 && (lower === passportOrigName || (lower.includes(passportOrigName) && lower.length <= passportOrigName.length + 3))) return true;
-          if (studentFirstName && studentFirstName.length > 2 && lower === studentFirstName) return true;
-          return false;
-        };
 
         let familyChanged = false;
 
@@ -1510,14 +1490,18 @@ export class UsersService implements OnModuleInit {
         // Sync Passport details directly to LoanApplication
         try {
           const loanAppSync: any = {};
+          if (payload.firstName) loanAppSync.firstName = payload.firstName;
+          if (payload.lastName) loanAppSync.lastName = payload.lastName;
           if (passportFather && !isInvalidName(passportFather)) loanAppSync.fatherName = passportFather.trim();
           if (passportMother && !isInvalidName(passportMother)) loanAppSync.motherName = passportMother.trim();
           if (passportGender) {
             const g = String(passportGender).toLowerCase().trim();
             loanAppSync.gender = g.startsWith('m') ? 'Male' : g.startsWith('f') ? 'Female' : passportGender;
           }
-          if (passportDob) loanAppSync.dateOfBirth = passportDob;
-          if (passportNum) loanAppSync.passportNumber = passportNum;
+          if (passportDob) {
+            const parsedDob = this.parseDate(passportDob);
+            if (parsedDob) loanAppSync.dateOfBirth = parsedDob;
+          }
 
           if (Object.keys(loanAppSync).length > 0) {
             await this.db.from('LoanApplication').update(loanAppSync).eq('userId', userId);
@@ -1537,17 +1521,55 @@ export class UsersService implements OnModuleInit {
         const aadhaarDob = details.dob || details.date_of_birth || details.dateOfBirth || extFields.dob || extFields.date_of_birth;
         const aadhaarGender = details.gender || details.sex || extFields.gender || extFields.sex;
 
-        let family = currentUser.family;
-        if (typeof family === 'string') {
-          try { family = JSON.parse(family); } catch { family = {}; }
+        const rawAadhaarFather = details.father_name || details.fatherName || details.father_full_name ||
+          details.care_of || details.c_o || details.guardian_name ||
+          extFields.father_name || extFields.fatherName || extFields.father_full_name ||
+          extFields.care_of || extFields.c_o || extFields.guardian_name;
+        let aadhaarFather: string | undefined = undefined;
+        if (rawAadhaarFather && typeof rawAadhaarFather === 'string') {
+          const cleanF = rawAadhaarFather.replace(/^(c\/o|s\/o|d\/o|w\/o|care\s+of|son\s+of|daughter\s+of|wife\s+of)\s*[:\-\.]?\s*/i, '').trim();
+          if (cleanF && !isInvalidName(cleanF)) aadhaarFather = cleanF;
         }
-        if (!family || typeof family !== 'object') family = {};
+
+        const rawAadhaarMother = details.mother_name || details.motherName || details.mother_full_name ||
+          extFields.mother_name || extFields.motherName || extFields.mother_full_name;
+        let aadhaarMother: string | undefined = undefined;
+        if (rawAadhaarMother && typeof rawAadhaarMother === 'string') {
+          const cleanM = rawAadhaarMother.trim();
+          if (cleanM && !isInvalidName(cleanM)) aadhaarMother = cleanM;
+        }
+
+        const rawAddress = details.address || extFields.address;
+        let aadhaarAddress: string | undefined = undefined;
+        let aadhaarPincode: string | undefined = details.pin_code || details.pincode || extFields.pin_code || extFields.pincode;
+        if (typeof rawAddress === 'string' && rawAddress.trim()) {
+          aadhaarAddress = rawAddress.trim();
+        } else if (rawAddress && typeof rawAddress === 'object') {
+          const parts = [
+            rawAddress.house_details || rawAddress.house,
+            rawAddress.area || rawAddress.street,
+            rawAddress.landmark,
+            rawAddress.mandal || rawAddress.city || rawAddress.district,
+            rawAddress.state,
+            rawAddress.pincode
+          ].filter(Boolean);
+          if (parts.length > 0) aadhaarAddress = parts.join(', ');
+          if (!aadhaarPincode && rawAddress.pincode) aadhaarPincode = rawAddress.pincode;
+        }
 
         const hasPassport = !!(family?.passportOriginalName);
+        let familyChanged = false;
+
+        const cleanNum = aadhaarNum ? String(aadhaarNum).replace(/\D/g, '') : null;
+        if (cleanNum && cleanNum.length === 12 && !currentUser.aadhaarNumber) {
+          payload.aadhaarNumber = cleanNum;
+        }
 
         if (aadhaarFull && typeof aadhaarFull === 'string' && aadhaarFull.trim()) {
           const cleanAadhaarName = aadhaarFull.trim();
           family.aadhaarOriginalName = cleanAadhaarName;
+          family.nameAsInAadhaar = cleanAadhaarName;
+          familyChanged = true;
 
           // If no passport has been uploaded yet, Aadhaar is the authoritative source for student name
           if (!hasPassport) {
@@ -1558,7 +1580,26 @@ export class UsersService implements OnModuleInit {
               console.log(`[UsersService] Aadhaar name anchored: firstName="${payload.firstName}", lastName="${payload.lastName}" (from "${cleanAadhaarName}")`);
             }
           }
-          payload.family = typeof currentUser.family === 'object' && currentUser.family !== null ? family : JSON.stringify(family);
+        }
+
+        // If no passport uploaded yet, set father name from Aadhaar
+        if (!hasPassport && aadhaarFather) {
+          family.fatherName = aadhaarFather;
+          familyChanged = true;
+          this.upsertParentRecord(userId, 'father', { name: aadhaarFather }).catch(() => {});
+          try {
+            this.db.from('LoanApplication').update({ fatherName: aadhaarFather }).eq('userId', userId).then(() => {});
+          } catch {}
+        }
+
+        // If no passport uploaded yet, set mother name from Aadhaar
+        if (!hasPassport && aadhaarMother) {
+          family.motherName = aadhaarMother;
+          familyChanged = true;
+          this.upsertParentRecord(userId, 'mother', { name: aadhaarMother }).catch(() => {});
+          try {
+            this.db.from('LoanApplication').update({ motherName: aadhaarMother }).eq('userId', userId).then(() => {});
+          } catch {}
         }
 
         if (aadhaarDob && !currentUser.dateOfBirth && !hasPassport) {
@@ -1568,9 +1609,53 @@ export class UsersService implements OnModuleInit {
           const g = String(aadhaarGender).toLowerCase().trim();
           payload.gender = g.startsWith('m') ? 'Male' : g.startsWith('f') ? 'Female' : aadhaarGender;
         }
-        if (aadhaarNum && !currentUser.aadhaarNumber) {
-          const cleanNum = String(aadhaarNum).replace(/\D/g, '');
-          if (cleanNum.length === 12) payload.aadhaarNumber = cleanNum;
+        if (aadhaarAddress && !hasPassport) {
+          payload.permanentAddress = aadhaarAddress;
+        }
+        if (aadhaarPincode && !hasPassport) {
+          payload.pincode = String(aadhaarPincode).replace(/\D/g, '').slice(0, 6);
+        }
+
+        family.aadhaar = {
+          number: cleanNum || null,
+          aadhaarNumber: cleanNum || null,
+          fullName: aadhaarFull || family.aadhaarOriginalName || null,
+          fatherName: aadhaarFather || null,
+          motherName: aadhaarMother || null,
+          dob: aadhaarDob || null,
+          gender: payload.gender || null,
+          address: aadhaarAddress || null,
+          pincode: aadhaarPincode || null,
+        };
+        familyChanged = true;
+
+        if (familyChanged) {
+          payload.family = typeof currentUser.family === 'object' && currentUser.family !== null ? family : JSON.stringify(family);
+        }
+
+        // Sync Aadhaar details directly to LoanApplication (when no passport exists yet)
+        try {
+          const loanAppSync: any = {};
+          if (!hasPassport) {
+            if (payload.firstName) loanAppSync.firstName = payload.firstName;
+            if (payload.lastName) loanAppSync.lastName = payload.lastName;
+            if (aadhaarFather) loanAppSync.fatherName = aadhaarFather;
+            if (aadhaarMother) loanAppSync.motherName = aadhaarMother;
+            if (aadhaarDob) {
+              const parsedDob = this.parseDate(aadhaarDob);
+              if (parsedDob) loanAppSync.dateOfBirth = parsedDob;
+            }
+            if (payload.gender) loanAppSync.gender = payload.gender;
+            if (aadhaarAddress) loanAppSync.address = aadhaarAddress;
+            if (aadhaarPincode) loanAppSync.pincode = String(aadhaarPincode).replace(/\D/g, '').slice(0, 6);
+          }
+
+          if (Object.keys(loanAppSync).length > 0) {
+            await this.db.from('LoanApplication').update(loanAppSync).eq('userId', userId);
+            console.log(`[UsersService.updateExtractedDetails] Auto-filled Aadhaar details to LoanApplication for user: ${userId}`);
+          }
+        } catch (syncErr: any) {
+          console.error(`[UsersService.updateExtractedDetails] Error syncing Aadhaar fields to LoanApplication: ${syncErr.message}`);
         }
       }
 
@@ -2831,6 +2916,7 @@ export class UsersService implements OnModuleInit {
       const studentLastName = (userWithActivity?.lastName || '').trim().toLowerCase();
       const studentFullName = `${studentFirstName} ${studentLastName}`.trim().toLowerCase();
       const passportOrigName = (familyObj?.passportOriginalName || userWithActivity?.passportOriginalName || '').trim().toLowerCase();
+      const aadhaarOrigName = (familyObj?.aadhaarOriginalName || userWithActivity?.aadhaarOriginalName || '').trim().toLowerCase();
 
       const isInvalidParentName = (nameVal?: string) => {
         if (!nameVal || !nameVal.trim()) return true;
@@ -2838,6 +2924,7 @@ export class UsersService implements OnModuleInit {
         if (['mother', 'father', 'coapplicant', 'student', 'na', 'n/a', 'none', 'null', 'undefined', 'enter name'].includes(lower)) return true;
         if (studentFullName && studentFullName.length > 2 && (lower === studentFullName || (lower.includes(studentFullName) && lower.length <= studentFullName.length + 3))) return true;
         if (passportOrigName && passportOrigName.length > 2 && (lower === passportOrigName || (lower.includes(passportOrigName) && lower.length <= passportOrigName.length + 3))) return true;
+        if (aadhaarOrigName && aadhaarOrigName.length > 2 && (lower === aadhaarOrigName || (lower.includes(aadhaarOrigName) && lower.length <= aadhaarOrigName.length + 3))) return true;
         if (studentFirstName && studentFirstName.length > 2 && lower === studentFirstName) return true;
         return false;
       };
@@ -3227,11 +3314,18 @@ export class UsersService implements OnModuleInit {
       const normDocType = (currentDocType || '').toLowerCase();
 
       // 1. Determine Reference Anchor (Passport > Aadhaar > User Profile)
+      const isCurrentPassport = normDocType.includes('passport');
+      const isCurrentAadhaar = normDocType.includes('aadhar') || normDocType.includes('aadhaar') || normDocType.includes('national_id');
+
+      // Exclude current doc being uploaded from being its own reference anchor
       const passportDoc = userDocs.find((d: any) =>
-        d.docType.toLowerCase().includes('passport') && (d.uploaded || d.status === 'uploaded' || d.status === 'verified')
+        d.docType.toLowerCase().includes('passport') &&
+        d.docType.toLowerCase() !== normDocType &&
+        (d.uploaded || d.status === 'uploaded' || d.status === 'verified')
       );
       const aadharDoc = userDocs.find((d: any) =>
-        (d.docType.toLowerCase().includes('aadhar') || d.docType.toLowerCase().includes('aadhaar')) &&
+        (d.docType.toLowerCase().includes('aadhar') || d.docType.toLowerCase().includes('aadhaar') || d.docType.toLowerCase().includes('national_id')) &&
+        d.docType.toLowerCase() !== normDocType &&
         (d.uploaded || d.status === 'uploaded' || d.status === 'verified')
       );
 
@@ -3242,11 +3336,51 @@ export class UsersService implements OnModuleInit {
       }
       if (!familyData || typeof familyData !== 'object') familyData = {};
 
-      let refStudentName = (user.firstName && user.lastName) ? `${user.firstName} ${user.lastName}`.trim() : (familyData.passportOriginalName || familyData.aadhaarOriginalName || '');
-      let refFatherName = familyData.fatherName || '';
-      let refMotherName = familyData.motherName || '';
+      const fatherParent = (user.parents || []).find((p: any) => (p.relation || '').toLowerCase() === 'father');
+      const motherParent = (user.parents || []).find((p: any) => (p.relation || '').toLowerCase() === 'mother');
 
-      if (passportDoc) {
+      let refStudentName = (user.firstName && user.lastName) ? `${user.firstName} ${user.lastName}`.trim() : (familyData.passportOriginalName || familyData.aadhaarOriginalName || '');
+      let refFatherName = fatherParent?.name || familyData.fatherName || '';
+      let refMotherName = motherParent?.name || familyData.motherName || '';
+
+      if (!refFatherName || !refMotherName) {
+        try {
+          const { data: userApp } = await this.db.from('LoanApplication').select('fatherName, motherName').eq('userId', userId).order('createdAt', { ascending: false }).limit(1).maybeSingle();
+          if (userApp) {
+            if (!refFatherName && userApp.fatherName) refFatherName = userApp.fatherName;
+            if (!refMotherName && userApp.motherName) refMotherName = userApp.motherName;
+          }
+        } catch (_) {}
+      }
+
+      if (isCurrentPassport) {
+        // If current doc is Passport, anchor MUST be Aadhaar (if Aadhaar uploaded or anchored)
+        if (aadharDoc) {
+          refType = 'Aadhaar Card';
+          const meta = aadharDoc.verificationMetadata?.details?.extractedFields || aadharDoc.verificationMetadata?.extractedFields || {};
+          const rawAadhaarFather = meta.father_name || meta.fatherName || meta.care_of || meta.guardian_name;
+          const cleanFather = rawAadhaarFather ? rawAadhaarFather.replace(/^(c\/o|s\/o|d\/o|w\/o|care\s+of|son\s+of|daughter\s+of|wife\s+of)\s*[:\-\.]?\s*/i, '').trim() : '';
+
+          refStudentName = meta.full_name || meta.fullName || meta.name || familyData.aadhaarOriginalName || refStudentName;
+          refFatherName = cleanFather || meta.father_name || meta.fatherName || refFatherName;
+          refMotherName = meta.mother_name || meta.motherName || refMotherName;
+        } else if (familyData.aadhaarOriginalName || familyData.nameAsInAadhaar) {
+          refType = 'Aadhaar Card';
+          refStudentName = familyData.aadhaarOriginalName || familyData.nameAsInAadhaar;
+        }
+      } else if (isCurrentAadhaar) {
+        // If current doc is Aadhaar, anchor MUST be Passport (if Passport uploaded or anchored)
+        if (passportDoc) {
+          refType = 'Passport';
+          const meta = passportDoc.verificationMetadata?.details?.extractedFields || passportDoc.verificationMetadata?.extractedFields || {};
+          refStudentName = meta.full_name || meta.fullName || (meta.given_names ? `${meta.given_names} ${meta.surname || ''}`.trim() : refStudentName);
+          refFatherName = meta.father_name || meta.fatherName || refFatherName;
+          refMotherName = meta.mother_name || meta.motherName || refMotherName;
+        } else if (familyData.passportOriginalName || familyData.nameAsInPassport) {
+          refType = 'Passport';
+          refStudentName = familyData.passportOriginalName || familyData.nameAsInPassport;
+        }
+      } else if (passportDoc) {
         refType = 'Passport';
         const meta = passportDoc.verificationMetadata?.details?.extractedFields || passportDoc.verificationMetadata?.extractedFields || {};
         refStudentName = meta.full_name || meta.fullName || (meta.given_names ? `${meta.given_names} ${meta.surname || ''}`.trim() : refStudentName);
@@ -3255,8 +3389,11 @@ export class UsersService implements OnModuleInit {
       } else if (aadharDoc) {
         refType = 'Aadhaar Card';
         const meta = aadharDoc.verificationMetadata?.details?.extractedFields || aadharDoc.verificationMetadata?.extractedFields || {};
-        refStudentName = meta.full_name || meta.fullName || meta.name || refStudentName;
-        refFatherName = meta.father_name || meta.fatherName || refFatherName;
+        const rawAadhaarFather = meta.father_name || meta.fatherName || meta.care_of || meta.guardian_name;
+        const cleanFather = rawAadhaarFather ? rawAadhaarFather.replace(/^(c\/o|s\/o|d\/o|w\/o|care\s+of|son\s+of|daughter\s+of|wife\s+of)\s*[:\-\.]?\s*/i, '').trim() : '';
+
+        refStudentName = meta.full_name || meta.fullName || meta.name || familyData.aadhaarOriginalName || refStudentName;
+        refFatherName = cleanFather || meta.father_name || meta.fatherName || refFatherName;
         refMotherName = meta.mother_name || meta.motherName || refMotherName;
       }
 
@@ -3358,9 +3495,11 @@ export class UsersService implements OnModuleInit {
           return false;
         }
 
-        // Student documents to strictly validate
+        // Student documents to strictly validate (including Passport if Aadhaar is reference, and Aadhaar if Passport is reference)
         return (
-          d === 'pan' || d === 'pancard' || d === 'pan_card' || d === 'student_pan' ||
+          d.includes('passport') ||
+          d.includes('aadhar') || d.includes('aadhaar') || d.includes('national_id') ||
+          d.includes('pan') ||
           d.includes('marksheet_10') || d.includes('10th') || d.includes('ssc') || d.includes('grade_10') || d.includes('grade10') ||
           d.includes('marksheet_12') || d.includes('12th') || d.includes('hsc') || d.includes('intermediate') || d.includes('inter') || d.includes('grade_12') || d.includes('grade12') ||
           d.includes('marksheet_ug') || d.includes('ug_degree') || d.includes('degree_certificate') || d.includes('degree') || d.includes('graduation') || d.includes('bachelor') || d.includes('undergrad') || d.includes('cmm') || d.includes('consolidated') ||
@@ -3400,7 +3539,7 @@ export class UsersService implements OnModuleInit {
 
       const currentIssues = checkDocNameMismatch(currentDocType, currentExtractedData);
 
-      // For student docs (PAN, 10th, 12th, degree): hard reject if name mismatch detected
+      // For student docs (Passport, Aadhaar, PAN, 10th, 12th, degree): hard reject if name mismatch detected
       if (currentIssues.length > 0 && isHardRejectDoc(currentDocType) && refStudentName) {
         const extractedStudentName =
           currentExtractedData.full_name || currentExtractedData.fullName ||
@@ -3408,10 +3547,11 @@ export class UsersService implements OnModuleInit {
           (currentExtractedData.given_names ? `${currentExtractedData.given_names} ${currentExtractedData.surname || ''}`.trim() : undefined);
 
         if (extractedStudentName && !namesMatch(refStudentName, extractedStudentName)) {
+          const docLabel = currentDocType.replace(/_/g, ' ').toUpperCase();
           return {
             issues: currentIssues,
             hardReject: true,
-            rejectReason: `Upload rejected: The name on this document ("${extractedStudentName}") does not match the student's verified name ("${refStudentName}"). All student documents must belong to the student. Please upload the student's document.`,
+            rejectReason: `Upload rejected: The name on ${docLabel} ("${extractedStudentName}") does not match the student's name on ${refType} ("${refStudentName}"). All student documents must belong to the same student. Please upload a matching document.`,
           };
         }
       }

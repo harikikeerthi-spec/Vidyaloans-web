@@ -31,19 +31,23 @@ export class EmailService {
     return !!((process.env.SMTP_USER || process.env.EMAIL_USER) && (process.env.SMTP_PASS || process.env.EMAIL_PASS));
   }
 
-  private getFromAddress(): string {
+  private getFromAddress(displayName?: string): string {
+    const defaultEmail = 'support@vidyaloans.in';
     const emailFrom = (process.env.MAIL_FROM || process.env.EMAIL_FROM || '').trim();
+    let emailAddress = defaultEmail;
+
     if (emailFrom && emailFrom.includes('@')) {
-      if (emailFrom.includes('<')) return emailFrom;
-      return `"VidyaLoans Support" <${emailFrom}>`;
+      const match = emailFrom.match(/<([^>]+)>/);
+      emailAddress = match ? match[1].trim() : emailFrom.replace(/["']/g, '').trim();
+    } else {
+      const emailUser = (process.env.SMTP_USER || process.env.EMAIL_USER || '').trim();
+      if (emailUser && emailUser.includes('@')) {
+        emailAddress = emailUser;
+      }
     }
 
-    const emailUser = (process.env.SMTP_USER || process.env.EMAIL_USER || '').trim();
-    if (emailUser && emailUser.includes('@')) {
-      return `"VidyaLoans Support" <${emailUser}>`;
-    }
-
-    return '"VidyaLoans Support" <support@vidyaloans.in>';
+    const senderName = displayName || 'VidyaLoans Support';
+    return `"${senderName}" <${emailAddress}>`;
   }
 
   private getReplyToAddress(): string {
@@ -2649,13 +2653,14 @@ export class EmailService {
     partnershipType: string = 'Channel Partner',
     percentage: string | number = '1.5'
   ) {
-    const frontendUrl = (process.env.FRONTEND_URL || 'https://vidyaloans.in').replace(/\/$/, '');
+    const frontendUrl = (process.env.FRONTEND_URL || 'https://www.vidyaloans.in').replace(/\/$/, '');
     const loginLink = `${frontendUrl}/agent/login`;
     const staffLoginLink = `${frontendUrl}/staff/login`;
     const logoUrl = 'https://vidyaloans.in/images/vidyaloans-logo-transparent.png';
 
     const mailOptions = {
-      from: `"VidyaLoans Partner Network" <${process.env.EMAIL_USER || 'noreply@vidyaloans.in'}>`,
+      from: this.getFromAddress('VidyaLoans Partner Network'),
+      replyTo: this.getReplyToAddress(),
       to: email,
       subject: `🎉 Congratulations ${agentName}! Congrats, you are verified as a VidyaLoans Agent Partner`,
       html: `
@@ -2783,13 +2788,14 @@ export class EmailService {
     officeLocation: string = 'Headquarters / Main Branch',
     mailboxEmail?: string,
   ) {
-    const frontendUrl = (process.env.FRONTEND_URL || 'https://vidyaloans.in').replace(/\/$/, '');
+    const frontendUrl = (process.env.FRONTEND_URL || 'https://www.vidyaloans.in').replace(/\/$/, '');
     const staffLoginUrl = `${frontendUrl}/staff/login`;
-    const publicLoginUrl = 'https://vidyaloans.in/staff/login';
+    const publicLoginUrl = staffLoginUrl;
     const logoUrl = 'https://vidyaloans.in/images/vidyaloans-logo-transparent.png';
 
     const mailOptions = {
-      from: `"VidyaLoans Operations Team" <${process.env.EMAIL_USER || 'noreply@vidyaloans.in'}>`,
+      from: this.getFromAddress('VidyaLoans Operations Team'),
+      replyTo: this.getReplyToAddress(),
       to: email,
       subject: `🎉 Congratulations ${staffName}! You are verified as VidyaLoans Staff`,
       html: `
@@ -2923,13 +2929,14 @@ export class EmailService {
     bankType: string = 'Lending Partner',
     contactNumber?: string,
   ) {
-    const frontendUrl = (process.env.FRONTEND_URL || 'https://vidyaloans.in').replace(/\/$/, '');
+    const frontendUrl = (process.env.FRONTEND_URL || 'https://www.vidyaloans.in').replace(/\/$/, '');
     const bankLoginUrl = `${frontendUrl}/bank/login`;
-    const staffLoginUrl = 'https://vidyaloans.in/staff/login';
+    const staffLoginUrl = `${frontendUrl}/staff/login`;
     const logoUrl = 'https://vidyaloans.in/images/vidyaloans-logo-transparent.png';
 
     const mailOptions = {
-      from: `"VidyaLoans Institutional Network" <${process.env.EMAIL_USER || 'noreply@vidyaloans.in'}>`,
+      from: this.getFromAddress('VidyaLoans Institutional Network'),
+      replyTo: this.getReplyToAddress(),
       to: email,
       subject: `🏦 Congratulations! ${bankName} is verified as a VidyaLoans Lending Partner`,
       html: `
@@ -3166,13 +3173,14 @@ export class EmailService {
     bankName: string,
     branchLocation?: string,
   ) {
-    const frontendUrl = (process.env.FRONTEND_URL || 'https://vidyaloans.in').replace(/\/$/, '');
+    const frontendUrl = (process.env.FRONTEND_URL || 'https://www.vidyaloans.in').replace(/\/$/, '');
     const bankLoginUrl = `${frontendUrl}/bank/login`;
-    const staffLoginUrl = 'https://vidyaloans.in/staff/login';
+    const staffLoginUrl = `${frontendUrl}/staff/login`;
     const logoUrl = 'https://vidyaloans.in/images/vidyaloans-logo-transparent.png';
 
     const mailOptions = {
-      from: `"VidyaLoans Bank Network" <${process.env.EMAIL_USER || 'noreply@vidyaloans.in'}>`,
+      from: this.getFromAddress('VidyaLoans Bank Network'),
+      replyTo: this.getReplyToAddress(),
       to: email,
       subject: `🏦 Congratulations! Your ${bankName} Officer Account is Verified - VidyaLoans`,
       html: `

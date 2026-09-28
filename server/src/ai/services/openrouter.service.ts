@@ -24,9 +24,9 @@ export class OpenRouterService {
     
     // Fallback models to try if primary model fails (in order of preference)
     private readonly FALLBACK_MODELS = [
+        'google/gemini-2.5-flash',
         'openai/gpt-4o-mini',
-        'meta-llama/llama-3.3-70b-instruct:free',
-        'meta-llama/llama-2-13b-chat:free',
+        'meta-llama/llama-3.3-70b-instruct',
         'mistralai/mistral-7b-instruct:free',
     ];
     
@@ -114,7 +114,7 @@ export class OpenRouterService {
         }
     }
 
-    async getJson<T>(prompt: string, model: string = 'openai/gpt-4o-mini'): Promise<T> {
+    async getJson<T>(prompt: string, model: string = 'google/gemini-2.5-flash'): Promise<T> {
         const jsonPrompt = `${prompt}\n\nIMPORTANT: Respond ONLY with valid JSON. Do not include markdown formatting.`;
         const apiKey = await this.getApiKey();
         if (!apiKey || apiKey === 'your_openrouter_api_key_here') throw new Error('OPENROUTER_API_KEY is not configured');

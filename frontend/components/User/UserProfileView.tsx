@@ -856,7 +856,7 @@ export default function UserProfileView({
                         <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2 mb-1.5">
                                 <h2 className="text-xl font-bold text-[#0F172A] tracking-tight">
-                                    {passportFullName || activeProfile?.passportOriginalName || activeProfile?.nameAsInPassport || (activeProfile?.firstName && activeProfile?.lastName
+                                    {passportFullName || activeProfile?.passportOriginalName || activeProfile?.nameAsInPassport || activeProfile?.aadhaarOriginalName || activeProfile?.nameAsInAadhaar || (activeProfile?.firstName && activeProfile?.lastName
                                         ? `${activeProfile.firstName} ${activeProfile.lastName}`
                                         : activeProfile?.firstName || activeProfile?.email?.split("@")[0])}
                                 </h2>

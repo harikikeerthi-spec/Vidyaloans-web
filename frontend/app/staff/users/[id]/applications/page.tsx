@@ -137,7 +137,10 @@ function checkCountryUniversityMatch(
     selectedUniObj?: any,
     suggestedUnis?: any[]
 ): { isValid: boolean; error?: string } {
-    if (!selectedCountry || !universityName) return { isValid: true };
+    if (!universityName || !universityName.trim()) {
+        return { isValid: false, error: "University name is required." };
+    }
+    if (!selectedCountry) return { isValid: true };
 
     const genericWords = new Set([
         'university', 'universities', 'college', 'colleges', 'school', 'schools',
@@ -393,13 +396,27 @@ export default function ApplicationsTab() {
         e.preventDefault();
         setSubmitError("");
 
-        const selectedCountry = formData.country === "Other" ? formData.otherCountry : formData.country;
-        if (selectedCountry && formData.university) {
-            const uniMatch = checkCountryUniversityMatch(selectedCountry, formData.university, selectedUniObj, suggestedUniversities);
-            if (!uniMatch.isValid) {
-                setSubmitError(uniMatch.error || "Country and university mismatch.");
-                return;
-            }
+        const selectedCountry = formData.country === "Other" ? formData.otherCountry?.trim() : formData.country?.trim();
+        if (!selectedCountry) {
+            setSubmitError(formData.country === "Other" ? "Please specify the destination country name." : "Please select a destination country.");
+            return;
+        }
+
+        const trimmedUniversity = (formData.university || "").trim();
+        if (!trimmedUniversity) {
+            setSubmitError("University name is required. Please specify a university.");
+            return;
+        }
+
+        if (trimmedUniversity.length < 2) {
+            setSubmitError("Please enter a valid university name (at least 2 characters).");
+            return;
+        }
+
+        const uniMatch = checkCountryUniversityMatch(selectedCountry, trimmedUniversity, selectedUniObj, suggestedUniversities);
+        if (!uniMatch.isValid) {
+            setSubmitError(uniMatch.error || "Country and university mismatch.");
+            return;
         }
 
         if (formData.bank !== "Any Bank" && isBankAlreadyApplied(formData.bank)) {
@@ -409,6 +426,10 @@ export default function ApplicationsTab() {
         }
 
         const parsedAmount = parseFloat(formData.amount) || 0;
+        if (!parsedAmount || parsedAmount <= 0) {
+            setSubmitError("Please enter a valid requested loan amount.");
+            return;
+        }
         if (parsedAmount > 15000000) {
             setSubmitError("Maximum loan amount cannot exceed ₹1,50,00,000 (1.5 Crore)");
             return;
@@ -426,6 +447,9 @@ export default function ApplicationsTab() {
 
             const payload = {
                 ...formData,
+                university: trimmedUniversity,
+                universityName: trimmedUniversity,
+                targetUniversity: trimmedUniversity,
                 isStaff: true,
                 creatorRole: "staff",
                 hasCoApplicant: firstApp?.hasCoApplicant ?? (!!coApplicantRel && coApplicantRel !== "none"),
@@ -433,17 +457,22 @@ export default function ApplicationsTab() {
                 coApplicantRelation: coApplicantRel || null,
                 coApplicantIncome: coApplicantInc || undefined,
                 coApplicant: coApplicantRel || null,
-                country: formData.country === "Other" ? formData.otherCountry : formData.country,
+                country: selectedCountry,
                 userId,
                 bank: bankName,
-                amount: parseFloat(formData.amount) || 0,
+                amount: parsedAmount,
                 annualFee: formData.annualFee ? parseFloat(formData.annualFee) : undefined,
                 livingCost: formData.livingCost ? parseFloat(formData.livingCost) : undefined,
                 income: coApplicantInc || undefined,
                 status: "pending",
             };
 
-            await applicationApi.create(payload);
+            const res: any = await applicationApi.create(payload);
+            if (res && res.success === false) {
+                setSubmitError(res.message || "Failed to create application.");
+                setSubmitting(false);
+                return;
+            }
 
             // Log staff activity in DB
             const studentName = userData ? `${userData.firstName || ''} ${userData.lastName || ''}`.trim() : 'student';
@@ -812,8 +841,15 @@ export default function ApplicationsTab() {
                                                 type="text"
                                                 placeholder="e.g. Stanford University"
                                                 value={formData.university}
-                                                onChange={e => setFormData(prev => ({ ...prev, university: e.target.value.replace(/\d/g, "") }))}
-                                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-700 font-semibold"
+                                                onChange={e => {
+                                                    setFormData(prev => ({ ...prev, university: e.target.value.replace(/\d/g, "") }));
+                                                    if (submitError) setSubmitError("");
+                                                }}
+                                                className={`w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-slate-700 font-semibold ${
+                                                    submitError && !formData.university.trim()
+                                                        ? "border-rose-400 focus:border-rose-500 ring-1 ring-rose-200"
+                                                        : "border-slate-200 focus:border-indigo-500"
+                                                }`}
                                             />
 
                                             {/* Loading Indicator */}

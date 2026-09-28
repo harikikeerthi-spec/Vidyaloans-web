@@ -1249,7 +1249,7 @@ export class ApplicationService {
 
       let query = this.db
         .from('LoanApplication')
-        .select('*, user:User!userId(id, email, firstName, lastName, phoneNumber, dateOfBirth, studyDestination, intakeSeason, tests), documents:ApplicationDocument(id, status), ProcessingFee(*)', { count: 'exact' });
+        .select('*, user:User!userId(id, email, firstName, lastName, phoneNumber, mobile, dateOfBirth, studyDestination, intakeSeason, tests, pincode), documents:ApplicationDocument(id, status), ProcessingFee(*)', { count: 'exact' });
 
       // ── Strict per-staff isolation ──────────────────────────────────────
       // When a non-admin staff member makes the request, return ONLY applications
@@ -1384,7 +1384,7 @@ export class ApplicationService {
         console.error('[ApplicationService.getAllApplications] Supabase Error, executing clean fallback query:', error);
         let fallbackQuery = this.db
           .from('LoanApplication')
-          .select('*, user:User!userId(id, email, firstName, lastName, phoneNumber, dateOfBirth, studyDestination, intakeSeason, tests)', { count: 'exact' });
+          .select('*, user:User!userId(id, email, firstName, lastName, phoneNumber, mobile, dateOfBirth, studyDestination, intakeSeason, tests, pincode)', { count: 'exact' });
 
         if (filters?.status) fallbackQuery = fallbackQuery.eq('status', filters.status);
         if (filters?.excludeStatus) fallbackQuery = fallbackQuery.neq('status', filters.excludeStatus);
@@ -1449,6 +1449,21 @@ export class ApplicationService {
         } catch (e) {
           console.warn('[getAllApplications] Failed to enrich staff details:', e);
         }
+
+        // Seamless fallbacks for applicant details from linked user
+        applications.forEach((app: any) => {
+          if (!app.student && app.user) {
+            app.student = app.user;
+          }
+          if (app.user) {
+            if (!app.firstName && app.user.firstName) app.firstName = app.user.firstName;
+            if (!app.lastName && app.user.lastName) app.lastName = app.user.lastName;
+            if (!app.email && app.user.email) app.email = app.user.email;
+            if (!app.phone && (app.user.phoneNumber || app.user.mobile)) app.phone = app.user.phoneNumber || app.user.mobile;
+            if (!app.dateOfBirth && app.user.dateOfBirth) app.dateOfBirth = app.user.dateOfBirth;
+            if (!app.country && app.user.studyDestination) app.country = app.user.studyDestination;
+          }
+        });
       }
       
       return { 

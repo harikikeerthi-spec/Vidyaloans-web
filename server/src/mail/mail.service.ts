@@ -1124,7 +1124,17 @@ export class MailService {
         }
       }
     } catch (err: any) {
-      this.logger.error(`[ScheduledEmail Worker] Queue processing error: ${err.message}`);
+      const errMsg = err?.message || String(err);
+      if (
+        errMsg.includes('Connection terminated') ||
+        errMsg.includes('connection closed') ||
+        errMsg.includes('closed the connection') ||
+        errMsg.includes('Connection terminated unexpectedly')
+      ) {
+        this.logger.warn(`[ScheduledEmail Worker] Database connection warming up / temporarily unreachable. Will retry on next tick.`);
+      } else {
+        this.logger.error(`[ScheduledEmail Worker] Queue processing error: ${errMsg}`);
+      }
     }
   }
 

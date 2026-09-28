@@ -468,7 +468,7 @@ export default function ProfileTab() {
     const passportIssueCountry = parsedPassportObj.issueCountry || parsedPassportObj.passportIssueCountry || parsedPassportObj.issue_country || userData?.passportIssueCountry || getExtractedField(passportDoc, ['issue_country', 'country_of_issue', 'issuing_country']) || null;
     const passportBirthCity = parsedPassportObj.birthCity || parsedPassportObj.placeOfBirth || parsedPassportObj.birth_city || userData?.birthCity || getExtractedField(passportDoc, ['place_of_birth', 'birth_place', 'birth_city']) || null;
     const passportBirthCountry = parsedPassportObj.birthCountry || parsedPassportObj.passportBirthCountry || parsedPassportObj.birth_country || parsedPassportObj.countryOfBirth || userData?.passportBirthCountry || userData?.birthCountry || getExtractedField(passportDoc, ['birth_country', 'country_of_birth']) || null;
-    const passportFullName = parsedPassportObj.fullName || parsedPassportObj.full_name || userData?.passportOriginalName || userData?.nameAsInPassport || getExtractedField(passportDoc, ['full_name', 'fullName', 'name', 'printed_name', 'holder_name']) || null;
+    const passportFullName = parsedPassportObj.fullName || parsedPassportObj.full_name || userData?.passportOriginalName || userData?.nameAsInPassport || userData?.aadhaarOriginalName || userData?.nameAsInAadhaar || getExtractedField(passportDoc, ['full_name', 'fullName', 'name', 'printed_name', 'holder_name']) || null;
 
     const activeApp = userApplications && userApplications.length > 0 ? userApplications[0] : null;
 

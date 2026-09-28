@@ -1407,6 +1407,96 @@ export class BankService {
 
     const targetId = data.id;
 
+    // Enrich applicant profile details from User and parents tables if available
+    if (data.userId) {
+      try {
+        const { data: userRec } = await this.db
+          .from('User')
+          .select('*')
+          .eq('id', data.userId)
+          .maybeSingle();
+
+        if (userRec) {
+          data.user = userRec;
+
+          // Fetch parents table entries
+          const { data: parentsRec } = await this.db
+            .from('parents')
+            .select('*')
+            .eq('userId', data.userId);
+          data.parents = parentsRec || [];
+          if (data.user) {
+            data.user.parents = parentsRec || [];
+          }
+
+          // Fallback missing student details onto application
+          if (!data.gender && userRec.gender) data.gender = userRec.gender;
+          if (!data.address && userRec.permanentAddress) data.address = userRec.permanentAddress;
+          if (!data.pincode && userRec.pincode) data.pincode = userRec.pincode;
+          if (!data.country && (userRec.studyDestination || userRec.country)) data.country = userRec.studyDestination || userRec.country;
+
+          // Co-applicant fallbacks
+          let userCoApp: any = null;
+          if (userRec.coApplicant) {
+            try {
+              userCoApp = typeof userRec.coApplicant === 'string' ? JSON.parse(userRec.coApplicant) : userRec.coApplicant;
+            } catch (_) {}
+          }
+          const coAppParent = (parentsRec || []).find((p: any) => (p.relation || '').toLowerCase() === 'coapplicant');
+
+          if (!data.coApplicantName) {
+            data.coApplicantName = userRec.coApplicantName || userCoApp?.name || userCoApp?.coApplicantName || coAppParent?.name || null;
+          }
+          if (!data.coApplicantRelation) {
+            data.coApplicantRelation = userRec.coApplicantRelation || userCoApp?.relation || userCoApp?.coApplicantRelation || coAppParent?.relation || null;
+          }
+          if (!data.coApplicantPhone) {
+            data.coApplicantPhone = userRec.coApplicantPhone || userCoApp?.phone || userCoApp?.mobile || coAppParent?.phone || coAppParent?.mobile || null;
+          }
+          if (!data.coApplicantEmail) {
+            data.coApplicantEmail = userRec.coApplicantEmail || userCoApp?.email || coAppParent?.email || null;
+          }
+          if (!data.coApplicantIncome && (userCoApp?.income || userCoApp?.annualIncome)) {
+            data.coApplicantIncome = parseFloat(userCoApp.income || userCoApp.annualIncome);
+          }
+          if (data.coApplicantName || data.coApplicantEmail || data.coApplicantPhone || userRec.coApplicantName || userCoApp || coAppParent) {
+            data.hasCoApplicant = true;
+          }
+
+          // Parent fallbacks
+          let userFamily: any = null;
+          if (userRec.family) {
+            try {
+              userFamily = typeof userRec.family === 'string' ? JSON.parse(userRec.family) : userRec.family;
+            } catch (_) {}
+          }
+          const fatherParent = (parentsRec || []).find((p: any) => (p.relation || '').toLowerCase() === 'father');
+          const motherParent = (parentsRec || []).find((p: any) => (p.relation || '').toLowerCase() === 'mother');
+
+          if (!data.fatherName) {
+            data.fatherName = userRec.fatherName || userFamily?.fatherName || fatherParent?.name || null;
+          }
+          if (!data.fatherPhone) {
+            data.fatherPhone = userFamily?.fatherPhone || userFamily?.fatherMobile || fatherParent?.phone || fatherParent?.mobile || null;
+          }
+          if (!data.fatherEmail) {
+            data.fatherEmail = userFamily?.fatherEmail || fatherParent?.email || null;
+          }
+          if (!data.motherName) {
+            data.motherName = userRec.motherName || userFamily?.motherName || motherParent?.name || null;
+          }
+          if (!data.motherPhone) {
+            data.motherPhone = userFamily?.motherPhone || userFamily?.motherMobile || motherParent?.phone || motherParent?.mobile || null;
+          }
+          if (!data.motherEmail) {
+            data.motherEmail = userFamily?.motherEmail || motherParent?.email || null;
+          }
+        }
+      } catch (err) {
+        console.warn('[BankService.getFileDetail] Error enriching user/parent details:', err);
+      }
+    }
+
     // Fetch queries from all database query tables by target UUID or applicationNumber
     let queriesList: any[] = [];
     const appNumber = data.applicationNumber;

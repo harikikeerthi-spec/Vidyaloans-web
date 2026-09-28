@@ -534,6 +534,14 @@ export class AuthController {
       };
     }
 
+    const universityName = (body.university || (body as any).universityName || (body as any).targetUniversity || '').trim();
+    if (!universityName) {
+      return {
+        success: false,
+        message: 'University name is required',
+      };
+    }
+
     if (body.email) {
       const emailCheck = await this.authService.checkDisposableEmail(body.email);
       if (emailCheck.blocked) {
@@ -565,9 +573,9 @@ export class AuthController {
         amount: amountVal,
         courseType: body.courseType,
         country: selectedCountry,
-        university: body.university,
-        universityName: body.university,
-        targetUniversity: body.university,
+        university: universityName,
+        universityName: universityName,
+        targetUniversity: universityName,
         hasCoApplicant: body.hasCoApplicant,
         coApplicant: body.coApplicant || body.coApplicantRelation,
         coApplicantName: body.coApplicantName,

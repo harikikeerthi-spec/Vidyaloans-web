@@ -330,12 +330,15 @@ export class UsersController {
         console.log('=== ADMIN CREATE USER START ===');
         console.log('Request body:', body);
 
-        if (!body || !body.email || !body.role) {
+        const cleanEmail = (body.email || '').trim().toLowerCase();
+        const roleLower = (body.role || '').toLowerCase().trim();
+
+        if (!cleanEmail || !roleLower) {
             console.log('Validation failed: missing email or role');
             return { success: false, message: 'Email and role are required' };
         }
 
-        if (body.role === 'bank' && (!body.bank || !String(body.bank).trim())) {
+        if (roleLower === 'bank' && (!body.bank || !String(body.bank).trim())) {
             console.log('Validation failed: missing assigned lending bank partner for bank role');
             return {
                 success: false,
@@ -343,22 +346,24 @@ export class UsersController {
             };
         }
 
-        const existing = await this.usersService.findOne(body.email);
+        const existing = await this.usersService.findOne(cleanEmail);
         if (existing) {
             return { success: false, message: 'User with this email already exists' };
         }
 
         try {
-            const isAgent = body.role === 'agent' || body.role === 'partner_agent';
+            const isAgent = roleLower === 'agent' || roleLower === 'partner_agent';
+            const isBank = roleLower === 'bank' || roleLower === 'partner_bank' || roleLower.startsWith('bank_');
+            const isStaff = roleLower === 'staff' || roleLower === 'operations_staff';
             const isDraft = !!body.isDraft;
             const effectiveStatus = isDraft ? 'draft' : 'active';
 
             const newUser = await this.usersService.create({
-                email: body.email,
+                email: cleanEmail,
                 firstName: body.firstName,
                 lastName: body.lastName,
                 mobile: body.mobile,
-                role: body.role,
+                role: roleLower,
                 officeId: body.officeId,
                 officeLocation: body.officeLocation || body.office,
                 bank: body.bank,
@@ -381,9 +386,9 @@ export class UsersController {
                     id: newUser.id,
                     firstName: body.firstName,
                     lastName: body.lastName,
-                    email: body.email,
+                    email: cleanEmail,
                     phoneNumber: body.mobile,
-                    role: body.role,
+                    role: roleLower,
                     businessName: body.businessName || `${body.firstName || 'Agent'} Agency`,
                     partnership: body.partnership || 'Individual Consultant',
                     percentage: body.percentage || '1.5',
@@ -407,8 +412,9 @@ export class UsersController {
                 // If final submission (not draft), dispatch the congratulations welcome email with portal link
                 if (!isDraft) {
                     try {
+                        console.log(`[adminCreateUser] Dispatching Agent welcome email to: ${cleanEmail}`);
                         await this.emailService.sendAgentWelcomeEmail(
-                            newUser.email,
+                            cleanEmail,
                             `${body.firstName || ''} ${body.lastName || ''}`.trim() || 'Partner',
                             newUser.id,
                             body.partnership || 'Channel Partner',
@@ -418,12 +424,13 @@ export class UsersController {
                         console.warn('[adminCreateUser] Agent welcome email non-blocking failed:', emailErr?.message);
                     }
                 }
-            } else if (body.role === 'bank' || body.role === 'partner_bank') {
+            } else if (isBank) {
                 // Bank person registration: dispatch welcome email with dedicated Bank Login URL & Staff Login URL
                 try {
+                    console.log(`[adminCreateUser] Dispatching Bank Officer welcome email to: ${cleanEmail}`);
                     const officerName = `${body.firstName || ''} ${body.lastName || ''}`.trim() || 'Bank Officer';
                     await this.emailService.sendBankUserWelcomeEmail(
-                        newUser.email,
+                        cleanEmail,
                         officerName,
                         newUser.id,
                         body.bank || body.bankName || 'Lending Partner Bank',
@@ -432,13 +439,14 @@ export class UsersController {
                 } catch (emailErr: any) {
                     console.warn('[adminCreateUser] Bank welcome email non-blocking failed:', emailErr?.message);
                 }
-            } else if (body.role === 'staff') {
+            } else if (isStaff) {
                 // Staff member registration: dispatch official congrats & verified welcome email with staff login link
                 try {
+                    console.log(`[adminCreateUser] Dispatching Staff welcome email to: ${cleanEmail}`);
                     const staffName = `${body.firstName || ''} ${body.lastName || ''}`.trim() || 'Staff Member';
                     const staffId = (newUser as any)?.staffId || newUser.id;
                     await this.emailService.sendStaffWelcomeEmail(
-                        newUser.email,
+                        cleanEmail,
                         staffName,
                         staffId,
                         body.officeLocation || body.office || body.branch || 'Main Operations Center',
@@ -450,17 +458,18 @@ export class UsersController {
             } else {
                 // Send standard welcome email for other non-agents
                 try {
+                    console.log(`[adminCreateUser] Dispatching standard welcome email to: ${cleanEmail}`);
                     await this.emailService.sendMail(
-                        newUser.email,
+                        cleanEmail,
                         `Welcome to VidyaLoan - Your ${body.role} Account`,
                         `<div style="font-family: sans-serif; padding: 20px;">
                             <h2>Welcome, ${body.firstName}!</h2>
                             <p>Your account as an <strong>${body.role}</strong> has been created by the administrator.</p>
-                            <p>You can now log in using your email: <strong>${body.email}</strong></p>
+                            <p>You can now log in using your email: <strong>${cleanEmail}</strong></p>
                         </div>`,
                         `Welcome to VidyaLoan! Your ${body.role} account has been created.`
                     );
-                } catch (emailErr) {
+                } catch (emailErr: any) {
                     console.warn('Email sending failed (non-blocking):', emailErr?.message);
                 }
             }

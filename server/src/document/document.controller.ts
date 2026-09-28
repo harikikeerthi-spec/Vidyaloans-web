@@ -293,24 +293,14 @@ export class DocumentController {
       };
 
       if (!shouldSkipOcr) {
-        if (
-          kycResult.extracted_data &&
-          Object.keys(kycResult.extracted_data).length > 0
-        ) {
-          await this.usersService.updateExtractedDetails(userId, {
-            documentVerified: true,
-            ...kycResult.extracted_data,
-          }, docType);
-        }
-
-        // Perform cross-document name & parent verification against reference document (Passport / Aadhaar)
+        // 1. Perform cross-document name & parent verification against reference document (Passport / Aadhaar) FIRST
         const crossDocResult = await this.usersService.performCrossDocumentValidation(
           userId,
           docType,
           kycResult.extracted_data || {}
         );
 
-        // Hard reject: student doc (PAN/10th/12th/Degree) name doesn't match Aadhaar/Passport reference
+        // Hard reject: student doc (Passport / Aadhaar / PAN / Marksheet) name doesn't match reference
         if (crossDocResult.hardReject && crossDocResult.rejectReason) {
           // Delete the already-uploaded S3 file so it doesn't stay stored
           try { await this.s3Service.delete(s3Key); } catch {}
@@ -323,6 +313,17 @@ export class DocumentController {
           if (kycResult) {
             kycResult.ocr_issues = verificationResult.details.ocr_issues;
           }
+        }
+
+        // 2. Only update extracted details after cross-document validation passes without hard reject
+        if (
+          kycResult.extracted_data &&
+          Object.keys(kycResult.extracted_data).length > 0
+        ) {
+          await this.usersService.updateExtractedDetails(userId, {
+            documentVerified: true,
+            ...kycResult.extracted_data,
+          }, docType);
         }
       }
 
