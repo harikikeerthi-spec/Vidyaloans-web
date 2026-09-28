@@ -24,6 +24,7 @@ export class AwsWhatsAppService {
   constructor(private readonly configService: ConfigService) {
     this.region =
       this.configService.get<string>('AWS_WHATSAPP_REGION') ||
+      this.configService.get<string>('WHATSAPP_REGION') ||
       this.configService.get<string>('AWS_REGION') ||
       'ap-south-1';
 
@@ -37,12 +38,14 @@ export class AwsWhatsAppService {
 
     this.phoneId =
       this.configService.get<string>('AWS_WHATSAPP_PHONE_NUMBER_ID') ||
+      this.configService.get<string>('WHATSAPP_PHONE_NUMBER_ID') ||
       this.configService.get<string>('AWS_WHATSAPP_PHONE_NUMBER_ARN') ||
       '';
 
     // Direct Meta WhatsApp Cloud API credentials (if provided or linked to AWS)
     this.metaToken = this.configService.get<string>('WHATSAPP_TOKEN') || '';
-    this.metaPhoneId = this.configService.get<string>('WHATSAPP_PHONE_NUMBER_ID') || '';
+    const directMetaPhone = this.configService.get<string>('META_WHATSAPP_PHONE_NUMBER_ID');
+    this.metaPhoneId = directMetaPhone || (this.phoneId.startsWith('phone-number-id') ? '' : this.phoneId);
 
     if (accessKeyId && secretAccessKey && !accessKeyId.startsWith('your_')) {
       try {

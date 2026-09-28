@@ -548,7 +548,7 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
                             return `<div class="h-12"></div>`;
                         case "split_content":
                         case "container": {
-                            const config = b.splitConfig || {};
+                            const config: Partial<SplitConfig> = b.splitConfig || {};
                             const layout = config.layoutType || "image_text";
                             const ratio = config.ratio || "50_50";
                             let leftSpan = "md:col-span-6";

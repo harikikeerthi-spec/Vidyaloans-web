@@ -67,10 +67,12 @@ export class ChatController {
     const rawNumber = process.env.AWS_WHATSAPP_PHONE_NUMBER || process.env.WHATSAPP_PHONE_NUMBER || '+918143797779';
     const cleanNumber = rawNumber.replace('whatsapp:', '').replace(/\D/g, '');
     
+    const studentName = user.firstName ? `${user.firstName}${user.lastName ? ' ' + user.lastName : ''}` : 'Student';
+    const messageText = encodeURIComponent(`Hi VidyaLoans team! I am ${studentName} and I need support with my education loan application.`);
     return {
       success: true,
       conversation,
-      whatsappUrl: `https://wa.me/${cleanNumber}?text=Hi Vidyaloan team, I am ${user.firstName} and I would like to connect with a mentor.`
+      whatsappUrl: `https://wa.me/${cleanNumber}?text=${messageText}`
     };
   }
 

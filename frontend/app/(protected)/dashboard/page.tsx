@@ -339,6 +339,32 @@ export default function DashboardPage() {
     const [selectedAppDetails, setSelectedAppDetails] = useState<any>(null);
     const [connectingSupport, setConnectingSupport] = useState(false);
     const [isSupportOpen, setIsSupportOpen] = useState(false);
+
+    const handleConnectSupport = async () => {
+        if (connectingSupport) return;
+        setConnectingSupport(true);
+        try {
+            // Create/fetch conversation on the backend
+            const res = await chatApi.connect() as any;
+            // Use the whatsappUrl returned by backend (AWS WhatsApp number) or fallback
+            const waUrl = res?.whatsappUrl ||
+                (() => {
+                    const num = (process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || process.env.NEXT_PUBLIC_AWS_WHATSAPP_NUMBER || '918143797779').replace(/\D/g, '');
+                    const name = user?.firstName || 'there';
+                    const text = encodeURIComponent(`Hi VidyaLoans team! I am ${name} and I need help with my education loan application.`);
+                    return `https://wa.me/${num}?text=${text}`;
+                })();
+            window.open(waUrl, '_blank');
+        } catch {
+            // Fallback if API fails — still open WhatsApp
+            const num = (process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || process.env.NEXT_PUBLIC_AWS_WHATSAPP_NUMBER || '918143797779').replace(/\D/g, '');
+            const name = user?.firstName || 'there';
+            const text = encodeURIComponent(`Hi VidyaLoans team! I am ${name} and I need help with my education loan application.`);
+            window.open(`https://wa.me/${num}?text=${text}`, '_blank');
+        } finally {
+            setConnectingSupport(false);
+        }
+    };
     const [visibleSecrets, setVisibleSecrets] = useState<Record<string, boolean>>({});
 
     const [profileSubTab, setProfileSubTab] = useState<"personal" | "family" | "academic">("personal");
@@ -812,15 +838,28 @@ export default function DashboardPage() {
                             </p>
                         </div>
                         <div className="flex flex-wrap gap-3">
-                            <div
+                            <button
                                 id="btn-connect-support"
-                                className="px-5 py-2.5 bg-emerald-600/50 text-white/80 text-xs font-bold rounded-lg cursor-not-allowed shadow-sm flex items-center gap-2 select-none opacity-75"
-                                title="Coming soon!"
+                                type="button"
+                                onClick={handleConnectSupport}
+                                disabled={connectingSupport}
+                                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold rounded-lg shadow-sm flex items-center gap-2 transition-all duration-200 disabled:opacity-70 disabled:cursor-wait"
                             >
-                                <span className="material-symbols-outlined text-sm">chat</span>
-                                Connect with Support
-                                <span className="px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider bg-amber-400 text-amber-950 rounded ml-1">Coming Soon</span>
-                            </div>
+                                {connectingSupport ? (
+                                    <>
+                                        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                        Connecting...
+                                    </>
+                                ) : (
+                                    <>
+                                        {/* WhatsApp icon SVG */}
+                                        <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 shrink-0">
+                                            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                                        </svg>
+                                        Connect with Support
+                                    </>
+                                )}
+                            </button>
                             <Link href="/onboarding" className="px-5 py-2.5 bg-white text-gray-700 border border-gray-200 text-xs font-bold rounded-lg hover:bg-gray-50 transition-all">
                                 Speak with Counsellor
                             </Link>

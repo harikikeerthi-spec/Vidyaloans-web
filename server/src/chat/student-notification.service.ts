@@ -55,6 +55,23 @@ export class StudentNotificationService {
           status: res.status,
         };
       } catch (err: any) {
+        // If regular text message fails (e.g. 24h window), try pre-approved template if configured
+        const templateName = process.env.WHATSAPP_TEMPLATE_NAME;
+        const templateLang = process.env.WHATSAPP_TEMPLATE_LANGUAGE || 'en';
+        if (templateName) {
+          try {
+            this.logger.log(`Attempting approved WhatsApp template "${templateName}" (${templateLang}) for ${mobile}`);
+            const tmplRes = await this.awsWhatsApp.sendTemplateMessage(mobile, templateName, templateLang);
+            return {
+              channel: 'whatsapp',
+              sid: tmplRes.messageId,
+              status: tmplRes.status,
+            };
+          } catch (tmplErr: any) {
+            this.logger.warn(`AWS WhatsApp template send failed: ${tmplErr?.message}`);
+          }
+        }
+
         this.logger.warn(
           `AWS WhatsApp failed for ${mobile}: ${err?.message}. Falling back to AWS SNS SMS.`,
         );
