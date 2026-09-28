@@ -4,6 +4,7 @@ import { existsSync, statSync } from 'fs';
 import { SupabaseService } from '../supabase/supabase.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { EmailService } from '../auth/email.service';
+import { JwtService } from '@nestjs/jwt';
 
 export interface BankWorkflowConfig {
   maxQueryRetries: number;
@@ -34,7 +35,20 @@ export class BankWorkflowService {
     private readonly db: SupabaseService,
     private readonly eventEmitter: EventEmitter2,
     private readonly emailService: EmailService,
+    private readonly jwtService: JwtService,
   ) {}
+
+  /**
+   * Generate a short-lived signed JWT for public document access (used in emails).
+   * The token embeds applicationId and documentId so the public-view endpoint
+   * can verify and serve the document without requiring session auth.
+   */
+  private generateDocumentToken(applicationId: string, documentId: string): string {
+    return this.jwtService.sign(
+      { applicationId, documentId },
+      { secret: process.env.JWT_SECRET || 'secretKey', expiresIn: '7d' },
+    );
+  }
 
   private async generateBankApplicationNumber(): Promise<string> {
     const year = new Date().getFullYear();
@@ -585,9 +599,19 @@ export class BankWorkflowService {
     const targetEmail = (recipientEmail && recipientEmail.trim()) || bankEmail || fallbackEmails[bankId] || `${bankId}bank01@gmail.com`;
 
     // Build enriched application object for email
+    // Attach signed public-access tokens to each document so the bank can
+    // open documents from the email without being logged in to the portal.
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const documentsWithTokens = documents.map((doc: any) => ({
+      ...doc,
+      docToken: this.generateDocumentToken(applicationId, doc.id),
+      publicViewUrl: `${frontendUrl}/api/applications/documents/public-view?token=${this.generateDocumentToken(applicationId, doc.id)}`,
+      publicDownloadUrl: `${frontendUrl}/api/applications/documents/public-view?token=${this.generateDocumentToken(applicationId, doc.id)}&download=true`,
+    }));
+
     const enrichedApplication = {
       ...application,
-      documents,
+      documents: documentsWithTokens,
     };
 
     // Send the detailed application package email

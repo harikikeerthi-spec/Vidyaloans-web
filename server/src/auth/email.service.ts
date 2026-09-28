@@ -1875,12 +1875,16 @@ export class EmailService {
     const docRows = documents.length > 0
       ? documents.map((doc: any) => {
         const docId = doc.id || doc.docId;
-        const viewUrl = (docId && application.id)
-          ? `${frontendUrl}/api/applications/admin/${application.id}/documents/${docId}/view`
-          : null;
-        const downloadUrl = (docId && application.id)
-          ? `${frontendUrl}/api/applications/admin/${application.id}/documents/${docId}/view?download=true`
-          : null;
+        // Prefer pre-signed public-view URL (set by BankWorkflowService) for auth-free access from emails.
+        // Falls back to the admin route which also works without auth on this endpoint.
+        const viewUrl = doc.publicViewUrl
+          || ((docId && application.id)
+            ? `${frontendUrl}/api/applications/admin/${application.id}/documents/${docId}/view`
+            : null);
+        const downloadUrl = doc.publicDownloadUrl
+          || ((docId && application.id)
+            ? `${frontendUrl}/api/applications/admin/${application.id}/documents/${docId}/view?download=true`
+            : null);
         return `
         <tr>
           <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#334155;">
@@ -1896,6 +1900,7 @@ export class EmailService {
         </tr>`;
       }).join('')
       : `<tr><td colspan="2" style="padding:12px;text-align:center;color:#94a3b8;font-size:13px;">No documents attached</td></tr>`;
+
 
     const html = `
 <!DOCTYPE html>

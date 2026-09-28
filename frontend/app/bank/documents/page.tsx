@@ -218,8 +218,20 @@ export default function DocumentReviewCenter() {
     };
 
     const getDocumentViewUrl = (appId: string, docId: string) => {
-        const token = typeof window !== "undefined" ? (localStorage.getItem("bankAccessToken") || localStorage.getItem("adminAccessToken") || "") : "";
-        return `/api/applications/admin/${appId}/documents/${docId}/view?token=${token}`;
+        const token = typeof window !== "undefined"
+            ? (localStorage.getItem("bankAccessToken") || localStorage.getItem("adminAccessToken") || localStorage.getItem("staffAccessToken") || "")
+            : "";
+        // If we have a token, pass it as a query param for optional auth
+        // The endpoint works without auth too, so this is best-effort
+        const base = `/api/applications/admin/${appId}/documents/${docId}/view`;
+        return token ? `${base}?token=${token}` : base;
+    };
+
+    const getDocumentDownloadUrl = (appId: string, docId: string) => {
+        const viewUrl = getDocumentViewUrl(appId, docId);
+        // Properly append download param with correct separator
+        const sep = viewUrl.includes('?') ? '&' : '?';
+        return `${viewUrl}${sep}download=true`;
     };
 
     const renderThumbnailPreview = (doc: any, page: number) => {
@@ -297,6 +309,7 @@ export default function DocumentReviewCenter() {
         if (!doc || !selectedAppId) return null;
 
         const url = getDocumentViewUrl(selectedAppId, doc.id);
+        const downloadUrl = getDocumentDownloadUrl(selectedAppId, doc.id);
         const fileName = (doc.fileName || "").toLowerCase();
         const filePath = (doc.filePath || "").toLowerCase();
         const mimeType = (doc.mimeType || "").toLowerCase();
@@ -380,7 +393,7 @@ export default function DocumentReviewCenter() {
                         <span className="material-symbols-outlined text-xs">open_in_new</span> View Full
                     </a>
                     <a
-                        href={`${url}&download=true`}
+                        href={downloadUrl}
                         download
                         className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#6605c7] hover:bg-[#5203a4] text-white rounded-md text-xs font-black uppercase tracking-wider transition-all"
                     >
@@ -735,7 +748,7 @@ export default function DocumentReviewCenter() {
                                                                 <span className="material-symbols-outlined text-sm">open_in_new</span>
                                                             </a>
                                                             <a
-                                                                href={`${getDocumentViewUrl(selectedApp.id, activeViewerDoc.id)}&download=true`}
+                                                                href={getDocumentDownloadUrl(selectedApp.id, activeViewerDoc.id)}
                                                                 download
                                                                 className="p-1 hover:bg-gray-100 rounded text-gray-600 flex items-center"
                                                                 title="Download document"
@@ -860,7 +873,7 @@ export default function DocumentReviewCenter() {
 
                                     {/* Direct Download */}
                                     <a
-                                        href={`${getDocumentViewUrl(viewerAppId || "", activeViewerDoc.id)}&download=true`}
+                                        href={getDocumentDownloadUrl(viewerAppId || "", activeViewerDoc.id)}
                                         download
                                         className="px-3.5 py-2.5 bg-gray-900 hover:bg-gray-800 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1"
                                     >
