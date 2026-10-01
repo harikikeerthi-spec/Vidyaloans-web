@@ -68,29 +68,60 @@ function cleanKey(str: string): string {
     .trim();
 }
 
+const CANONICAL_COUNTRIES: Record<string, string[]> = {
+  'USA': ['usa', 'us', 'united states', 'united states of america', 'america'],
+  'UK': ['uk', 'united kingdom', 'great britain', 'britain', 'england', 'scotland', 'wales'],
+  'Canada': ['canada', 'can'],
+  'Australia': ['australia', 'aus'],
+  'Germany': ['germany', 'deutschland'],
+  'Ireland': ['ireland'],
+  'New Zealand': ['new zealand', 'nz'],
+  'France': ['france'],
+  'Netherlands': ['netherlands', 'holland'],
+  'Italy': ['italy', 'italia'],
+  'Spain': ['spain', 'espana'],
+  'Sweden': ['sweden'],
+  'Singapore': ['singapore'],
+  'India': ['india']
+};
+
 function normalizeCountry(c: string): string {
   const low = cleanKey(c);
-  if (low.includes('usa') || low.includes('united states') || low.includes('america')) return 'USA';
-  if (low.includes('uk') || low.includes('united kingdom') || low.includes('britain') || low.includes('england') || low.includes('scotland') || low.includes('wales')) return 'UK';
-  if (low.includes('canada')) return 'Canada';
-  if (low.includes('australia')) return 'Australia';
-  if (low.includes('germany') || low.includes('deutschland')) return 'Germany';
-  if (low.includes('ireland')) return 'Ireland';
-  if (low.includes('new zealand')) return 'New Zealand';
-  if (low.includes('france')) return 'France';
-  if (low.includes('singapore')) return 'Singapore';
-  if (low.includes('india')) return 'India';
+  if (!low) return '';
+  for (const [canonical, aliases] of Object.entries(CANONICAL_COUNTRIES)) {
+    if (canonical.toLowerCase() === low) return canonical;
+    for (const alias of aliases) {
+      if (low === alias) return canonical;
+      if (alias.includes(' ')) {
+        if (low.includes(alias)) return canonical;
+      } else {
+        const words = low.split(' ');
+        if (words.includes(alias)) return canonical;
+      }
+    }
+  }
   return (c || '').trim();
 }
 
 function doesCountryMatch(uniCountry: string, targetCountry: string): boolean {
   if (!targetCountry || targetCountry === 'Any' || targetCountry === 'Other') return true;
-  const normTarget = normalizeCountry(targetCountry).toLowerCase();
-  const normUni = normalizeCountry(uniCountry).toLowerCase();
-  if (normTarget === normUni) return true;
-  const cleanT = cleanKey(targetCountry);
-  const cleanU = cleanKey(uniCountry);
-  return cleanT.includes(cleanU) || cleanU.includes(cleanT);
+  const rawTarget = (targetCountry || '').trim();
+  const rawUni = (uniCountry || '').trim();
+  if (!rawTarget || !rawUni) return true;
+
+  const normTarget = normalizeCountry(rawTarget).toLowerCase();
+  const normUni = normalizeCountry(rawUni).toLowerCase();
+  if (normTarget && normUni && normTarget === normUni) return true;
+
+  const cleanT = cleanKey(rawTarget);
+  const cleanU = cleanKey(rawUni);
+  if (cleanT === cleanU) return true;
+
+  // Strict: only allow substring if both are at least 4 characters long (prevents "us" matching "australia")
+  if (cleanT.length >= 4 && cleanU.length >= 4) {
+    if (cleanT.includes(cleanU) || cleanU.includes(cleanT)) return true;
+  }
+  return false;
 }
 
 @Controller('ai-search')
@@ -111,7 +142,7 @@ export class AiSearchController {
       slug = ''
     } = body || {};
 
-    const normCountry = normalizeCountry(country);
+    const normCountry = normalizeCountry(country) || country;
     const qClean = cleanKey(query);
 
     // Case 1: University Detail Profile
@@ -146,17 +177,10 @@ export class AiSearchController {
 
     // Step 2: Query AI with an ultra-compact, high-speed prompt
     try {
-      const prompt = query
-        ? `Return a JSON object with a "universities" list of real, accredited universities located in ${isSpecificCountry ? country : 'the world'} matching or relevant to "${query}".
-Each object must have only:
-"name": string (full official university name),
-"loc": string (city/state),
-"country": "${isSpecificCountry ? country : 'Country'}",
-"rank": integer (QS ranking, or 0 if unranked)
-
-Format strictly as:
-{"universities": [{"name": "...", "loc": "...", "country": "${isSpecificCountry ? country : '...'}", "rank": 1}]}`
-        : `Return a JSON object with a "universities" list of 15 real, accredited universities located in ${country}.
+      const prompt = isSpecificCountry
+        ? `CRITICAL REQUIREMENT: Return a JSON object with a "universities" list of up to 15 real, accredited universities and colleges located STRICTLY in ${country}.
+${query ? `The university names must match, start with, or be relevant to "${query}".` : `List top universities in ${country}.`}
+DO NOT include universities from any other country under any circumstances. Every single university returned MUST be physically situated in ${country}.
 Each object must have only:
 "name": string (full official university name),
 "loc": string (city/state),
@@ -164,7 +188,16 @@ Each object must have only:
 "rank": integer (QS ranking, or 0 if unranked)
 
 Format strictly as:
-{"universities": [{"name": "...", "loc": "...", "country": "${country}", "rank": 1}]}`;
+{"universities": [{"name": "...", "loc": "...", "country": "${country}", "rank": 1}]}`
+        : `Return a JSON object with a "universities" list of up to 15 real, accredited universities matching or relevant to "${query}".
+Each object must have only:
+"name": string (full official university name),
+"loc": string (city/state),
+"country": string,
+"rank": integer (QS ranking, or 0 if unranked)
+
+Format strictly as:
+{"universities": [{"name": "...", "loc": "...", "country": "...", "rank": 1}]}`;
 
       const aiResponse: any = await this.openRouterService.getJson<any>(prompt, 'google/gemini-2.5-flash');
       const rawList = aiResponse?.universities || aiResponse?.results || (Array.isArray(aiResponse) ? aiResponse : []);
@@ -176,13 +209,18 @@ Format strictly as:
 
           const uniName = rawName.trim();
           const uniCountry = (typeof item === 'object' && item.country ? item.country : (isSpecificCountry ? country : 'Global')).trim();
-          const uniLoc = (typeof item === 'object' && item.loc ? item.loc : uniCountry).trim();
+          const uniLoc = (typeof item === 'object' && item.loc ? item.loc : (isSpecificCountry ? country : uniCountry)).trim();
           const rankNum = typeof item === 'object' && typeof item.rank === 'number' ? item.rank : undefined;
+
+          // Enforce country match if specific country requested
+          if (isSpecificCountry && !doesCountryMatch(uniCountry, country)) {
+            continue;
+          }
 
           const uniObj: DiscoveredUniversity = {
             name: uniName,
             loc: uniLoc,
-            country: uniCountry,
+            country: isSpecificCountry ? country : uniCountry,
             rank: rankNum,
             loan: true,
             slug: uniName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
@@ -211,7 +249,7 @@ Format strictly as:
     const isSpecificCountry = Boolean(country && country !== 'Any' && country !== 'Other');
 
     const countryFiltered = isSpecificCountry
-      ? list.filter(u => doesCountryMatch(u.country, country))
+      ? list.filter(u => doesCountryMatch(u.country, country) || doesCountryMatch(u.loc, country))
       : list;
 
     if (!query) {

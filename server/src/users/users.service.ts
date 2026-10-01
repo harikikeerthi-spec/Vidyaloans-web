@@ -1464,6 +1464,8 @@ export class UsersService implements OnModuleInit {
 
           // Only anchor identity from Passport if Aadhaar was NOT already uploaded first
           if (!hasAadhaar) {
+            family.identityAnchorDoc = 'passport';
+            family.identityAnchorName = origName;
             const nameParts = origName.split(/\s+/);
             if (nameParts.length >= 1) {
               payload.firstName = nameParts[0];
@@ -1630,6 +1632,8 @@ export class UsersService implements OnModuleInit {
 
           // If no passport has been uploaded yet, Aadhaar is the authoritative source for student name
           if (!hasPassport) {
+            family.identityAnchorDoc = 'aadhaar';
+            family.identityAnchorName = cleanAadhaarName;
             const nameParts = cleanAadhaarName.split(/\s+/);
             if (nameParts.length >= 1) {
               payload.firstName = nameParts[0];
@@ -2829,19 +2833,45 @@ export class UsersService implements OnModuleInit {
   // Get user dashboard data with all applications, documents and full activity feed
   async getUserDashboardData(userId: string) {
     try {
+      if (!userId || userId === 'undefined' || userId === 'null') {
+        return {
+          applications: [],
+          documents: [],
+          activity: [],
+          applicationCount: 0,
+          user: null,
+        };
+      }
+
       await this.syncApplicationProgressWithDocuments(userId);
       const applications = await this.getUserApplications(userId) || [];
       const documents = await this.getUserDocuments(userId) || [];
 
-      const { data: userWithActivity, error: userErr } = await this.db
+      let { data: userWithActivity, error: userErr } = await this.db
         .from('User')
         .select(
           `*, eligibilityChecks:LoanEligibilityCheck(*), visaMockInterviews:VisaMockInterviewResult(*), forumPosts:ForumPost(*), forumComments:ForumComment(*)`,
         )
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
-      if (userErr) {
+      // If user not found by ID and userId looks like an email, fallback to email lookup
+      if (!userWithActivity && userId.includes('@')) {
+        const { data: uByEmail } = await this.db
+          .from('User')
+          .select(
+            `*, eligibilityChecks:LoanEligibilityCheck(*), visaMockInterviews:VisaMockInterviewResult(*), forumPosts:ForumPost(*), forumComments:ForumComment(*)`,
+          )
+          .ilike('email', userId.trim())
+          .maybeSingle();
+
+        if (uByEmail) {
+          userWithActivity = uByEmail;
+          userId = uByEmail.id;
+        }
+      }
+
+      if (userErr && userErr.code !== 'PGRST116') {
         console.error('[UsersService.getUserDashboardData] User fetch error:', userErr);
       }
 
@@ -2850,7 +2880,7 @@ export class UsersService implements OnModuleInit {
         .select('*')
         .eq('userId', userId);
 
-      if (parentsErr) {
+      if (parentsErr && parentsErr.code !== 'PGRST116') {
         console.error('[UsersService.getUserDashboardData] parents fetch error:', parentsErr);
       }
 
@@ -3370,22 +3400,37 @@ export class UsersService implements OnModuleInit {
       const userDocs = await this.getUserDocuments(userId);
       const normDocType = (currentDocType || '').toLowerCase();
 
-      // 1. Determine Reference Anchor (Passport > Aadhaar > User Profile)
+      // 1. Determine Reference Anchor (Aadhaar vs Passport based on which was uploaded first)
       const passportDoc = userDocs.find((d: any) =>
         d.docType.toLowerCase().includes('passport') && (d.uploaded || d.status === 'uploaded' || d.status === 'verified')
       );
       const aadharDoc = userDocs.find((d: any) =>
-        (d.docType.toLowerCase().includes('aadhar') || d.docType.toLowerCase().includes('aadhaar')) &&
+        (d.docType.toLowerCase().includes('aadhar') || d.docType.toLowerCase().includes('aadhaar') || d.docType.toLowerCase().includes('national_id')) &&
         (d.uploaded || d.status === 'uploaded' || d.status === 'verified')
       );
 
-      let refType = 'Profile';
       let familyData: any = user.family;
       if (typeof familyData === 'string') {
         try { familyData = JSON.parse(familyData); } catch { familyData = {}; }
       }
       if (!familyData || typeof familyData !== 'object') familyData = {};
 
+      let anchorDocType: 'aadhaar' | 'passport' | null = null;
+      if (familyData.identityAnchorDoc === 'aadhaar') {
+        anchorDocType = 'aadhaar';
+      } else if (familyData.identityAnchorDoc === 'passport') {
+        anchorDocType = 'passport';
+      } else if (aadharDoc && !passportDoc) {
+        anchorDocType = 'aadhaar';
+      } else if (passportDoc && !aadharDoc) {
+        anchorDocType = 'passport';
+      } else if (aadharDoc && passportDoc) {
+        const aadharTime = new Date(aadharDoc.createdAt || 0).getTime();
+        const passportTime = new Date(passportDoc.createdAt || 0).getTime();
+        anchorDocType = aadharTime <= passportTime ? 'aadhaar' : 'passport';
+      }
+
+      let refType = 'Profile';
       const fatherParent = (user.parents || []).find((p: any) => (p.relation || '').toLowerCase() === 'father');
       const motherParent = (user.parents || []).find((p: any) => (p.relation || '').toLowerCase() === 'mother');
 
@@ -3403,7 +3448,22 @@ export class UsersService implements OnModuleInit {
         } catch (_) {}
       }
 
-      if (passportDoc) {
+      if (anchorDocType === 'aadhaar' && aadharDoc) {
+        refType = 'Aadhaar Card';
+        const meta = aadharDoc.verificationMetadata?.details?.extractedFields || aadharDoc.verificationMetadata?.extractedFields || {};
+        const rawAadhaarFather = meta.father_name || meta.fatherName || meta.care_of || meta.guardian_name;
+        const cleanFather = rawAadhaarFather ? rawAadhaarFather.replace(/^(c\/o|s\/o|d\/o|w\/o|care\s+of|son\s+of|daughter\s+of|wife\s+of)\s*[:\-\.]?\s*/i, '').trim() : '';
+
+        refStudentName = familyData.identityAnchorName || familyData.aadhaarOriginalName || meta.full_name || meta.fullName || meta.name || refStudentName;
+        refFatherName = cleanFather || meta.father_name || meta.fatherName || refFatherName;
+        refMotherName = meta.mother_name || meta.motherName || refMotherName;
+      } else if (anchorDocType === 'passport' && passportDoc) {
+        refType = 'Passport';
+        const meta = passportDoc.verificationMetadata?.details?.extractedFields || passportDoc.verificationMetadata?.extractedFields || {};
+        refStudentName = familyData.identityAnchorName || familyData.passportOriginalName || meta.full_name || meta.fullName || (meta.given_names ? `${meta.given_names} ${meta.surname || ''}`.trim() : refStudentName);
+        refFatherName = meta.father_name || meta.fatherName || refFatherName;
+        refMotherName = meta.mother_name || meta.motherName || refMotherName;
+      } else if (passportDoc) {
         refType = 'Passport';
         const meta = passportDoc.verificationMetadata?.details?.extractedFields || passportDoc.verificationMetadata?.extractedFields || {};
         refStudentName = meta.full_name || meta.fullName || (meta.given_names ? `${meta.given_names} ${meta.surname || ''}`.trim() : refStudentName);
@@ -3412,12 +3472,7 @@ export class UsersService implements OnModuleInit {
       } else if (aadharDoc) {
         refType = 'Aadhaar Card';
         const meta = aadharDoc.verificationMetadata?.details?.extractedFields || aadharDoc.verificationMetadata?.extractedFields || {};
-        const rawAadhaarFather = meta.father_name || meta.fatherName || meta.care_of || meta.guardian_name;
-        const cleanFather = rawAadhaarFather ? rawAadhaarFather.replace(/^(c\/o|s\/o|d\/o|w\/o|care\s+of|son\s+of|daughter\s+of|wife\s+of)\s*[:\-\.]?\s*/i, '').trim() : '';
-
-        refStudentName = meta.full_name || meta.fullName || meta.name || familyData.aadhaarOriginalName || refStudentName;
-        refFatherName = cleanFather || meta.father_name || meta.fatherName || refFatherName;
-        refMotherName = meta.mother_name || meta.motherName || refMotherName;
+        refStudentName = meta.full_name || meta.fullName || meta.name || refStudentName;
       }
 
       if (!refStudentName || refStudentName.trim().length < 2) return { issues: [], hardReject: false };
@@ -3518,17 +3573,20 @@ export class UsersService implements OnModuleInit {
           return false;
         }
 
-        // Student documents to strictly validate
-        return (
-          d.includes('pan') ||
-          d.includes('marksheet_10') || d.includes('10th') || d.includes('ssc') || d.includes('grade_10') || d.includes('grade10') ||
-          d.includes('marksheet_12') || d.includes('12th') || d.includes('hsc') || d.includes('intermediate') || d.includes('inter') || d.includes('grade_12') || d.includes('grade12') ||
-          d.includes('marksheet_ug') || d.includes('ug_degree') || d.includes('degree_certificate') || d.includes('degree') || d.includes('graduation') || d.includes('bachelor') || d.includes('undergrad') || d.includes('cmm') || d.includes('consolidated') ||
-          d.includes('marksheet_pg') || d.includes('pg_degree') || d.includes('postgrad')
-        );
+        // Cross-checking between passport and aadhaar:
+        if (d.includes('passport')) {
+          return anchorDocType === 'aadhaar';
+        }
+        if (d.includes('aadhar') || d.includes('aadhaar') || d.includes('national_id')) {
+          return anchorDocType === 'passport';
+        }
+
+        // All other student documents (PAN, marksheets, degree, certificates, scores, etc.)
+        return true;
       };
 
-      const isReferenceDocUpload = normDocType.includes('passport') || (normDocType.includes('aadhar') && !passportDoc);
+      const isReferenceDocUpload = (normDocType.includes('passport') && anchorDocType === 'passport') ||
+        ((normDocType.includes('aadhar') || normDocType.includes('aadhaar')) && anchorDocType === 'aadhaar');
 
       if (isReferenceDocUpload) {
         console.log(`[CrossDocValidation] ${normDocType} uploaded as reference ${refType}. Re-evaluating all student documents...`);

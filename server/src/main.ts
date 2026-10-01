@@ -29,9 +29,9 @@ async function bootstrap() {
     allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'x-csrf-token', 'x-selected-bank'],
   });
 
-  // ✅ Webhook body parsers (supports both urlencoded and json for WhatsApp/SNS webhooks)
+  // ✅ Webhook body parsers (supports urlencoded, json, and text/plain for AWS SNS webhooks)
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-  app.use(express.json({ limit: '10mb' }));
+  app.use(express.json({ limit: '10mb', type: ['application/json', 'text/plain'] }));
 
   // CSRF Double Cookie Submit Protection
   app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -40,6 +40,8 @@ async function bootstrap() {
     if (
       ['GET', 'HEAD', 'OPTIONS'].includes(req.method.toUpperCase()) ||
       url.includes('/webhook') ||
+      url.includes('/whatsapp') ||
+      url.includes('/sns') ||
       url.includes('/integration/whatsapp') ||
       url.includes('/csrf-token') ||
       url.includes('/auth/csrf-token') ||

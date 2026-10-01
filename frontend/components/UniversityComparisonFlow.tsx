@@ -43,11 +43,11 @@ export default function UniversityComparisonFlow({
   const [searchResults, setSearchResults] = useState<University[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "metrics" | "weighted">("grid");
-  
+
   // AI Insights State
   const [isGeneratingAi, setIsGeneratingAi] = useState(false);
   const [aiReport, setAiReport] = useState<any | null>(null);
-  
+
   // Live database universities state
   const [dbUnis, setDbUnis] = useState<University[]>([]);
 
@@ -89,7 +89,7 @@ export default function UniversityComparisonFlow({
       const uniIds = selectedUnis.map((u) => u.slug || u.id).join(",");
       if (typeof window !== "undefined" && navigator?.clipboard) {
         const shareUrl = `${window.location.origin}/compare-universities?unis=${encodeURIComponent(uniIds)}`;
-        navigator.clipboard.writeText(shareUrl).catch(() => {});
+        navigator.clipboard.writeText(shareUrl).catch(() => { });
       }
       showToast(`Shortlist saved! (${selectedUnis.length} universities saved, link copied)`);
     } catch (e) {
@@ -309,7 +309,7 @@ export default function UniversityComparisonFlow({
             index === self.findIndex((t) => t.id === u.id)
           );
           setDbUnis(uniqueMapped);
-          
+
           if (initialUnis && initialUnis.length > 0) {
             const unis = uniqueMapped.filter((u: any) =>
               initialUnis.some((id) => u.id === id || u.slug === id || u.name.toLowerCase().includes(id.toLowerCase()))
@@ -383,7 +383,7 @@ export default function UniversityComparisonFlow({
       try {
         const data: any = await aiApi.aiSearch({ query: searchQuery, type: 'university' });
         const results = data?.universities || data?.results || [];
-        
+
         if (results.length > 0) {
           const mapped = results.map((u: any, i: number) => {
             const rawTuition = typeof u.tuition === 'string' ? parseFloat(u.tuition.replace(/[^0-9.]/g, '')) : u.tuition;
@@ -422,7 +422,7 @@ export default function UniversityComparisonFlow({
               slug: u.slug || u.name?.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
             };
           });
-          
+
           setSearchResults(mapped);
         }
       } catch (err) {
@@ -469,18 +469,18 @@ export default function UniversityComparisonFlow({
         const res = await aiApi.compareUniversities(selectedUnis[0].name, selectedUnis[1].name) as any;
         if (res?.success && res.data) {
           const aiData = res.data;
-          
+
           const u1Tuition = parseFloat(aiData.uni1.tuition?.replace(/[^0-9.]/g, '')) || selectedUnis[0].tuition || 30000;
           const u1Salary = parseFloat(aiData.uni1.salary?.replace(/[^0-9.]/g, '')) || selectedUnis[0].avgjobSalary || 60000;
           const u2Tuition = parseFloat(aiData.uni2.tuition?.replace(/[^0-9.]/g, '')) || selectedUnis[1].tuition || 30000;
           const u2Salary = parseFloat(aiData.uni2.salary?.replace(/[^0-9.]/g, '')) || selectedUnis[1].avgjobSalary || 60000;
-          
+
           const roi1 = u1Salary / u1Tuition;
           const roi2 = u2Salary / u2Tuition;
-          
+
           const roiChamp = roi1 >= roi2 ? selectedUnis[0] : selectedUnis[1];
           const costChamp = u1Tuition <= u2Tuition ? selectedUnis[0] : selectedUnis[1];
-          
+
           setAiReport({
             roiChampion: {
               ...roiChamp,
@@ -491,14 +491,14 @@ export default function UniversityComparisonFlow({
               ...costChamp,
               tuition: costChamp.id === selectedUnis[0].id ? u1Tuition : u2Tuition,
             },
-            summary: `Live AI Evaluation for ${aiData.uni1.name} (${aiData.uni1.loc}) vs ${aiData.uni2.name} (${aiData.uni2.loc}):\n\n` + 
-                     `• ${aiData.uni1.name}: World Rank ${aiData.uni1.rank}, Acceptance Rate ${aiData.uni1.rate}, Annual Fees ${aiData.uni1.tuition}, Average Salary ${aiData.uni1.salary}.\n` +
-                     `• ${aiData.uni2.name}: World Rank ${aiData.uni2.rank}, Acceptance Rate ${aiData.uni2.rate}, Annual Fees ${aiData.uni2.tuition}, Average Salary ${aiData.uni2.salary}.\n\n` +
-                     `Expert Insights: ${aiData.uni1.name} and ${aiData.uni2.name} are both world-class pathways. ${roiChamp.name} displays exceptionally strong ROI potential, while ${costChamp.name} provides optimized upfront fee exposure.`,
+            summary: `Live AI Evaluation for ${aiData.uni1.name} (${aiData.uni1.loc}) vs ${aiData.uni2.name} (${aiData.uni2.loc}):\n\n` +
+              `• ${aiData.uni1.name}: World Rank ${aiData.uni1.rank}, Acceptance Rate ${aiData.uni1.rate}, Annual Fees ${aiData.uni1.tuition}, Average Salary ${aiData.uni1.salary}.\n` +
+              `• ${aiData.uni2.name}: World Rank ${aiData.uni2.rank}, Acceptance Rate ${aiData.uni2.rate}, Annual Fees ${aiData.uni2.tuition}, Average Salary ${aiData.uni2.salary}.\n\n` +
+              `Expert Insights: ${aiData.uni1.name} and ${aiData.uni2.name} are both world-class pathways. ${roiChamp.name} displays exceptionally strong ROI potential, while ${costChamp.name} provides optimized upfront fee exposure.`,
             vidyaLoansRating: "Verified A-Grade",
             vidyaLoansAdvice: `Both ${selectedUnis[0].name} and ${selectedUnis[1].name} are officially listed in Vidya Loans prime channels. You qualify for up to 100% funding covering all study expenses with 0 collateral at prime interest rates starting at 8.25% p.a.`
           });
-          
+
           const updatedSelected = selectedUnis.map(u => {
             if (u.name.toLowerCase() === selectedUnis[0].name.toLowerCase()) {
               return {
@@ -530,12 +530,12 @@ export default function UniversityComparisonFlow({
         const res = await aiApi.compareShortlist(shortlist, profile) as any;
         if (res?.success && res.data) {
           const aiData = res.data;
-          
+
           const roiChampName = aiData.universities?.sort((a: any, b: any) => (parseInt(b.roiScore) || 0) - (parseInt(a.roiScore) || 0))[0]?.name || selectedUnis[0].name;
           const roiChamp = selectedUnis.find(u => u.name.toLowerCase().includes(roiChampName.toLowerCase())) || selectedUnis[0];
-          
+
           const costChamp = [...selectedUnis].sort((a, b) => (a.tuition || 0) - (b.tuition || 0))[0];
-          
+
           setAiReport({
             roiChampion: roiChamp,
             costChampion: costChamp,
@@ -547,7 +547,7 @@ export default function UniversityComparisonFlow({
       }
     } catch (error) {
       console.warn("Backend AI comparison failed. Engaging local analytical engine.", error);
-      
+
       const scoredUnis = selectedUnis.map(u => {
         const tuitionCost = u.tuition || 30000;
         const startSalary = u.avgjobSalary || 60000;
@@ -573,7 +573,7 @@ export default function UniversityComparisonFlow({
 
   return (
     <div className="relative min-h-screen pt-32 pb-24 px-6 overflow-hidden" style={{ background: 'linear-gradient(135deg, #ede0ff 0%, #f3eaff 25%, #fdf6ff 55%, #fef3e8 80%, #fde8c8 100%)' }}>
-      
+
       {/* Premium Floating Spheres & Grid Background */}
       <div className="absolute inset-0 pointer-events-none z-0">
         <div className="absolute top-0 left-0 w-[600px] h-[600px] rounded-full blur-[120px] opacity-40" style={{ background: 'radial-gradient(circle, #d8b4fe, transparent)' }} />
@@ -585,14 +585,14 @@ export default function UniversityComparisonFlow({
       <div className="max-w-6xl mx-auto relative z-10">
         {/* Header Section */}
         <div className="mb-12 text-center md:text-left">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-white rounded-full border border-purple-100 shadow-sm mb-6">
+          {/* <div className="inline-flex items-center gap-2 px-4 py-2 bg-white rounded-full border border-purple-100 shadow-sm mb-6">
             <span className="w-2.5 h-2.5 rounded-full bg-[#6605c7] animate-pulse" />
             <span className="text-[10px] font-black text-[#6605c7] uppercase tracking-widest">
               Smart Decision Engine
             </span>
             <span className="w-px h-3 bg-purple-100 mx-1" />
             <span className="text-[10px] font-bold text-gray-400">QS 2026 Database</span>
-          </div>
+          </div> */}
 
           <h1 className="text-4xl md:text-6xl font-black text-gray-900 mb-6 tracking-tight leading-[1.1]">
             Compare <span className="text-[#6605c7]">Universities</span>
@@ -697,11 +697,10 @@ export default function UniversityComparisonFlow({
                     key={`pop-${uni.id}-${idx}`}
                     disabled={isSelected || selectedUnis.length >= 5}
                     onClick={() => handleAddUni(uni)}
-                    className={`p-4 rounded-2xl border text-left transition-all relative ${
-                      isSelected
-                        ? "bg-purple-50/50 border-purple-200/50 opacity-60 cursor-default"
-                        : "bg-white/40 border-white/60 hover:bg-white/90 hover:border-purple-300 hover:shadow-md cursor-pointer"
-                    }`}
+                    className={`p-4 rounded-2xl border text-left transition-all relative ${isSelected
+                      ? "bg-purple-50/50 border-purple-200/50 opacity-60 cursor-default"
+                      : "bg-white/40 border-white/60 hover:bg-white/90 hover:border-purple-300 hover:shadow-md cursor-pointer"
+                      }`}
                   >
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-[10px] font-black text-purple-600 uppercase tracking-wider bg-purple-50 px-2 py-0.5 rounded">
@@ -731,31 +730,28 @@ export default function UniversityComparisonFlow({
             <div className="bg-white/80 border border-white shadow-sm p-1.5 rounded-2xl flex items-center gap-1">
               <button
                 onClick={() => setViewMode("grid")}
-                className={`px-6 py-3 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                  viewMode === "grid"
-                    ? "bg-[#6605c7] text-white shadow-lg shadow-purple-500/25"
-                    : "text-gray-500 hover:text-gray-900 hover:bg-white/50"
-                }`}
+                className={`px-6 py-3 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${viewMode === "grid"
+                  ? "bg-[#6605c7] text-white shadow-lg shadow-purple-500/25"
+                  : "text-gray-500 hover:text-gray-900 hover:bg-white/50"
+                  }`}
               >
                 📊 Grid View
               </button>
               <button
                 onClick={() => setViewMode("metrics")}
-                className={`px-6 py-3 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                  viewMode === "metrics"
-                    ? "bg-[#6605c7] text-white shadow-lg shadow-purple-500/25"
-                    : "text-gray-500 hover:text-gray-900 hover:bg-white/50"
-                }`}
+                className={`px-6 py-3 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${viewMode === "metrics"
+                  ? "bg-[#6605c7] text-white shadow-lg shadow-purple-500/25"
+                  : "text-gray-500 hover:text-gray-900 hover:bg-white/50"
+                  }`}
               >
                 📈 Metrics Comparison
               </button>
               <button
                 onClick={() => setViewMode("weighted")}
-                className={`px-6 py-3 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                  viewMode === "weighted"
-                    ? "bg-[#6605c7] text-white shadow-lg shadow-purple-500/25"
-                    : "text-gray-500 hover:text-gray-900 hover:bg-white/50"
-                }`}
+                className={`px-6 py-3 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${viewMode === "weighted"
+                  ? "bg-[#6605c7] text-white shadow-lg shadow-purple-500/25"
+                  : "text-gray-500 hover:text-gray-900 hover:bg-white/50"
+                  }`}
               >
                 ⚖️ Prioritized Score
               </button>

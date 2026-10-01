@@ -1171,4 +1171,86 @@ input[type="range"]::-moz-range-thumb:hover {
 .text-warning { color: #b45309; font-weight: 600; font-size: 13px; }
 .text-alert { color: #c2410c; font-weight: 600; font-size: 13px; }
 .text-danger { color: #b91c1c; font-weight: 600; font-size: 13px; }
-.text-critical { color: #be123c; font-weight: 600; font-size: 13px; }
+.text-critical { color: #be123c; font-weight: 600; font-size: 13px; }
+
+/* ── Global Print Optimization & Viewport Reset for Staff & Reports ── */
+@media print {
+  /* Hide dashboard navigation, sidebars, headers, floating widgets and utility buttons */
+  aside,
+  header,
+  nav,
+  .no-print,
+  #staff-sidebar,
+  [role="navigation"],
+  .console-box {
+    display: none !important;
+  }
+
+  /* Reset layout constraints so multi-page documents flow naturally without being clipped at 100vh */
+  html,
+  body,
+  #__next,
+  [data-reactroot],
+  main,
+  .staff-dashboard-shell,
+  .staff-dashboard-body {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    overflow-x: visible !important;
+    overflow-y: visible !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    box-shadow: none !important;
+  }
+
+  main {
+    padding-left: 0 !important;
+    margin-left: 0 !important;
+  }
+
+  .staff-dashboard-body {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Force browsers to print exact background colors, borders, badges, and chart fills */
+  *,
+  *::before,
+  *::after {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Prevent page breaks from slicing cards, charts, and table rows in half */
+  .evv-card,
+  .metric-card,
+  table tr,
+  .rounded-2xl,
+  .rounded-3xl {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* Ensure tables and SVGs scale to page width cleanly */
+  table {
+    width: 100% !important;
+  }
+
+  svg {
+    max-width: 100% !important;
+  }
+
+  /* Standard clean margin page setup */
+  @page {
+    size: A4 portrait;
+    margin: 12mm 10mm;
+  }
+}
+

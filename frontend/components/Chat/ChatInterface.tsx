@@ -179,6 +179,8 @@ export default function ChatInterface({ role, initialUser, initialBank, initialC
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputText, setInputText] = useState('');
     const [sidebarTab, setSidebarTab] = useState<'chats' | 'users'>('chats');
+    // Staff assignment scope: 'my' (assigned to this staff member) | 'all' (entire queue/team)
+    const [staffScopeFilter, setStaffScopeFilter] = useState<'my' | 'all'>('my');
     // 'all' | 'student' | 'bank' — for staff to filter which conversation type they see
     const [chatTypeFilter, setChatTypeFilter] = useState<'all' | 'student' | 'bank'>(() => {
         if (initialBank?.bankName) return 'bank';
@@ -560,6 +562,12 @@ export default function ChatInterface({ role, initialUser, initialBank, initialC
                 }
                 return c;
             }));
+        });
+
+        // Real-time alert when a student sends a WhatsApp message assigned to this staff member
+        socketInstance.on('staff_new_whatsapp_message', (data: { conversationId: string, studentName?: string, applicationNumber?: string, content?: string }) => {
+            console.log('[Staff WhatsApp Alert] New message received:', data);
+            fetchConversations();
         });
 
         setSocket(socketInstance);
@@ -1272,10 +1280,22 @@ export default function ChatInterface({ role, initialUser, initialBank, initialC
                 return c.metadata?.type === 'agent' || !c.metadata?.type;
             }
         }
-        if (role !== 'staff') return true;
-        if (chatTypeFilter === 'bank') return c.metadata?.type === 'bank';
-        if (chatTypeFilter === 'student') return c.metadata?.type !== 'bank';
-        return true; // 'all'
+        if (role === 'staff') {
+            // Assignment scope filter: 'my' shows conversations assigned to this staff member
+            if (staffScopeFilter === 'my') {
+                const currentUserId = user?.id || (user as any)?.uid || (user as any)?.staffId;
+                const assignedId = c.metadata?.assignedStaffId;
+                const isAssignedToMe = assignedId && currentUserId && (
+                    String(assignedId).toLowerCase() === String(currentUserId).toLowerCase() ||
+                    (user?.email && c.metadata?.assignedStaffEmail && String(c.metadata.assignedStaffEmail).toLowerCase() === String(user.email).toLowerCase())
+                );
+                if (!isAssignedToMe) return false;
+            }
+            if (chatTypeFilter === 'bank') return c.metadata?.type === 'bank';
+            if (chatTypeFilter === 'student') return c.metadata?.type !== 'bank';
+            return true; // 'all'
+        }
+        return true;
     });
 
     // In bank portal, auto-select the first conversation if none is active
@@ -1317,6 +1337,36 @@ export default function ChatInterface({ role, initialUser, initialBank, initialC
                                 )}
                             </div>
                         </div>
+
+                        {/* Assignment scope filter: My Assigned Students vs All Queue */}
+                        {role === 'staff' && sidebarTab === 'chats' && (
+                            <div className="flex gap-1 mb-2.5 p-1 bg-[#F1F5F9] border border-[#E2E8F0] rounded-xl">
+                                <button
+                                    type="button"
+                                    onClick={() => setStaffScopeFilter('my')}
+                                    className={`flex-1 py-1.5 rounded-lg text-[10.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                                        staffScopeFilter === 'my'
+                                            ? 'bg-[#5A42E4] text-[#FFFFFF] shadow-sm'
+                                            : 'text-[#4A525A] hover:bg-[#F2F0FF] hover:text-[#5A42E4]'
+                                    }`}
+                                >
+                                    <span className="material-symbols-outlined text-[14px]">person</span>
+                                    My Assigned
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setStaffScopeFilter('all')}
+                                    className={`flex-1 py-1.5 rounded-lg text-[10.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                                        staffScopeFilter === 'all'
+                                            ? 'bg-[#5A42E4] text-[#FFFFFF] shadow-sm'
+                                            : 'text-[#4A525A] hover:bg-[#F2F0FF] hover:text-[#5A42E4]'
+                                    }`}
+                                >
+                                    <span className="material-symbols-outlined text-[14px]">group</span>
+                                    All Inquiries
+                                </button>
+                            </div>
+                        )}
 
                         {/* Student / Bank filter tabs — only for staff when in chats tab */}
                         {role === 'staff' && sidebarTab === 'chats' && (
@@ -1427,11 +1477,32 @@ export default function ChatInterface({ role, initialUser, initialBank, initialC
                                                     </span>
                                                 </div>
 
-                                                {conv.metadata?.applicationNumber && (
-                                                    <span className="px-1.5 py-0.5 bg-[#F2F0FF] text-[#5A42E4] text-[8.5px] font-mono font-bold rounded border border-[#E2E8F0] whitespace-nowrap shrink-0">
-                                                        #{conv.metadata.applicationNumber}
-                                                    </span>
-                                                )}
+                                                <div className="flex items-center gap-1 shrink-0">
+                                                    {conv.metadata?.channel === 'whatsapp' && (
+                                                        <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-[8.5px] font-bold rounded border border-emerald-200 flex items-center gap-1 shrink-0" title="Connected via WhatsApp">
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                                            WA
+                                                        </span>
+                                                    )}
+
+                                                    {role === 'staff' && conv.metadata?.assignedStaffId && (
+                                                        <span className={`px-1.5 py-0.5 text-[8.5px] font-semibold rounded shrink-0 ${
+                                                            (conv.metadata.assignedStaffId === user?.id || conv.metadata.assignedStaffId === (user as any)?.uid)
+                                                                ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                                                                : 'bg-slate-100 text-slate-500 border border-slate-200'
+                                                        }`}>
+                                                            {(conv.metadata.assignedStaffId === user?.id || conv.metadata.assignedStaffId === (user as any)?.uid)
+                                                                ? 'Mine'
+                                                                : (conv.metadata.assignedStaffName?.split(' ')[0] || 'Staff')}
+                                                        </span>
+                                                    )}
+
+                                                    {conv.metadata?.applicationNumber && (
+                                                        <span className="px-1.5 py-0.5 bg-[#F2F0FF] text-[#5A42E4] text-[8.5px] font-mono font-bold rounded border border-[#E2E8F0] whitespace-nowrap shrink-0">
+                                                            #{conv.metadata.applicationNumber}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
 
                                             {isUnread && (
@@ -1507,23 +1578,18 @@ export default function ChatInterface({ role, initialUser, initialBank, initialC
                                                     {displayName}
                                                 </h4>
 
-                                                {/* Save / Edit Contact Name button right next to title */}
-                                                {/* <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setNameInput(savedName || activeConv?.customerName || '');
-                                                        setShowSaveNameModal(true);
-                                                    }}
-                                                    className="px-2.5 py-1 bg-[#F2F0FF] hover:bg-[#5A42E4] text-[#5A42E4] hover:text-white text-[11px] font-bold rounded-lg transition-all flex items-center gap-1.5 border border-[#5A42E4]/25 cursor-pointer shadow-xs"
-                                                    title="Save or edit contact name for this number"
-                                                >
-                                                    <span className="material-symbols-outlined text-[14px]">edit_note</span>
-                                                    {savedName ? "+ Save Name" : "Edit Name"}
-                                                </button> */}
+                                                {activeConv?.metadata?.channel === 'whatsapp' && (
+                                                    <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold rounded-full flex items-center gap-1 shadow-xs">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                                        WhatsApp Student
+                                                    </span>
+                                                )}
 
-                                                {/* <span className="px-2 py-0.5 bg-[#F2F0FF] text-[#5A42E4] text-[9px] font-bold uppercase tracking-wider rounded border border-[#5A42E4]/20 whitespace-nowrap">
-                                                    {activeConv?.metadata?.type === 'agent_to_staff' ? 'RM DISCUSSION' : 'STAFF CHANNEL'}
-                                                </span> */}
+                                                {activeConv?.metadata?.applicationNumber && (
+                                                    <span className="px-2 py-0.5 bg-[#F2F0FF] text-[#5A42E4] text-[10px] font-mono font-bold rounded-full border border-[#5A42E4]/25">
+                                                        App #{activeConv.metadata.applicationNumber}
+                                                    </span>
+                                                )}
                                             </div>
                                             <p className="text-[10px] text-[#8A94A6] truncate mt-0.5 font-medium flex items-center gap-2 min-w-0">
                                                 <span className="truncate">{activeConv?.customerEmail || 'support@student-loan.org'}</span>
@@ -1535,6 +1601,19 @@ export default function ChatInterface({ role, initialUser, initialBank, initialC
                                     </div>
 
                                     <div className="flex items-center gap-2 shrink-0 relative">
+                                        {activeConv?.metadata?.applicationNumber && role === 'staff' && (
+                                            <a
+                                                href={`/staff/applications?search=${encodeURIComponent(activeConv.metadata.applicationNumber)}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+                                                title="Open student loan application"
+                                            >
+                                                <span className="material-symbols-outlined text-base">folder_open</span>
+                                                <span className="hidden md:inline">View Application</span>
+                                            </a>
+                                        )}
+
                                         <button
                                             onClick={openStudentDocuments}
                                             className={`px-4 py-2 border rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm cursor-pointer ${showDocPanel

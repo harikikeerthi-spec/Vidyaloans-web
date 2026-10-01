@@ -296,12 +296,41 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     try {
         const from = payload.phone.startsWith('whatsapp:') ? payload.phone : `whatsapp:${payload.phone}`;
         
-        // Use existing logic from service/controller
-        const conversation = await this.chatService.getOrCreateConversation(from);
+        // 1. Resolve student and application assignment from phone number
+        const assignment = await this.chatService.resolveStudentAssignment(payload.phone);
+        const resolvedStudentName = assignment.studentName || 'Student';
+        const resolvedStudentEmail = assignment.studentEmail || undefined;
+
+        const conversationMetadata: any = {
+          type: 'staff',
+          channel: 'whatsapp',
+          assignedStaffId: assignment.assignedStaffId || null,
+          assignedStaffName: assignment.assignedStaffName || null,
+          assignedStaffEmail: assignment.assignedStaffEmail || null,
+          applicationId: assignment.application?.id || null,
+          applicationNumber: assignment.application?.applicationNumber || null,
+          studentName: resolvedStudentName,
+          studentEmail: resolvedStudentEmail || null,
+          studentId: assignment.user?.id || null,
+          loanType: assignment.application?.loanType || null,
+          bank: assignment.application?.bank || null,
+        };
+
+        const conversation = await this.chatService.getOrCreateConversation(
+          from,
+          resolvedStudentEmail,
+          'staff',
+          resolvedStudentName,
+          undefined,
+          conversationMetadata
+        );
+
         const msg = await this.chatService.saveMessage({
             conversationId: conversation.id,
             senderType: 'customer',
             senderId: conversation.customerPhone,
+            receiverType: 'staff',
+            senderName: resolvedStudentName,
             content: payload.content,
             status: 'delivered'
         });
@@ -310,15 +339,30 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         this.server.to(`conv_${conversation.id}`).emit('new_message', msg);
         
         const type = conversation.metadata?.type || 'staff';
-        if (type === 'bank') {
-          this.server.to('room_bank').emit('conversation_updated', {
+        const targetRoom = type === 'bank' ? 'room_bank' : 'room_staff';
+        this.server.to(targetRoom).emit('conversation_updated', {
+          conversationId: conversation.id,
+          lastMessage: msg,
+          metadata: conversation.metadata,
+        });
+
+        // TARGETED: If assigned staff resolved, notify their personal room
+        if (assignment.assignedStaffId) {
+          const staffRoom = `user_${assignment.assignedStaffId}`;
+          this.server.to(staffRoom).emit('conversation_updated', {
             conversationId: conversation.id,
-            lastMessage: msg
+            lastMessage: msg,
+            metadata: conversation.metadata,
+            isAssignedToMe: true,
           });
-        } else {
-          this.server.to('room_staff').emit('conversation_updated', {
+
+          this.server.to(staffRoom).emit('staff_new_whatsapp_message', {
             conversationId: conversation.id,
-            lastMessage: msg
+            studentName: resolvedStudentName,
+            applicationNumber: assignment.application?.applicationNumber || null,
+            content: payload.content,
+            message: msg,
+            createdAt: new Date().toISOString(),
           });
         }
 

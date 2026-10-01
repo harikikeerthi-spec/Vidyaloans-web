@@ -28,6 +28,134 @@ export class ChatService {
     return cleaned;
   }
 
+  /**
+   * Resolves a student and their assigned staff based on a phone number (e.g. from WhatsApp).
+   * Looks up User by mobile/phoneNumber, finds their latest active LoanApplication,
+   * and retrieves the assigned staff member's information.
+   */
+  async resolveStudentAssignment(phoneStr: string) {
+    if (!phoneStr) {
+      return {
+        found: false,
+        user: null,
+        application: null,
+        assignedStaffId: null,
+        assignedStaffName: null,
+        assignedStaffEmail: null,
+        studentName: null,
+        studentEmail: null,
+      };
+    }
+
+    const cleanDigits = phoneStr.replace('whatsapp:', '').trim().replace(/\D/g, '');
+    const tenDigit = cleanDigits.length > 10 ? cleanDigits.slice(-10) : cleanDigits;
+    const twelveDigit = `91${tenDigit}`;
+    const plusTwelve = `+91${tenDigit}`;
+
+    this.logger.log(`[ChatService] Resolving student assignment for phone: ${phoneStr} (10-digit: ${tenDigit})`);
+
+    let studentUser: any = null;
+    let application: any = null;
+
+    try {
+      // 1. Try finding student in User table by matching 10-digit, 91, or +91 format
+      const { data: users, error: userError } = await this.db
+        .from('User')
+        .select('id, email, firstName, lastName, phoneNumber, mobile, role')
+        .or(`mobile.eq.${tenDigit},mobile.eq.${twelveDigit},mobile.eq.${plusTwelve},phoneNumber.eq.${tenDigit},phoneNumber.eq.${twelveDigit},phoneNumber.eq.${plusTwelve}`)
+        .limit(1);
+
+      if (userError) {
+        this.logger.warn(`[ChatService] User lookup error for phone ${phoneStr}: ${userError.message}`);
+      } else if (users && users.length > 0) {
+        studentUser = users[0];
+        this.logger.log(`[ChatService] Matched student user: ${studentUser.id} (${studentUser.firstName} ${studentUser.lastName})`);
+      }
+
+      // 2. Query LoanApplication by userId if found
+      if (studentUser?.id) {
+        const { data: apps, error: appError } = await this.db
+          .from('LoanApplication')
+          .select('id, applicationNumber, assignedStaffId, loanType, bank, firstName, lastName, email, phone, status, stage')
+          .eq('userId', studentUser.id)
+          .order('updatedAt', { ascending: false })
+          .limit(1);
+
+        if (!appError && apps && apps.length > 0) {
+          application = apps[0];
+        }
+      }
+
+      // 3. Fallback: Query LoanApplication directly by phone if not found via userId
+      if (!application && tenDigit) {
+        const { data: appsByPhone, error: appPhoneError } = await this.db
+          .from('LoanApplication')
+          .select('id, applicationNumber, assignedStaffId, loanType, bank, firstName, lastName, email, phone, status, stage')
+          .or(`phone.eq.${tenDigit},phone.eq.${twelveDigit},phone.eq.${plusTwelve}`)
+          .order('updatedAt', { ascending: false })
+          .limit(1);
+
+        if (!appPhoneError && appsByPhone && appsByPhone.length > 0) {
+          application = appsByPhone[0];
+          this.logger.log(`[ChatService] Matched LoanApplication ${application.id} directly by phone: ${tenDigit}`);
+        }
+      }
+
+      let assignedStaffId = application?.assignedStaffId || null;
+      if (assignedStaffId && ['unassigned', 'null', 'undefined', ''].includes(String(assignedStaffId).trim().toLowerCase())) {
+        assignedStaffId = null;
+      }
+
+      let assignedStaffName: string | null = null;
+      let assignedStaffEmail: string | null = null;
+
+      // 4. Resolve assigned staff name and email
+      if (assignedStaffId) {
+        const { data: staffData } = await this.db
+          .from('User')
+          .select('id, firstName, lastName, email')
+          .eq('id', assignedStaffId)
+          .maybeSingle();
+
+        if (staffData) {
+          assignedStaffName = `${staffData.firstName || ''} ${staffData.lastName || ''}`.trim() || 'Assigned Staff';
+          assignedStaffEmail = staffData.email || null;
+          this.logger.log(`[ChatService] Application ${application?.applicationNumber || application?.id} is assigned to staff ${assignedStaffId} (${assignedStaffName})`);
+        }
+      }
+
+      // 5. Construct resolved student name
+      const studentName = application?.firstName
+        ? `${application.firstName || ''} ${application.lastName || ''}`.trim()
+        : (studentUser ? `${studentUser.firstName || ''} ${studentUser.lastName || ''}`.trim() : null);
+
+      const studentEmail = application?.email || studentUser?.email || null;
+
+      return {
+        found: !!(studentUser || application),
+        user: studentUser,
+        application,
+        assignedStaffId,
+        assignedStaffName,
+        assignedStaffEmail,
+        studentName,
+        studentEmail,
+      };
+    } catch (err: any) {
+      this.logger.error(`[ChatService] Error in resolveStudentAssignment: ${err?.message}`);
+      return {
+        found: false,
+        user: studentUser,
+        application,
+        assignedStaffId: null,
+        assignedStaffName: null,
+        assignedStaffEmail: null,
+        studentName: null,
+        studentEmail: null,
+      };
+    }
+  }
+
   async getOrCreateConversation(customerPhone: string, customerEmail?: string, conversationType: string = 'staff', customerName?: string, bankName?: string, additionalMetadata?: any) {
     if (!customerPhone) {
         if (customerEmail) {
@@ -232,6 +360,13 @@ export class ChatService {
       } else if (user && (user.role === 'agent' || user.role === 'partner_agent')) {
           // Agents see conversations marked for agents (students) and agent_to_staff (RM/staff discussions)
           query = query.or('metadata->>type.eq.agent,metadata->>type.eq.agent_to_staff');
+      } else if (user && (user.role === 'staff' || user.role === 'support')) {
+          if (user.assignedStaffId) {
+              query = query.contains('metadata', { assignedStaffId: user.assignedStaffId });
+          } else if (user.assignedOnly && (user.id || user.uid)) {
+              const staffId = user.id || user.uid;
+              query = query.contains('metadata', { assignedStaffId: staffId });
+          }
       }
 
       let { data, error } = await query;
@@ -266,6 +401,13 @@ export class ChatService {
               }
           } else if (user && (user.role === 'agent' || user.role === 'partner_agent')) {
               fallbackQuery = fallbackQuery.or('metadata->>type.eq.agent,metadata->>type.eq.agent_to_staff');
+          } else if (user && (user.role === 'staff' || user.role === 'support')) {
+              if (user.assignedStaffId) {
+                  fallbackQuery = fallbackQuery.contains('metadata', { assignedStaffId: user.assignedStaffId });
+              } else if (user.assignedOnly && (user.id || user.uid)) {
+                  const staffId = user.id || user.uid;
+                  fallbackQuery = fallbackQuery.contains('metadata', { assignedStaffId: staffId });
+              }
           }
           const { data: fallbackData, error: fallbackError } = await fallbackQuery;
           if (fallbackError) {

@@ -1,7 +1,14 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { searchUniversitiesInstant, registerAiDiscoveredUniversities, fetchAiUniversities, FastUniversity } from "@/lib/universitySearchEngine";
+import {
+    searchUniversitiesInstant,
+    registerAiDiscoveredUniversities,
+    fetchAiUniversities,
+    countriesMatch,
+    doesLocMatchCountry,
+    FastUniversity
+} from "@/lib/universitySearchEngine";
 import { aiApi } from "@/lib/api";
 
 interface FastAiUniversityInputProps {
@@ -28,8 +35,8 @@ export default function FastAiUniversityInput({
     placeholder = "Search university by name or abbreviation...",
     required = false,
     label = "Full University / College Name",
-    id = "university-search-input",
-    className = "",
+    id = "university-input",
+    className = ""
 }: FastAiUniversityInputProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [highlightedIndex, setHighlightedIndex] = useState(-1);
@@ -47,11 +54,12 @@ export default function FastAiUniversityInput({
         return country.trim();
     }, [country, otherCountry]);
 
-    // Proactive background prefetch for country as soon as effectiveCountry changes or dropdown opens
+    // Proactive background prefetch for country as soon as effectiveCountry changes
     useEffect(() => {
+        setAiAugmentedList([]);
         if (!effectiveCountry) return;
         const cached = searchUniversitiesInstant("", effectiveCountry, 10);
-        if (cached.length > 0) {
+        if (cached.length >= 6) {
             setAiAugmentedList(cached);
         } else {
             setIsAiSearching(true);
@@ -91,19 +99,24 @@ export default function FastAiUniversityInput({
         return searchUniversitiesInstant(value, effectiveCountry, 10);
     }, [value, effectiveCountry]);
 
-    // Combined Results: Instant + AI-discovered
+    // Combined Results: Instant + AI-discovered (strictly country-scoped)
     const combinedResults = useMemo(() => {
         const list: FastUniversity[] = [...instantResults];
         const seenNames = new Set(list.map(u => u.name.toLowerCase()));
 
         for (const aiUni of aiAugmentedList) {
+            if (effectiveCountry && effectiveCountry !== "Any" && effectiveCountry !== "Other") {
+                if (!countriesMatch(aiUni.country, effectiveCountry) && !doesLocMatchCountry(aiUni.loc, effectiveCountry)) {
+                    continue;
+                }
+            }
             if (!seenNames.has(aiUni.name.toLowerCase())) {
                 seenNames.add(aiUni.name.toLowerCase());
                 list.push(aiUni);
             }
         }
         return list.slice(0, 10);
-    }, [instantResults, aiAugmentedList]);
+    }, [instantResults, aiAugmentedList, effectiveCountry]);
 
     // Background Asynchronous Live AI Search (200ms debounce)
     useEffect(() => {
@@ -155,7 +168,13 @@ export default function FastAiUniversityInput({
                             badge: rank && rank <= 500 ? `QS #${rank}` : "AI Match",
                             isAiDiscovered: true
                         };
-                    }).filter((u: FastUniversity) => Boolean(u.name));
+                    }).filter((u: FastUniversity) => {
+                        if (!u.name) return false;
+                        if (effectiveCountry && effectiveCountry !== "Any" && effectiveCountry !== "Other") {
+                            return countriesMatch(u.country, effectiveCountry) || doesLocMatchCountry(u.loc, effectiveCountry);
+                        }
+                        return true;
+                    });
 
                     setAiAugmentedList(formatted);
                 }
@@ -194,22 +213,18 @@ export default function FastAiUniversityInput({
         setIsOpen(false);
         setHighlightedIndex(-1);
 
-        // Auto-detect and sync destination country if different or unselected
-        if (onCountryChange && uni.country && uni.country !== "Global") {
-            const currentCountryClean = (effectiveCountry || "").toLowerCase().trim();
-            const uniCountryClean = uni.country.toLowerCase().trim();
+        // Auto-detect and sync destination country only if the user hasn't already picked one
+        const hasSelectedCountry = Boolean(country && country !== "Other");
+        if (onCountryChange && !hasSelectedCountry && uni.country && uni.country !== "Global") {
+            onCountryChange(uni.country);
+            setAutoCountryNotification(`Study destination automatically set to ${uni.country}`);
 
-            if (!currentCountryClean || (currentCountryClean !== uniCountryClean && !uniCountryClean.includes(currentCountryClean))) {
-                onCountryChange(uni.country);
-                setAutoCountryNotification(`Study destination automatically set to ${uni.country}`);
-
-                if (notificationTimerRef.current) clearTimeout(notificationTimerRef.current);
-                notificationTimerRef.current = setTimeout(() => {
-                    setAutoCountryNotification(null);
-                }, 4000);
-            }
+            if (notificationTimerRef.current) clearTimeout(notificationTimerRef.current);
+            notificationTimerRef.current = setTimeout(() => {
+                setAutoCountryNotification(null);
+            }, 4000);
         }
-    }, [onChange, onCountryChange, effectiveCountry]);
+    }, [onChange, onCountryChange, country]);
 
     // Keyboard navigation
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {

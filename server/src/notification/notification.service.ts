@@ -847,19 +847,30 @@ export class NotificationService {
   async handleStaffChatReceived(payload: any) {
     try {
       const typeLabel = payload.senderType === 'customer' ? 'Student' : 'Bank Partner';
+      const assignedStaffId = payload.metadata?.assignedStaffId;
+      const targetUserId = (assignedStaffId && !['unassigned', 'null', 'undefined', ''].includes(String(assignedStaffId).trim().toLowerCase()))
+        ? assignedStaffId
+        : 'staff';
+
+      const appNum = payload.metadata?.applicationNumber ? ` (App #${payload.metadata.applicationNumber})` : '';
+      const channelLabel = payload.metadata?.channel === 'whatsapp' ? 'WhatsApp' : 'Chat';
+
       await this.createNotification(
-        'staff',
-        `💬 New message from ${payload.senderName || typeLabel}`,
+        targetUserId,
+        `💬 ${channelLabel} message from ${payload.senderName || typeLabel}${appNum}`,
         payload.content || 'You have a new support chat message.',
         'staff_chat_received',
         {
           conversationId: payload.conversationId,
           senderName: payload.senderName,
           senderType: payload.senderType,
+          applicationId: payload.metadata?.applicationId,
+          applicationNumber: payload.metadata?.applicationNumber,
+          channel: payload.metadata?.channel || 'chat',
         }
       );
-    } catch (error) {
-      this.logger.error(`Failed to handle staff chat received event: ${error.message}`);
+    } catch (error: any) {
+      this.logger.error(`Failed to handle staff chat received event: ${error?.message}`);
     }
   }
 

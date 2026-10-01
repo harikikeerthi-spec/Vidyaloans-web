@@ -21,7 +21,13 @@ export class ChatController {
   ) {}
 
   @Get('conversations')
-  async getConversations(@Req() req: any, @Query('bankName') bankName?: string, @Query('role') role?: string) {
+  async getConversations(
+    @Req() req: any,
+    @Query('bankName') bankName?: string,
+    @Query('role') role?: string,
+    @Query('assignedOnly') assignedOnly?: string,
+    @Query('assignedStaffId') assignedStaffId?: string,
+  ) {
     const userWithBank = { ...req.user };
     if (role && (role === 'bank' || role === 'partner_bank')) {
       userWithBank.role = role;
@@ -30,6 +36,11 @@ export class ChatController {
       userWithBank.bankName = bankName;
     } else if (userWithBank.bank) {
       userWithBank.bankName = userWithBank.bank;
+    }
+    if (assignedStaffId) {
+      userWithBank.assignedStaffId = assignedStaffId;
+    } else if (assignedOnly === 'true') {
+      userWithBank.assignedOnly = true;
     }
     return this.chatService.getConversations('active', userWithBank);
   }

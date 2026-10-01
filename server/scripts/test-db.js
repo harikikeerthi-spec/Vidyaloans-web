@@ -1,5 +1,5 @@
 const { Client } = require('pg');
-require('dotenv').config({ path: 'c:/Projects/Sun Glade/Loan/server/server/.env' });
+require('dotenv').config();
 
 async function test() {
     console.log('Testing connection to:', process.env.DATABASE_URL);

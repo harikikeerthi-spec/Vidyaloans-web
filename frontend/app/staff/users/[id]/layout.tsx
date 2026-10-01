@@ -182,9 +182,9 @@ function DossierLayoutInner({ children }: { children: React.ReactNode }) {
     ];
 
     return (
-        <div className="min-h-screen bg-[#F8FAFC] font-sans text-slate-800 w-full">
+        <div className="min-h-screen bg-[#F8FAFC] font-sans text-slate-800 w-full print:min-h-0 print:bg-white">
             {/* Top Global Header Bar (Edge-to-Edge Container) */}
-            <div className="w-full bg-white border-b border-gray-200/80 shadow-2xs">
+            <div className="w-full bg-white border-b border-gray-200/80 shadow-2xs no-print">
                 {/* Top Action Breadcrumb Row */}
                 <div className="max-w-7xl mx-auto px-6 pt-3 pb-2 flex items-center justify-between">
                     {/* <button
@@ -288,13 +288,13 @@ function DossierLayoutInner({ children }: { children: React.ReactNode }) {
             </div>
 
             {/* Main Content Workspace Container (Padded Below) */}
-            <main className="max-w-7xl mx-auto px-6 py-6">
+            <main className="max-w-7xl mx-auto px-6 py-6 print:max-w-none print:p-0 print:m-0">
                 {children}
             </main>
 
             {/* Edit Co-applicant Details Modal */}
             {isCoAppModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm no-print">
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95, y: 10 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}

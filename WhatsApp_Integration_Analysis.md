@@ -1,50 +1,43 @@
-# WhatsApp Integration Analysis
+# WhatsApp & Amazon SNS Integration Architecture
 
 ## Overview
-The application integrates WhatsApp messaging through **Twilio** to enable customer-to-staff communication. Messages are received via webhook, stored in database, and displayed in real-time via WebSocket to staff dashboard.
+The application integrates WhatsApp messaging through **AWS End User Messaging Social** (Meta WhatsApp Cloud API) and **Amazon SNS** to enable real-time student-to-assigned-staff communication. 
+
+Incoming messages from students on WhatsApp are received via AWS SNS or direct HTTPS webhooks, resolved to the student's active **LoanApplication** and assigned staff member, stored in the database, and routed to the assigned staff member's dashboard in real time. Staff can reply directly from their dashboard back to the student's WhatsApp.
 
 ---
 
 ## Key Components
 
-### 1. **WhatsApp Webhook Controller**
+### 1. **WhatsApp & SNS Webhook Controller**
 **File:** [server/src/chat/whatsapp.controller.ts](server/src/chat/whatsapp.controller.ts)
 
 **Endpoints:**
-- `GET /api/webhook/whatsapp` - Health check
-- `GET /api/whatsapp/history/:phone` - Get message history for a phone number
-- `POST /api/webhook/whatsapp` - Main webhook handler (recommended by Twilio)
-- `POST /api/whatsapp` - Alias endpoint
+- `GET  /api/webhook/whatsapp` & `GET  /api/webhook/sns` - Challenge verification (`hub.challenge`) & healthcheck
+- `POST /api/webhook/whatsapp` & `POST /api/webhook/sns` - AWS SNS and WhatsApp incoming messages
+- `GET  /api/whatsapp/history/:phone` - Message history for a phone number
 
-**Flow:**
-1. Twilio sends incoming WhatsApp messages as HTTP POST with `application/x-www-form-urlencoded`
-2. Controller extracts fields:
-   - `From`: Sender's WhatsApp number (e.g., `whatsapp:+919876543210`)
-   - `To`: Twilio sandbox number (e.g., `whatsapp:+14155238886`)
-   - `Body`: Message text
-   - `MessageSid`: Unique message identifier
-   - `NumMedia`: Number of media attachments
-   - `MediaUrl0`: First media URL (if attachments present)
+**Supported Payload Formats:**
+1. **Amazon SNS Subscription Confirmation:** Auto-fetches `SubscribeURL` to automatically confirm subscriptions.
+2. **Amazon SNS Notifications:** Extracts WhatsApp messages wrapped in `body.Message`.
+3. **Meta / AWS WhatsApp Cloud API:** Standard `entry[].changes[].value.messages[]`.
+4. **AWS End User Messaging Social Native Events:** `originationPhoneNumber` & `messageBody`.
+5. **Direct Simulator / Test Payloads:** `{ from, body }`.
 
-3. **Processing Steps:**
-   - Normalizes phone number (removes `whatsapp:` prefix, converts to 10 digits)
-   - Gets or creates conversation record
-   - Saves message to database with status `delivered`
-   - Emits real-time WebSocket events to staff dashboard
-   - Returns 200 OK with empty TwiML (no auto-reply)
-
-**Message Data Stored:**
-```typescript
-{
-  conversationId: string,
-  senderType: 'customer',
-  senderId: string (normalized phone),
-  receiverType: 'system',
-  content: string,
-  messageType: 'text' | 'image',
-  status: 'delivered'
-}
-```
+**Staff Resolution Flow:**
+1. Student sends WhatsApp message.
+2. Webhook triggers `ChatService.resolveStudentAssignment(phone)`.
+3. Looks up student in `User` and their latest active `LoanApplication`.
+4. Enriches `Conversation.metadata` with:
+   - `assignedStaffId`, `assignedStaffName`, `assignedStaffEmail`
+   - `applicationId`, `applicationNumber`
+   - `studentName`, `studentEmail`, `studentId`
+   - `channel: 'whatsapp'`
+5. Emits targeted real-time WebSocket events to:
+   - `user_${assignedStaffId}` (triggers personal staff alert & unread badges)
+   - `conv_${conversationId}` (active chat thread)
+   - `room_staff` (global staff inquiry list)
+6. Emits `staff.chat.received` event to trigger in-app bell notification for the assigned staff.
 
 ---
 

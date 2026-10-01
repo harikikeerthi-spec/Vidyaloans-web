@@ -13,7 +13,7 @@ import { ChatGateway } from './chat.gateway';
  * 3. AWS SNS notifications / Subscription confirmations
  * 4. Backward-compatible direct JSON payloads for simulation and testing
  */
-@Controller(['webhook/whatsapp', 'whatsapp'])
+@Controller(['webhook/whatsapp', 'whatsapp', 'webhook/sns', 'sns/whatsapp'])
 export class WhatsappController {
   private readonly logger = new Logger(WhatsappController.name);
 
@@ -24,10 +24,11 @@ export class WhatsappController {
   ) {}
 
   /**
-   * GET /api/webhook/whatsapp or GET /api/whatsapp
+   * GET /api/webhook/whatsapp or GET /api/webhook/sns
    * Handles Meta / AWS WhatsApp webhook challenge verification and healthcheck
    */
   @Get()
+  @Get('sns')
   verifyWebhook(
     @Query('hub.mode') mode: string,
     @Query('hub.verify_token') token: string,
@@ -53,65 +54,89 @@ export class WhatsappController {
     // Health check endpoint info
     return res.status(200).json({
       status: 'ok',
-      service: 'AWS WhatsApp Webhook Handler',
+      service: 'AWS WhatsApp & SNS Webhook Ingestion Engine',
       timestamp: new Date().toISOString(),
       routes: {
         primary: 'POST /api/webhook/whatsapp',
-        alias:   'POST /api/whatsapp',
-        history: 'GET  /api/whatsapp/history/:phone',
+        snsAlias: 'POST /api/webhook/sns',
+        directAlias: 'POST /api/whatsapp',
+        history: 'GET /api/whatsapp/history/:phone',
       },
     });
   }
 
   /**
-   * POST /api/webhook/whatsapp or POST /api/whatsapp
-   * Handles incoming WhatsApp messages from AWS End User Messaging Social, Meta Cloud API, or SNS
+   * POST /api/webhook/whatsapp or POST /api/webhook/sns
+   * Handles incoming WhatsApp messages from AWS End User Messaging Social, Meta Cloud API, or Amazon SNS
    */
   @Post()
+  @Post('sns')
   async handleIncomingMessage(@Req() req: Request, @Res() res: Response, @Body() rawBody: any) {
     let body = rawBody;
 
-    // Handle AWS SNS wrapper if received via SNS HTTP/HTTPS subscription
-    if (body?.Type === 'SubscriptionConfirmation') {
-      this.logger.log(`[AWS SNS] Received SubscriptionConfirmation. TopicArn: ${body.TopicArn}`);
-      if (body.SubscribeURL) {
-        this.logger.log(`[AWS SNS] Auto-confirm URL: ${body.SubscribeURL}`);
+    // 1. If body arrives as a raw string (e.g. from AWS SNS sending text/plain)
+    if (typeof body === 'string') {
+      try {
+        body = JSON.parse(body);
+      } catch (err) {
+        this.logger.warn(`[AWS Webhook] Raw body is string but not valid JSON`);
+      }
+    }
+
+    const messageTypeHeader = req.headers['x-amz-sns-message-type'];
+    const snsType = (messageTypeHeader || body?.Type || '').toString();
+
+    // 2. Handle AWS SNS Subscription Confirmation (Auto-confirm subscription)
+    if (snsType === 'SubscriptionConfirmation' || body?.Type === 'SubscriptionConfirmation') {
+      this.logger.log(`━━━━━━━━━━ AWS SNS SUBSCRIPTION CONFIRMATION ━━━━━━━━━━`);
+      this.logger.log(`TopicArn: ${body?.TopicArn}`);
+      if (body?.SubscribeURL) {
+        this.logger.log(`Auto-confirming SNS subscription via URL: ${body.SubscribeURL}`);
         try {
-          // If native fetch is available, automatically confirm
           if (typeof fetch !== 'undefined') {
             await fetch(body.SubscribeURL);
-            this.logger.log(`[AWS SNS] Successfully auto-confirmed subscription to ${body.TopicArn}`);
+            this.logger.log(`[AWS SNS] Successfully confirmed subscription for Topic: ${body.TopicArn}`);
           }
         } catch (e: any) {
-          this.logger.warn(`[AWS SNS] Auto-confirm fetch error: ${e?.message}`);
+          this.logger.error(`[AWS SNS] Error confirming SubscribeURL: ${e?.message}`);
         }
       }
-      return res.status(200).json({ status: 'confirmed' });
+      return res.status(200).json({ status: 'confirmed', topicArn: body?.TopicArn });
     }
 
-    if (body?.Type === 'Notification' && typeof body.Message === 'string') {
-      try {
-        body = JSON.parse(body.Message);
-      } catch {
-        // use raw body.Message if not JSON
+    // 3. Handle AWS SNS Notification wrapper
+    if (snsType === 'Notification' || body?.Type === 'Notification') {
+      this.logger.log(`[AWS SNS] Received Notification from TopicArn: ${body?.TopicArn || 'Unknown'}`);
+      if (typeof body.Message === 'string') {
+        try {
+          body = JSON.parse(body.Message);
+        } catch {
+          // If not JSON string, leave body.Message
+        }
+      } else if (body.Message && typeof body.Message === 'object') {
+        body = body.Message;
       }
     }
 
-    this.logger.log('━━━━━━━━━━ AWS WHATSAPP WEBHOOK RECEIVED ━━━━━━━━━━');
+    this.logger.log('━━━━━━━━━━ AWS WHATSAPP / SNS MESSAGE RECEIVED ━━━━━━━━━━');
     this.logger.log(`Content-Type: ${req.headers['content-type']}`);
 
     try {
-      // 1. Check for Meta / AWS WhatsApp Cloud API payload format
-      // Structure: body.entry[].changes[].value.messages[]
-      const entry = body?.entry?.[0];
-      const change = entry?.changes?.[0];
-      const value = change?.value;
+      // 4. Check for Meta / AWS Social Messaging standard payload structure
+      // Structure: body.entry[].changes[].value.messages[] OR body.whatsAppWebhookEntry...
+      const entry = body?.entry?.[0] || body?.whatsAppWebhookEntry?.[0] || body?.whatsAppWebhookEntry;
+      const change = entry?.changes?.[0] || entry;
+      const value = change?.value || change;
 
-      if (value?.messages && Array.isArray(value.messages) && value.messages.length > 0) {
-        const contact = value.contacts?.[0];
+      const messagesList = (value?.messages && Array.isArray(value.messages))
+        ? value.messages
+        : (body?.messages && Array.isArray(body.messages) ? body.messages : null);
+
+      if (messagesList && messagesList.length > 0) {
+        const contact = value?.contacts?.[0] || body?.contacts?.[0];
         const contactName = contact?.profile?.name;
 
-        for (const message of value.messages) {
+        for (const message of messagesList) {
           const senderPhone = message.from; // e.g. "919876543210"
           let messageContent = '';
           let messageType = 'text';
@@ -136,15 +161,24 @@ export class WhatsappController {
         return res.status(200).json({ status: 'success' });
       }
 
-      // Check if it's a delivery status update (sent, delivered, read)
-      if (value?.statuses && Array.isArray(value.statuses)) {
-        for (const status of value.statuses) {
-          this.logger.log(`[AWS WhatsApp] Message Status Update: ${status.id} -> ${status.status} for recipient ${status.recipient_id}`);
+      // Check for message delivery status updates from WhatsApp / SNS
+      const statuses = value?.statuses || body?.statuses;
+      if (statuses && Array.isArray(statuses)) {
+        for (const status of statuses) {
+          this.logger.log(`[AWS WhatsApp] Delivery status update: ${status.id} -> ${status.status} (recipient: ${status.recipient_id})`);
         }
         return res.status(200).json({ status: 'success' });
       }
 
-      // 2. Fallback to direct / flat payload format (e.g. from simulator or webhook forwarders)
+      // 5. Check for AWS End User Messaging Social native event payload
+      const awsOrigination = body?.originationPhoneNumber || body?.origination_phone_number || body?.['origination-phone-number'];
+      const awsText = body?.messageBody || body?.message_body || body?.['message-body'] || body?.text;
+      if (awsOrigination && awsText) {
+        await this.processMessage(awsOrigination, awsText, 'text', body?.senderName);
+        return res.status(200).json({ status: 'success' });
+      }
+
+      // 6. Direct / flat payload format (e.g. from simulator, tests, or custom webhooks)
       const from = body?.from || body?.From || body?.phoneNumber;
       const content = body?.body || body?.Body || body?.text || body?.content;
       const mediaUrl = body?.mediaUrl || body?.MediaUrl0;
@@ -160,7 +194,8 @@ export class WhatsappController {
         return res.status(200).json({ status: 'success' });
       }
 
-      this.logger.warn(`[AWS WhatsApp] Unrecognized payload format: ${JSON.stringify(body).substring(0, 200)}`);
+      const safeBodyStr = JSON.stringify(body ?? {}) || '';
+      this.logger.warn(`[AWS WhatsApp] Unrecognized payload format: ${safeBodyStr.substring(0, 200)}`);
       return res.status(200).json({ status: 'ignored', reason: 'Unrecognized payload format' });
 
     } catch (error: any) {
@@ -171,7 +206,7 @@ export class WhatsappController {
   }
 
   /**
-   * Helper to persist incoming message and broadcast to staff & bank rooms
+   * Helper to persist incoming message and broadcast to assigned staff & staff dashboard
    */
   private async processMessage(
     senderPhone: string,
@@ -186,6 +221,11 @@ export class WhatsappController {
 
     this.logger.log(`[AWS WhatsApp] Processing message from ${senderPhone}: "${content}"`);
 
+    // 1. Resolve student and application assignment from phone number
+    const assignment = await this.chatService.resolveStudentAssignment(senderPhone);
+    const resolvedStudentName = assignment.studentName || customerName || 'Student';
+    const resolvedStudentEmail = assignment.studentEmail || undefined;
+
     // Normalize phone number with whatsapp: prefix for internal conversation lookup
     const cleanDigits = senderPhone.replace('whatsapp:', '').trim().replace(/\D/g, '');
     const formattedPhone = cleanDigits.startsWith('91') && cleanDigits.length === 12
@@ -194,22 +234,43 @@ export class WhatsappController {
 
     const fromAddress = `whatsapp:+${formattedPhone}`;
 
-    // 1. Get or create the conversation for this phone
+    // 2. Prepare conversation metadata with student & staff routing details
+    const conversationMetadata: any = {
+      type: 'staff',
+      channel: 'whatsapp',
+      assignedStaffId: assignment.assignedStaffId || null,
+      assignedStaffName: assignment.assignedStaffName || null,
+      assignedStaffEmail: assignment.assignedStaffEmail || null,
+      applicationId: assignment.application?.id || null,
+      applicationNumber: assignment.application?.applicationNumber || null,
+      studentName: resolvedStudentName,
+      studentEmail: resolvedStudentEmail || null,
+      studentId: assignment.user?.id || null,
+      loanType: assignment.application?.loanType || null,
+      bank: assignment.application?.bank || null,
+    };
+
+    // 3. Get or create/reactivate the conversation for this phone
     const conversation = await this.chatService.getOrCreateConversation(
       fromAddress,
-      undefined,
+      resolvedStudentEmail,
       'staff',
-      customerName
+      resolvedStudentName,
+      undefined,
+      conversationMetadata
     );
 
-    this.logger.log(`[AWS WhatsApp] Conversation ID: ${conversation.id} | Phone: ${conversation.customerPhone}`);
+    this.logger.log(
+      `[AWS WhatsApp] Conversation ID: ${conversation.id} | Student: ${resolvedStudentName} | Assigned Staff: ${assignment.assignedStaffId || 'Unassigned'}`
+    );
 
-    // 2. Save message to database
+    // 4. Save message to database with student sender name
     const msg = await this.chatService.saveMessage({
       conversationId: conversation.id,
       senderType: 'customer',
       senderId: conversation.customerPhone,
-      receiverType: 'system',
+      receiverType: 'staff',
+      senderName: resolvedStudentName,
       content: content,
       messageType: messageType || 'text',
       status: 'delivered',
@@ -217,20 +278,43 @@ export class WhatsappController {
 
     this.logger.log(`[AWS WhatsApp] Saved message with ID: ${msg.id}`);
 
-    // 3. Emit real-time WebSocket events to staff dashboard
+    // 5. Emit real-time WebSocket events
     if (this.chatGateway.server) {
-      // Notify staff actively viewing this conversation
+      // Notify staff actively viewing this specific conversation thread
       this.chatGateway.server.to(`conv_${conversation.id}`).emit('new_message', msg);
       this.logger.log(`[AWS WhatsApp] Emitted 'new_message' to conv_${conversation.id}`);
 
-      // Notify global dashboard room to update list order & badges
+      // Notify global staff dashboard room
       const type = conversation.metadata?.type || 'staff';
       const room = type === 'bank' ? 'room_bank' : 'room_staff';
       this.chatGateway.server.to(room).emit('conversation_updated', {
         conversationId: conversation.id,
         lastMessage: msg,
+        metadata: conversation.metadata,
       });
       this.logger.log(`[AWS WhatsApp] Emitted 'conversation_updated' to ${room}`);
+
+      // TARGETED: If an assigned staff member is resolved, notify their dedicated socket room
+      if (assignment.assignedStaffId) {
+        const staffRoom = `user_${assignment.assignedStaffId}`;
+        this.chatGateway.server.to(staffRoom).emit('conversation_updated', {
+          conversationId: conversation.id,
+          lastMessage: msg,
+          metadata: conversation.metadata,
+          isAssignedToMe: true,
+        });
+
+        this.chatGateway.server.to(staffRoom).emit('staff_new_whatsapp_message', {
+          conversationId: conversation.id,
+          studentName: resolvedStudentName,
+          applicationNumber: assignment.application?.applicationNumber || null,
+          content: content,
+          message: msg,
+          createdAt: new Date().toISOString(),
+        });
+
+        this.logger.log(`[AWS WhatsApp] Emitted targeted alerts to assigned staff room: ${staffRoom}`);
+      }
     } else {
       this.logger.warn('[AWS WhatsApp] WebSocket server not initialized — real-time update skipped');
     }

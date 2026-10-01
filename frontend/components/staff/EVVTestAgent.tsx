@@ -2317,7 +2317,7 @@ export const EVVTestAgent: React.FC<{
   ) : (
     <div className="space-y-6">
       {/* Verified Statement Top Bar */}
-      <div className="bg-gradient-to-r from-emerald-50 via-teal-50/50 to-white border border-emerald-200/80 rounded-2xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shadow-xs">
+      <div className="bg-gradient-to-r from-emerald-50 via-teal-50/50 to-white border border-emerald-200/80 rounded-2xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shadow-xs no-print">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center shadow-xs shrink-0">
             <span className="material-symbols-outlined text-xl">verified</span>
@@ -2364,27 +2364,176 @@ export const EVVTestAgent: React.FC<{
       </div>
 
       {/* ── Official Bank Statement Health Report (Matching Executive Presentation Spec) ── */}
-      <div className="bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-8 shadow-xs space-y-8" id="bank-statement-health-report">
+      <div className="bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-8 shadow-xs space-y-8 print:p-0 print:border-none print:shadow-none print:space-y-6" id="bank-statement-health-report">
             <style>{`
               @media print {
-                body, html, #__next, main {
-                  background: #ffffff !important;
-                  color: #0f172a !important;
-                }
-                .no-print, nav, header, aside, .console-box {
+                /* Hide all non-printable dashboard elements & interactive controls */
+                .no-print,
+                nav,
+                header,
+                aside,
+                .console-box,
+                button:not(.allow-print) {
                   display: none !important;
                 }
+
+                /* Ensure clean multi-page document pagination without 100vh truncation */
+                body,
+                html,
+                #__next,
+                [data-reactroot],
+                main,
+                .staff-dashboard-shell,
+                .staff-dashboard-body,
                 #bank-statement-health-report {
-                  border: none !important;
-                  box-shadow: none !important;
-                  padding: 0 !important;
-                }
-                .print-full-table {
+                  background: #ffffff !important;
+                  color: #0f172a !important;
+                  height: auto !important;
+                  min-height: 0 !important;
                   max-height: none !important;
                   overflow: visible !important;
+                  overflow-x: visible !important;
+                  overflow-y: visible !important;
+                  position: static !important;
+                  width: 100% !important;
+                  max-width: 100% !important;
+                  padding: 0 !important;
+                  margin: 0 !important;
+                  box-shadow: none !important;
+                  border: none !important;
+                }
+
+                main {
+                  padding-left: 0 !important;
+                  margin-left: 0 !important;
+                }
+
+                /* Exact color, gradient, and line rendering */
+                *,
+                *::before,
+                *::after {
+                  -webkit-print-color-adjust: exact !important;
+                  print-color-adjust: exact !important;
+                }
+
+                /* Prevent page break tears across metric cards and rows */
+                .evv-card,
+                .metric-card,
+                table,
+                tr,
+                .rounded-2xl,
+                .rounded-3xl,
+                .bg-white.border {
+                  page-break-inside: avoid !important;
+                  break-inside: avoid !important;
+                  box-shadow: none !important;
+                }
+
+                /* Full table expansion: display all months and interval rows */
+                .print-full-table,
+                .overflow-x-auto,
+                div[class*="overflow-"] {
+                  max-height: none !important;
+                  overflow: visible !important;
+                  overflow-x: visible !important;
+                  overflow-y: visible !important;
+                }
+
+                table {
+                  width: 100% !important;
+                  border-collapse: collapse !important;
+                }
+
+                thead {
+                  display: table-header-group !important;
+                }
+
+                th, td {
+                  padding: 6px 8px !important;
+                  font-size: 11px !important;
+                }
+
+                /* SVG vector clarity */
+                svg {
+                  max-width: 100% !important;
+                  height: auto !important;
+                  overflow: visible !important;
+                }
+
+                /* High-contrast text colors */
+                .text-slate-400 {
+                  color: #64748b !important;
+                }
+                .text-slate-500 {
+                  color: #475569 !important;
+                }
+                .text-slate-600 {
+                  color: #334155 !important;
+                }
+                .text-slate-700,
+                .text-slate-800,
+                .text-slate-900 {
+                  color: #0f172a !important;
+                }
+
+                @page {
+                  size: A4 portrait;
+                  margin: 12mm 10mm;
                 }
               }
             `}</style>
+
+            {/* ── Official Executive Print Header (Visible ONLY during print) ── */}
+            <div className="hidden print:block pb-5 mb-5 border-b-2 border-slate-900">
+              <div className="flex justify-between items-start">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl font-black text-indigo-700 font-mono tracking-wider">VIDYALOANS</span>
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">| Underwriting Intelligence Dossier</span>
+                  </div>
+                  <h1 className="text-2xl font-black text-slate-900 mt-1">Bank Statement Health Analysis & EVV Report</h1>
+                  <p className="text-xs text-slate-600 mt-0.5">
+                    Deterministic Causal Ledger v2.1 • Multi-Component Bank Policy Health Audit
+                  </p>
+                </div>
+                <div className="text-right">
+                  <span className="inline-block px-3 py-1 bg-slate-900 text-white text-[11px] font-black uppercase tracking-wider rounded">
+                    CONFIDENTIAL AUDIT
+                  </span>
+                  <p className="text-[10px] text-slate-600 font-mono mt-1">
+                    Generated: {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })} {new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                </div>
+              </div>
+
+              {/* Student & Dossier Metadata Grid */}
+              <div className="mt-4 pt-3 border-t border-slate-200 grid grid-cols-4 gap-4 text-xs">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase block">Applicant / Student</span>
+                  <span className="font-black text-slate-900 text-sm">
+                    {application?.firstName ? `${application.firstName} ${application.lastName || ''}`.trim() : (userId || "Student")}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase block">Student ID / Application</span>
+                  <span className="font-bold text-slate-800 font-mono">
+                    {application?.applicationNumber || application?.id || userId || "—"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase block">Statement File</span>
+                  <span className="font-bold text-slate-800 truncate block">
+                    {fileNameDisplay || (latestDoc?.docName || "Bank Statement")}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase block">Official EVV Score</span>
+                  <span className="font-black text-indigo-700 text-sm font-mono">
+                    {evvResult.overallEVV}/100 ({evvResult.overallGrade}) • {evvResult.sixComponent?.statusBand || 'Green'} Band
+                  </span>
+                </div>
+              </div>
+            </div>
 
             {/* Report Header */}
             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 pb-4 border-b border-slate-100">
@@ -2877,46 +3026,46 @@ export const EVVTestAgent: React.FC<{
               )}
 
               {/* Monthly Metrics Table View */}
-              {(monthlyMetricsView === "table" || monthlyMetricsView === "split") && (
-                <div className="overflow-x-auto border border-slate-200 rounded-2xl bg-white shadow-2xs">
-                  <table className="w-full text-xs font-medium text-slate-700 divide-y divide-slate-200">
-                    <thead>
-                      <tr className="bg-slate-50/80 text-slate-600 text-[11px] font-bold">
-                        <th className="text-left px-4 py-3 whitespace-nowrap">Month</th>
-                        <th className="text-right px-4 py-3 whitespace-nowrap">Internal Sampled AMB</th>
-                        <th className="text-right px-4 py-3 whitespace-nowrap">Daily AMB</th>
-                        <th className="text-right px-4 py-3 whitespace-nowrap">Min</th>
-                        <th className="text-right px-4 py-3 whitespace-nowrap">Max</th>
-                        <th className="text-right px-4 py-3 whitespace-nowrap">Month-End Closing</th>
-                        <th className="text-right px-4 py-3 whitespace-nowrap">Total credits</th>
-                        <th className="text-right px-4 py-3 whitespace-nowrap">Total debits</th>
-                        <th className="text-right px-4 py-3 whitespace-nowrap">Cash %</th>
-                        <th className="text-right px-4 py-3 whitespace-nowrap">Bounces</th>
+              <div className={`overflow-x-auto border border-slate-200 rounded-2xl bg-white shadow-2xs ${
+                (monthlyMetricsView === "table" || monthlyMetricsView === "split") ? "block" : "hidden print:block"
+              }`}>
+                <table className="w-full text-xs font-medium text-slate-700 divide-y divide-slate-200">
+                  <thead>
+                    <tr className="bg-slate-50/80 text-slate-600 text-[11px] font-bold">
+                      <th className="text-left px-4 py-3 whitespace-nowrap">Month</th>
+                      <th className="text-right px-4 py-3 whitespace-nowrap">Internal Sampled AMB</th>
+                      <th className="text-right px-4 py-3 whitespace-nowrap">Daily AMB</th>
+                      <th className="text-right px-4 py-3 whitespace-nowrap">Min</th>
+                      <th className="text-right px-4 py-3 whitespace-nowrap">Max</th>
+                      <th className="text-right px-4 py-3 whitespace-nowrap">Month-End Closing</th>
+                      <th className="text-right px-4 py-3 whitespace-nowrap">Total credits</th>
+                      <th className="text-right px-4 py-3 whitespace-nowrap">Total debits</th>
+                      <th className="text-right px-4 py-3 whitespace-nowrap">Cash %</th>
+                      <th className="text-right px-4 py-3 whitespace-nowrap">Bounces</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {evvResult.monthlyMetrics.map((metric: MonthlyMetric, idx: number) => (
+                      <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
+                        <td className="px-4 py-3 font-bold text-slate-900 whitespace-nowrap">{metric.label}</td>
+                        <td className="px-4 py-3 text-right font-black text-violet-700 whitespace-nowrap tabular-nums">{displayCurrency(metric.median || metric.avg)}</td>
+                        <td className="px-4 py-3 text-right font-semibold text-slate-700 whitespace-nowrap tabular-nums">{displayCurrency(metric.avgDailyBalance || metric.avg)}</td>
+                        <td className="px-4 py-3 text-right text-slate-600 whitespace-nowrap tabular-nums">{displayCurrency(metric.min)}</td>
+                        <td className="px-4 py-3 text-right text-slate-600 whitespace-nowrap tabular-nums">{displayCurrency(metric.max)}</td>
+                        <td className="px-4 py-3 text-right font-bold text-slate-800 whitespace-nowrap tabular-nums">{displayCurrency(metric.closing)}</td>
+                        <td className="px-4 py-3 text-right text-emerald-700 font-semibold whitespace-nowrap tabular-nums">{displayCurrency(metric.credits)}</td>
+                        <td className="px-4 py-3 text-right text-rose-700 font-semibold whitespace-nowrap tabular-nums">{displayCurrency(metric.debits)}</td>
+                        <td className="px-4 py-3 text-right text-slate-700 font-semibold whitespace-nowrap tabular-nums">{metric.cashPercent || 0}%</td>
+                        <td className="px-4 py-3 text-right font-bold whitespace-nowrap tabular-nums">
+                          <span className={metric.bounces > 0 ? "text-rose-600 font-black" : "text-slate-600"}>
+                            {metric.bounces || 0}
+                          </span>
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 bg-white">
-                      {evvResult.monthlyMetrics.map((metric: MonthlyMetric, idx: number) => (
-                        <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
-                          <td className="px-4 py-3 font-bold text-slate-900 whitespace-nowrap">{metric.label}</td>
-                          <td className="px-4 py-3 text-right font-black text-violet-700 whitespace-nowrap tabular-nums">{displayCurrency(metric.median || metric.avg)}</td>
-                          <td className="px-4 py-3 text-right font-semibold text-slate-700 whitespace-nowrap tabular-nums">{displayCurrency(metric.avgDailyBalance || metric.avg)}</td>
-                          <td className="px-4 py-3 text-right text-slate-600 whitespace-nowrap tabular-nums">{displayCurrency(metric.min)}</td>
-                          <td className="px-4 py-3 text-right text-slate-600 whitespace-nowrap tabular-nums">{displayCurrency(metric.max)}</td>
-                          <td className="px-4 py-3 text-right font-bold text-slate-800 whitespace-nowrap tabular-nums">{displayCurrency(metric.closing)}</td>
-                          <td className="px-4 py-3 text-right text-emerald-700 font-semibold whitespace-nowrap tabular-nums">{displayCurrency(metric.credits)}</td>
-                          <td className="px-4 py-3 text-right text-rose-700 font-semibold whitespace-nowrap tabular-nums">{displayCurrency(metric.debits)}</td>
-                          <td className="px-4 py-3 text-right text-slate-700 font-semibold whitespace-nowrap tabular-nums">{metric.cashPercent || 0}%</td>
-                          <td className="px-4 py-3 text-right font-bold whitespace-nowrap tabular-nums">
-                            <span className={metric.bounces > 0 ? "text-rose-600 font-black" : "text-slate-600"}>
-                              {metric.bounces || 0}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             {/* TABLE 2: Interval balances */}
@@ -2974,47 +3123,47 @@ export const EVVTestAgent: React.FC<{
               )}
 
               {/* Snapshot Table View */}
-              {(snapshotsView === "table" || snapshotsView === "split") && (
-                <div className="overflow-x-auto border border-slate-200 rounded-2xl bg-white max-h-[480px] overflow-y-auto print-full-table shadow-2xs">
-                  <table className="w-full text-xs font-medium text-slate-700 divide-y divide-slate-200">
-                    <thead className="sticky top-0 bg-slate-50/95 backdrop-blur-xs z-10">
-                      <tr className="text-slate-600 text-[11px] font-bold border-b border-slate-200">
-                        <th className="text-left px-4 py-3 whitespace-nowrap">Date</th>
-                        <th className="text-right px-4 py-3 whitespace-nowrap">Closing Balance (Antecedent EOD)</th>
-                        <th className="text-right px-4 py-3 whitespace-nowrap">Change vs. previous</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 bg-white">
-                      {evvResult.snapshots.map((snap: Snapshot, idx: number) => {
-                        const hasPrev = idx > 0;
-                        const diff = snap.changeAmount ?? 0;
-                        const pct = snap.changePercent ?? 0;
-                        return (
-                          <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
-                            <td className="px-4 py-2.5 font-bold text-slate-800 whitespace-nowrap">{formatSnapshotDate(snap.date)}</td>
-                            <td className="px-4 py-2.5 text-right font-black text-slate-900 whitespace-nowrap tabular-nums">{displayCurrency(snap.balance)}</td>
-                            <td className="px-4 py-2.5 text-right whitespace-nowrap tabular-nums">
-                              {!hasPrev ? (
-                                <span className="text-slate-400 font-bold">—</span>
-                              ) : diff > 0 ? (
-                                <span className="text-emerald-600 font-bold">
-                                  +₹{Math.abs(Math.round(diff)).toLocaleString('en-IN')} (+{Math.abs(pct).toFixed(1)}%)
-                                </span>
-                              ) : diff < 0 ? (
-                                <span className="text-rose-600 font-bold">
-                                  -₹{Math.abs(Math.round(diff)).toLocaleString('en-IN')} (-{Math.abs(pct).toFixed(1)}%)
-                                </span>
-                              ) : (
-                                <span className="text-slate-500 font-medium">₹0 (0.0%)</span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+              <div className={`overflow-x-auto border border-slate-200 rounded-2xl bg-white print-full-table shadow-2xs ${
+                (snapshotsView === "table" || snapshotsView === "split") ? "max-h-[480px] overflow-y-auto" : "hidden print:block"
+              }`}>
+                <table className="w-full text-xs font-medium text-slate-700 divide-y divide-slate-200">
+                  <thead className="sticky top-0 bg-slate-50/95 backdrop-blur-xs z-10">
+                    <tr className="text-slate-600 text-[11px] font-bold border-b border-slate-200">
+                      <th className="text-left px-4 py-3 whitespace-nowrap">Date</th>
+                      <th className="text-right px-4 py-3 whitespace-nowrap">Closing Balance (Antecedent EOD)</th>
+                      <th className="text-right px-4 py-3 whitespace-nowrap">Change vs. previous</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {evvResult.snapshots.map((snap: Snapshot, idx: number) => {
+                      const hasPrev = idx > 0;
+                      const diff = snap.changeAmount ?? 0;
+                      const pct = snap.changePercent ?? 0;
+                      return (
+                        <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
+                          <td className="px-4 py-2.5 font-bold text-slate-800 whitespace-nowrap">{formatSnapshotDate(snap.date)}</td>
+                          <td className="px-4 py-2.5 text-right font-black text-slate-900 whitespace-nowrap tabular-nums">{displayCurrency(snap.balance)}</td>
+                          <td className="px-4 py-2.5 text-right whitespace-nowrap tabular-nums">
+                            {!hasPrev ? (
+                              <span className="text-slate-400 font-bold">—</span>
+                            ) : diff > 0 ? (
+                              <span className="text-emerald-600 font-bold">
+                                +₹{Math.abs(Math.round(diff)).toLocaleString('en-IN')} (+{Math.abs(pct).toFixed(1)}%)
+                              </span>
+                            ) : diff < 0 ? (
+                              <span className="text-rose-600 font-bold">
+                                -₹{Math.abs(Math.round(diff)).toLocaleString('en-IN')} (-{Math.abs(pct).toFixed(1)}%)
+                              </span>
+                            ) : (
+                              <span className="text-slate-500 font-medium">₹0 (0.0%)</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             {/* Action Buttons & Underwriting Disclaimer (Screenshot 2 Match) */}
@@ -3812,7 +3961,7 @@ export const EVVTestAgent: React.FC<{
                         <button
                           type="button"
                           onClick={() => setIsExplainingIntervals(true)}
-                          className="text-violet-600 hover:text-violet-800 transition-colors flex items-center gap-0.5 text-[9px] font-bold cursor-pointer"
+                          className="text-violet-600 hover:text-violet-800 transition-colors flex items-center gap-0.5 text-[9px] font-bold cursor-pointer no-print"
                           title="Click to learn how Interval Balances & AMB are calculated"
                         >
                           <span className="material-symbols-outlined text-[13px]">help</span>
@@ -3875,7 +4024,7 @@ export const EVVTestAgent: React.FC<{
                         <button
                           type="button"
                           onClick={() => setIsExplainingIntervals(true)}
-                          className="text-violet-600 hover:text-violet-800 text-[9px] font-bold flex items-center cursor-pointer"
+                          className="text-violet-600 hover:text-violet-800 text-[9px] font-bold flex items-center cursor-pointer no-print"
                           title="See how 5-day interval balances are sampled"
                         >
                           <span className="material-symbols-outlined text-[13px]">info</span>
@@ -4064,7 +4213,7 @@ export const EVVTestAgent: React.FC<{
             {showIntervalInspector && (
               <div className="space-y-3 pt-2">
                 {/* Month Filter Selector */}
-                <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center justify-between flex-wrap gap-2 no-print">
                   <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full text-xs">
                     <button
                       type="button"
@@ -4111,7 +4260,7 @@ export const EVVTestAgent: React.FC<{
                 />
 
                 {/* Table */}
-                <div className="overflow-x-auto border border-slate-200 rounded-2xl bg-white max-h-[420px] overflow-y-auto shadow-2xs">
+                <div className="overflow-x-auto border border-slate-200 rounded-2xl bg-white max-h-[420px] overflow-y-auto shadow-2xs print-full-table">
                   <table className="w-full text-xs font-medium text-slate-700 divide-y divide-slate-200">
                     <thead className="sticky top-0 bg-slate-50/95 backdrop-blur-xs z-10">
                       <tr className="text-slate-600 text-[10px] font-bold uppercase tracking-wider border-b border-slate-200">
@@ -4192,7 +4341,7 @@ export const EVVTestAgent: React.FC<{
 
           {/* Modal: How Interval Balances & AMB Are Calculated */}
           {isExplainingIntervals && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto no-print">
               <div className="bg-white rounded-3xl border border-violet-100 shadow-2xl max-w-2xl w-full p-6 sm:p-8 space-y-6 max-h-[90vh] overflow-y-auto">
                 {/* Modal Header */}
                 <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-4">
@@ -4326,7 +4475,7 @@ export const EVVTestAgent: React.FC<{
       )}
 
       {/* Footer */}
-      <div className="border-t border-slate-100 pt-6 flex items-center justify-center gap-8 flex-wrap text-[10px] font-black uppercase tracking-wider text-slate-400 select-none">
+      <div className="border-t border-slate-100 pt-6 flex items-center justify-center gap-8 flex-wrap text-[10px] font-black uppercase tracking-wider text-slate-400 select-none print:pt-4 print:border-slate-300 print:text-slate-600">
         <span className="flex items-center gap-1.5">
           <span className="material-symbols-outlined text-[14px]">cloud_done</span>
           AWS S3 Document Vault
@@ -4339,6 +4488,9 @@ export const EVVTestAgent: React.FC<{
           <span className="material-symbols-outlined text-[14px]">workspace_premium</span>
           VidyaLoans Certified
         </span>
+      </div>
+      <div className="hidden print:block pt-3 pb-2 text-center text-[9px] text-slate-500 font-mono">
+        Confidential Underwriting Evaluation • Generated by VidyaLoans AI EVV Auditor • All rights reserved
       </div>
     </div>
   );

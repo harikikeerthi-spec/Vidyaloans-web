@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSiteSettings } from "@/contexts/SiteSettingsContext";
 import { authApi, chatApi, documentApi } from "@/lib/api";
 import Navbar from "@/components/Navbar";
 import ProgressTracker from "@/components/ProgressTracker";
@@ -329,6 +330,7 @@ const getBankDisplayName = (bank?: string) => {
 
 export default function DashboardPage() {
     const { user, token, refreshUser } = useAuth();
+    const { settings } = useSiteSettings();
     // The new ID is already human-readable (e.g. VL-STU-2026-54097) — no mangling needed
     const displayUserId = user?.id || "";
     const [data, setData] = useState<DashboardData>({});
@@ -365,6 +367,21 @@ export default function DashboardPage() {
             setConnectingSupport(false);
         }
     };
+
+    const handleDownloadApp = () => {
+        let targetUrl = settings?.appStoreUrl || settings?.playStoreUrl || "https://play.google.com/store/apps/details?id=in.vidyaloans.app";
+        if (typeof window !== "undefined") {
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+            const isAndroid = /android/i.test(navigator.userAgent);
+            if (isIOS && settings?.appStoreUrl) {
+                targetUrl = settings.appStoreUrl;
+            } else if (isAndroid && settings?.playStoreUrl) {
+                targetUrl = settings.playStoreUrl;
+            }
+        }
+        window.open(targetUrl, "_blank", "noopener,noreferrer");
+    };
+
     const [visibleSecrets, setVisibleSecrets] = useState<Record<string, boolean>>({});
 
     const [profileSubTab, setProfileSubTab] = useState<"personal" | "family" | "academic">("personal");
@@ -894,18 +911,12 @@ export default function DashboardPage() {
                         <div className="flex flex-wrap items-center gap-3 shrink-0 w-full lg:w-auto justify-start lg:justify-end">
                             <button
                                 type="button"
-                                onClick={() => {
-                                    alert("VidyaLoans Mobile App: Download link & instructions have been sent to your registered mobile number and email!");
-                                }}
+                                onClick={handleDownloadApp}
                                 className="px-5 py-3 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-amber-950 font-black text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-amber-500/20 transition-all cursor-pointer border-0 active:scale-95"
                             >
                                 <span className="material-symbols-outlined text-lg">download</span>
                                 Download App
                             </button>
-                            <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md border border-white/15 px-4 py-2.5 rounded-xl text-xs font-bold text-white">
-                                <span className="material-symbols-outlined text-emerald-400 text-base">verified</span>
-                                <span>Android & iOS</span>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -1140,9 +1151,7 @@ export default function DashboardPage() {
                                     ) : (l as any).isApp ? (
                                         <div
                                             key={l.label + idx}
-                                            onClick={() => {
-                                                alert("VidyaLoans Mobile App: Download link & instructions have been sent to your registered mobile number and email!");
-                                            }}
+                                            onClick={handleDownloadApp}
                                             className="group p-5 bg-white rounded-xl border border-purple-100 hover:border-[#6605c7]/30 shadow-sm transition-all cursor-pointer"
                                         >
                                             <div className={`w-9 h-9 bg-gradient-to-r ${l.color} rounded-lg flex items-center justify-center text-white mb-4 group-hover:scale-110 transition-transform shadow-md shadow-purple-500/20`}>

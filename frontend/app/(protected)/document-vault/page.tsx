@@ -6,6 +6,7 @@ import { authApi, documentApi, onboardingApi, getCsrfToken, initializeCsrf } fro
 import Navbar from "@/components/Navbar";
 import Link from "next/link";
 import DigilockerConsentModal from "@/components/DigilockerConsentModal";
+import DocumentExtractedDetailsModal from "@/components/DocumentExtractedDetailsModal";
 import AlertModal from "@/components/AlertModal";
 import Swal from "sweetalert2";
 import { getDocumentRequirementName, getProfileDocumentRequirements } from "@/lib/documentRequirements";
@@ -35,28 +36,21 @@ export default function DocumentVaultPage() {
         type: "info",
     });
 
-    const [passportModalData, setPassportModalData] = useState<{
+    const [extractedModalData, setExtractedModalData] = useState<{
         isOpen: boolean;
-        extracted?: {
-            fatherName?: string;
-            motherName?: string;
-            fullName?: string;
-            dob?: string;
-            passportNo?: string;
-            gender?: string;
-            address?: string;
-            raw?: any;
-        };
-    }>({ isOpen: false });
-
-    const [parentDiscrepancyModalData, setParentDiscrepancyModalData] = useState<{
-        isOpen: boolean;
-        parentType?: 'father' | 'mother';
-        docType?: string;
-        extractedName?: string;
-        existingName?: string;
-        rawExtracted?: any;
-    }>({ isOpen: false });
+        docType: string;
+        docTitle: string;
+        confidence?: number;
+        extracted: Record<string, any>;
+        readOnly?: boolean;
+    }>({
+        isOpen: false,
+        docType: "",
+        docTitle: "",
+        extracted: {},
+        readOnly: false,
+    });
+    const [isSavingExtractedDetails, setIsSavingExtractedDetails] = useState(false);
 
     const areNamesMatching = (name1?: string, name2?: string): boolean => {
         if (!name1 || !name2) return true;
@@ -479,127 +473,202 @@ export default function DocumentVaultPage() {
         return "description";
     };
 
-    const handleConfirmPassportDetails = async () => {
-        if (!passportModalData?.extracted || !user?.id) return;
-        const { fatherName, motherName, fullName, dob, gender, address } = passportModalData.extracted;
-
-        const baseProfile = profile || user || {};
-        let family = baseProfile.family || baseProfile.familyDetails || {};
-        if (typeof family === 'string') {
-            try { family = JSON.parse(family); } catch { family = {}; }
-        }
-        if (!family || typeof family !== 'object') family = {};
-
-        let coapp = baseProfile.coApplicant || {};
-        if (typeof coapp === 'string') {
-            try { coapp = JSON.parse(coapp); } catch { coapp = {}; }
-        }
-        if (!coapp || typeof coapp !== 'object') coapp = {};
-
-        const updatedFamily = {
-            ...family,
-            ...(fatherName ? { fatherName } : {}),
-            ...(motherName ? { motherName } : {}),
-            ...(fullName ? { passportOriginalName: fullName } : {}),
-        };
-
-        const rel = (coapp.relation || coappRelation || '').toLowerCase().trim();
-        let updatedCoapp = { ...coapp };
-        if (rel === 'father' && fatherName) {
-            updatedCoapp.name = fatherName;
-        } else if (rel === 'mother' && motherName) {
-            updatedCoapp.name = motherName;
-        }
-
-        let parsedFirstName: string | undefined = undefined;
-        let parsedLastName: string | undefined = undefined;
-        if (fullName) {
-            const parts = fullName.trim().split(/\s+/);
-            if (parts.length === 1) {
-                parsedFirstName = parts[0];
-                parsedLastName = "";
-            } else if (parts.length > 1) {
-                parsedFirstName = parts.slice(0, -1).join(" ");
-                parsedLastName = parts[parts.length - 1];
-            }
-        }
-
-        const updatedProfile = {
-            ...baseProfile,
-            ...(parsedFirstName ? { firstName: parsedFirstName } : {}),
-            ...(parsedLastName !== undefined ? { lastName: parsedLastName } : {}),
-            ...(fullName ? { passportOriginalName: fullName, nameAsInPassport: fullName } : {}),
-            ...(dob ? { dob, dateOfBirth: dob } : {}),
-            ...(gender ? { gender } : {}),
-            ...(address ? { address } : {}),
-            family: updatedFamily,
-            coApplicant: updatedCoapp
-        };
-
-        setProfile(updatedProfile);
-        setPassportModalData(prev => ({ ...prev, isOpen: false }));
+    const handleConfirmExtractedDetails = async (confirmedFields: Record<string, string>) => {
+        if (!user?.id) return;
+        setIsSavingExtractedDetails(true);
 
         try {
+            const baseProfile = profile || user || {};
+            let family = baseProfile.family || baseProfile.familyDetails || {};
+            if (typeof family === 'string') {
+                try { family = JSON.parse(family); } catch { family = {}; }
+            }
+            if (!family || typeof family !== 'object') family = {};
+
+            let coapp = baseProfile.coApplicant || {};
+            if (typeof coapp === 'string') {
+                try { coapp = JSON.parse(coapp); } catch { coapp = {}; }
+            }
+            if (!coapp || typeof coapp !== 'object') coapp = {};
+
+            const docTypeLower = (extractedModalData.docType || '').toLowerCase();
+            const isPassport = docTypeLower.includes('passport');
+            const isAadhaar = docTypeLower.includes('aadhar') || docTypeLower.includes('aadhaar') || docTypeLower.includes('national_id');
+            const isCoapp = docTypeLower.includes('coapplicant') || docTypeLower.includes('coapp') || docTypeLower.includes('co_applicant');
+            const isFather = docTypeLower.includes('father') && !isCoapp;
+            const isMother = docTypeLower.includes('mother') && !isCoapp;
+
+            const fullName = confirmedFields.fullName || confirmedFields.full_name || confirmedFields.name || confirmedFields.applicant_name;
+            const fatherName = confirmedFields.fatherName || confirmedFields.father_name;
+            const motherName = confirmedFields.motherName || confirmedFields.mother_name;
+            const spouseName = confirmedFields.spouseName || confirmedFields.spouse_name;
+            const dob = confirmedFields.dob || confirmedFields.dateOfBirth || confirmedFields.date_of_birth;
+            const gender = confirmedFields.gender;
+            const address = confirmedFields.address;
+            const docNum = confirmedFields.documentNumber || confirmedFields.docNum || confirmedFields.pan_number || confirmedFields.passport_number || confirmedFields.aadhaar_number || confirmedFields.aadhar_number;
+
+            let updatedProfile = { ...baseProfile };
+
+            if (isPassport || isAadhaar) {
+                let parsedFirstName: string | undefined = undefined;
+                let parsedLastName: string | undefined = undefined;
+                if (fullName) {
+                    const parts = fullName.trim().split(/\s+/);
+                    if (parts.length === 1) {
+                        parsedFirstName = parts[0];
+                        parsedLastName = "";
+                    } else if (parts.length > 1) {
+                        parsedFirstName = parts.slice(0, -1).join(" ");
+                        parsedLastName = parts[parts.length - 1];
+                    }
+                }
+
+                const priorAnchorDoc = family.identityAnchorDoc || (family.aadhaarOriginalName ? 'aadhaar' : family.passportOriginalName ? 'passport' : null);
+                const isFirstIdentityDoc = !priorAnchorDoc;
+                const currentAnchorDoc = isFirstIdentityDoc ? (isAadhaar ? 'aadhaar' : 'passport') : priorAnchorDoc;
+                const shouldUpdateFirstLastName = isFirstIdentityDoc || currentAnchorDoc === (isAadhaar ? 'aadhaar' : 'passport');
+
+                const updatedFamily = {
+                    ...family,
+                    identityAnchorDoc: currentAnchorDoc,
+                    identityAnchorName: isFirstIdentityDoc ? fullName : (family.identityAnchorName || (currentAnchorDoc === 'aadhaar' ? family.aadhaarOriginalName : family.passportOriginalName) || fullName),
+                    ...(fatherName ? { fatherName } : {}),
+                    ...(motherName ? { motherName } : {}),
+                    ...(spouseName ? { spouseName } : {}),
+                    ...(isPassport && fullName ? { passportOriginalName: fullName } : {}),
+                    ...(isAadhaar && fullName ? { aadhaarOriginalName: fullName, nameAsInAadhaar: fullName } : {}),
+                };
+
+                const rel = (coapp.relation || coappRelation || '').toLowerCase().trim();
+                let updatedCoapp = { ...coapp };
+                if (rel === 'father' && fatherName) {
+                    updatedCoapp.name = fatherName;
+                } else if (rel === 'mother' && motherName) {
+                    updatedCoapp.name = motherName;
+                }
+
+                updatedProfile = {
+                    ...updatedProfile,
+                    ...(shouldUpdateFirstLastName && parsedFirstName ? { firstName: parsedFirstName } : {}),
+                    ...(shouldUpdateFirstLastName && parsedLastName !== undefined && parsedLastName !== "" ? { lastName: parsedLastName } : {}),
+                    ...(isPassport && fullName ? { passportOriginalName: fullName, nameAsInPassport: fullName } : {}),
+                    ...(isAadhaar && fullName ? { aadhaarOriginalName: fullName, nameAsInAadhaar: fullName } : {}),
+                    ...(dob ? { dob, dateOfBirth: dob } : {}),
+                    ...(gender ? { gender } : {}),
+                    ...(address ? { address } : {}),
+                    family: updatedFamily,
+                    coApplicant: updatedCoapp,
+                    ...(fatherName ? { fatherName } : {}),
+                    ...(motherName ? { motherName } : {}),
+                };
+
+                if (user?.email && parsedFirstName && shouldUpdateFirstLastName) {
+                    try {
+                        await authApi.updateDetails(user.email, {
+                            firstName: parsedFirstName,
+                            lastName: parsedLastName || "",
+                            phoneNumber: user.phoneNumber || "",
+                            dateOfBirth: dob || user.dateOfBirth || ""
+                        });
+                    } catch (e) {
+                        console.error("Auth details update error:", e);
+                    }
+                }
+            } else if (isCoapp) {
+                const coappName = fullName || confirmedFields.coApplicantName;
+                if (coappName) {
+                    updatedProfile = {
+                        ...updatedProfile,
+                        coApplicant: { ...coapp, name: coappName },
+                        coApplicantName: coappName,
+                    };
+                }
+            } else if (isFather || isMother) {
+                const parentType = isFather ? 'father' : 'mother';
+                const parentName = fullName || (isFather ? fatherName : motherName);
+                const rel = (coapp.relation || coappRelation || '').toLowerCase().trim();
+                let updatedCoapp = { ...coapp };
+                if (rel === parentType && parentName) {
+                    updatedCoapp.name = parentName;
+                }
+                updatedProfile = {
+                    ...updatedProfile,
+                    family: {
+                        ...family,
+                        ...(isFather ? { fatherName: parentName } : { motherName: parentName }),
+                    },
+                    coApplicant: updatedCoapp,
+                    ...(isFather ? { fatherName: parentName } : { motherName: parentName }),
+                };
+            } else {
+                // Academic, PAN or other student document
+                if (docTypeLower.includes('pan') && docNum) {
+                    updatedProfile = {
+                        ...updatedProfile,
+                        panNumber: docNum,
+                        pan: docNum,
+                    };
+                }
+                if (address) {
+                    updatedProfile = {
+                        ...updatedProfile,
+                        address,
+                    };
+                }
+            }
+
+            setProfile(updatedProfile);
             await onboardingApi.submit(updatedProfile);
+            if (refreshUser) await refreshUser();
+            await loadDocs(true);
+
             const key = `dashboardDataUpdated_${user.id}`;
             localStorage.setItem(key, String(Date.now()));
             window.dispatchEvent(new Event('dashboard-data-changed'));
-            showAlert("Profile Updated", "Your profile and family details have been updated from your Passport!", "success");
-            await loadDocs(true);
+
+            setExtractedModalData(prev => ({ ...prev, isOpen: false }));
+
+            Swal.fire({
+                title: "Details Confirmed & Synchronized!",
+                text: `Your verified details from ${extractedModalData.docTitle} have been saved and updated in your profile.`,
+                icon: "success",
+                confirmButtonColor: "#6605c7",
+                customClass: {
+                    popup: "rounded-3xl shadow-2xl border border-purple-100 font-sans p-6",
+                    title: "text-lg font-black text-gray-900",
+                    htmlContainer: "text-xs font-medium text-gray-600",
+                    confirmButton: "px-6 py-2.5 bg-[#6605c7] hover:bg-[#5504a6] text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md cursor-pointer border-0",
+                }
+            });
         } catch (err: any) {
-            console.error("Failed to update profile from passport details:", err);
-            showAlert("Update Notice", "Saved Passport to vault, but profile autofill update encountered an issue.", "info");
+            console.error("Error confirming extracted details:", err);
+            Swal.fire({
+                title: "Saved with Notice",
+                text: "The document is safely stored in your vault, but profile autofill update encountered an issue.",
+                icon: "info",
+                confirmButtonColor: "#6605c7",
+            });
+        } finally {
+            setIsSavingExtractedDetails(false);
         }
     };
 
-    const handleOverwriteParentDetails = async () => {
-        if (!parentDiscrepancyModalData?.extractedName || !user?.id) return;
-        const { parentType, extractedName } = parentDiscrepancyModalData;
+    const handleOpenExtractedDetails = (docType: string) => {
+        const doc = docs.find(d => d.docType.toLowerCase() === docType.toLowerCase());
+        if (!doc) return;
+        const activeProfile = getActiveProfile();
+        const docTitle = doc.docName || doc.verificationMetadata?.docName || getDocumentRequirementName(docType, docType, activeProfile) || docType.replace(/_/g, ' ').toUpperCase();
+        const extracted = doc.verificationMetadata?.details?.extractedFields || doc.verificationMetadata?.extractedFields || {};
+        const confidence = doc.verificationMetadata?.confidence || 95;
 
-        const baseProfile = profile || user || {};
-        let family = baseProfile.family || baseProfile.familyDetails || {};
-        if (typeof family === 'string') {
-            try { family = JSON.parse(family); } catch { family = {}; }
-        }
-        if (!family || typeof family !== 'object') family = {};
-
-        let coapp = baseProfile.coApplicant || {};
-        if (typeof coapp === 'string') {
-            try { coapp = JSON.parse(coapp); } catch { coapp = {}; }
-        }
-        if (!coapp || typeof coapp !== 'object') coapp = {};
-
-        const updatedFamily = {
-            ...family,
-            ...(parentType === 'father' ? { fatherName: extractedName } : { motherName: extractedName }),
-        };
-
-        const rel = (coapp.relation || coappRelation || '').toLowerCase().trim();
-        let updatedCoapp = { ...coapp };
-        if (rel === parentType) {
-            updatedCoapp.name = extractedName;
-        }
-
-        const updatedProfile = {
-            ...baseProfile,
-            family: updatedFamily,
-            coApplicant: updatedCoapp
-        };
-
-        setProfile(updatedProfile);
-        setParentDiscrepancyModalData(prev => ({ ...prev, isOpen: false }));
-
-        try {
-            await onboardingApi.submit(updatedProfile);
-            const key = `dashboardDataUpdated_${user.id}`;
-            localStorage.setItem(key, String(Date.now()));
-            window.dispatchEvent(new Event('dashboard-data-changed'));
-            showAlert("Parent Details Updated", `${parentType === 'father' ? 'Father' : 'Mother'} name updated to "${extractedName}" in your profile.`, "success");
-            await loadDocs(true);
-        } catch (err: any) {
-            console.error("Failed to update parent details:", err);
-            showAlert("Update Notice", "Saved document to vault, but profile overwrite encountered an issue.", "info");
-        }
+        setExtractedModalData({
+            isOpen: true,
+            docType,
+            docTitle,
+            confidence,
+            extracted,
+            readOnly: false,
+        });
     };
 
     const triggerFileInput = (docType: string) => {
@@ -816,23 +885,33 @@ export default function DocumentVaultPage() {
                 if (typeof family === 'string') { try { family = JSON.parse(family); } catch { family = {}; } }
                 if (!family || typeof family !== 'object') family = {};
 
-                const hasExistingPassport = !!(baseProfile.passportOriginalName || family.passportOriginalName);
-                const hasExistingAadhaar = !!(baseProfile.aadhaarOriginalName || family.aadhaarOriginalName || baseProfile.nameAsInAadhaar);
-                // Only anchor from FIRST uploaded identity doc
-                const shouldAnchorFromAadhaar = isAadhaar && !hasExistingPassport && !hasExistingAadhaar;
-                const shouldAnchorFromPassport = isPassport && !hasExistingAadhaar;
+                const priorPassportDoc = docs.find(d => d.docType.toLowerCase().includes('passport') && (d.uploaded === true || d.status === 'uploaded' || d.status === 'verified') && d.docType.toLowerCase() !== docType.toLowerCase());
+                const priorAadhaarDoc = docs.find(d => (d.docType.toLowerCase().includes('aadhar') || d.docType.toLowerCase().includes('aadhaar') || d.docType.toLowerCase().includes('national_id')) && (d.uploaded === true || d.status === 'uploaded' || d.status === 'verified') && d.docType.toLowerCase() !== docType.toLowerCase());
+
+                const aadhaarAnchorName = (
+                    family.identityAnchorDoc === 'aadhaar' ? family.identityAnchorName : ''
+                ) || (baseProfile.aadhaarOriginalName || family.aadhaarOriginalName || baseProfile.nameAsInAadhaar || priorAadhaarDoc?.verificationMetadata?.details?.extractedFields?.full_name || priorAadhaarDoc?.verificationMetadata?.extractedFields?.full_name || "").trim();
+
+                const passportAnchorName = (
+                    family.identityAnchorDoc === 'passport' ? family.identityAnchorName : ''
+                ) || (baseProfile.passportOriginalName || family.passportOriginalName || baseProfile.nameAsInPassport || priorPassportDoc?.verificationMetadata?.details?.extractedFields?.full_name || priorPassportDoc?.verificationMetadata?.extractedFields?.full_name || "").trim();
+
+                const hasExistingPassport = !!passportAnchorName || !!priorPassportDoc;
+                const hasExistingAadhaar = !!aadhaarAnchorName || !!priorAadhaarDoc;
+
+                const isAadhaarFirst = family.identityAnchorDoc === 'aadhaar' || (hasExistingAadhaar && !hasExistingPassport);
+                const isPassportFirst = family.identityAnchorDoc === 'passport' || (hasExistingPassport && !hasExistingAadhaar);
 
                 // --- Cross-validate: Passport uploaded but Aadhaar was FIRST ---
-                if (isPassport && hasExistingAadhaar && fullName) {
-                    const aadhaarAnchorName = (baseProfile.aadhaarOriginalName || family.aadhaarOriginalName || baseProfile.nameAsInAadhaar || "").trim();
+                if (isPassport && isAadhaarFirst && fullName) {
                     if (aadhaarAnchorName && !areNamesMatching(fullName, aadhaarAnchorName)) {
                         try { await documentApi.deleteFile(user.id, docType); await loadDocs(true); } catch {}
                         await Swal.fire({
-                            title: "Identity Mismatch \u2014 Upload Rejected",
+                            title: "Identity Mismatch — Upload Rejected",
                             html: `<div class="text-left text-xs space-y-3 font-sans">
                                 <p class="text-rose-600 font-bold">The name on this Passport does not match your locked Aadhaar identity.</p>
                                 <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                                    <span class="block text-[10px] font-bold text-slate-400 uppercase">\uD83D\uDD12 Aadhaar (Locked Identity)</span>
+                                    <span class="block text-[10px] font-bold text-slate-400 uppercase">🔒 Aadhaar (Locked Identity)</span>
                                     <span class="font-extrabold text-slate-800">${aadhaarAnchorName}</span>
                                 </div>
                                 <div class="p-3 bg-rose-50 rounded-xl border border-rose-200">
@@ -852,16 +931,15 @@ export default function DocumentVaultPage() {
                 }
 
                 // --- Cross-validate: Aadhaar uploaded but Passport was FIRST ---
-                if (isAadhaar && hasExistingPassport && fullName) {
-                    const passportAnchorName = (baseProfile.passportOriginalName || family.passportOriginalName || "").trim();
+                if (isAadhaar && isPassportFirst && fullName) {
                     if (passportAnchorName && !areNamesMatching(fullName, passportAnchorName)) {
                         try { await documentApi.deleteFile(user.id, docType); await loadDocs(true); } catch {}
                         await Swal.fire({
-                            title: "Identity Mismatch \u2014 Upload Rejected",
+                            title: "Identity Mismatch — Upload Rejected",
                             html: `<div class="text-left text-xs space-y-3 font-sans">
                                 <p class="text-rose-600 font-bold">The name on this Aadhaar Card does not match your locked Passport identity.</p>
                                 <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                                    <span class="block text-[10px] font-bold text-slate-400 uppercase">\uD83D\uDD12 Passport (Locked Identity)</span>
+                                    <span class="block text-[10px] font-bold text-slate-400 uppercase">🔒 Passport (Locked Identity)</span>
                                     <span class="font-extrabold text-slate-800">${passportAnchorName}</span>
                                 </div>
                                 <div class="p-3 bg-rose-50 rounded-xl border border-rose-200">
@@ -880,60 +958,52 @@ export default function DocumentVaultPage() {
                     }
                 }
 
-                if (fatherName || motherName || fullName || dob || docNum) {
+                // --- First Identity Document Uploaded: IMMEDIATELY FIX reference name ---
+                if (!hasExistingPassport && !hasExistingAadhaar && fullName) {
+                    const nameParts = fullName.trim().split(/\s+/);
+                    const parsedFirst = nameParts[0] || "";
+                    const parsedLast = nameParts.slice(1).join(" ") || nameParts[0];
+
+                    const updatedFamily = {
+                        ...family,
+                        identityAnchorDoc: isAadhaar ? 'aadhaar' : 'passport',
+                        identityAnchorName: fullName,
+                        ...(isAadhaar ? { aadhaarOriginalName: fullName, nameAsInAadhaar: fullName } : { passportOriginalName: fullName, nameAsInPassport: fullName }),
+                        ...(fatherName ? { fatherName } : {}),
+                        ...(motherName ? { motherName } : {}),
+                    };
+
+                    const updatedProfile = {
+                        ...baseProfile,
+                        firstName: parsedFirst,
+                        lastName: parsedLast,
+                        ...(isAadhaar ? { aadhaarOriginalName: fullName, nameAsInAadhaar: fullName } : { passportOriginalName: fullName, nameAsInPassport: fullName }),
+                        ...(fatherName ? { fatherName } : {}),
+                        ...(motherName ? { motherName } : {}),
+                        ...(dob ? { dob, dateOfBirth: dob } : {}),
+                        ...(gender ? { gender } : {}),
+                        ...(address ? { address } : {}),
+                        family: updatedFamily,
+                    };
+
+                    setProfile(updatedProfile);
                     try {
-                        const updatedFamily = {
-                            ...family,
-                            // Only set father/mother from the FIRST (anchoring) identity doc
-                            ...(shouldAnchorFromPassport && fatherName ? { fatherName } : (shouldAnchorFromAadhaar && fatherName ? { fatherName } : {})),
-                            ...(shouldAnchorFromPassport && motherName ? { motherName } : (shouldAnchorFromAadhaar && motherName ? { motherName } : {})),
-                            // Always record the document name for cross-validation reference
-                            ...(isPassport && fullName ? { passportOriginalName: fullName } : {}),
-                            ...(isAadhaar && fullName ? { aadhaarOriginalName: fullName, nameAsInAadhaar: fullName } : {}),
-                        };
-
-                        // Only write firstName/lastName from the ANCHORING document
-                        let parsedFirstName: string | undefined = undefined;
-                        let parsedLastName: string | undefined = undefined;
-                        if (fullName && (shouldAnchorFromPassport || shouldAnchorFromAadhaar)) {
-                            const parts = fullName.trim().split(/\s+/);
-                            if (parts.length === 1) {
-                                parsedFirstName = parts[0];
-                                parsedLastName = "";
-                            } else if (parts.length > 1) {
-                                parsedFirstName = parts.slice(0, -1).join(" ");
-                                parsedLastName = parts[parts.length - 1];
-                            }
-                        }
-
-                        const updatedProfile = {
-                            ...baseProfile,
-                            ...(parsedFirstName ? { firstName: parsedFirstName } : {}),
-                            ...(parsedLastName !== undefined && parsedLastName !== "" ? { lastName: parsedLastName } : {}),
-                            ...(isPassport && fullName ? { passportOriginalName: fullName, nameAsInPassport: fullName } : {}),
-                            ...(isAadhaar && fullName ? { aadhaarOriginalName: fullName, nameAsInAadhaar: fullName } : {}),
-                            ...(dob && (shouldAnchorFromPassport || shouldAnchorFromAadhaar) ? { dob, dateOfBirth: dob } : {}),
-                            ...(gender && (shouldAnchorFromPassport || shouldAnchorFromAadhaar) ? { gender } : {}),
-                            ...(address ? { address } : {}),
-                            family: updatedFamily,
-                            ...(shouldAnchorFromPassport && fatherName ? { fatherName } : (shouldAnchorFromAadhaar && fatherName ? { fatherName } : {})),
-                            ...(shouldAnchorFromPassport && motherName ? { motherName } : (shouldAnchorFromAadhaar && motherName ? { motherName } : {})),
-                        };
-                        setProfile(updatedProfile);
                         await onboardingApi.submit(updatedProfile);
-                        if (user?.email && parsedFirstName) {
+                        if (user?.email && parsedFirst) {
                             await authApi.updateDetails(user.email, {
-                                firstName: parsedFirstName,
-                                lastName: parsedLastName || "",
+                                firstName: parsedFirst,
+                                lastName: parsedLast || "",
                                 phoneNumber: user.phoneNumber || "",
-                                dateOfBirth: user.dateOfBirth || ""
+                                dateOfBirth: dob || user.dateOfBirth || ""
                             });
                         }
                         if (refreshUser) await refreshUser();
                     } catch (err) {
-                        console.error("Auto identity profile update error:", err);
+                        console.error("Error auto-fixing anchor identity details:", err);
                     }
                 }
+
+                // Details extracted from identity document will be reviewed and confirmed by student in modal
             }
 
             const docTypeLower = docType.toLowerCase();
@@ -1098,7 +1168,14 @@ export default function DocumentVaultPage() {
             } else if (isStudentDoc && !isIdentityDocSlot(docType)) {
                 const extractedStudentName = extracted.full_name || extracted.fullName || (extracted.given_names ? `${extracted.given_names} ${extracted.surname || ''}`.trim() : undefined) || extracted.person_name || extracted.holder_name || extracted.name;
                 const activeProf = getActiveProfile();
-                const existingStudentName = activeProf.passportOriginalName || activeProf.nameAsInPassport || activeProf.aadhaarOriginalName || activeProf.nameAsInAadhaar || (activeProf.firstName ? `${activeProf.firstName} ${activeProf.lastName || ''}`.trim() : "");
+                const activeFamily = activeProf.family || {};
+                const anchorDoc = activeFamily.identityAnchorDoc || (activeProf.aadhaarOriginalName ? 'aadhaar' : 'passport');
+                const existingStudentName = activeFamily.identityAnchorName ||
+                    (anchorDoc === 'aadhaar'
+                        ? (activeProf.aadhaarOriginalName || activeFamily.aadhaarOriginalName || activeProf.nameAsInAadhaar || activeProf.passportOriginalName)
+                        : (activeProf.passportOriginalName || activeFamily.passportOriginalName || activeProf.nameAsInPassport || activeProf.aadhaarOriginalName)) ||
+                    (activeProf.firstName ? `${activeProf.firstName} ${activeProf.lastName || ''}`.trim() : "");
+                const anchorLabel = anchorDoc === 'aadhaar' ? 'Aadhaar Card' : 'Passport';
 
                 if (extractedStudentName && existingStudentName && !areNamesMatching(extractedStudentName, existingStudentName)) {
                     // Reject upload & delete file from server!
@@ -1110,18 +1187,18 @@ export default function DocumentVaultPage() {
                     }
 
                     await Swal.fire({
-                        title: "Upload Rejected - Name Mismatch",
+                        title: "Upload Rejected — Name Mismatch",
                         html: `<div class="text-left text-xs space-y-3 font-sans">
-                            <p class="text-rose-600 font-bold">The student name on this document does not match your registered profile record.</p>
+                            <p class="text-rose-600 font-bold">The student name on this document does not match your verified ${anchorLabel} record.</p>
                             <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                                <span class="block text-[10px] font-bold text-slate-400 uppercase">Registered Record Name</span>
+                                <span class="block text-[10px] font-bold text-slate-400 uppercase">🔒 Verified Identity (${anchorLabel})</span>
                                 <span class="font-extrabold text-slate-800">${existingStudentName}</span>
                             </div>
                             <div class="p-3 bg-rose-50 rounded-xl border border-rose-200">
                                 <span class="block text-[10px] font-bold text-rose-600 uppercase">Document Extracted Name</span>
                                 <span class="font-extrabold text-rose-900">${extractedStudentName}</span>
                             </div>
-                            <p class="text-slate-600 font-medium pt-1">For security & verification, student documents must match your registered name. This upload has been cancelled.</p>
+                            <p class="text-slate-600 font-medium pt-1">All documents related to the student must match your verified identity (${anchorLabel}). This upload has been cancelled.</p>
                         </div>`,
                         icon: "error",
                         confirmButtonText: "OK, UNDERSTOOD",
@@ -1137,7 +1214,19 @@ export default function DocumentVaultPage() {
                     return;
                 }
             }
-            // Success/Updated popups removed per user request: only show popups on rejection or failure
+
+            // Open Extracted Details Confirmation Modal for student review & confirmation
+            const activeProf = getActiveProfile();
+            const docTitle = docName || existingDoc?.docName || existingDoc?.verificationMetadata?.docName || getDocumentRequirementName(docType, docType, activeProf) || docType.replace(/_/g, ' ').toUpperCase();
+
+            setExtractedModalData({
+                isOpen: true,
+                docType,
+                docTitle,
+                confidence: result.data?.ocrResult?.confidence || result.data?.verification?.confidence || 95,
+                extracted,
+                readOnly: false,
+            });
 
         } catch (e: any) {
             console.error("Upload error:", e.message || e);
@@ -1457,10 +1546,19 @@ export default function DocumentVaultPage() {
                                     <div className="flex gap-2">
                                         <button
                                             onClick={() => handleView(req.type)}
-                                            className="flex-1 py-2 bg-gray-50 text-gray-700 text-[11px] font-bold rounded-lg hover:bg-gray-100 transition-all flex items-center justify-center gap-2 border border-gray-100"
+                                            className="flex-1 py-2 bg-gray-50 text-gray-700 text-[11px] font-bold rounded-lg hover:bg-gray-100 transition-all flex items-center justify-center gap-1.5 border border-gray-100"
                                         >
                                             <span className="material-symbols-outlined text-[16px]">visibility</span> View
                                         </button>
+                                        {(existing?.verificationMetadata?.details?.extractedFields || existing?.verificationMetadata?.extractedFields) && (
+                                            <button
+                                                onClick={() => handleOpenExtractedDetails(req.type)}
+                                                className="px-2.5 py-2 bg-purple-50 hover:bg-purple-100 active:scale-95 text-purple-700 text-[11px] font-bold rounded-lg transition-all flex items-center justify-center gap-1 border border-purple-200/80 cursor-pointer"
+                                                title="View Extracted Details"
+                                            >
+                                                <span className="material-symbols-outlined text-[15px]">fact_check</span> Details
+                                            </button>
+                                        )}
                                         {!isVerified && (
                                             <button
                                                 onClick={() => handleDelete(req.type)}
@@ -1756,6 +1854,18 @@ export default function DocumentVaultPage() {
                     onClose={() => setShowConsentModal(false)}
                 />
             )}
+
+            <DocumentExtractedDetailsModal
+                isOpen={extractedModalData.isOpen}
+                onClose={() => setExtractedModalData(prev => ({ ...prev, isOpen: false }))}
+                onConfirm={handleConfirmExtractedDetails}
+                docType={extractedModalData.docType}
+                docTitle={extractedModalData.docTitle}
+                confidence={extractedModalData.confidence}
+                extracted={extractedModalData.extracted}
+                isSaving={isSavingExtractedDetails}
+                readOnly={extractedModalData.readOnly}
+            />
 
         </div>
     );

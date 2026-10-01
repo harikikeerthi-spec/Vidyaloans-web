@@ -743,7 +743,7 @@ Verified on Vidyaloans Study Abroad Grade Converter`;
                                     )}
 
                                     {/* Preset Pills */}
-                                    <div className="pt-2">
+                                    {/* <div className="pt-2">
                                         <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block mb-2">
                                             Quick Presets:
                                         </span>
@@ -762,7 +762,7 @@ Verified on Vidyaloans Study Abroad Grade Converter`;
                                                 </button>
                                             ))}
                                         </div>
-                                    </div>
+                                    </div> */}
                                 </div>
 
 
