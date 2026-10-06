@@ -85,6 +85,20 @@ export class MailController {
     return { success: true, data: states };
   }
 
+  // ─── List Sent Emails for Mailbox ───────────────────────────────────────────
+  @Get(['mail/sent', 'support/mail/sent'])
+  @ApiOperation({ summary: 'List outgoing sent emails stored for a mailbox in the database' })
+  async getSentEmails(
+    @Query('mailboxEmail') mailboxEmail?: string,
+    @Query('senderEmail') senderEmail?: string,
+    @Query('folder') folder?: string,
+    @Req() req?: any,
+  ) {
+    const targetEmail = mailboxEmail || senderEmail;
+    const sent = await this.mailService.getSentEmails(targetEmail, req?.user, folder);
+    return { success: true, data: sent, total: sent.length };
+  }
+
   // ─── Send Outgoing Email / Reply ────────────────────────────────────────────
   @Post(['mail/send', 'support/send', 'send'])
   @ApiOperation({ summary: 'Send email or reply via Amazon SES SMTP' })

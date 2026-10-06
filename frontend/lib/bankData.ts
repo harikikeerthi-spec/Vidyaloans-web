@@ -77,7 +77,7 @@ export const banks: Record<string, BankData> = {
             { label: "Interest Rate", value: "10.25% p.a." },
             { label: "Loan Amount", value: "Up to ₹40 Lakhs" },
             { label: "Repayment Tenure", value: "Up to 15 years" },
-            { label: "Moratorium Period", value: "Course + 12 months" },
+            { label: "Moratorium Period", value: "Course Duration + 1 year" },
             { label: "Collateral", value: "Not required up to ₹40L" }
         ],
         eligibility: [
@@ -135,7 +135,7 @@ export const banks: Record<string, BankData> = {
             { label: "Interest Rate", value: "10.25% p.a." },
             { label: "Loan Amount", value: "No Upper Limit" },
             { label: "Repayment Tenure", value: "Up to 10 years" },
-            { label: "Moratorium Period", value: "Course Duration + 6 months" },
+            { label: "Moratorium Period", value: "Course Duration + 1 year" },
             { label: "Collateral", value: "Both Secured & Unsecured" }
         ],
         eligibility: [
@@ -194,7 +194,7 @@ export const banks: Record<string, BankData> = {
             { label: "Interest Rate", value: "10.25% p.a." },
             { label: "Loan Amount", value: "No Upper Limit" },
             { label: "Repayment Tenure", value: "Up to 15 years" },
-            { label: "Moratorium Period", value: "Course Duration + 6 months" },
+            { label: "Moratorium Period", value: "Course Duration + 1 year" },
             { label: "Collateral", value: "Not required up to ₹50L" }
         ],
         eligibility: [
@@ -252,7 +252,7 @@ export const banks: Record<string, BankData> = {
             { label: "Interest Rate", value: "10.25% p.a." },
             { label: "Loan Amount", value: "No Upper Limit" },
             { label: "Repayment Tenure", value: "Up to 15 years" },
-            { label: "Moratorium Period", value: "Course Duration + 12 months" },
+            { label: "Moratorium Period", value: "Course Duration + 1 year" },
             { label: "Collateral", value: "Both Secured & Unsecured" }
         ],
         eligibility: [
@@ -310,7 +310,7 @@ export const banks: Record<string, BankData> = {
             { label: "Interest Rate", value: "10.25% p.a." },
             { label: "Loan Amount", value: "Up to ₹50 Lakhs" },
             { label: "Repayment Tenure", value: "Up to 10 years" },
-            { label: "Moratorium Period", value: "Course Duration + 6 months" },
+            { label: "Moratorium Period", value: "Course Duration + 1 year" },
             { label: "Collateral", value: "Unsecured up to ₹50L" }
         ],
         eligibility: [

@@ -257,22 +257,47 @@ export function getToken(): string | null {
     const portalToken = localStorage.getItem(keys.token);
     if (portalToken) return portalToken;
 
-    // 2. IT portal can authenticate via staff or admin credentials
+    // 2. IT portal can authenticate via staff, admin, or any available credentials
     if (portal === "it") {
-        return localStorage.getItem("staffAccessToken") || localStorage.getItem("adminAccessToken") || null;
+        return (
+            localStorage.getItem("itAccessToken") ||
+            localStorage.getItem("staffAccessToken") ||
+            localStorage.getItem("adminAccessToken") ||
+            localStorage.getItem("accessToken") ||
+            localStorage.getItem("token") ||
+            localStorage.getItem("userToken") ||
+            null
+        );
     }
 
-    // 3. Staff portal can fall back to admin credentials
+    // 3. Staff portal can fall back to admin credentials or general access token
     if (portal === "staff") {
-        return localStorage.getItem("adminAccessToken") || null;
+        return (
+            localStorage.getItem("adminAccessToken") ||
+            localStorage.getItem("accessToken") ||
+            null
+        );
     }
 
-    // 4. If student portal, check standard user token key aliases ONLY
+    // 4. If student portal, check standard user token key aliases
     if (portal === "student") {
-        return localStorage.getItem("token") || localStorage.getItem("userToken") || localStorage.getItem("jwt") || null;
+        return (
+            localStorage.getItem("token") ||
+            localStorage.getItem("userToken") ||
+            localStorage.getItem("jwt") ||
+            localStorage.getItem("accessToken") ||
+            null
+        );
     }
 
-    return null;
+    return (
+        localStorage.getItem("accessToken") ||
+        localStorage.getItem("token") ||
+        localStorage.getItem("userToken") ||
+        localStorage.getItem("adminAccessToken") ||
+        localStorage.getItem("staffAccessToken") ||
+        null
+    );
 }
 
 function isPublicAuthUrl(url?: string): boolean {
@@ -770,18 +795,21 @@ export const blogApi = {
     create: (data: Record<string, unknown>) =>
         apiFetch(`${API_URL}/blogs`, {
             method: "POST",
+            headers: { "x-portal": "it" },
             body: JSON.stringify(data),
         }),
 
     update: (id: string, data: Record<string, unknown>) =>
         apiFetch(`${API_URL}/blogs/${id}`, {
             method: "PUT",
+            headers: { "x-portal": "it" },
             body: JSON.stringify(data),
         }),
 
     delete: (id: string) =>
         apiFetch(`${API_URL}/blogs/${id}`, {
             method: "DELETE",
+            headers: { "x-portal": "it" },
         }),
 };
 
@@ -2160,6 +2188,12 @@ export const mailApi = {
         body: JSON.stringify(data),
     }),
     getScheduledEmails: () => apiFetch(`${API_URL}/mail/scheduled`),
+    getSentEmails: (mailboxEmail?: string) => {
+        const q = new URLSearchParams();
+        if (mailboxEmail) q.set("mailboxEmail", mailboxEmail);
+        const queryStr = q.toString() ? `?${q.toString()}` : "";
+        return apiFetch(`${API_URL}/mail/sent${queryStr}`);
+    },
     cancelScheduledEmail: (id: string) => apiFetch(`${API_URL}/mail/scheduled/${id}`, {
         method: "DELETE",
     }),

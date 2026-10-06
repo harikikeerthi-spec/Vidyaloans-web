@@ -287,7 +287,7 @@ export default function ITOverviewPage() {
                                         <p className="text-[10px] text-slate-400">{b.category || "General"} • By {b.authorName || "IT Staff"}</p>
                                     </div>
                                     <Link
-                                        href="/it/blogs"
+                                        href={`/it/blogs?action=edit&id=${b.id || b._id}`}
                                         className="text-xs text-indigo-600 hover:underline font-bold shrink-0"
                                     >
                                         Edit Article

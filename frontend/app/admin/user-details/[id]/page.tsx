@@ -436,14 +436,6 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
             {/* Header */}
             <div className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
                 <div className="max-w-6xl mx-auto px-6 py-4">
-                    {/* <button
-                        onClick={handleBack}
-                        className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-900 mb-4 transition-colors"
-                    >
-                        <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-                        Back to Dashboard
-                    </button> */}
-
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div className="flex items-center gap-6">
                             <div className="w-16 h-16 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-2xl font-black shadow-md border-4 border-white flex-shrink-0">
@@ -463,12 +455,12 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                                         ID: {userId}
                                     </span>
                                     <span className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wide border ${userData.role?.includes("admin")
-                                            ? "bg-slate-900 text-white border-slate-900"
-                                            : userData.role?.includes("staff")
-                                                ? "bg-blue-50 text-blue-700 border-blue-200"
-                                                : userData.role?.includes("bank")
-                                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                                    : "bg-indigo-50 text-indigo-700 border-indigo-200"
+                                        ? "bg-slate-900 text-white border-slate-900"
+                                        : userData.role?.includes("staff")
+                                            ? "bg-blue-50 text-blue-700 border-blue-200"
+                                            : userData.role?.includes("bank")
+                                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                                : "bg-indigo-50 text-indigo-700 border-indigo-200"
                                         }`}>
                                         {userData.role?.replace("_", " ") || "USER"}
                                     </span>
@@ -528,8 +520,8 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id as any)}
                                     className={`py-4 font-bold text-[13px] uppercase tracking-wide border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap cursor-pointer ${activeTab === tab.id
-                                            ? tab.id === "bank_compare" ? "border-emerald-600 text-emerald-600" : "border-indigo-600 text-indigo-600"
-                                            : "border-transparent text-slate-500 hover:text-slate-700"
+                                        ? tab.id === "bank_compare" ? "border-emerald-600 text-emerald-600" : "border-indigo-600 text-indigo-600"
+                                        : "border-transparent text-slate-500 hover:text-slate-700"
                                         }`}
                                 >
                                     <span className="material-symbols-outlined text-[18px]">{tab.icon}</span>
@@ -745,10 +737,10 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                                                     </span>
                                                 )}
                                                 <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border ${userData.isResigned
-                                                        ? "bg-rose-50 text-rose-700 border-rose-200"
-                                                        : userData.isOnLeave
-                                                            ? "bg-amber-50 text-amber-700 border-amber-200"
-                                                            : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                                    ? "bg-rose-50 text-rose-700 border-rose-200"
+                                                    : userData.isOnLeave
+                                                        ? "bg-amber-50 text-amber-700 border-amber-200"
+                                                        : "bg-emerald-50 text-emerald-700 border-emerald-200"
                                                     }`}>
                                                     {userData.isResigned ? "Resigned" : (userData.isOnLeave ? "On Leave" : "Active Staff")}
                                                 </span>
@@ -854,8 +846,8 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                                                 type="button"
                                                 onClick={handleToggleLeaveQuick}
                                                 className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border cursor-pointer transition-all ${userData.isOnLeave
-                                                        ? "bg-amber-600 text-white border-amber-600"
-                                                        : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                                                    ? "bg-amber-600 text-white border-amber-600"
+                                                    : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
                                                     }`}
                                             >
                                                 {userData.isOnLeave ? "On Leave" : "Set Leave"}
@@ -864,8 +856,8 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                                                 type="button"
                                                 onClick={handleToggleResignedQuick}
                                                 className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border cursor-pointer transition-all ${userData.isResigned
-                                                        ? "bg-rose-600 text-white border-rose-600"
-                                                        : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                                                    ? "bg-rose-600 text-white border-rose-600"
+                                                    : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
                                                     }`}
                                             >
                                                 {userData.isResigned ? "Resigned" : "Resign"}
@@ -964,10 +956,10 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                                 <div>
                                     <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Account Status</p>
                                     <span className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wide border ${userData.isResigned
-                                            ? "bg-rose-50 text-rose-700 border-rose-200"
-                                            : userData.isOnLeave
-                                                ? "bg-amber-50 text-amber-700 border-amber-200"
-                                                : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                        ? "bg-rose-50 text-rose-700 border-rose-200"
+                                        : userData.isOnLeave
+                                            ? "bg-amber-50 text-amber-700 border-amber-200"
+                                            : "bg-emerald-50 text-emerald-700 border-emerald-200"
                                         }`}>
                                         {userData.isResigned ? "Resigned" : (userData.isOnLeave ? "On Leave" : "Active")}
                                     </span>
@@ -1080,12 +1072,12 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                                                     <td className="px-6 py-4 text-[12px] font-semibold text-slate-700">{app.loanType || "—"}</td>
                                                     <td className="px-6 py-4">
                                                         <span className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wide border ${app.status === "approved"
-                                                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                                                : app.status === "rejected"
-                                                                    ? "bg-rose-50 text-rose-700 border-rose-200"
-                                                                    : app.status === "processing"
-                                                                        ? "bg-indigo-50 text-indigo-700 border-indigo-200"
-                                                                        : "bg-amber-50 text-amber-700 border-amber-200"
+                                                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                                            : app.status === "rejected"
+                                                                ? "bg-rose-50 text-rose-700 border-rose-200"
+                                                                : app.status === "processing"
+                                                                    ? "bg-indigo-50 text-indigo-700 border-indigo-200"
+                                                                    : "bg-amber-50 text-amber-700 border-amber-200"
                                                             }`}>
                                                             {app.status || "Pending"}
                                                         </span>
@@ -1151,12 +1143,12 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                                         <div>
                                             <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">Status</p>
                                             <span className={`inline-block px-3 py-1 rounded text-[11px] font-bold uppercase tracking-wide border ${selectedApplication.status === "approved"
-                                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                                    : selectedApplication.status === "rejected"
-                                                        ? "bg-rose-50 text-rose-700 border-rose-200"
-                                                        : selectedApplication.status === "processing"
-                                                            ? "bg-indigo-50 text-indigo-700 border-indigo-200"
-                                                            : "bg-amber-50 text-amber-700 border-amber-200"
+                                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                                : selectedApplication.status === "rejected"
+                                                    ? "bg-rose-50 text-rose-700 border-rose-200"
+                                                    : selectedApplication.status === "processing"
+                                                        ? "bg-indigo-50 text-indigo-700 border-indigo-200"
+                                                        : "bg-amber-50 text-amber-700 border-amber-200"
                                                 }`}>
                                                 {selectedApplication.status || "Pending"}
                                             </span>
@@ -1277,8 +1269,8 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                                     type="button"
                                     onClick={() => setCaseTypeFilter("all")}
                                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${caseTypeFilter === "all"
-                                            ? "bg-white text-indigo-600 shadow-xs"
-                                            : "text-slate-600 hover:text-slate-900"
+                                        ? "bg-white text-indigo-600 shadow-xs"
+                                        : "text-slate-600 hover:text-slate-900"
                                         }`}
                                 >
                                     All Cases ({userApplications.length})
@@ -1287,8 +1279,8 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                                     type="button"
                                     onClick={() => setCaseTypeFilter("application")}
                                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${caseTypeFilter === "application"
-                                            ? "bg-white text-blue-600 shadow-xs"
-                                            : "text-slate-600 hover:text-slate-900"
+                                        ? "bg-white text-blue-600 shadow-xs"
+                                        : "text-slate-600 hover:text-slate-900"
                                         }`}
                                 >
                                     Loan Applications ({staffMetrics.bankAppsCount})
@@ -1297,8 +1289,8 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                                     type="button"
                                     onClick={() => setCaseTypeFilter("lead")}
                                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${caseTypeFilter === "lead"
-                                            ? "bg-white text-amber-600 shadow-xs"
-                                            : "text-slate-600 hover:text-slate-900"
+                                        ? "bg-white text-amber-600 shadow-xs"
+                                        : "text-slate-600 hover:text-slate-900"
                                         }`}
                                 >
                                     Leads & Intake ({staffMetrics.leadsCount})
@@ -1381,8 +1373,8 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                                                         <td className="px-6 py-4">
                                                             <div className="flex items-center gap-2">
                                                                 <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider border ${isApp
-                                                                        ? "bg-blue-50 text-blue-700 border-blue-200"
-                                                                        : "bg-amber-50 text-amber-700 border-amber-200"
+                                                                    ? "bg-blue-50 text-blue-700 border-blue-200"
+                                                                    : "bg-amber-50 text-amber-700 border-amber-200"
                                                                     }`}>
                                                                     {isApp ? "Application" : "Lead"}
                                                                 </span>
@@ -1422,12 +1414,12 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                                                         </td>
                                                         <td className="px-6 py-4">
                                                             <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide border inline-block ${["approved", "sanctioned", "disbursed", "disbursement_confirmed"].includes(app.status)
-                                                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                                                    : ["rejected", "cancelled"].includes(app.status)
-                                                                        ? "bg-rose-50 text-rose-700 border-rose-200"
-                                                                        : ["processing", "submitted_to_bank", "file_logged", "under_bank_review"].includes(app.status)
-                                                                            ? "bg-blue-50 text-blue-700 border-blue-200"
-                                                                            : "bg-amber-50 text-amber-700 border-amber-200"
+                                                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                                                : ["rejected", "cancelled"].includes(app.status)
+                                                                    ? "bg-rose-50 text-rose-700 border-rose-200"
+                                                                    : ["processing", "submitted_to_bank", "file_logged", "under_bank_review"].includes(app.status)
+                                                                        ? "bg-blue-50 text-blue-700 border-blue-200"
+                                                                        : "bg-amber-50 text-amber-700 border-amber-200"
                                                                 }`}>
                                                                 {(app.status || "Pending").replace(/_/g, " ")}
                                                             </span>
@@ -1446,8 +1438,8 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                                                                     type="button"
                                                                     onClick={() => setSelectedApplication(app)}
                                                                     className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer ${isSelected
-                                                                            ? "bg-indigo-600 text-white"
-                                                                            : "bg-slate-100 hover:bg-indigo-600 hover:text-white text-slate-500"
+                                                                        ? "bg-indigo-600 text-white"
+                                                                        : "bg-slate-100 hover:bg-indigo-600 hover:text-white text-slate-500"
                                                                         }`}
                                                                     title="View Case Details"
                                                                 >
@@ -1501,8 +1493,8 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                                                     {selectedApplication.applicationNumber || selectedApplication.id?.slice(0, 8).toUpperCase()}
                                                 </h3>
                                                 <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border ${isApplicationRecord(selectedApplication)
-                                                        ? "bg-blue-50 text-blue-700 border-blue-200"
-                                                        : "bg-amber-50 text-amber-700 border-amber-200"
+                                                    ? "bg-blue-50 text-blue-700 border-blue-200"
+                                                    : "bg-amber-50 text-amber-700 border-amber-200"
                                                     }`}>
                                                     {isApplicationRecord(selectedApplication) ? "Loan Application" : "Intake Lead"}
                                                 </span>
@@ -1777,8 +1769,8 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                                             onClick={() => handleUpdateBankAssignment(comparedBankPartner.shortName)}
                                             disabled={updatingBank || userData.bank === comparedBankPartner.shortName}
                                             className={`w-full py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${userData.bank === comparedBankPartner.shortName
-                                                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 cursor-default'
-                                                    : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md'
+                                                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 cursor-default'
+                                                : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md'
                                                 }`}
                                         >
                                             <span className="material-symbols-outlined text-[16px]">

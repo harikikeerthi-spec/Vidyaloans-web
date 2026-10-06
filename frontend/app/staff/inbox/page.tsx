@@ -8,6 +8,7 @@ import { formatDistanceToNow, format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     Mail,
+    MailOpen,
     Send,
     Star,
     Trash2,
@@ -648,6 +649,25 @@ function StaffInboxContent() {
         }
     }, []);
 
+    // Load sent emails from database for current staff mailbox
+    const [loadingSent, setLoadingSent] = useState(false);
+    const fetchSentEmails = useCallback(async () => {
+        try {
+            setLoadingSent(true);
+            const res: any = await mailApi.getSentEmails(staffMailbox);
+            if (res?.success && Array.isArray(res.data)) {
+                setSentEmails(res.data);
+                try {
+                    localStorage.setItem("vidya_mail_sent_history", JSON.stringify(res.data));
+                } catch { }
+            }
+        } catch (e) {
+            console.warn("Failed to fetch sent emails from database", e);
+        } finally {
+            setLoadingSent(false);
+        }
+    }, [staffMailbox]);
+
     const handleCancelScheduledEmail = async (id: string, e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
         if (!confirm("Are you sure you want to cancel this scheduled email?")) return;
@@ -671,9 +691,10 @@ function StaffInboxContent() {
     useEffect(() => {
         fetchEmails();
         fetchScheduledEmails();
+        fetchSentEmails();
         const schedInterval = setInterval(fetchScheduledEmails, 30000);
         return () => clearInterval(schedInterval);
-    }, [fetchEmails, fetchScheduledEmails]);
+    }, [fetchEmails, fetchScheduledEmails, fetchSentEmails]);
 
     // Load email details when an email is selected
     const handleSelectEmail = useCallback(async (email: MailSummaryItem) => {
@@ -729,16 +750,17 @@ function StaffInboxContent() {
                 next.add(email.id);
                 return next;
             });
+            setEmails((prev) => prev.map((e) => (e.id === email.id ? { ...e, read: true } : e)));
             setLoadingDetail(false);
             return;
         }
 
-        if (email.id.startsWith('sent-')) {
+        if (email.id.startsWith('sent-') || email.id.startsWith('sent_') || (email as any).isSent) {
             setActiveEmailDetail({
                 ...email,
-                attachments: [],
-                text: email.snippet || '',
-                html: email.snippet ? `<div style="font-family:sans-serif;white-space:pre-wrap">${email.snippet}</div>` : undefined,
+                attachments: (email as any).attachments || [],
+                text: (email as any).text || email.snippet || '',
+                html: (email as any).html || (email as any).body || (email.snippet ? `<div style="font-family:sans-serif;white-space:pre-wrap">${email.snippet}</div>` : undefined),
             });
             setLoadingDetail(false);
             return;
@@ -752,6 +774,7 @@ function StaffInboxContent() {
             } catch { }
             return next;
         });
+        setEmails((prev) => prev.map((e) => (e.id === email.id ? { ...e, read: true } : e)));
         mailApi.updateState(email.id, { isRead: true }).catch(() => { });
 
         try {
@@ -809,18 +832,24 @@ function StaffInboxContent() {
             list = list.filter((e) => !trashedIds.has(e.id) && isEmailSpam(e));
         } else if (activeTab === "sent") {
             return sentEmails.map((item, idx) => ({
-                id: `sent-${idx}-${Date.now()}`,
-                key: `sent/${item.subject}`,
-                from: item.from || "Me",
-                to: Array.isArray(item.to) ? item.to.join(", ") : item.to,
+                id: item.id || `sent-${idx}-${Date.now()}`,
+                key: item.key || `sent/${item.subject || item.id || idx}`,
+                from: item.from || (item.senderName ? `"${item.senderName}" <${item.senderEmail}>` : (item.senderEmail || "Me")),
+                to: Array.isArray(item.to) ? item.to.join(", ") : (item.to || ""),
+                cc: Array.isArray(item.cc) ? item.cc.join(", ") : (item.cc || ""),
+                bcc: Array.isArray(item.bcc) ? item.bcc.join(", ") : (item.bcc || ""),
                 subject: item.subject || "(No Subject)",
-                date: item.date || new Date().toISOString(),
+                date: item.date || item.sentAt || new Date().toISOString(),
                 size: 0,
                 read: true,
-                snippet: item.text || item.body || "",
+                snippet: item.snippet || item.text || (item.html ? item.html.replace(/<[^>]+>/g, '').substring(0, 160) : "") || item.body || "",
+                text: item.text,
+                html: item.html || item.body,
+                attachments: item.attachments || [],
                 isSpam: false,
                 spamScore: 0,
                 spamReasons: [] as string[],
+                isSent: true,
             }));
         } else if (activeTab === "drafts") {
             return draftEmails.map((item) => ({
@@ -1292,6 +1321,7 @@ function StaffInboxContent() {
             } catch { }
             return next;
         });
+        setEmails((prev) => prev.map((e) => ids.includes(e.id) ? { ...e, read: true } : e));
         mailApi.batchUpdateState(ids, { isRead: true }).catch(() => { });
         setFeedbackToast({ type: "success", message: `Marked ${ids.length} email(s) as Read.` });
         setTimeout(() => setFeedbackToast(null), 2500);
@@ -1309,6 +1339,7 @@ function StaffInboxContent() {
             } catch { }
             return next;
         });
+        setEmails((prev) => prev.map((e) => ids.includes(e.id) ? { ...e, read: false } : e));
         mailApi.batchUpdateState(ids, { isRead: false }).catch(() => { });
         setFeedbackToast({ type: "success", message: `Marked ${ids.length} email(s) as Unread.` });
         setTimeout(() => setFeedbackToast(null), 2500);
@@ -1576,17 +1607,23 @@ function StaffInboxContent() {
                 fetchScheduledEmails();
             } else {
                 const sentRecord = {
+                    id: res?.messageId ? `sent_${Date.now()}` : undefined,
                     to: composeData.to,
                     subject: composeData.subject,
                     body: composeData.body,
                     date: new Date().toISOString(),
                     from: staffMailbox || "support@vidyaloans.in",
+                    senderEmail: staffMailbox || "support@vidyaloans.in",
+                    isSent: true,
                 };
                 const updatedSent = [sentRecord, ...sentEmails].slice(0, 100);
                 setSentEmails(updatedSent);
                 try {
                     localStorage.setItem("vidya_mail_sent_history", JSON.stringify(updatedSent));
                 } catch { }
+
+                // Automatically re-fetch sent emails from database so all staff see this immediately
+                fetchSentEmails();
 
                 setFeedbackToast({ type: "success", message: "Email dispatched successfully via Amazon SES!" });
             }
@@ -2201,8 +2238,13 @@ function StaffInboxContent() {
                                                     setReadIds((prev) => {
                                                         const next = new Set(prev);
                                                         next.add(email.id);
+                                                        try {
+                                                            localStorage.setItem("vidya_mail_read_ids", JSON.stringify(Array.from(next)));
+                                                        } catch { }
                                                         return next;
                                                     });
+                                                    setEmails((prev) => prev.map((e) => (e.id === email.id ? { ...e, read: true } : e)));
+                                                    mailApi.updateState(email.id, { isRead: true }).catch(() => { });
                                                     router.push(`/staff/inbox/${email.id}?folder=${encodeURIComponent(selectedFolder)}`);
                                                 } else {
                                                     handleSelectEmail(email);
@@ -2312,6 +2354,29 @@ function StaffInboxContent() {
                                                     className="p-1 hover:text-amber-500 hover:bg-amber-50 rounded-lg text-slate-400 transition-colors cursor-pointer"
                                                 >
                                                     <Star className={`w-3.5 h-3.5 ${isStarred ? "fill-amber-400 text-amber-400" : ""}`} />
+                                                </button>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        const willBeRead = !isRead;
+                                                        setReadIds((prev) => {
+                                                            const next = new Set(prev);
+                                                            if (willBeRead) next.add(email.id);
+                                                            else next.delete(email.id);
+                                                            try {
+                                                                localStorage.setItem("vidya_mail_read_ids", JSON.stringify(Array.from(next)));
+                                                            } catch { }
+                                                            return next;
+                                                        });
+                                                        setEmails((prev) => prev.map((em) => em.id === email.id ? { ...em, read: willBeRead } : em));
+                                                        mailApi.updateState(email.id, { isRead: willBeRead }).catch(() => { });
+                                                        setFeedbackToast({ type: "success", message: `Marked as ${willBeRead ? "Read" : "Unread"}.` });
+                                                        setTimeout(() => setFeedbackToast(null), 2500);
+                                                    }}
+                                                    title={isRead ? "Mark as unread" : "Mark as read"}
+                                                    className="p-1 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg text-slate-400 transition-colors cursor-pointer"
+                                                >
+                                                    {isRead ? <Mail className="w-3.5 h-3.5 text-slate-500" /> : <MailOpen className="w-3.5 h-3.5 text-indigo-600" />}
                                                 </button>
                                                 <button
                                                     onClick={() => {
@@ -2564,6 +2629,41 @@ function StaffInboxContent() {
                                             >
                                                 <FileText className="w-3.5 h-3.5 text-slate-500" />
                                                 <span>{viewMode === "html" ? "Plain text" : "HTML format"}</span>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const id = activeEmailDetail.id;
+                                                    const willBeRead = !readIds.has(id);
+                                                    setReadIds((prev) => {
+                                                        const next = new Set(prev);
+                                                        if (willBeRead) next.add(id);
+                                                        else next.delete(id);
+                                                        try {
+                                                            localStorage.setItem("vidya_mail_read_ids", JSON.stringify(Array.from(next)));
+                                                        } catch { }
+                                                        return next;
+                                                    });
+                                                    setEmails((prev) => prev.map((em) => em.id === id ? { ...em, read: willBeRead } : em));
+                                                    mailApi.updateState(id, { isRead: willBeRead }).catch(() => { });
+                                                    setFeedbackToast({ type: "success", message: `Marked as ${willBeRead ? "Read" : "Unread"}.` });
+                                                    setTimeout(() => setFeedbackToast(null), 2500);
+                                                }}
+                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold border border-slate-200/80 shadow-2xs hover:shadow-xs transition-all cursor-pointer"
+                                                title={readIds.has(activeEmailDetail.id) ? "Mark message as Unread" : "Mark message as Read"}
+                                            >
+                                                {readIds.has(activeEmailDetail.id) ? (
+                                                    <>
+                                                        <Mail className="w-3.5 h-3.5 text-slate-500" />
+                                                        <span>Mark Unread</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <MailOpen className="w-3.5 h-3.5 text-indigo-600" />
+                                                        <span>Mark Read</span>
+                                                    </>
+                                                )}
                                             </button>
 
                                             {(activeTab === "spam" || isEmailSpam(activeEmailDetail)) ? (

@@ -222,7 +222,7 @@ model BlogTag {
 
 model LoanApplication {
   id                String  @id @default(uuid())
-  applicationNumber String  @unique @default(uuid())
+  applicationNumber String? @unique @default(uuid())
   userId            String
   bank              String
   loanType          String // education, home, personal, business, vehicle
@@ -1878,4 +1878,30 @@ model ScheduledEmail {
   @@index([status, scheduledAt])
   @@index([userId])
   @@map("scheduled_emails")
+}
+
+model SentEmail {
+  id                 String    @id @default(uuid())
+  userId             String?
+  senderEmail        String
+  senderName         String?
+  to                 String[]
+  cc                 String[]  @default([])
+  bcc                String[]  @default([])
+  subject            String
+  text               String?
+  html               String?
+  replyTo            String?
+  attachments        Json?
+  priority           String?   @default("normal")
+  requestReadReceipt Boolean   @default(false)
+  messageId          String?
+  sentAt             DateTime  @default(now())
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([senderEmail])
+  @@index([userId])
+  @@index([sentAt])
+  @@map("sent_emails")
 }

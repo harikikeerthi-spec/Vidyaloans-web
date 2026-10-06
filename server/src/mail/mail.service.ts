@@ -751,6 +751,42 @@ export class MailService {
    */
   async getMailById(id: string, userId?: string, currentUser?: any): Promise<MailDetail> {
     await this.ensureUserMailboxContext(currentUser, userId);
+
+    // If ID is a sent email from database
+    if (id.startsWith('sent_') || id.startsWith('sent-')) {
+      try {
+        const sentRows = await this.prisma.$queryRawUnsafe<any[]>(
+          `SELECT * FROM "sent_emails" WHERE "id" = $1 LIMIT 1`,
+          id,
+        );
+        if (sentRows.length > 0) {
+          const s = sentRows[0];
+          return {
+            id: s.id,
+            key: `sent/${s.id}`,
+            from: s.senderName ? `"${s.senderName}" <${s.senderEmail}>` : s.senderEmail,
+            to: Array.isArray(s.to) ? s.to.join(', ') : (s.to || ''),
+            cc: Array.isArray(s.cc) ? s.cc.join(', ') : (s.cc || ''),
+            bcc: Array.isArray(s.bcc) ? s.bcc.join(', ') : (s.bcc || ''),
+            subject: s.subject || '(No Subject)',
+            snippet: s.text ? s.text.substring(0, 160) : (s.html ? s.html.replace(/<[^>]+>/g, '').substring(0, 160) : ''),
+            text: s.text,
+            html: s.html || (s.text ? `<div style="white-space: pre-wrap;">${s.text}</div>` : ''),
+            date: s.sentAt ? new Date(s.sentAt).toISOString() : new Date().toISOString(),
+            size: 0,
+            read: true,
+            starred: false,
+            isSpam: false,
+            spamScore: 0,
+            spamReasons: [],
+            attachments: s.attachments ? (typeof s.attachments === 'string' ? JSON.parse(s.attachments) : s.attachments) : [],
+          };
+        }
+      } catch (e: any) {
+        this.logger.warn(`[MailService.getMailById] Error loading sent email by id: ${e.message}`);
+      }
+    }
+
     let key: string;
     try {
       key = Buffer.from(id, 'base64url').toString('utf8');
@@ -837,25 +873,40 @@ export class MailService {
         authResults: spamAnalysis.authResults,
       };
 
-      // Merge persistent DB state
-      if (userId) {
+      // When staff opens the email, record in DB that the mail was viewed and mark as read
+      const effectiveUserId = userId || currentUser?.id || currentUser?.sub;
+      detail = {
+        ...detail,
+        read: true,
+      };
+
+      if (effectiveUserId) {
         try {
-          const st = await this.prisma.staffEmailState.findUnique({
+          const st = await this.prisma.staffEmailState.upsert({
             where: {
-              userId_emailId: { userId, emailId: id },
+              userId_emailId: { userId: effectiveUserId, emailId: id },
+            },
+            create: {
+              userId: effectiveUserId,
+              emailId: id,
+              isRead: true,
+              isStarred: false,
+              isTrashed: false,
+            },
+            update: {
+              isRead: true,
             },
           });
-          if (st) {
-            detail = {
-              ...detail,
-              read: st.isRead,
-              starred: st.isStarred,
-              trashed: st.isTrashed,
-              userSpamOverride: st.isSpam,
-            };
-          }
+          detail = {
+            ...detail,
+            read: true,
+            starred: Boolean(st.isStarred),
+            trashed: Boolean(st.isTrashed),
+            userSpamOverride: st.isSpam,
+          };
+          this.logger.log(`[MailService.getMailById] Automatically recorded email ${id} as READ in database for user ${effectiveUserId}`);
         } catch (dbErr: any) {
-          this.logger.warn(`[MailService.getMailById] Could not fetch staffEmailState: ${dbErr.message}`);
+          this.logger.warn(`[MailService.getMailById] Could not record email as read in staffEmailState: ${dbErr.message}`);
         }
       }
 
@@ -970,6 +1021,7 @@ export class MailService {
   async sendEmailImmediate(dto: SendEmailDto, currentUser?: any) {
     let senderEmail = this.mailFrom;
     let replyToEmail = this.replyTo;
+    let activeMailbox: string | null = null;
 
     if (currentUser) {
       if (!currentUser.mailboxEmail) {
@@ -990,7 +1042,7 @@ export class MailService {
 
       const userRole = (currentUser.role || '').toLowerCase();
       const isStaffOrAdmin = ['staff', 'admin', 'super_admin'].includes(userRole);
-      const activeMailbox = currentUser.mailboxEmail || (currentUser.email?.endsWith('@vidyaloans.in') ? currentUser.email : null);
+      activeMailbox = currentUser.mailboxEmail || (currentUser.email?.endsWith('@vidyaloans.in') ? currentUser.email : null);
 
       if (isStaffOrAdmin && activeMailbox) {
         const displayName = `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() || 'VidyaLoans Staff';
@@ -1047,6 +1099,55 @@ export class MailService {
     try {
       const info = await this.transporter.sendMail(mailOptions);
       this.logger.log(`[MailService.sendEmail] Dispatched email messageId: ${info.messageId} to ${JSON.stringify(dto.to)}`);
+
+      // Persist sent email in database associated with this sender mailbox
+      try {
+        const extractCleanEmail = (str: string): string => {
+          const match = str.match(/<([^>]+)>/);
+          return (match ? match[1] : str).trim().toLowerCase();
+        };
+        const cleanSender = extractCleanEmail(activeMailbox || senderEmail || this.mailFrom);
+        const displayName = `${currentUser?.firstName || ''} ${currentUser?.lastName || ''}`.trim() || 'VidyaLoans Staff';
+        const recordId = `sent_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+        const now = new Date();
+        const toArray = Array.isArray(dto.to) ? dto.to : [dto.to];
+        const ccArray = dto.cc ? (Array.isArray(dto.cc) ? dto.cc : [dto.cc]) : [];
+        const bccArray = dto.bcc ? (Array.isArray(dto.bcc) ? dto.bcc : [dto.bcc]) : [];
+        const attachmentsSummary = (dto.attachments || []).map((att) => ({
+          filename: att.filename,
+          contentType: att.contentType,
+        }));
+
+        await this.prisma.$executeRawUnsafe(
+          `INSERT INTO "sent_emails" (
+            "id", "userId", "senderEmail", "senderName", "to", "cc", "bcc", "subject", "text", "html", "replyTo", "attachments", "priority", "requestReadReceipt", "messageId", "sentAt", "createdAt", "updatedAt"
+          ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+          )`,
+          recordId,
+          currentUser?.id || currentUser?.sub || null,
+          cleanSender,
+          displayName,
+          toArray,
+          ccArray,
+          bccArray,
+          dto.subject || '(No Subject)',
+          dto.text || null,
+          dto.html || (dto.text ? `<div style="font-family: sans-serif; white-space: pre-wrap;">${dto.text}</div>` : ''),
+          dto.replyTo || replyToEmail || null,
+          attachmentsSummary.length > 0 ? JSON.stringify(attachmentsSummary) : null,
+          dto.priority || 'normal',
+          Boolean(dto.requestReadReceipt),
+          info.messageId || null,
+          now,
+          now,
+          now,
+        );
+        this.logger.log(`[MailService.sendEmail] Stored sent email ${recordId} in database for mailbox "${cleanSender}"`);
+      } catch (dbErr: any) {
+        this.logger.warn(`[MailService.sendEmail] Non-fatal: could not store sent email in database: ${dbErr.message}`);
+      }
+
       return {
         success: true,
         messageId: info.messageId,
@@ -1203,6 +1304,81 @@ export class MailService {
       }
     } catch (err: any) {
       this.logger.warn(`[MailService.purgeExpiredTrashEmails] Error purging expired trash: ${err.message}`);
+    }
+  }
+
+  /**
+   * Retrieves sent emails for a given mailbox from the database
+   */
+  async getSentEmails(mailboxEmail?: string, currentUser?: any, folder?: string) {
+    await this.ensureUserMailboxContext(currentUser);
+
+    let cleanTarget = (mailboxEmail || '').trim().toLowerCase();
+    
+    // If no explicit mailboxEmail provided, deduce from folder or user context
+    if (!cleanTarget && folder) {
+      const cleanFolder = folder.replace(/\/$/, '').toLowerCase();
+      if (cleanFolder.includes('@')) {
+        cleanTarget = cleanFolder;
+      } else if (cleanFolder === 'support') {
+        cleanTarget = 'support@vidyaloans.in';
+      }
+    }
+
+    if (!cleanTarget) {
+      cleanTarget = (currentUser?.mailboxEmail || currentUser?.email || 'support@vidyaloans.in').trim().toLowerCase();
+    }
+
+    const userRole = (currentUser?.role || '').toLowerCase();
+    const isAdmin = ['admin', 'super_admin'].includes(userRole);
+
+    try {
+      let rows: any[] = [];
+      if (cleanTarget) {
+        rows = await this.prisma.$queryRawUnsafe<any[]>(
+          `SELECT * FROM "sent_emails"
+           WHERE LOWER("senderEmail") = LOWER($1)
+           ORDER BY "sentAt" DESC
+           LIMIT 100`,
+          cleanTarget,
+        );
+      } else if (isAdmin) {
+        rows = await this.prisma.$queryRawUnsafe<any[]>(
+          `SELECT * FROM "sent_emails"
+           ORDER BY "sentAt" DESC
+           LIMIT 100`,
+        );
+      }
+
+      return rows.map((r) => ({
+        id: r.id,
+        key: `sent/${r.id}`,
+        from: r.senderName ? `"${r.senderName}" <${r.senderEmail}>` : r.senderEmail,
+        senderEmail: r.senderEmail,
+        senderName: r.senderName,
+        to: Array.isArray(r.to) ? r.to.join(', ') : (r.to || ''),
+        cc: Array.isArray(r.cc) ? r.cc.join(', ') : (r.cc || ''),
+        bcc: Array.isArray(r.bcc) ? r.bcc.join(', ') : (r.bcc || ''),
+        subject: r.subject || '(No Subject)',
+        snippet: r.text ? r.text.substring(0, 160) : (r.html ? r.html.replace(/<[^>]+>/g, '').substring(0, 160) : ''),
+        body: r.html || r.text || '',
+        text: r.text,
+        html: r.html,
+        date: r.sentAt ? new Date(r.sentAt).toISOString() : new Date().toISOString(),
+        sentAt: r.sentAt,
+        priority: r.priority || 'normal',
+        requestReadReceipt: r.requestReadReceipt,
+        messageId: r.messageId,
+        attachments: r.attachments ? (typeof r.attachments === 'string' ? JSON.parse(r.attachments) : r.attachments) : [],
+        read: true,
+        size: 0,
+        isSpam: false,
+        spamScore: 0,
+        spamReasons: [],
+      }));
+    } catch (err: any) {
+      this.logger.error(`[MailService.getSentEmails] Failed to query sent_emails: ${err.message}`);
+      return [];
     }
   }
 }

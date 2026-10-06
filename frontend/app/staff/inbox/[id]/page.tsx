@@ -194,7 +194,14 @@ function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id
             .then((res: any) => {
                 const mailData = res?.success && res.data ? res.data : (res?.from || res?.subject ? res : null);
                 if (mailData) {
-                    setMail(mailData);
+                    setMail({ ...mailData, read: true });
+
+                    try {
+                        const saved = localStorage.getItem("vidya_mail_read_ids");
+                        const next = new Set(saved ? JSON.parse(saved) : []);
+                        next.add(emailId);
+                        localStorage.setItem("vidya_mail_read_ids", JSON.stringify(Array.from(next)));
+                    } catch { }
 
                     if ((mailData as any).starred !== undefined) {
                         setIsStarred(Boolean((mailData as any).starred));

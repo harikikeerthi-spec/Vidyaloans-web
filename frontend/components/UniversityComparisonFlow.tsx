@@ -590,6 +590,7 @@ export default function UniversityComparisonFlow({
             <span className="text-[10px] font-black text-[#6605c7] uppercase tracking-widest">
               Smart Decision Engine
             </span>
+            
             <span className="w-px h-3 bg-purple-100 mx-1" />
             <span className="text-[10px] font-bold text-gray-400">QS 2026 Database</span>
           </div> */}
