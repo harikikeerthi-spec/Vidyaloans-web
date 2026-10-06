@@ -484,7 +484,7 @@ export class AuthController {
   async createApplication(
     @Req() req: any,
     @Body() body: {
-      userId: string;
+      userId?: string;
       bank?: string;
       loanType?: string;
       amount: number;
@@ -512,10 +512,11 @@ export class AuthController {
       admissionStatus?: string;
     }
   ) {
-    if (!body || !body.userId) {
+    const cleanEmail = (body?.email || '').trim().toLowerCase();
+    if (!body || (!body.userId && !cleanEmail)) {
       return {
         success: false,
-        message: 'User ID is required',
+        message: 'Email address or user ID is required to apply',
       };
     }
 
@@ -542,8 +543,8 @@ export class AuthController {
       };
     }
 
-    if (body.email) {
-      const emailCheck = await this.authService.checkDisposableEmail(body.email);
+    if (cleanEmail) {
+      const emailCheck = await this.authService.checkDisposableEmail(cleanEmail);
       if (emailCheck.blocked) {
         return {
           success: false,
@@ -562,12 +563,79 @@ export class AuthController {
       }
     }
 
+    // Resolve or auto-provision student user for lead capture
+    let targetUser: any = null;
+    if (body.userId) {
+      targetUser = await this.usersService.findById(body.userId);
+    }
+    if (!targetUser && cleanEmail) {
+      targetUser = await this.usersService.findOne(cleanEmail);
+    }
+
+    if (!targetUser) {
+      if (!cleanEmail) {
+        return {
+          success: false,
+          message: 'Valid personal email is required to submit your loan application',
+        };
+      }
+
+      // Auto-create student user account for new lead
+      targetUser = await this.usersService.create({
+        email: cleanEmail,
+        firstName: body.firstName?.trim() || undefined,
+        lastName: body.lastName?.trim() || undefined,
+        phoneNumber: body.phone?.trim() || undefined,
+        mobile: body.phone?.trim() || undefined,
+        dateOfBirth: body.dateOfBirth?.trim() || undefined,
+        role: 'user',
+      });
+      console.log(`[AuthController.createApplication] Auto-created new user for lead: ${cleanEmail} (ID: ${targetUser.id})`);
+    } else {
+      // User already exists: update any missing basic profile fields
+      const needsUpdate =
+        (!targetUser.firstName && body.firstName?.trim()) ||
+        (!targetUser.lastName && body.lastName?.trim()) ||
+        (!targetUser.phoneNumber && body.phone?.trim()) ||
+        (!targetUser.dateOfBirth && body.dateOfBirth?.trim());
+
+      if (needsUpdate) {
+        try {
+          const updated = await this.usersService.updateUserDetails(
+            cleanEmail || targetUser.email,
+            targetUser.firstName || body.firstName?.trim(),
+            targetUser.lastName || body.lastName?.trim(),
+            targetUser.phoneNumber || body.phone?.trim(),
+            targetUser.dateOfBirth || body.dateOfBirth?.trim(),
+            undefined,
+            undefined,
+            body.pincode || targetUser.pincode,
+            universityName || targetUser.targetUniversity,
+            body.country || targetUser.studyDestination,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            targetUser.id
+          );
+          if (updated) {
+            targetUser = updated;
+          }
+        } catch (updateErr) {
+          console.warn('[AuthController.createApplication] Non-fatal user detail update notice:', updateErr);
+        }
+      }
+    }
+
+    const effectiveUserId = targetUser.id;
+
     try {
       const selectedBank = body.bank || 'Any Bank';
       const selectedCountry = body.country === 'Other' ? (body.otherCountry || 'Other') : (body.country || 'Global');
       const selectedLoanType = body.loanType || body.courseType || 'Postgraduate Abroad';
 
-      const application = await this.usersService.createLoanApplication(body.userId, {
+      const application = await this.usersService.createLoanApplication(effectiveUserId, {
         bank: selectedBank,
         loanType: selectedLoanType,
         amount: amountVal,
@@ -585,7 +653,7 @@ export class AuthController {
         collateral: body.collateral,
         firstName: body.firstName,
         lastName: body.lastName,
-        email: body.email,
+        email: cleanEmail || targetUser.email,
         phone: body.phone,
         dateOfBirth: body.dateOfBirth,
         address: body.address,
@@ -593,9 +661,21 @@ export class AuthController {
         pincode: body.pincode,
         admissionStatus: body.admissionStatus,
       }, isStaffOrAdmin);
+
+      // Generate tokens for immediate seamless login session
+      let tokens: any = null;
+      try {
+        tokens = await this.authService.generateTokens(targetUser);
+      } catch (tokenErr) {
+        console.warn('[AuthController.createApplication] Token generation error:', tokenErr);
+      }
+
       return {
         success: true,
         application,
+        user: targetUser,
+        access_token: tokens?.access_token || null,
+        refresh_token: tokens?.refresh_token || null,
       };
     } catch (error) {
       console.error('Create application error:', error);

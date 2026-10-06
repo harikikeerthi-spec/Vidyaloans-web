@@ -83,7 +83,7 @@ const convertNumberToWords = (numStr: string): string => {
 };
 
 export default function ApplyLoanPage() {
-    const { isAuthenticated, user, refreshUser } = useAuth();
+    const { isAuthenticated, user, refreshUser, login } = useAuth();
     const router = useRouter();
     const [step, setStep] = useState(1);
     const [formData, setFormData] = useState({
@@ -470,12 +470,6 @@ export default function ApplyLoanPage() {
     };
 
     const handleSubmit = async () => {
-        if (!isAuthenticated || !user?.id) {
-            // Save form data and current step to session storage before redirecting
-            sessionStorage.setItem("pending_loan_application", JSON.stringify({ formData, step }));
-            router.push(`/login?redirect=/apply-loan`);
-            return;
-        }
         if (existingApp) {
             setError("Only 1 active loan application is allowed per student. You already have an active loan application.");
             return;
@@ -483,7 +477,7 @@ export default function ApplyLoanPage() {
         setSubmitting(true);
         setError("");
         try {
-            const userId = user.id;
+            const userId = user?.id || undefined;
             const bankName = banks.find(b => b.id === formData.bank)?.name || formData.bank || "Any Bank";
             const cleanAmount = formData.amount.replace(/,/g, "");
             const cleanIncome = formData.income ? formData.income.replace(/,/g, "") : "";
@@ -494,7 +488,7 @@ export default function ApplyLoanPage() {
             const capitalizedRelation = rel ? rel.charAt(0).toUpperCase() + rel.slice(1) : "";
             const finalCoAppName = formData.coApplicantName.trim() || capitalizedRelation || null;
 
-            await applicationApi.create({
+            const res: any = await applicationApi.create({
                 ...formData,
                 hasCoApplicant: !!formData.coApplicant && formData.coApplicant !== "none",
                 coApplicantName: finalCoAppName,
@@ -510,8 +504,22 @@ export default function ApplyLoanPage() {
                 income: isNaN(parsedIncome as number) ? undefined : parsedIncome,
             });
 
-            // Sync personal details to main user profile if authenticated
-            if (user?.email) {
+            if (res && res.success === false) {
+                setError(res.message || "Failed to submit loan application");
+                return;
+            }
+
+            const effectiveUser = res?.user || user;
+            const effectiveUserId = effectiveUser?.id || userId;
+
+            // Auto-login the guest user with tokens returned by the server
+            if (!isAuthenticated && res?.access_token && res?.user) {
+                login(res.access_token, {
+                    ...res.user,
+                    refresh_token: res.refresh_token,
+                });
+            } else if (user?.email) {
+                // Sync personal details to main user profile if authenticated
                 try {
                     await authApi.updateDetails(user.email, {
                         firstName: formData.firstName,
@@ -532,11 +540,14 @@ export default function ApplyLoanPage() {
                     console.error("Failed to sync profile details:", err);
                 }
             }
+
             // Notify other parts of the frontend that dashboard data changed
             try {
-                const key = `dashboardDataUpdated_${userId}`;
-                localStorage.setItem(key, String(Date.now()));
-                localStorage.setItem('recent_application_submitted', JSON.stringify({ userId, email: user?.email, timestamp: Date.now() }));
+                if (effectiveUserId) {
+                    const key = `dashboardDataUpdated_${effectiveUserId}`;
+                    localStorage.setItem(key, String(Date.now()));
+                    localStorage.setItem('recent_application_submitted', JSON.stringify({ userId: effectiveUserId, email: effectiveUser?.email || formData.email, timestamp: Date.now() }));
+                }
                 // Dispatch an in-page event so same-tab listeners react immediately
                 window.dispatchEvent(new Event('dashboard-data-changed'));
             } catch (err) {
@@ -1132,13 +1143,12 @@ export default function ApplyLoanPage() {
                                     </div>
                                 )}
                                 {!isAuthenticated && (
-                                    <div className="px-6 py-6 bg-amber-50 border border-amber-200 rounded-3xl text-amber-700 text-sm font-medium flex items-center gap-4 shadow-sm">
-                                        <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center text-amber-600 shadow-sm border border-amber-200">
-                                            <span className="material-symbols-outlined">priority_high</span>
+                                    <div className="px-6 py-5 bg-purple-50/80 border border-purple-200/80 rounded-3xl text-purple-900 text-sm font-medium flex items-center gap-4 shadow-sm">
+                                        <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center text-[#6605c7] shadow-sm border border-purple-200">
+                                            <span className="material-symbols-outlined">verified_user</span>
                                         </div>
-                                        <div>
-                                            Authentication required to finalize submission.
-                                            <Link href="/login?redirect=/apply-loan" className="ml-2 underline font-black text-[#6605c7]">Login Now</Link>
+                                        <div className="text-xs md:text-sm">
+                                            <span className="font-bold text-gray-900">Direct Submission:</span> No prior login required. Submitting will register your file with our student loan advisors immediately.
                                         </div>
                                     </div>
                                 )}

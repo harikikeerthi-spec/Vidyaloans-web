@@ -103,7 +103,7 @@ export class AuthService {
   /**
    * Generate both access and refresh tokens for a user
    */
-  private async generateTokens(user: any, originalLoginAt?: number) {
+  public async generateTokens(user: any, originalLoginAt?: number) {
     const isBank = user.role === 'bank' || user.role === 'partner_bank';
     const bankInfo = isBank
       ? await this.usersService.resolveBankInfo(user.bank)
