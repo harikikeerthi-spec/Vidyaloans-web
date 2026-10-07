@@ -70,6 +70,8 @@ export interface Block {
   style?: {
     textAlign?: "left" | "center" | "right";
     fontSize?: string;
+    fontFamily?: string;
+    fontWeight?: string;
     color?: string;
     backgroundColor?: string;
     padding?: string;
@@ -140,6 +142,236 @@ const HIGHLIGHT_COLORS = [
   { name: "Amber", bg: "#fed7aa", text: "#9a3412" },
 ];
 
+/**
+ * Strips pasted black/dark background colors, external dark-theme styling,
+ * white/light text overrides, and messy layouts while preserving semantic content (bold, links, lists, etc.)
+ */
+export const cleanHtmlContent = (rawHtml: string): string => {
+  if (!rawHtml || typeof rawHtml !== "string") return "";
+
+  if (typeof window === "undefined" || typeof DOMParser === "undefined") {
+    return rawHtml
+      .replace(/background(-color)?\s*:\s*[^;"]+;?/gi, "")
+      .replace(/bgcolor\s*=\s*["'][^"']*["']/gi, "");
+  }
+
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(rawHtml, "text/html");
+
+    // Remove non-content / dangerous elements
+    const toRemove = doc.querySelectorAll(
+      "script, style, meta, link, iframe, object, embed, noscript"
+    );
+    toRemove.forEach((el) => el.remove());
+
+    // Recursively clean all elements
+    const allElements = doc.body.querySelectorAll("*");
+    allElements.forEach((node) => {
+      const el = node as HTMLElement;
+
+      // Remove legacy background attributes
+      el.removeAttribute("bgcolor");
+      el.removeAttribute("background");
+      el.removeAttribute("face");
+
+      // Filter out external dark mode / background utility classes
+      if (el.className && typeof el.className === "string") {
+        const kept = el.className
+          .split(/\s+/)
+          .filter((cls) => {
+            const lc = cls.toLowerCase();
+            return (
+              !lc.includes("dark") &&
+              !lc.includes("theme") &&
+              !lc.includes("bg-") &&
+              !lc.includes("black") &&
+              !lc.includes("night")
+            );
+          });
+        if (kept.length > 0) {
+          el.className = kept.join(" ");
+        } else {
+          el.removeAttribute("class");
+        }
+      }
+
+      // Clean inline styles
+      if (el.style) {
+        const tagName = el.tagName.toLowerCase();
+
+        // 1. Strip background colors unless it is our explicit highlight <mark>
+        if (tagName !== "mark") {
+          el.style.backgroundColor = "";
+          el.style.background = "";
+          el.style.backgroundImage = "";
+        }
+
+        // 2. Clean text color only if it is invisible white or near-white (from copied dark theme pages)
+        const color = el.style.color?.toLowerCase().trim() || "";
+        let isLightOrWhite = false;
+        if (
+          color === "white" ||
+          color === "#fff" ||
+          color === "#ffffff" ||
+          color === "#fafafa" ||
+          color === "#f8f9fa" ||
+          color === "#f3f4f6" ||
+          color === "#e5e7eb" ||
+          color === "#e2e8f0"
+        ) {
+          isLightOrWhite = true;
+        } else if (color.startsWith("rgb(") || color.startsWith("rgba(")) {
+          const nums = color.match(/\d+/g);
+          if (nums && nums.length >= 3) {
+            const r = parseInt(nums[0], 10);
+            const g = parseInt(nums[1], 10);
+            const b = parseInt(nums[2], 10);
+            if (r > 230 && g > 230 && b > 230) {
+              isLightOrWhite = true;
+            }
+          }
+        }
+
+        if (isLightOrWhite) {
+          el.style.color = "";
+        }
+
+        // 3. Strip rigid layout styles copied from web pages, but preserve font styling (fontSize, fontFamily, fontWeight)
+        el.style.width = "";
+        el.style.height = "";
+        el.style.maxWidth = "";
+        el.style.minWidth = "";
+        el.style.position = "";
+        el.style.boxShadow = "";
+        el.style.textShadow = "";
+        el.style.border = "";
+        el.style.borderColor = "";
+
+        if (!el.getAttribute("style") || el.getAttribute("style")?.trim() === "") {
+          el.removeAttribute("style");
+        }
+      }
+    });
+
+    return doc.body.innerHTML;
+  } catch (err) {
+    console.error("Error cleaning HTML:", err);
+    return rawHtml;
+  }
+};
+
+export const TEXT_COLORS = [
+  { name: "Default", color: "#1e293b", bg: "#1e293b" },
+  { name: "Indigo", color: "#4f46e5", bg: "#4f46e5" },
+  { name: "Blue", color: "#0284c7", bg: "#0284c7" },
+  { name: "Emerald", color: "#059669", bg: "#059669" },
+  { name: "Amber", color: "#d97706", bg: "#d97706" },
+  { name: "Rose", color: "#e11d48", bg: "#e11d48" },
+  { name: "Purple", color: "#7c3aed", bg: "#7c3aed" },
+  { name: "Slate", color: "#64748b", bg: "#64748b" },
+];
+
+export const FONT_SIZES = [
+  { label: "13px (Small)", value: "13px" },
+  { label: "16px (Normal)", value: "16px" },
+  { label: "18px (Medium)", value: "18px" },
+  { label: "22px (Large)", value: "22px" },
+  { label: "26px (Heading)", value: "26px" },
+];
+
+export const FONT_FAMILIES = [
+  { label: "Modern Sans", value: "Inter, system-ui, -apple-system, sans-serif" },
+  { label: "Classic Serif", value: "Georgia, Cambria, 'Times New Roman', serif" },
+  { label: "Code Monospace", value: "ui-monospace, Menlo, Monaco, Consolas, monospace" },
+  { label: "Display Outfit", value: "'Outfit', system-ui, sans-serif" },
+];
+
+export const FORMAT_PRESETS = [
+  { label: "Normal Paragraph", value: "p", tag: "p" },
+  { label: "Lead Paragraph", value: "lead", tag: "lead" },
+  { label: "Heading 2", value: "h2", tag: "h2" },
+  { label: "Heading 3", value: "h3", tag: "h3" },
+  { label: "Heading 4", value: "h4", tag: "h4" },
+  { label: "Blockquote", value: "blockquote", tag: "blockquote" },
+];
+
+/**
+ * Rich text editable block component.
+ * Maintains DOM content without re-rendering dangerouslySetInnerHTML on every input,
+ * preventing cursor jumps to line start and preserving full cursor and selection integrity.
+ */
+export const RichTextBlock = React.memo(function RichTextBlock({
+  block,
+  onUpdateContent,
+  onPaste,
+  registerRef,
+  onSaveSelection,
+}: {
+  block: Block;
+  onUpdateContent: (content: string) => void;
+  onPaste: (e: React.ClipboardEvent<HTMLDivElement>) => void;
+  registerRef: (el: HTMLDivElement | null) => void;
+  onSaveSelection: () => void;
+}) {
+  const elRef = useRef<HTMLDivElement | null>(null);
+  const lastContentRef = useRef(block.content || "");
+
+  // Initialize innerHTML once on mount
+  useEffect(() => {
+    if (elRef.current) {
+      elRef.current.innerHTML = block.content || "";
+      lastContentRef.current = block.content || "";
+    }
+  }, []);
+
+  // Update innerHTML when block.content changes externally (e.g. clean format, preset, draft restore)
+  useEffect(() => {
+    if (elRef.current) {
+      if (block.content !== lastContentRef.current && elRef.current.innerHTML !== block.content) {
+        elRef.current.innerHTML = block.content || "";
+        lastContentRef.current = block.content || "";
+      }
+    }
+  }, [block.content]);
+
+  const handleInput = (e: React.FormEvent<HTMLDivElement>) => {
+    const html = e.currentTarget.innerHTML;
+    lastContentRef.current = html;
+    onUpdateContent(html);
+  };
+
+  const handleBlur = (e: React.FocusEvent<HTMLDivElement>) => {
+    const html = e.currentTarget.innerHTML;
+    lastContentRef.current = html;
+    onUpdateContent(html);
+    onSaveSelection();
+  };
+
+  return (
+    <div
+      ref={(el) => {
+        elRef.current = el;
+        registerRef(el);
+      }}
+      contentEditable
+      suppressContentEditableWarning
+      onPaste={onPaste}
+      onInput={handleInput}
+      onBlur={handleBlur}
+      onKeyUp={onSaveSelection}
+      onMouseUp={onSaveSelection}
+      style={{
+        fontSize: block.style?.fontSize,
+        fontFamily: block.style?.fontFamily,
+        textAlign: block.style?.textAlign,
+        color: block.style?.color,
+      }}
+      className="min-h-[80px] text-base leading-relaxed text-slate-800 focus:outline-none p-3.5 rounded-xl border border-slate-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 bg-white transition-all shadow-2xs [&_*[style*='255, 255, 255']]:!text-slate-800 [&_*[style*='255,255,255']]:!text-slate-800 [&_*[style*='#ffffff']]:!text-slate-800 [&_*[style*='#fff']]:!text-slate-800"
+    />
+  );
+});
+
 export default function DynamicBlogEditor({
   initialBlog,
   onBack,
@@ -183,6 +415,12 @@ export default function DynamicBlogEditor({
   const [saveStatus, setSaveStatus] = useState<string>("Draft");
   const [lastSavedTime, setLastSavedTime] = useState<string>("Just now");
   const [activeHighlightBlockId, setActiveHighlightBlockId] = useState<string | null>(null);
+  const [activeColorBlockId, setActiveColorBlockId] = useState<string | null>(null);
+  const [activeFontSizeBlockId, setActiveFontSizeBlockId] = useState<string | null>(null);
+  const [activeFontFamilyBlockId, setActiveFontFamilyBlockId] = useState<string | null>(null);
+  const [activeFormatBlockId, setActiveFormatBlockId] = useState<string | null>(null);
+  const savedRangeRef = useRef<Range | null>(null);
+  const editorRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [showCoverPicker, setShowCoverPicker] = useState(false);
   const [showSeoPreview, setShowSeoPreview] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -232,16 +470,25 @@ export default function DynamicBlogEditor({
 
   // Initialize blocks from initialBlog
   useEffect(() => {
+    const sanitizeBlocks = (raw: any[]): Block[] => {
+      return raw.map((b) => {
+        if (b.type === "text" && b.content) {
+          return { ...b, content: cleanHtmlContent(b.content) };
+        }
+        return b;
+      });
+    };
+
     if (initialBlog) {
       if (Array.isArray(initialBlog.blocks) && initialBlog.blocks.length > 0) {
-        setBlocks(initialBlog.blocks);
+        setBlocks(sanitizeBlocks(initialBlog.blocks));
         return;
       }
       if (typeof initialBlog.blocks === "string") {
         try {
           const parsed = JSON.parse(initialBlog.blocks);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            setBlocks(parsed);
+            setBlocks(sanitizeBlocks(parsed));
             return;
           }
         } catch (_) {}
@@ -255,10 +502,20 @@ export default function DynamicBlogEditor({
           try {
             const parsed = JSON.parse(match[1]);
             if (Array.isArray(parsed) && parsed.length > 0) {
-              setBlocks(parsed);
+              setBlocks(sanitizeBlocks(parsed));
               return;
             }
           } catch (_) {}
+        } else {
+          // If plain HTML content without blocks, wrap into text block
+          setBlocks([
+            {
+              id: "imported-body",
+              type: "text",
+              content: cleanHtmlContent(initialBlog.content),
+            },
+          ]);
+          return;
         }
       }
     }
@@ -656,7 +913,8 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
             return `<h${lvl} id="${hId}" class="${sizeClass} text-slate-900 tracking-tight">${block.content || ""}</h${lvl}>`;
           }
           case "text": {
-            return `<div class="text-base md:text-lg leading-relaxed text-slate-700 my-4">${block.content || ""}</div>`;
+            const clean = cleanHtmlContent(block.content || "");
+            return `<div class="text-base md:text-lg leading-relaxed text-slate-700 my-4 [&_*:not(mark)]:bg-transparent">${clean}</div>`;
           }
           case "table_of_contents": {
             const headings = blocks
@@ -870,15 +1128,126 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
     }
   };
 
+  // Selection helpers for inline formatting & modals
+  const saveSelection = useCallback(() => {
+    if (typeof window !== "undefined" && window.getSelection) {
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0) {
+        try {
+          savedRangeRef.current = sel.getRangeAt(0).cloneRange();
+        } catch (_) {}
+      }
+    }
+  }, []);
+
+  const restoreSelection = useCallback((blockId?: string) => {
+    if (blockId && editorRefs.current[blockId]) {
+      editorRefs.current[blockId]?.focus();
+    }
+    if (savedRangeRef.current && typeof window !== "undefined" && window.getSelection) {
+      const sel = window.getSelection();
+      if (sel) {
+        try {
+          sel.removeAllRanges();
+          sel.addRange(savedRangeRef.current);
+        } catch (_) {}
+      }
+    }
+  }, []);
+
   // Inline formatting command helper
-  const applyInlineFormat = (cmd: string, val: string = "") => {
+  const applyInlineFormat = (cmd: string, val: string = "", blockId?: string) => {
+    if (blockId) {
+      restoreSelection(blockId);
+    }
     try {
       document.execCommand(cmd, false, val);
     } catch (_) {}
+    if (blockId && editorRefs.current[blockId]) {
+      const newHtml = editorRefs.current[blockId]?.innerHTML || "";
+      updateBlock(blockId, { content: newHtml });
+    }
+    saveSelection();
+  };
+
+  // Font size helper
+  const applyFontSize = (blockId: string, sizePx: string) => {
+    const el = editorRefs.current[blockId];
+    if (!el) return;
+    el.focus();
+    restoreSelection(blockId);
+    const sel = window.getSelection();
+    if (sel && !sel.isCollapsed && sel.rangeCount > 0) {
+      try {
+        document.execCommand("fontSize", false, "7");
+        const fontTags = el.querySelectorAll('font[size="7"]');
+        fontTags.forEach((font) => {
+          const span = document.createElement("span");
+          span.style.fontSize = sizePx;
+          span.innerHTML = font.innerHTML;
+          font.parentNode?.replaceChild(span, font);
+        });
+      } catch (_) {}
+      const newHtml = el.innerHTML;
+      updateBlock(blockId, { content: newHtml });
+    } else {
+      updateBlock(blockId, {
+        style: {
+          ...(blocks.find((b) => b.id === blockId)?.style || {}),
+          fontSize: sizePx,
+        },
+      });
+    }
+    saveSelection();
+    setActiveFontSizeBlockId(null);
+  };
+
+  // Font family helper
+  const applyFontFamily = (blockId: string, fontFamily: string) => {
+    const el = editorRefs.current[blockId];
+    if (!el) return;
+    el.focus();
+    restoreSelection(blockId);
+    const sel = window.getSelection();
+    if (sel && !sel.isCollapsed && sel.rangeCount > 0) {
+      try {
+        document.execCommand("fontName", false, fontFamily);
+      } catch (_) {}
+      const newHtml = el.innerHTML;
+      updateBlock(blockId, { content: newHtml });
+    } else {
+      updateBlock(blockId, {
+        style: {
+          ...(blocks.find((b) => b.id === blockId)?.style || {}),
+          fontFamily,
+        },
+      });
+    }
+    saveSelection();
+    setActiveFontFamilyBlockId(null);
+  };
+
+  // Text color helper
+  const applyTextColor = (blockId: string, colorHex: string) => {
+    const el = editorRefs.current[blockId];
+    if (!el) return;
+    el.focus();
+    restoreSelection(blockId);
+    try {
+      document.execCommand("foreColor", false, colorHex);
+    } catch (_) {}
+    const newHtml = el.innerHTML;
+    updateBlock(blockId, { content: newHtml });
+    saveSelection();
+    setActiveColorBlockId(null);
   };
 
   // Apply highlight to selected text
   const applyHighlight = (blockId: string, bg: string, text: string) => {
+    const el = editorRefs.current[blockId];
+    if (!el) return;
+    el.focus();
+    restoreSelection(blockId);
     const sel = window.getSelection();
     if (sel && !sel.isCollapsed && sel.rangeCount > 0) {
       const range = sel.getRangeAt(0);
@@ -894,8 +1263,106 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
       } catch (_) {
         document.execCommand("hiliteColor", false, bg);
       }
+      const newHtml = el.innerHTML;
+      updateBlock(blockId, { content: newHtml });
     }
+    saveSelection();
     setActiveHighlightBlockId(null);
+  };
+
+  // Remove highlight
+  const removeHighlight = (blockId: string) => {
+    const el = editorRefs.current[blockId];
+    if (!el) return;
+    el.focus();
+    restoreSelection(blockId);
+    try {
+      document.execCommand("removeFormat", false, undefined);
+    } catch (_) {}
+    const newHtml = el.innerHTML;
+    updateBlock(blockId, { content: newHtml });
+    saveSelection();
+    setActiveHighlightBlockId(null);
+  };
+
+  // Block style / heading preset helper
+  const applyBlockFormat = (blockId: string, tag: string) => {
+    const el = editorRefs.current[blockId];
+    if (!el) return;
+    el.focus();
+    restoreSelection(blockId);
+    if (tag === "lead") {
+      updateBlock(blockId, {
+        style: {
+          ...(blocks.find((b) => b.id === blockId)?.style || {}),
+          fontSize: "18px",
+          color: "#0f172a",
+        },
+      });
+    } else {
+      try {
+        document.execCommand("formatBlock", false, `<${tag}>`);
+      } catch (_) {}
+      const newHtml = el.innerHTML;
+      updateBlock(blockId, { content: newHtml });
+    }
+    saveSelection();
+    setActiveFormatBlockId(null);
+  };
+
+  // Handle paste in WYSIWYG text block: cleans dark/black background colors
+  const handleCleanPaste = (
+    e: React.ClipboardEvent<HTMLDivElement>,
+    blockId: string
+  ) => {
+    e.preventDefault();
+    const clipboardData = e.clipboardData;
+    const html = clipboardData.getData("text/html");
+    const text = clipboardData.getData("text/plain");
+
+    if (html) {
+      const cleaned = cleanHtmlContent(html);
+      if (cleaned) {
+        try {
+          document.execCommand("insertHTML", false, cleaned);
+        } catch (_) {
+          document.execCommand("insertText", false, text);
+        }
+      } else if (text) {
+        document.execCommand("insertText", false, text);
+      }
+    } else if (text) {
+      document.execCommand("insertText", false, text);
+    }
+
+    const currentTarget = e.currentTarget;
+    setTimeout(() => {
+      updateBlock(blockId, { content: currentTarget.innerHTML });
+    }, 0);
+  };
+
+  // Clean formatting and remove black/dark backgrounds from a block
+  const cleanBlockFormatting = (blockId: string) => {
+    const el = editorRefs.current[blockId];
+    if (el) {
+      el.focus();
+      try {
+        document.execCommand("removeFormat", false, undefined);
+      } catch (_) {}
+      const cleaned = cleanHtmlContent(el.innerHTML);
+      el.innerHTML = cleaned;
+      updateBlock(blockId, { content: cleaned });
+    } else {
+      setBlocks((prev) =>
+        prev.map((b) => {
+          if (b.id !== blockId) return b;
+          return {
+            ...b,
+            content: cleanHtmlContent(b.content || ""),
+          };
+        })
+      );
+    }
   };
 
   // Apply starter template
@@ -1656,90 +2123,353 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
                           />
                         )}
 
-                        {/* 2. TEXT (WITH INLINE FORMATTING TOOLBAR) */}
+                        {/* 2. TEXT (WITH INLINE FORMATTING TOOLBAR & FONTS) */}
                         {block.type === "text" && (
                           <div className="space-y-2">
-                            {/* Inline Toolbar */}
-                            <div className="flex items-center gap-1 pb-1 border-b border-slate-100 flex-wrap">
+                            {/* Rich Text & Font Styling Toolbar */}
+                            <div className="flex items-center gap-1.5 p-1.5 bg-slate-50/90 rounded-xl border border-slate-200/80 flex-wrap">
+                              {/* 1. Format / Preset Dropdown */}
+                              <div className="relative">
+                                <button
+                                  type="button"
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => {
+                                    saveSelection();
+                                    setActiveFormatBlockId(activeFormatBlockId === block.id ? null : block.id);
+                                    setActiveColorBlockId(null);
+                                    setActiveHighlightBlockId(null);
+                                    setActiveFontSizeBlockId(null);
+                                    setActiveFontFamilyBlockId(null);
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-100 flex items-center gap-1 cursor-pointer shadow-2xs"
+                                  title="Text Style Preset"
+                                >
+                                  <span>Style</span>
+                                  <span className="material-symbols-outlined text-[14px]">arrow_drop_down</span>
+                                </button>
+                                {activeFormatBlockId === block.id && (
+                                  <div
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    className="absolute left-0 top-full mt-1 bg-white p-1.5 rounded-xl shadow-xl border border-slate-200 flex flex-col gap-1 z-30 min-w-[150px]"
+                                  >
+                                    {FORMAT_PRESETS.map((p) => (
+                                      <button
+                                        key={p.value}
+                                        type="button"
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => applyBlockFormat(block.id, p.tag)}
+                                        className="px-2.5 py-1 text-left text-xs font-semibold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg cursor-pointer"
+                                      >
+                                        {p.label}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* 2. Font Family Dropdown */}
+                              <div className="relative">
+                                <button
+                                  type="button"
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => {
+                                    saveSelection();
+                                    setActiveFontFamilyBlockId(activeFontFamilyBlockId === block.id ? null : block.id);
+                                    setActiveColorBlockId(null);
+                                    setActiveHighlightBlockId(null);
+                                    setActiveFontSizeBlockId(null);
+                                    setActiveFormatBlockId(null);
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-100 flex items-center gap-1 cursor-pointer shadow-2xs"
+                                  title="Font Family"
+                                >
+                                  <span>Font</span>
+                                  <span className="material-symbols-outlined text-[14px]">font_download</span>
+                                </button>
+                                {activeFontFamilyBlockId === block.id && (
+                                  <div
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    className="absolute left-0 top-full mt-1 bg-white p-1.5 rounded-xl shadow-xl border border-slate-200 flex flex-col gap-1 z-30 min-w-[150px]"
+                                  >
+                                    {FONT_FAMILIES.map((f) => (
+                                      <button
+                                        key={f.value}
+                                        type="button"
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => applyFontFamily(block.id, f.value)}
+                                        className="px-2.5 py-1 text-left text-xs font-medium text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg cursor-pointer"
+                                        style={{ fontFamily: f.value }}
+                                      >
+                                        {f.label}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* 3. Font Size Dropdown */}
+                              <div className="relative">
+                                <button
+                                  type="button"
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => {
+                                    saveSelection();
+                                    setActiveFontSizeBlockId(activeFontSizeBlockId === block.id ? null : block.id);
+                                    setActiveColorBlockId(null);
+                                    setActiveHighlightBlockId(null);
+                                    setActiveFontFamilyBlockId(null);
+                                    setActiveFormatBlockId(null);
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-100 flex items-center gap-1 cursor-pointer shadow-2xs"
+                                  title="Font Size"
+                                >
+                                  <span>Size</span>
+                                  <span className="material-symbols-outlined text-[14px]">format_size</span>
+                                </button>
+                                {activeFontSizeBlockId === block.id && (
+                                  <div
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    className="absolute left-0 top-full mt-1 bg-white p-1.5 rounded-xl shadow-xl border border-slate-200 flex flex-col gap-1 z-30 min-w-[130px]"
+                                  >
+                                    {FONT_SIZES.map((s) => (
+                                      <button
+                                        key={s.value}
+                                        type="button"
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => applyFontSize(block.id, s.value)}
+                                        className="px-2.5 py-1 text-left text-xs font-medium text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg cursor-pointer"
+                                      >
+                                        {s.label}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="w-[1px] h-5 bg-slate-200 mx-0.5" />
+
+                              {/* 4. Inline formatting: Bold, Italic, Underline, Strikethrough */}
                               <button
                                 type="button"
-                                onClick={() => applyInlineFormat("bold")}
-                                className="w-7 h-7 rounded hover:bg-slate-100 font-black text-xs text-slate-700"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => applyInlineFormat("bold", "", block.id)}
+                                className="w-7 h-7 rounded-lg hover:bg-white text-slate-700 font-black text-xs flex items-center justify-center transition-colors cursor-pointer border border-transparent hover:border-slate-200 shadow-2xs"
                                 title="Bold (Ctrl+B)"
                               >
                                 B
                               </button>
                               <button
                                 type="button"
-                                onClick={() => applyInlineFormat("italic")}
-                                className="w-7 h-7 rounded hover:bg-slate-100 italic font-serif text-xs text-slate-700"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => applyInlineFormat("italic", "", block.id)}
+                                className="w-7 h-7 rounded-lg hover:bg-white text-slate-700 italic font-serif text-xs flex items-center justify-center transition-colors cursor-pointer border border-transparent hover:border-slate-200 shadow-2xs"
                                 title="Italic (Ctrl+I)"
                               >
                                 I
                               </button>
                               <button
                                 type="button"
-                                onClick={() => applyInlineFormat("underline")}
-                                className="w-7 h-7 rounded hover:bg-slate-100 underline text-xs text-slate-700"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => applyInlineFormat("underline", "", block.id)}
+                                className="w-7 h-7 rounded-lg hover:bg-white text-slate-700 underline text-xs flex items-center justify-center transition-colors cursor-pointer border border-transparent hover:border-slate-200 shadow-2xs"
                                 title="Underline (Ctrl+U)"
                               >
                                 U
                               </button>
                               <button
                                 type="button"
-                                onClick={() => {
-                                  const sel = window.getSelection();
-                                  setLinkModalText(sel ? sel.toString() : "");
-                                  setLinkModalBlockId(block.id);
-                                  setLinkModalOpen(true);
-                                }}
-                                className="px-2 py-0.5 rounded hover:bg-slate-100 text-xs font-bold text-indigo-600 flex items-center gap-1"
-                                title="Insert Link"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => applyInlineFormat("strikeThrough", "", block.id)}
+                                className="w-7 h-7 rounded-lg hover:bg-white text-slate-700 line-through text-xs flex items-center justify-center transition-colors cursor-pointer border border-transparent hover:border-slate-200 shadow-2xs"
+                                title="Strikethrough"
                               >
-                                <span className="material-symbols-outlined text-[13px]">link</span>
-                                <span>Link</span>
+                                S
                               </button>
 
-                              {/* Highlight Swatches Dropdown */}
+                              <div className="w-[1px] h-5 bg-slate-200 mx-0.5" />
+
+                              {/* 5. Text Color Picker */}
                               <div className="relative">
                                 <button
                                   type="button"
-                                  onClick={() =>
-                                    setActiveHighlightBlockId(
-                                      activeHighlightBlockId === block.id ? null : block.id
-                                    )
-                                  }
-                                  className="px-2 py-0.5 rounded hover:bg-slate-100 text-xs font-bold text-amber-700 flex items-center gap-1"
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => {
+                                    saveSelection();
+                                    setActiveColorBlockId(activeColorBlockId === block.id ? null : block.id);
+                                    setActiveHighlightBlockId(null);
+                                    setActiveFontSizeBlockId(null);
+                                    setActiveFontFamilyBlockId(null);
+                                    setActiveFormatBlockId(null);
+                                  }}
+                                  className="px-2 py-1 rounded-lg hover:bg-white text-slate-700 text-xs font-bold flex items-center gap-1 cursor-pointer border border-transparent hover:border-slate-200 shadow-2xs"
+                                  title="Text Color"
                                 >
-                                  <span className="material-symbols-outlined text-[13px]">border_color</span>
-                                  <span>Highlight</span>
+                                  <span className="material-symbols-outlined text-[15px] text-indigo-600">format_color_text</span>
+                                  <span className="w-2.5 h-2.5 rounded-full border border-slate-300" style={{ backgroundColor: block.style?.color || "#1e293b" }} />
                                 </button>
-                                {activeHighlightBlockId === block.id && (
-                                  <div className="absolute left-0 top-full mt-1 bg-white p-2 rounded-xl shadow-xl border border-slate-200 flex items-center gap-1 z-30">
-                                    {HIGHLIGHT_COLORS.map((h) => (
+                                {activeColorBlockId === block.id && (
+                                  <div
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    className="absolute left-0 top-full mt-1 bg-white p-2 rounded-xl shadow-xl border border-slate-200 grid grid-cols-4 gap-1.5 z-30 min-w-[150px]"
+                                  >
+                                    {TEXT_COLORS.map((c) => (
                                       <button
-                                        key={h.name}
+                                        key={c.name}
                                         type="button"
-                                        onClick={() => applyHighlight(block.id, h.bg, h.text)}
-                                        style={{ backgroundColor: h.bg }}
-                                        className="w-5 h-5 rounded-full border border-slate-300 hover:scale-110 transition-transform"
-                                        title={h.name}
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => applyTextColor(block.id, c.color)}
+                                        style={{ backgroundColor: c.bg }}
+                                        className="w-6 h-6 rounded-lg border border-slate-300 hover:scale-110 transition-transform cursor-pointer"
+                                        title={c.name}
                                       />
                                     ))}
                                   </div>
                                 )}
                               </div>
+
+                              {/* 6. Highlight Color Picker */}
+                              <div className="relative">
+                                <button
+                                  type="button"
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => {
+                                    saveSelection();
+                                    setActiveHighlightBlockId(activeHighlightBlockId === block.id ? null : block.id);
+                                    setActiveColorBlockId(null);
+                                    setActiveFontSizeBlockId(null);
+                                    setActiveFontFamilyBlockId(null);
+                                    setActiveFormatBlockId(null);
+                                  }}
+                                  className="px-2 py-1 rounded-lg hover:bg-white text-amber-700 text-xs font-bold flex items-center gap-1 cursor-pointer border border-transparent hover:border-slate-200 shadow-2xs"
+                                  title="Highlight Background"
+                                >
+                                  <span className="material-symbols-outlined text-[15px]">border_color</span>
+                                </button>
+                                {activeHighlightBlockId === block.id && (
+                                  <div
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    className="absolute left-0 top-full mt-1 bg-white p-2 rounded-xl shadow-xl border border-slate-200 flex flex-col gap-2 z-30"
+                                  >
+                                    <div className="flex items-center gap-1.5">
+                                      {HIGHLIGHT_COLORS.map((h) => (
+                                        <button
+                                          key={h.name}
+                                          type="button"
+                                          onMouseDown={(e) => e.preventDefault()}
+                                          onClick={() => applyHighlight(block.id, h.bg, h.text)}
+                                          style={{ backgroundColor: h.bg }}
+                                          className="w-6 h-6 rounded-full border border-slate-300 hover:scale-110 transition-transform cursor-pointer"
+                                          title={h.name}
+                                        />
+                                      ))}
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onMouseDown={(e) => e.preventDefault()}
+                                      onClick={() => removeHighlight(block.id)}
+                                      className="text-[11px] font-bold text-slate-500 hover:text-rose-600 text-center cursor-pointer"
+                                    >
+                                      Clear Highlight
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="w-[1px] h-5 bg-slate-200 mx-0.5" />
+
+                              {/* 7. Alignments: Left, Center, Right */}
+                              <button
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => applyInlineFormat("justifyLeft", "", block.id)}
+                                className="w-7 h-7 rounded-lg hover:bg-white text-slate-700 flex items-center justify-center cursor-pointer transition-colors border border-transparent hover:border-slate-200 shadow-2xs"
+                                title="Align Left"
+                              >
+                                <span className="material-symbols-outlined text-[15px]">format_align_left</span>
+                              </button>
+                              <button
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => applyInlineFormat("justifyCenter", "", block.id)}
+                                className="w-7 h-7 rounded-lg hover:bg-white text-slate-700 flex items-center justify-center cursor-pointer transition-colors border border-transparent hover:border-slate-200 shadow-2xs"
+                                title="Align Center"
+                              >
+                                <span className="material-symbols-outlined text-[15px]">format_align_center</span>
+                              </button>
+                              <button
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => applyInlineFormat("justifyRight", "", block.id)}
+                                className="w-7 h-7 rounded-lg hover:bg-white text-slate-700 flex items-center justify-center cursor-pointer transition-colors border border-transparent hover:border-slate-200 shadow-2xs"
+                                title="Align Right"
+                              >
+                                <span className="material-symbols-outlined text-[15px]">format_align_right</span>
+                              </button>
+
+                              <div className="w-[1px] h-5 bg-slate-200 mx-0.5" />
+
+                              {/* 8. Lists: Bullets and Numbers */}
+                              <button
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => applyInlineFormat("insertUnorderedList", "", block.id)}
+                                className="w-7 h-7 rounded-lg hover:bg-white text-slate-700 flex items-center justify-center cursor-pointer transition-colors border border-transparent hover:border-slate-200 shadow-2xs"
+                                title="Bullet List"
+                              >
+                                <span className="material-symbols-outlined text-[15px]">format_list_bulleted</span>
+                              </button>
+                              <button
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => applyInlineFormat("insertOrderedList", "", block.id)}
+                                className="w-7 h-7 rounded-lg hover:bg-white text-slate-700 flex items-center justify-center cursor-pointer transition-colors border border-transparent hover:border-slate-200 shadow-2xs"
+                                title="Numbered List"
+                              >
+                                <span className="material-symbols-outlined text-[15px]">format_list_numbered</span>
+                              </button>
+
+                              <div className="w-[1px] h-5 bg-slate-200 mx-0.5" />
+
+                              {/* 9. Hyperlink */}
+                              <button
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => {
+                                  saveSelection();
+                                  const sel = window.getSelection();
+                                  setLinkModalText(sel ? sel.toString() : "");
+                                  setLinkModalBlockId(block.id);
+                                  setLinkModalOpen(true);
+                                }}
+                                className="px-2 py-1 rounded-lg hover:bg-white text-indigo-600 text-xs font-bold flex items-center gap-1 cursor-pointer border border-transparent hover:border-slate-200 shadow-2xs"
+                                title="Insert Link"
+                              >
+                                <span className="material-symbols-outlined text-[14px]">link</span>
+                                <span>Link</span>
+                              </button>
+
+                              {/* 10. Clean Format */}
+                              <button
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => cleanBlockFormatting(block.id)}
+                                className="px-2 py-1 rounded-lg hover:bg-white text-slate-600 text-xs font-bold flex items-center gap-1 cursor-pointer border border-transparent hover:border-slate-200 shadow-2xs"
+                                title="Clean formatting & remove dark overrides"
+                              >
+                                <span className="material-symbols-outlined text-[14px]">format_clear</span>
+                                <span>Clean</span>
+                              </button>
                             </div>
 
-                            {/* Direct Editable WYSIWYG Box */}
-                            <div
-                              contentEditable
-                              suppressContentEditableWarning
-                              onBlur={(e) =>
-                                updateBlock(block.id, { content: e.currentTarget.innerHTML })
-                              }
-                              dangerouslySetInnerHTML={{ __html: block.content }}
-                              className="min-h-[70px] text-base leading-relaxed text-slate-700 focus:outline-none p-1.5 rounded-lg"
+                            {/* Direct Rich Text WYSIWYG Editor Block with Cursor Protection */}
+                            <RichTextBlock
+                              block={block}
+                              onUpdateContent={(content) => updateBlock(block.id, { content })}
+                              onPaste={(e) => handleCleanPaste(e, block.id)}
+                              registerRef={(el) => {
+                                editorRefs.current[block.id] = el;
+                              }}
+                              onSaveSelection={saveSelection}
                             />
                           </div>
                         )}
@@ -2743,7 +3473,7 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
 
               {/* LIVE RENDERED ARTICLE CONTENT */}
               <div
-                className="prose prose-lg prose-indigo max-w-none space-y-4"
+                className="prose prose-lg prose-indigo max-w-none space-y-4 [&_*:not(mark)]:bg-transparent"
                 dangerouslySetInnerHTML={{ __html: generateCompleteHtml() }}
               />
 
@@ -2816,10 +3546,20 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
               <button
                 type="button"
                 onClick={() => {
+                  const editorEl = linkModalBlockId ? editorRefs.current[linkModalBlockId] : null;
+                  if (editorEl) {
+                    editorEl.focus();
+                    restoreSelection(linkModalBlockId || undefined);
+                  }
                   if (linkModalUrl.trim()) {
                     const targetAttr = linkModalNewTab ? ' target="_blank" rel="noopener noreferrer"' : "";
                     const linkHtml = `<a href="${linkModalUrl.trim()}"${targetAttr} class="text-indigo-600 underline font-bold">${linkModalText || linkModalUrl}</a>`;
-                    document.execCommand("insertHTML", false, linkHtml);
+                    try {
+                      document.execCommand("insertHTML", false, linkHtml);
+                    } catch (_) {}
+                  }
+                  if (linkModalBlockId && editorEl) {
+                    updateBlock(linkModalBlockId, { content: editorEl.innerHTML });
                   }
                   setLinkModalOpen(false);
                 }}

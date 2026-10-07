@@ -148,6 +148,7 @@ export default function BlogPostPage() {
                     prose-strong:text-gray-900 prose-strong:font-black
                     prose-img:rounded-[2rem] prose-img:shadow-xl
                     prose-a:text-purple-600 prose-a:font-bold prose-a:no-underline hover:prose-a:underline
+                    [&_*:not(mark)]:bg-transparent
                     "
                     dangerouslySetInnerHTML={{ __html: blog.content }}
                 />

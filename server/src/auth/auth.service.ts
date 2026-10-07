@@ -336,7 +336,7 @@ export class AuthService {
     }
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    this.otps.set(email, { otp, expiresAt: Date.now() + 60000 }); // Expires in 1 minute
+    this.otps.set(email, { otp, expiresAt: Date.now() + 120000 }); // Expires in 2 minutes
     console.log(`[AuthService] New OTP generated for ${email}: ${otp}`);
 
     // Store signup data for registration - ONLY update if fields are provided
@@ -567,12 +567,12 @@ export class AuthService {
 
       // Generate OTP
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      this.otps.set(email, { otp, expiresAt: Date.now() + 60000 }); // Expires in 1 minute
+      this.otps.set(email, { otp, expiresAt: Date.now() + 120000 }); // Expires in 2 minutes
       console.log(`[AuthService] OTP generated for ${email}: ${otp}`);
 
-      // Send OTP via email
+      // Send OTP via email with target portal context
       try {
-        await this.emailService.sendOtp(email, otp);
+        await this.emailService.sendOtp(email, otp, targetPortal);
       } catch (emailError) {
         console.warn(`[AuthService] SMTP failed to send email but OTP is generated: ${otp}`, emailError);
       }

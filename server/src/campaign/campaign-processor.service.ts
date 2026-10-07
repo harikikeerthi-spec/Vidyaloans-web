@@ -217,9 +217,12 @@ export class CampaignProcessorService {
         error?.message?.includes('connection timeout') ||
         error?.message?.includes('Connection terminated') ||
         error?.message?.includes("Can't reach database") ||
-        error?.message?.includes('database server')
+        error?.message?.includes('database server') ||
+        error?.message?.includes('socket disconnected') ||
+        error?.message?.includes('TLS connection') ||
+        error?.message?.includes('closed network connection')
       ) {
-        this.logger.warn('[EmailQueue] Database connection warming up / temporarily unreachable. Will retry on next tick.');
+        this.logger.warn('[EmailQueue] Database connection temporarily interrupted or socket dropped. Will automatically retry on next tick.');
       } else {
         this.logger.error('[EmailQueue] Error processing queued emails:', error?.message || error);
       }

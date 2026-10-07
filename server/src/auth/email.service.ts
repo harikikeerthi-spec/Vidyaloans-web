@@ -77,29 +77,58 @@ export class EmailService {
       .trim();
   }
 
-  async sendOtp(email: string, otp: string) {
+  async sendOtp(email: string, otp: string, portalOrTitle?: string) {
     const timestamp = new Date().toLocaleTimeString();
+    const portalLabel = portalOrTitle ? ` for ${portalOrTitle}` : '';
+
+    // Include OTP directly in the email subject as requested and shown in candidate portals
+    const subject = `[${otp}] Confirm your identity${portalLabel} - VidyaLoans`;
+
+    // Plain text version with exact phrasing that triggers Gmail's "Code requested" auto-detection
+    const text = `Confirm your identity using this code: ${otp}.
+
+The code expires in 2 minutes.
+
+Do not share this code with anyone.`;
+
     const mailOptions = {
-      from: this.getFromAddress(),
+      from: this.getFromAddress('VidyaLoans Verification'),
       to: email,
-      subject: `Your VidyaLoan OTP Verification Code`,
-      text: `Your OTP is: ${otp}. This code expires in 1 minutes.`,
+      subject: subject,
+      text: text,
       headers: {
         'X-Mailer': 'VidyaLoan Platform',
         'X-Priority': '3',
       },
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background: linear-gradient(135deg, #6605c7 0%, #8b5cf6 100%); padding: 30px; border-radius: 10px; text-align: center;">
-            <h1 style="color: white; margin: 0;">VidyaLoan</h1>
+        <div style="font-family: Arial, Helvetica, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1e293b; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px;">
+          <div style="background: linear-gradient(135deg, #6605c7 0%, #8b5cf6 100%); padding: 24px; border-radius: 8px; text-align: center; margin-bottom: 24px;">
+            <h1 style="color: white; margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.02em;">VidyaLoans</h1>
           </div>
-          <div style="background: #f7f5f8; padding: 30px; border-radius: 0 0 10px 10px;">
-            <h2 style="color: #333;">Your Verification Code</h2>
-            <p style="color: #666; font-size: 16px;">Use the following OTP to complete your authentication:</p>
-            <div style="background: white; padding: 20px; border-radius: 10px; text-align: center; margin: 20px 0;">
-              <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #6605c7;">${otp}</span>
+          
+          <div style="padding: 0 8px; line-height: 1.6; font-size: 15px;">
+            <h2 style="color: #0f172a; margin-top: 0; font-size: 18px; font-weight: 600;">Confirm your identity</h2>
+            <p style="color: #334155; margin-bottom: 16px;">
+              We need you to confirm your identity to proceed with your authentication and application access.
+            </p>
+            
+            <p style="color: #0f172a; font-size: 16px; margin: 20px 0; font-weight: 500;">
+              Confirm your identity using this code: <strong style="font-size: 22px; color: #6605c7; letter-spacing: 2px;">${otp}</strong>.
+            </p>
+
+            <div style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 20px; text-align: center; margin: 24px 0;">
+              <div style="font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px; color: #64748b; font-weight: 600; margin-bottom: 8px;">Code requested</div>
+              <div style="font-size: 34px; font-weight: 700; letter-spacing: 8px; color: #6605c7; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;">${otp}</div>
             </div>
-            <p style="color: #999; font-size: 14px;">This code expires in 1 minutes. Do not share this code with anyone.</p>
+
+            <p style="color: #64748b; font-size: 14px; margin-top: 16px;">
+              The code expires in 2 minutes.
+            </p>
+            
+            <div style="border-top: 1px solid #e2e8f0; margin-top: 28px; padding-top: 16px; font-size: 12px; color: #94a3b8;">
+              <p style="margin: 0;">This is an automated notification. Do not share this code with anyone.</p>
+              <p style="margin: 4px 0 0 0;">If you did not initiate this request, you can safely ignore this email.</p>
+            </div>
           </div>
         </div>
       `,

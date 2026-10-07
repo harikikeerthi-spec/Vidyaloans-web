@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { adminApi } from "@/lib/api";
+import { cleanHtmlContent, RichTextBlock } from "./DynamicBlogEditor";
 
 type BlockType = "heading" | "container" | "split_content" | "text" | "image" | "video" | "button" | "list" | "quote" | "code" | "divider" | "spacer" | "tags";
 
@@ -637,6 +638,12 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
                     <h2
                         contentEditable
                         suppressContentEditableWarning
+                        onPaste={(e) => {
+                            e.preventDefault();
+                            const text = e.clipboardData.getData("text/plain");
+                            document.execCommand("insertText", false, text);
+                            updateBlock(block.id, e.currentTarget.textContent || "");
+                        }}
                         onBlur={(e) => updateBlock(block.id, e.currentTarget.textContent || "")}
                         className="text-3xl font-bold outline-none"
                     >
@@ -806,28 +813,51 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
                                 >
                                     Card
                                 </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        try {
+                                            document.execCommand("removeFormat", false, undefined);
+                                        } catch (_) {}
+                                        updateBlock(block.id, cleanHtmlContent(block.content || ""));
+                                    }}
+                                    className="px-1.5 py-0.5 rounded font-bold bg-slate-100 text-slate-700 hover:bg-white border border-slate-300 cursor-pointer text-xs"
+                                    title="Clean formatting and remove dark backgrounds"
+                                >
+                                    Clean
+                                </button>
                             </div>
                         </div>
 
-                        {/* ContentEditable Live Dynamic Editor */}
-                        <div
-                            contentEditable
-                            suppressContentEditableWarning
-                            dangerouslySetInnerHTML={{ __html: block.content }}
-                            onBlur={(e) => updateBlock(block.id, e.currentTarget.innerHTML || "")}
-                            className="outline-none min-h-[3rem] transition-all"
-                            style={{
-                                fontSize: block.style?.fontSize || "16px",
-                                textAlign: block.style?.textAlign || "left",
-                                fontFamily: block.style?.fontFamily,
-                                color: block.style?.color || "#374151",
-                                backgroundColor: block.style?.backgroundColor,
-                                padding: block.style?.padding,
-                                borderRadius: block.style?.borderRadius,
-                                border: block.style?.border,
-                                borderLeft: block.style?.borderLeft,
-                                lineHeight: block.style?.lineHeight || "1.65",
+                        {/* ContentEditable Live Dynamic Editor with Cursor Jump Protection */}
+                        <RichTextBlock
+                            block={block as any}
+                            onUpdateContent={(content) => updateBlock(block.id, content)}
+                            onPaste={(e) => {
+                                e.preventDefault();
+                                const html = e.clipboardData.getData("text/html");
+                                const text = e.clipboardData.getData("text/plain");
+                                if (html) {
+                                    const cleaned = cleanHtmlContent(html);
+                                    if (cleaned) {
+                                        try {
+                                            document.execCommand("insertHTML", false, cleaned);
+                                        } catch (_) {
+                                            document.execCommand("insertText", false, text);
+                                        }
+                                    } else {
+                                        document.execCommand("insertText", false, text);
+                                    }
+                                } else if (text) {
+                                    document.execCommand("insertText", false, text);
+                                }
+                                const target = e.currentTarget;
+                                setTimeout(() => {
+                                    updateBlock(block.id, target.innerHTML || "");
+                                }, 0);
                             }}
+                            registerRef={() => {}}
+                            onSaveSelection={() => {}}
                         />
                     </div>
                 );
@@ -887,6 +917,12 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
                         <p
                             contentEditable
                             suppressContentEditableWarning
+                            onPaste={(e) => {
+                                e.preventDefault();
+                                const text = e.clipboardData.getData("text/plain");
+                                document.execCommand("insertText", false, text);
+                                updateBlock(block.id, e.currentTarget.textContent || "");
+                            }}
                             onBlur={(e) => updateBlock(block.id, e.currentTarget.textContent || "")}
                             className="text-xl text-gray-600 outline-none"
                         >
@@ -900,6 +936,12 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
                         <code
                             contentEditable
                             suppressContentEditableWarning
+                            onPaste={(e) => {
+                                e.preventDefault();
+                                const text = e.clipboardData.getData("text/plain");
+                                document.execCommand("insertText", false, text);
+                                updateBlock(block.id, e.currentTarget.textContent || "");
+                            }}
                             onBlur={(e) => updateBlock(block.id, e.currentTarget.textContent || "")}
                             className="outline-none block"
                         >

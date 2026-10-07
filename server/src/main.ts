@@ -57,6 +57,7 @@ async function bootstrap() {
       url.includes('/auth/check-bank-officer') ||
       url.includes('/auth/firebase') ||
       url.includes('/auth/landing-page-submit') ||
+      url.includes('/auth/create-application') ||
       url.includes('/auth/refresh') ||
       url.includes('/auth/login') ||
       url.includes('/digilocker/callback') ||
