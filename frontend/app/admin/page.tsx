@@ -1660,7 +1660,11 @@ export default function AdminDashboardPage() {
                 phoneNumber: editingUser.phoneNumber || editingUser.mobile || "",
                 dateOfBirth: editingUser.dateOfBirth || "",
                 officeId: editingUser.officeId,
-                officeLocation: editingUser.officeLocation
+                officeLocation: editingUser.officeLocation,
+                mailboxEmail: editingUser.mailboxEmail,
+                mailboxPrefix: editingUser.mailboxPrefix,
+                canAccessSupport: editingUser.canAccessSupport,
+                staffId: editingUser.staffId,
             });
             alert("User updated successfully.");
             setEditingUser(null);
@@ -3144,6 +3148,19 @@ export default function AdminDashboardPage() {
                                                                                 <span className="material-symbols-outlined text-[11px] text-indigo-500">apartment</span>
                                                                                 {item.officeLocation ? item.officeLocation.split(' - ')[0] : 'Office'}
                                                                             </span>
+                                                                        )}
+                                                                        {(item.role === 'staff' || activeSection === 'users_staff') && (
+                                                                            item.mailboxEmail ? (
+                                                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-violet-50 text-violet-700 border border-violet-200" title={`AWS SES Business Mailbox: ${item.mailboxEmail} (S3 prefix: ${item.mailboxPrefix || 'default'})`}>
+                                                                                    <span className="material-symbols-outlined text-[11px] text-violet-600">outgoing_mail</span>
+                                                                                    SES: {item.mailboxEmail}
+                                                                                </span>
+                                                                            ) : (
+                                                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium bg-slate-50 text-slate-400 border border-slate-200" title="No AWS SES email assigned yet">
+                                                                                    <span className="material-symbols-outlined text-[11px] text-slate-400">mail</span>
+                                                                                    SES Unassigned
+                                                                                </span>
+                                                                            )
                                                                         )}
                                                                         {item.role === 'agent' && (item.partnership || item.percentage) && (
                                                                             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
@@ -6089,30 +6106,70 @@ export default function AdminDashboardPage() {
                                     <input required type="email" value={editingUser.email || ""} onChange={e => setEditingUser({ ...editingUser, email: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all" placeholder="user@example.com" />
                                 </div>
                                 {(editingUser.role === 'staff' || editingUser.role === 'staff_admin') && (
-                                    <div>
-                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">
-                                            Assigned Office & Location
-                                        </label>
-                                        <select
-                                            value={editingUser.officeId || ""}
-                                            onChange={e => {
-                                                const sel = offices.find(o => o.id === e.target.value);
-                                                setEditingUser({
-                                                    ...editingUser,
-                                                    officeId: e.target.value,
-                                                    officeLocation: sel ? `${sel.name} - ${sel.city} (${sel.location})` : ""
-                                                });
-                                            }}
-                                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-400 transition-all cursor-pointer"
-                                        >
-                                            <option value="">-- Select Office Location --</option>
-                                            {offices.map((off: any) => (
-                                                <option key={off.id} value={off.id}>
-                                                    {off.name} · {off.city} ({off.location})
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
+                                    <>
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">
+                                                Assigned Office & Location
+                                            </label>
+                                            <select
+                                                value={editingUser.officeId || ""}
+                                                onChange={e => {
+                                                    const sel = offices.find(o => o.id === e.target.value);
+                                                    setEditingUser({
+                                                        ...editingUser,
+                                                        officeId: e.target.value,
+                                                        officeLocation: sel ? `${sel.name} - ${sel.city} (${sel.location})` : ""
+                                                    });
+                                                }}
+                                                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-400 transition-all cursor-pointer"
+                                            >
+                                                <option value="">-- Select Office Location --</option>
+                                                {offices.map((off: any) => (
+                                                    <option key={off.id} value={off.id}>
+                                                        {off.name} · {off.city} ({off.location})
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">
+                                                    Assigned AWS SES Business Email
+                                                </label>
+                                                <input
+                                                    type="email"
+                                                    value={editingUser.mailboxEmail || ""}
+                                                    onChange={e => setEditingUser({ ...editingUser, mailboxEmail: e.target.value })}
+                                                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-mono font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-600/20 focus:border-violet-600 transition-all"
+                                                    placeholder="e.g. staff.name@vidyaloans.in"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">
+                                                    AWS S3 Mailbox Folder Prefix
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={editingUser.mailboxPrefix || ""}
+                                                    onChange={e => setEditingUser({ ...editingUser, mailboxPrefix: e.target.value })}
+                                                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-mono font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-600/20 focus:border-violet-600 transition-all"
+                                                    placeholder="e.g. staff/name/ or name/"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2 pt-1">
+                                            <input
+                                                id="edit-modal-can-access-support"
+                                                type="checkbox"
+                                                checked={!!editingUser.canAccessSupport}
+                                                onChange={e => setEditingUser({ ...editingUser, canAccessSupport: e.target.checked })}
+                                                className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                                            />
+                                            <label htmlFor="edit-modal-can-access-support" className="text-xs font-semibold text-slate-700 cursor-pointer">
+                                                Allow access to general support queue & unassigned inquiries
+                                            </label>
+                                        </div>
+                                    </>
                                 )}
                                 <div className="pt-4 flex gap-4">
                                     <button type="button" onClick={() => setEditingUser(null)} className="flex-1 px-6 py-3 bg-slate-50 text-slate-400 rounded-lg font-black uppercase tracking-widest text-[10px] hover:bg-slate-100 hover:text-slate-600 transition-all border border-slate-100">Cancel</button>

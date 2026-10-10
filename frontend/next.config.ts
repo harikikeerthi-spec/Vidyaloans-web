@@ -36,6 +36,11 @@ const nextConfig = {
   async redirects() {
     return [
       {
+        source: "/apply",
+        destination: "/apply-loan",
+        permanent: true,
+      },
+      {
         source: "/privacy",
         destination: "/privacy-policy",
         permanent: true,

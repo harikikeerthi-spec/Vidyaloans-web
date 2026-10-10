@@ -38,12 +38,14 @@ export class CampaignProcessorService {
     this.isProcessing = true;
     try {
       // 1. Fetch active campaigns in 'queued' or 'sending' status that have reached their scheduled time
-      const activeCampaigns = await this.prisma.campaign.findMany({
-        where: {
-          status: { in: ['queued', 'sending'] },
-          scheduledAt: { lte: new Date() },
-        },
-      });
+      const activeCampaigns = await this.prisma.withRetry(() =>
+        this.prisma.campaign.findMany({
+          where: {
+            status: { in: ['queued', 'sending'] },
+            scheduledAt: { lte: new Date() },
+          },
+        })
+      );
 
       if (activeCampaigns.length === 0) {
         this.isProcessing = false;
@@ -53,17 +55,19 @@ export class CampaignProcessorService {
       const campaignIds = activeCampaigns.map(c => c.id);
 
       // 2. Fetch the next batch of queued recipients in FIFO order
-      const pendingRecipients = await this.prisma.campaignRecipient.findMany({
-        where: {
-          campaignId: { in: campaignIds },
-          status: 'queued',
-        },
-        orderBy: { createdAt: 'asc' },
-        take: 60, // process up to 60 per minute cycle
-        include: {
-          campaign: true,
-        },
-      });
+      const pendingRecipients = await this.prisma.withRetry(() =>
+        this.prisma.campaignRecipient.findMany({
+          where: {
+            campaignId: { in: campaignIds },
+            status: 'queued',
+          },
+          orderBy: { createdAt: 'asc' },
+          take: 60, // process up to 60 per minute cycle
+          include: {
+            campaign: true,
+          },
+        })
+      );
 
       if (pendingRecipients.length === 0) {
         await this.checkAndFinalizeCampaigns(campaignIds);

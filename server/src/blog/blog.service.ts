@@ -165,19 +165,25 @@ export class BlogService {
             return `<div class="blog-video-wrapper my-4 aspect-video w-full rounded-xl overflow-hidden shadow-sm"><iframe src="${embedUrl}" class="w-full h-full" frameborder="0" allowfullscreen${styleAttr}></iframe></div>`;
           }
           case 'button': {
-            const linkAttrs = getLinkAttrs(block.url || block.link || '#', block.openInNewTab, block.addNofollow);
-            return `<div class="blog-button-wrapper"><a${linkAttrs} class="blog-btn"${styleAttr}>${block.content || 'Click Here'}</a></div>`;
+            const btnUrl = block.buttonUrl || block.url || block.link || '/apply-loan';
+            const isNewTab = block.buttonNewTab ?? block.openInNewTab ?? true;
+            const linkAttrs = getLinkAttrs(btnUrl, isNewTab, block.addNofollow);
+            const btnText = block.buttonText || block.content || 'Explore Loan Options';
+            return `<div class="my-8 text-center not-prose blog-button-wrapper"><a${linkAttrs} class="blog-btn inline-flex items-center justify-center gap-2 px-8 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl shadow-xl shadow-indigo-600/25 text-sm uppercase tracking-wider transition-all transform hover:-translate-y-0.5" style="background-color: #4f46e5 !important; color: #ffffff !important; display: inline-flex; align-items: center; justify-content: center; padding: 14px 32px; border-radius: 16px; font-weight: 700; text-decoration: none; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; box-shadow: 0 10px 25px -5px rgba(79, 70, 229, 0.4);${styleAttr ? styleAttr.replace(/^style="/, '; ') : '"'}>${btnText} &rarr;</a></div>`;
           }
           case 'link': {
             const linkAttrs = getLinkAttrs(block.url || block.link || '#', block.openInNewTab, block.addNofollow);
             return `<div class="blog-link-wrapper"><a${linkAttrs} class="blog-link font-bold text-indigo-600 hover:underline"${styleAttr}>${block.content || block.url || 'Learn More'} &rarr;</a></div>`;
           }
           case 'cta': {
-            const linkAttrs = getLinkAttrs(block.url || block.link || '#', block.openInNewTab, block.addNofollow);
-            return `<div class="blog-cta-card p-6 my-6 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl border border-indigo-100"${styleAttr}>
-              <h3 class="text-xl font-extrabold text-indigo-950 mb-2">${block.title || 'Ready to Apply?'}</h3>
-              <p class="text-sm text-slate-600 mb-4">${block.content || ''}</p>
-              <a${linkAttrs} class="inline-block px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-xs shadow-md">${block.buttonText || 'Apply Now &rarr;'}</a>
+            const ctaUrl = block.buttonUrl || block.url || block.link || '/apply-loan';
+            const isNewTab = block.buttonNewTab ?? block.openInNewTab ?? true;
+            const linkAttrs = getLinkAttrs(ctaUrl, isNewTab, block.addNofollow);
+            const btnText = block.buttonText || 'Apply Now &rarr;';
+            return `<div class="blog-cta-card not-prose p-6 sm:p-8 my-8 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-3xl border border-indigo-100 shadow-md text-center"${styleAttr}>
+              <h3 class="text-xl sm:text-2xl font-extrabold text-indigo-950 mb-2">${block.title || 'Ready to Fund Your Education?'}</h3>
+              <p class="text-sm text-slate-600 mb-6 max-w-xl mx-auto">${block.content || 'Compare pre-approved loan options from 15+ top banks with 100% paperless verification.'}</p>
+              <div><a${linkAttrs} class="inline-flex items-center gap-2 px-8 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold text-xs uppercase tracking-wider shadow-lg shadow-indigo-600/30 transition-all" style="background-color: #4f46e5 !important; color: #ffffff !important; display: inline-flex; padding: 12px 28px; border-radius: 14px; font-weight: 700; text-decoration: none;">${btnText}</a></div>
             </div>`;
           }
           case 'alert':
@@ -552,18 +558,41 @@ export class BlogService {
     };
 
     // Parse blocks from content metadata comment
-    const content = blog.content || '';
+    let content = blog.content || '';
     const match = content.match(/<!--BLOCKS_JSON_START-->([\s\S]*?)<!--BLOCKS_JSON_END-->/);
     if (match) {
       try {
         mapped.blocks = JSON.parse(match[1]);
-        mapped.content = content.replace(/<!--BLOCKS_JSON_START-->[\s\S]*?<!--BLOCKS_JSON_END-->/, '').trim();
+        content = content.replace(/<!--BLOCKS_JSON_START-->[\s\S]*?<!--BLOCKS_JSON_END-->/, '').trim();
       } catch (e) {
         mapped.blocks = [];
       }
     } else {
       mapped.blocks = [];
     }
+
+    // Parse SEO metadata from content comment
+    const seoMatch = content.match(/<!--SEO_JSON_START-->([\s\S]*?)<!--SEO_JSON_END-->/);
+    if (seoMatch) {
+      try {
+        const seoData = JSON.parse(seoMatch[1]);
+        mapped.metaTitle = seoData.metaTitle || blog.metaTitle || '';
+        mapped.metaDescription = seoData.metaDescription || blog.metaDescription || '';
+        mapped.focusKeyword = seoData.focusKeyword || blog.focusKeyword || '';
+        mapped.canonicalUrl = seoData.canonicalUrl || blog.canonicalUrl || '';
+        mapped.noIndex = seoData.noIndex !== undefined ? seoData.noIndex : !!blog.noIndex;
+        content = content.replace(/<!--SEO_JSON_START-->[\s\S]*?<!--SEO_JSON_END-->/, '').trim();
+      } catch (e) {
+        // Fallback
+      }
+    } else {
+      mapped.metaTitle = blog.metaTitle || '';
+      mapped.metaDescription = blog.metaDescription || '';
+      mapped.focusKeyword = blog.focusKeyword || '';
+      mapped.canonicalUrl = blog.canonicalUrl || '';
+      mapped.noIndex = !!blog.noIndex;
+    }
+    mapped.content = content;
 
     // Set subtitle/coverImage for compatibility with IT dashboard
     mapped.subtitle = blog.excerpt || '';
@@ -607,13 +636,43 @@ export class BlogService {
     return { success: true, data: this.mapTags(blog) };
   }
 
-  async getBlogBySlug(slug: string) {
-    let { data: blog } = await this.db
+  async getBlogBySlug(rawSlug: string) {
+    const slug = (rawSlug || '').trim();
+    if (!slug) throw new NotFoundException('Blog not found');
+
+    let blog: any = null;
+
+    // 1. Exact slug match with relations
+    const { data: exactMatch } = await this.db
       .from('Blog')
       .select('id, title, slug, excerpt, content, category, authorName, authorImage, authorRole, featuredImage, readTime, views, publishedAt, createdAt, updatedAt, tags:BlogTag(tag:Tag(name)), comments:Comment(id, author, content, createdAt)')
       .eq('slug', slug)
       .maybeSingle();
+    blog = exactMatch;
 
+    // 2. Case-insensitive slug match with relations
+    if (!blog) {
+      const { data: ilikeMatch } = await this.db
+        .from('Blog')
+        .select('id, title, slug, excerpt, content, category, authorName, authorImage, authorRole, featuredImage, readTime, views, publishedAt, createdAt, updatedAt, tags:BlogTag(tag:Tag(name)), comments:Comment(id, author, content, createdAt)')
+        .ilike('slug', slug)
+        .maybeSingle();
+      blog = ilikeMatch;
+    }
+
+    // 3. Fallback direct select without relation joins
+    if (!blog) {
+      const { data: directMatch } = await this.db
+        .from('Blog')
+        .select('*')
+        .ilike('slug', slug)
+        .maybeSingle();
+      if (directMatch) {
+        blog = directMatch;
+      }
+    }
+
+    // 4. Fallback: match by UUID if slug looks like a UUID
     if (!blog) {
       const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(slug);
       if (isUUID) {
@@ -623,6 +682,15 @@ export class BlogService {
           .eq('id', slug)
           .maybeSingle();
         blog = byId;
+
+        if (!blog) {
+          const { data: directById } = await this.db
+            .from('Blog')
+            .select('*')
+            .eq('id', slug)
+            .maybeSingle();
+          blog = directById;
+        }
       }
     }
 
@@ -636,7 +704,10 @@ export class BlogService {
     return { success: true, data: this.mapTags(blog) };
   }
 
-  async getBlogById(id: string) {
+  async getBlogById(rawId: string) {
+    const id = (rawId || '').trim();
+    if (!id) throw new NotFoundException('Blog not found');
+
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
     let blog: any = null;
 
@@ -653,7 +724,16 @@ export class BlogService {
       const { data } = await this.db
         .from('Blog')
         .select('id, title, slug, excerpt, content, category, authorName, authorImage, authorRole, featuredImage, readTime, views, isFeatured, isPublished, publishedAt, createdAt, updatedAt, tags:BlogTag(tag:Tag(name))')
-        .eq('slug', id)
+        .ilike('slug', id)
+        .maybeSingle();
+      blog = data;
+    }
+
+    if (!blog) {
+      const { data } = await this.db
+        .from('Blog')
+        .select('*')
+        .or(`id.eq.${id},slug.ilike.${id}`)
         .maybeSingle();
       blog = data;
     }
@@ -792,8 +872,15 @@ export class BlogService {
       htmlContent = data.content || '';
     }
 
-    // Append metadata blocks JSON
-    dbData.content = `${htmlContent}\n\n<!--BLOCKS_JSON_START-->${JSON.stringify(blocksArr)}<!--BLOCKS_JSON_END-->`;
+    // Append metadata blocks & SEO JSON
+    const seoObj = {
+      metaTitle: data.metaTitle || '',
+      metaDescription: data.metaDescription || '',
+      focusKeyword: data.focusKeyword || '',
+      canonicalUrl: data.canonicalUrl || '',
+      noIndex: !!data.noIndex,
+    };
+    dbData.content = `${htmlContent}\n\n<!--BLOCKS_JSON_START-->${JSON.stringify(blocksArr)}<!--BLOCKS_JSON_END-->\n<!--SEO_JSON_START-->${JSON.stringify(seoObj)}<!--SEO_JSON_END-->`;
 
     const { tags = [] } = data;
     const { data: blog, error } = await this.db
@@ -902,7 +989,7 @@ export class BlogService {
     }
 
     // Map blocks/content
-    if (data.blocks !== undefined || data.content !== undefined) {
+    if (data.blocks !== undefined || data.content !== undefined || data.metaTitle !== undefined || data.metaDescription !== undefined) {
       let htmlContent = '';
       let blocksArr = [];
       if (data.blocks !== undefined) {
@@ -911,7 +998,14 @@ export class BlogService {
       } else {
         htmlContent = data.content || '';
       }
-      dbData.content = `${htmlContent}\n\n<!--BLOCKS_JSON_START-->${JSON.stringify(blocksArr)}<!--BLOCKS_JSON_END-->`;
+      const seoObj = {
+        metaTitle: data.metaTitle !== undefined ? data.metaTitle : (existingBlog.metaTitle || ''),
+        metaDescription: data.metaDescription !== undefined ? data.metaDescription : (existingBlog.metaDescription || ''),
+        focusKeyword: data.focusKeyword !== undefined ? data.focusKeyword : (existingBlog.focusKeyword || ''),
+        canonicalUrl: data.canonicalUrl !== undefined ? data.canonicalUrl : (existingBlog.canonicalUrl || ''),
+        noIndex: data.noIndex !== undefined ? !!data.noIndex : false,
+      };
+      dbData.content = `${htmlContent}\n\n<!--BLOCKS_JSON_START-->${JSON.stringify(blocksArr)}<!--BLOCKS_JSON_END-->\n<!--SEO_JSON_START-->${JSON.stringify(seoObj)}<!--SEO_JSON_END-->`;
     }
 
     dbData.updatedAt = new Date().toISOString(); // @updatedAt is Prisma-only — must set manually for Supabase JS client

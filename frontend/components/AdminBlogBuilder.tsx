@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, DragEvent } from "react";
+import { useState, useEffect, useRef, DragEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
@@ -10,7 +10,7 @@ import { cleanHtmlContent, RichTextBlock } from "./DynamicBlogEditor";
 type BlockType = "heading" | "container" | "split_content" | "text" | "image" | "video" | "button" | "list" | "quote" | "code" | "divider" | "spacer" | "tags";
 
 interface SplitConfig {
-    layoutType: "image_text" | "text_text" | "text_image";
+    layoutType: "image_text" | "text_text" | "text_image" | "content_form" | "form_content";
     ratio?: "50_50" | "40_60" | "60_40" | "33_67";
     verticalAlign?: "top" | "center" | "bottom";
     cardStyle?: "clean" | "card" | "gradient" | "bordered";
@@ -29,6 +29,10 @@ interface SplitConfig {
     buttonText?: string;
     buttonUrl?: string;
     buttonNewTab?: boolean;
+    // Registration Form Parameters
+    formTitle?: string;
+    formSubtitle?: string;
+    formButtonText?: string;
 }
 
 interface Block {
@@ -48,23 +52,28 @@ interface Block {
         borderRadius?: string;
         border?: string;
         borderLeft?: string;
+        aspectRatio?: string;
+        maxHeight?: string;
+        objectFit?: "cover" | "contain" | "fill";
+        objectPosition?: "center" | "top" | "bottom";
     };
 }
 
-const ELEMENT_TYPES: { type: BlockType; label: string; icon: string; color: string; desc: string }[] = [
-    { type: "heading", label: "Heading", icon: "title", color: "blue", desc: "Drag to add" },
-    { type: "split_content", label: "Split 2-Column", icon: "view_column", color: "indigo", desc: "Left/right matter or image & content" },
-    { type: "container", label: "Container", icon: "view_agenda", color: "purple", desc: "Drag to add" },
-    { type: "text", label: "Text & Live Editor", icon: "text_fields", color: "green", desc: "Drag to add" },
-    { type: "image", label: "Image", icon: "image", color: "orange", desc: "Drag to add" },
-    { type: "video", label: "Video", icon: "videocam", color: "red", desc: "Drag to add" },
-    { type: "button", label: "Button", icon: "smart_button", color: "indigo", desc: "Drag to add" },
-    { type: "list", label: "List", icon: "format_list_bulleted", color: "teal", desc: "Drag to add" },
-    { type: "quote", label: "Quote", icon: "format_quote", color: "yellow", desc: "Drag to add" },
-    { type: "code", label: "Code Block", icon: "code", color: "gray", desc: "Drag to add" },
-    { type: "divider", label: "Divider", icon: "horizontal_rule", color: "pink", desc: "Drag to add" },
-    { type: "spacer", label: "Spacer", icon: "unfold_more", color: "cyan", desc: "Drag to add" },
-    { type: "tags", label: "Tags Cloud", icon: "label", color: "purple", desc: "Drag to add" },
+const ELEMENT_TYPES: { type: BlockType; label: string; icon: string; color: string; desc: string; defaultLayout?: SplitConfig["layoutType"] }[] = [
+    { type: "heading", label: "Heading", icon: "title", color: "blue", desc: "Drag to add title" },
+    { type: "split_content", label: "Split 2-Column", icon: "view_column", color: "indigo", desc: "Left/right matter or image & text" },
+    { type: "split_content", label: "Content + Register Form", icon: "how_to_reg", color: "purple", desc: "One side content, one side form", defaultLayout: "content_form" },
+    { type: "container", label: "Container", icon: "view_agenda", color: "purple", desc: "Drag to add container" },
+    { type: "text", label: "Text & Live Editor", icon: "text_fields", color: "green", desc: "Drag to add rich text" },
+    { type: "image", label: "Image (Crop & Fit)", icon: "crop", color: "orange", desc: "Crop, aspect ratio & sizing" },
+    { type: "video", label: "Video", icon: "videocam", color: "red", desc: "Drag to add video" },
+    { type: "button", label: "Button", icon: "smart_button", color: "indigo", desc: "Drag to add CTA" },
+    { type: "list", label: "List", icon: "format_list_bulleted", color: "teal", desc: "Drag to add bullets" },
+    { type: "quote", label: "Quote", icon: "format_quote", color: "yellow", desc: "Drag to add quote" },
+    { type: "code", label: "Code Block", icon: "code", color: "gray", desc: "Drag to add code" },
+    { type: "divider", label: "Divider", icon: "horizontal_rule", color: "pink", desc: "Drag to add divider" },
+    { type: "spacer", label: "Spacer", icon: "unfold_more", color: "cyan", desc: "Drag to add spacing" },
+    { type: "tags", label: "Tags Cloud", icon: "label", color: "purple", desc: "Drag to add tags" },
 ];
 
 const COLOR_MAP: Record<string, string> = {
@@ -111,6 +120,7 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
     // Editor state
     const [blocks, setBlocks] = useState<Block[]>([]);
     const [draggedType, setDraggedType] = useState<BlockType | null>(null);
+    const [draggedLayout, setDraggedLayout] = useState<SplitConfig["layoutType"] | undefined>(undefined);
     const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
     const [draggingBlockId, setDraggingBlockId] = useState<string | null>(null);
     const [saveStatus, setSaveStatus] = useState("Saved");
@@ -120,6 +130,7 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
     // Modal state
     const [editingBlock, setEditingBlock] = useState<Block | null>(null);
     const [showModal, setShowModal] = useState(false);
+    const editorRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
     // Generate slug from title
     useEffect(() => {
@@ -146,78 +157,243 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
         { name: "Orange", bg: "#fed7aa", text: "#9a3412", border: "#fdba74" },
     ];
 
-    const applyHighlight = (blockId: string, bg: string = "#fef08a", textColor: string = "#854d0e") => {
+    const applyHighlight = (blockId: string, bg: string = "#fef08a", _textColor?: string) => {
+        const el = editorRefs.current[blockId] || document.getElementById(`editor-${blockId}`);
         const sel = window.getSelection();
         if (sel && !sel.isCollapsed && sel.rangeCount > 0) {
-            try {
-                const range = sel.getRangeAt(0);
-                let node: Node | null = range.commonAncestorContainer;
-                if (node.nodeType === Node.TEXT_NODE) {
-                    node = node.parentNode;
-                }
-                const existingMark =
-                    (node as HTMLElement)?.closest?.("mark") ||
-                    ((node as HTMLElement)?.tagName === "MARK" ? (node as HTMLElement) : null);
+            const range = sel.getRangeAt(0);
+            const containerEl = el || (range.commonAncestorContainer as HTMLElement)?.closest?.('[contenteditable="true"]') as HTMLElement | null;
 
-                if (existingMark) {
-                    const isSame = existingMark.style.backgroundColor === bg;
-                    if (isSame) {
-                        const textNode = document.createTextNode(existingMark.textContent || "");
-                        existingMark.parentNode?.replaceChild(textNode, existingMark);
-                    } else {
-                        existingMark.style.backgroundColor = bg;
-                        existingMark.style.color = textColor;
+            if (containerEl && !containerEl.contains(range.commonAncestorContainer)) {
+                setActiveHighlightPicker(null);
+                return;
+            }
+
+            // 1. Remove background from any existing highlight elements intersecting or inside range
+            if (containerEl) {
+                const innerHighlights = Array.from(
+                    containerEl.querySelectorAll('mark, [data-highlight="true"], span[style*="background"]')
+                ) as HTMLElement[];
+                innerHighlights.forEach((hl) => {
+                    if (hl !== containerEl && (sel.containsNode(hl, true) || range.intersectsNode(hl))) {
+                        hl.style.backgroundColor = "";
+                        hl.style.background = "";
+                        hl.removeAttribute("data-highlight");
+                        if (hl.tagName === "MARK") {
+                            const p = hl.parentNode;
+                            if (p) {
+                                while (hl.firstChild) p.insertBefore(hl.firstChild, hl);
+                                p.removeChild(hl);
+                            }
+                        }
                     }
-                } else {
-                    const mark = document.createElement("mark");
-                    mark.style.backgroundColor = bg;
-                    mark.style.color = textColor;
-                    mark.style.padding = "2px 5px";
-                    mark.style.borderRadius = "4px";
-                    mark.style.fontWeight = "600";
-                    try {
-                        range.surroundContents(mark);
-                    } catch {
-                        const frag = range.extractContents();
-                        mark.appendChild(frag);
-                        range.insertNode(mark);
-                    }
+                });
+            }
+
+            // 2. Check if selection is already inside an existing highlight container
+            let container: Node | null = range.commonAncestorContainer;
+            if (container.nodeType === Node.TEXT_NODE) {
+                container = container.parentNode;
+            }
+            const existing = (container as HTMLElement)?.closest?.('[data-highlight="true"], mark') as HTMLElement | null;
+            if (existing && containerEl?.contains(existing) && existing.textContent?.trim() === range.toString().trim()) {
+                existing.style.backgroundColor = bg;
+                existing.style.background = bg;
+                existing.setAttribute("data-highlight", "true");
+                if (existing.tagName === "MARK") {
+                    const span = document.createElement("span");
+                    span.setAttribute("data-highlight", "true");
+                    span.style.backgroundColor = bg;
+                    span.innerHTML = existing.innerHTML;
+                    existing.parentNode?.replaceChild(span, existing);
                 }
-                sel.collapseToEnd();
-            } catch {
+            } else {
+                const span = document.createElement("span");
+                span.setAttribute("data-highlight", "true");
+                span.style.backgroundColor = bg;
+
                 try {
-                    document.execCommand("hiliteColor", false, bg);
-                } catch (_) {}
-                sel.collapseToEnd();
+                    range.surroundContents(span);
+                } catch {
+                    try {
+                        const frag = range.extractContents();
+                        span.appendChild(frag);
+                        range.insertNode(span);
+                    } catch (_) { }
+                }
+            }
+
+            if (containerEl) {
+                // Convert any legacy marks
+                const marks = Array.from(containerEl.querySelectorAll("mark"));
+                marks.forEach((m) => {
+                    const s = document.createElement("span");
+                    s.setAttribute("data-highlight", "true");
+                    s.style.backgroundColor = m.style.backgroundColor || bg;
+                    s.innerHTML = m.innerHTML;
+                    m.parentNode?.replaceChild(s, m);
+                });
+                updateBlock(blockId, containerEl.innerHTML);
             }
         }
         setActiveHighlightPicker(null);
     };
 
     const removeHighlight = (blockId: string) => {
+        const el = editorRefs.current[blockId] || document.getElementById(`editor-${blockId}`);
         const sel = window.getSelection();
-        if (sel && !sel.isCollapsed && sel.rangeCount > 0) {
-            try {
-                const range = sel.getRangeAt(0);
-                let node: Node | null = range.commonAncestorContainer;
-                if (node.nodeType === Node.TEXT_NODE) {
-                    node = node.parentNode;
+
+        const cleanHighlightNode = (node: HTMLElement) => {
+            node.style.backgroundColor = "";
+            node.style.background = "";
+            node.removeAttribute("data-highlight");
+            node.removeAttribute("data-color");
+
+            const c = node.style.color?.toLowerCase().trim();
+            if (
+                c === "#854d0e" || c === "rgb(133, 77, 14)" ||
+                c === "#14532d" || c === "rgb(20, 83, 45)" ||
+                c === "#0369a1" || c === "rgb(3, 105, 161)" ||
+                c === "#9d174d" || c === "rgb(157, 23, 77)" ||
+                c === "#6b21a8" || c === "rgb(107, 33, 168)" ||
+                c === "#9a3412" || c === "rgb(154, 52, 18)"
+            ) {
+                node.style.color = "";
+            }
+
+            if (node.style.padding === "2px 5px" || node.style.padding === "2px 6px") {
+                node.style.padding = "";
+            }
+            if (node.style.borderRadius === "4px") {
+                node.style.borderRadius = "";
+            }
+            if (node.style.fontWeight === "600") {
+                node.style.fontWeight = "";
+            }
+
+            if (node.tagName === "MARK") {
+                const parent = node.parentNode;
+                if (parent) {
+                    while (node.firstChild) {
+                        parent.insertBefore(node.firstChild, node);
+                    }
+                    parent.removeChild(node);
                 }
-                const existingMark =
-                    (node as HTMLElement)?.closest?.("mark") ||
-                    ((node as HTMLElement)?.tagName === "MARK" ? (node as HTMLElement) : null);
-                if (existingMark) {
-                    const textNode = document.createTextNode(existingMark.textContent || "");
-                    existingMark.parentNode?.replaceChild(textNode, existingMark);
-                } else {
-                    document.execCommand("hiliteColor", false, "transparent");
+                return;
+            }
+
+            if (node.tagName === "SPAN") {
+                const remainingStyle = node.getAttribute("style")?.trim();
+                if (!remainingStyle || remainingStyle === "" || remainingStyle === ";") {
+                    node.removeAttribute("style");
+                    const parent = node.parentNode;
+                    if (parent) {
+                        while (node.firstChild) {
+                            parent.insertBefore(node.firstChild, node);
+                        }
+                        parent.removeChild(node);
+                    }
                 }
-                sel.collapseToEnd();
-            } catch {
-                try {
-                    document.execCommand("hiliteColor", false, "transparent");
-                } catch {}
-                sel?.collapseToEnd();
+            }
+        };
+
+        if (sel && sel.rangeCount > 0) {
+            const range = sel.getRangeAt(0);
+            const containerEl = el || (range.commonAncestorContainer as HTMLElement)?.closest?.('[contenteditable="true"]') as HTMLElement | null;
+
+            if (containerEl) {
+                const ancestorNodes = [range.commonAncestorContainer, range.startContainer, range.endContainer];
+                ancestorNodes.forEach((startNode) => {
+                    let curr: Node | null = startNode;
+                    if (curr.nodeType === Node.TEXT_NODE) {
+                        curr = curr.parentNode;
+                    }
+                    while (curr && curr !== containerEl && containerEl.contains(curr)) {
+                        const parentEl = curr as HTMLElement;
+                        if (
+                            parentEl.tagName === "MARK" ||
+                            parentEl.getAttribute("data-highlight") === "true" ||
+                            parentEl.style.backgroundColor ||
+                            parentEl.style.background
+                        ) {
+                            const fullText = parentEl.textContent || "";
+                            const selText = range.toString();
+                            if (selText.trim() === fullText.trim() || selText.length >= fullText.length) {
+                                cleanHighlightNode(parentEl);
+                            } else if (selText.length > 0 && fullText.includes(selText)) {
+                                const bg = parentEl.style.backgroundColor || parentEl.style.background;
+                                const idx = fullText.indexOf(selText);
+                                if (idx !== -1) {
+                                    const beforeText = fullText.substring(0, idx);
+                                    const afterText = fullText.substring(idx + selText.length);
+                                    const frag = document.createDocumentFragment();
+
+                                    if (beforeText) {
+                                        const bSpan = parentEl.cloneNode(false) as HTMLElement;
+                                        bSpan.textContent = beforeText;
+                                        bSpan.style.backgroundColor = bg;
+                                        bSpan.setAttribute("data-highlight", "true");
+                                        frag.appendChild(bSpan);
+                                    }
+
+                                    const mSpan = parentEl.cloneNode(false) as HTMLElement;
+                                    mSpan.textContent = selText;
+                                    mSpan.style.backgroundColor = "";
+                                    mSpan.style.background = "";
+                                    mSpan.removeAttribute("data-highlight");
+                                    cleanHighlightNode(mSpan);
+                                    frag.appendChild(mSpan);
+
+                                    if (afterText) {
+                                        const aSpan = parentEl.cloneNode(false) as HTMLElement;
+                                        aSpan.textContent = afterText;
+                                        aSpan.style.backgroundColor = bg;
+                                        aSpan.setAttribute("data-highlight", "true");
+                                        frag.appendChild(aSpan);
+                                    }
+
+                                    parentEl.parentNode?.replaceChild(frag, parentEl);
+                                    break;
+                                } else {
+                                    cleanHighlightNode(parentEl);
+                                }
+                            } else {
+                                cleanHighlightNode(parentEl);
+                            }
+                        }
+                        curr = curr.parentNode;
+                    }
+                });
+
+                const allHighlights = Array.from(
+                    containerEl.querySelectorAll('mark, [data-highlight="true"], span[style*="background"]')
+                ) as HTMLElement[];
+
+                allHighlights.forEach((candidate) => {
+                    if (candidate !== containerEl) {
+                        if (
+                            sel.isCollapsed ||
+                            sel.containsNode(candidate, true) ||
+                            (range.intersectsNode && range.intersectsNode(candidate))
+                        ) {
+                            cleanHighlightNode(candidate);
+                        }
+                    }
+                });
+
+                const anyMarks = Array.from(containerEl.querySelectorAll("mark"));
+                anyMarks.forEach((m) => {
+                    const parent = m.parentNode;
+                    if (parent) {
+                        while (m.firstChild) {
+                            parent.insertBefore(m.firstChild, m);
+                        }
+                        parent.removeChild(m);
+                    }
+                });
+
+                containerEl.normalize();
+                updateBlock(blockId, containerEl.innerHTML);
             }
         }
         setActiveHighlightPicker(null);
@@ -304,13 +480,13 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
     };
 
     // Create new block
-    const createBlock = (type: BlockType): Block => {
+    const createBlock = (type: BlockType, defaultLayout?: SplitConfig["layoutType"]): Block => {
         const defaults: Record<BlockType, string> = {
             heading: "New Heading",
             container: "",
             split_content: "",
             text: "Enter your text here...",
-            image: "https://images.unsplash.com/photo-1434030216411-0b793f4b4173?q=80&w=800",
+            image: "https://images.unsplash.com/photo-1523240795612-9a054b0db644?q=80&w=1200",
             video: "https://www.youtube.com/embed/dQw4w9WgXcQ",
             button: "Click Here",
             list: "• Item 1\n• Item 2\n• Item 3",
@@ -318,20 +494,25 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
             code: "// Your code here\nconsole.log('Hello World');",
             divider: "",
             spacer: "",
-            tags: "iPhoneAir, PriceDrop, AmazonDeals, TechNews",
+            tags: "EducationLoan, StudyAbroad, FastApproval",
         };
 
         const defaultSplitConfig: SplitConfig = {
-            layoutType: "image_text",
+            layoutType: defaultLayout || "image_text",
             ratio: "50_50",
             verticalAlign: "center",
             cardStyle: "clean",
-            leftTitle: "Study Abroad Opportunities",
-            leftContent: "Explore thousands of globally accredited programs across top universities worldwide with comprehensive counselor guidance.",
+            leftTitle: "Study Abroad Education Loans",
+            leftContent: "Calculate your eligibility and compare offers from 15+ premier lending partners with collateral-free funding up to ₹75 Lakhs.",
             leftImageUrl: "https://images.unsplash.com/photo-1523240795612-9a054b0db644?q=80&w=800",
             leftImageCaption: "Campus academic excellence & global careers",
             leftImageAlt: "University students on campus",
-            leftItems: ["100% Comprehensive funding", "Verified bank partners"],
+            leftItems: [
+                "100% Comprehensive funding for tuition & living",
+                "Lowest interest rates starting at 8.5% p.a.",
+                "Pre-visa sanction letter in 48 hours",
+                "Dedicated loan specialist & door-step support",
+            ],
             rightTitle: "Collateral-Free Education Loans",
             rightContent: "Secure up to ₹75 Lakhs without submitting physical property collateral. Fast approval in 48 hours with low rates.",
             rightItems: [
@@ -339,9 +520,12 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
                 "Interest rate from 8.5% p.a. with 80E tax deduction",
                 "Moratorium: Course duration + 6-12 months",
             ],
-            buttonText: "Check Eligibility & Apply",
-            buttonUrl: "/apply",
+            buttonText: "Explore Loan Options",
+            buttonUrl: "/apply-loan",
             buttonNewTab: true,
+            formTitle: "Instant Loan Inquiry & Registration",
+            formSubtitle: "Enter your details to check eligibility and get a callback from our loan expert.",
+            formButtonText: "Register & Check Eligibility",
         };
 
         return {
@@ -349,7 +533,27 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
             type,
             content: defaults[type],
             splitConfig: (type === "split_content" || type === "container") ? defaultSplitConfig : undefined,
+            style: type === "image" ? {
+                aspectRatio: "16/9",
+                maxHeight: "380px",
+                objectFit: "cover",
+                objectPosition: "center",
+                borderRadius: "16px",
+            } : undefined,
         };
+    };
+
+    const updateBlockStyle = (blockId: string, styleUpdates: Partial<NonNullable<Block["style"]>>) => {
+        setBlocks((prev) =>
+            prev.map((b) => (b.id === blockId ? { ...b, style: { ...b.style, ...styleUpdates } } : b))
+        );
+        setSaveStatus("Unsaved");
+    };
+
+    const handleAddElement = (type: BlockType, defaultLayout?: SplitConfig["layoutType"]) => {
+        const newBlock = createBlock(type, defaultLayout);
+        setBlocks((prev) => [...prev, newBlock]);
+        setSaveStatus("Unsaved");
     };
 
     const updateSplitConfig = (blockId: string, updates: Partial<SplitConfig>) => {
@@ -373,13 +577,15 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
     };
 
     // Drag handlers for sidebar elements
-    const handleDragStart = (e: DragEvent, type: BlockType) => {
+    const handleDragStart = (e: DragEvent, type: BlockType, defaultLayout?: SplitConfig["layoutType"]) => {
         setDraggedType(type);
+        setDraggedLayout(defaultLayout);
         e.dataTransfer.effectAllowed = "copy";
     };
 
     const handleDragEnd = () => {
         setDraggedType(null);
+        setDraggedLayout(undefined);
         setDragOverIndex(null);
     };
 
@@ -407,7 +613,7 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
 
         if (draggedType) {
             // Adding new element from sidebar
-            const newBlock = createBlock(draggedType);
+            const newBlock = createBlock(draggedType, draggedLayout);
             const newBlocks = [...blocks];
             newBlocks.splice(dropIndex, 0, newBlock);
             setBlocks(newBlocks);
@@ -426,6 +632,7 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
         }
 
         setDraggedType(null);
+        setDraggedLayout(undefined);
         setDraggingBlockId(null);
         setDragOverIndex(null);
     };
@@ -530,8 +737,15 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
                             return `<h2 class="text-3xl font-bold mt-8 mb-4">${b.content}</h2>`;
                         case "text":
                             return `<p class="text-lg leading-relaxed text-gray-700 mb-4">${b.content}</p>`;
-                        case "image":
-                            return `<img src="${b.content}" class="w-full rounded-2xl my-8 object-cover shadow-lg" alt="Blog Image" />`;
+                        case "image": {
+                            const st = b.style || {};
+                            const aspect = st.aspectRatio && st.aspectRatio !== "auto" ? `aspect-ratio: ${st.aspectRatio};` : "";
+                            const maxH = st.maxHeight ? `max-height: ${st.maxHeight};` : "max-height: 480px;";
+                            const fit = st.objectFit || "cover";
+                            const pos = st.objectPosition || "center";
+                            const rad = st.borderRadius || "16px";
+                            return `<div class="my-8 overflow-hidden shadow-lg border border-slate-200/80" style="border-radius: ${rad};"><img src="${b.content}" class="w-full block" style="object-fit: ${fit}; object-position: ${pos}; ${maxH} ${aspect}" alt="Blog Image" /></div>`;
+                        }
                         case "video":
                             return `<div class="my-8 aspect-video"><iframe src="${b.content}" class="w-full h-full rounded-2xl" frameborder="0" allowfullscreen></iframe></div>`;
                         case "button":
@@ -569,7 +783,55 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
                                     ${title ? `<h3 class="text-2xl font-bold text-slate-900 mb-2">${title}</h3>` : ''}
                                     ${content ? `<p class="text-slate-600 text-sm leading-relaxed mb-4">${content}</p>` : ''}
                                     ${(items && items.length > 0) ? `<ul class="space-y-1.5 mb-4 pl-0 list-none">${items.map(it => `<li class="flex items-center gap-2 text-xs text-slate-700 font-medium"><span class="text-emerald-500 font-bold">✓</span><span>${it}</span></li>`).join('')}</ul>` : ''}
-                                    ${btnText ? `<div class="pt-1"><a href="${btnUrl || '#'}" class="inline-block px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-bold shadow-md hover:bg-indigo-700">${btnText} &rarr;</a></div>` : ''}
+                                    ${btnText ? `<div class="pt-1"><a href="${btnUrl || '/apply-loan'}" class="inline-block px-5 py-2.5 !bg-indigo-600 hover:!bg-indigo-700 !text-white rounded-xl text-xs font-bold shadow-md transition-colors" style="background-color: #4f46e5 !important; color: #ffffff !important; display: inline-block;">${btnText} &rarr;</a></div>` : ''}
+                                </div>`;
+
+                            const renderForm = (formTitle?: string, formSubtitle?: string, formBtn?: string) => `
+                                <div class="bg-white p-6 md:p-8 rounded-2xl border border-indigo-100 shadow-xl shadow-indigo-100/50">
+                                    <div class="mb-4">
+                                        <span class="inline-block px-2.5 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase tracking-wider rounded-md mb-2">Instant Assessment</span>
+                                        <h3 class="text-xl font-extrabold text-slate-900 mb-1">${formTitle || "Quick Loan Inquiry & Registration"}</h3>
+                                        <p class="text-slate-500 text-xs">${formSubtitle || "Fill details for instant loan eligibility assessment & expert callback."}</p>
+                                    </div>
+                                    <form action="/apply-loan" method="GET" class="space-y-3">
+                                        <input type="hidden" name="source" value="blog_register_split" />
+                                        <div>
+                                            <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Full Name</label>
+                                            <input type="text" name="name" required placeholder="Enter student full name" class="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:border-indigo-600 focus:bg-white" />
+                                        </div>
+                                        <div>
+                                            <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Mobile / WhatsApp Number</label>
+                                            <input type="tel" name="phone" required placeholder="+91 98765 43210" class="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:border-indigo-600 focus:bg-white" />
+                                        </div>
+                                        <div class="grid grid-cols-2 gap-2">
+                                            <div>
+                                                <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Target Country</label>
+                                                <select name="country" class="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:border-indigo-600 focus:bg-white">
+                                                    <option value="USA">USA</option>
+                                                    <option value="UK">United Kingdom</option>
+                                                    <option value="Canada">Canada</option>
+                                                    <option value="Australia">Australia</option>
+                                                    <option value="Germany">Germany</option>
+                                                    <option value="Ireland">Ireland</option>
+                                                    <option value="India">India</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Loan Required</label>
+                                                <select name="amount" class="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:border-indigo-600 focus:bg-white">
+                                                    <option value="15L">₹10L - ₹25L</option>
+                                                    <option value="35L">₹25L - ₹50L</option>
+                                                    <option value="60L">₹50L - ₹75L</option>
+                                                    <option value="75L+">₹75 Lakhs+</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <button type="submit" class="w-full mt-2 py-3 px-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold text-xs rounded-xl shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+                                            <span>${formBtn || "Register & Check Eligibility"}</span>
+                                            <span>&rarr;</span>
+                                        </button>
+                                        <p class="text-[10px] text-center text-slate-400 mt-2">🔒 100% Free Service • No CIBIL Impact • Doorstep Support</p>
+                                    </form>
                                 </div>`;
 
                             let leftHtml = "";
@@ -580,12 +842,18 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
                             } else if (layout === "text_image") {
                                 leftHtml = renderTxt(config.leftTitle, config.leftContent, config.leftItems, config.buttonText, config.buttonUrl);
                                 rightHtml = renderImg(config.rightImageUrl, config.rightImageCaption);
+                            } else if (layout === "content_form") {
+                                leftHtml = renderTxt(config.leftTitle, config.leftContent, config.leftItems, config.buttonText, config.buttonUrl);
+                                rightHtml = renderForm(config.formTitle, config.formSubtitle, config.formButtonText);
+                            } else if (layout === "form_content") {
+                                leftHtml = renderForm(config.formTitle, config.formSubtitle, config.formButtonText);
+                                rightHtml = renderTxt(config.rightTitle, config.rightContent, config.rightItems, config.buttonText, config.buttonUrl);
                             } else {
                                 leftHtml = renderTxt(config.leftTitle, config.leftContent, config.leftItems);
                                 rightHtml = renderTxt(config.rightTitle, config.rightContent, config.rightItems, config.buttonText, config.buttonUrl);
                             }
 
-                            return `<div class="blog-split-container not-prose my-8 p-6 bg-slate-50/70 rounded-3xl border border-slate-200/80"><div class="grid grid-cols-1 md:grid-cols-12 gap-8 items-center"><div class="${leftSpan}">${leftHtml}</div><div class="${rightSpan}">${rightHtml}</div></div></div>`;
+                            return `<div class="blog-split-container not-prose my-8 p-6 md:p-8 bg-slate-50/70 rounded-3xl border border-slate-200/80"><div class="grid grid-cols-1 md:grid-cols-12 gap-8 items-center"><div class="${leftSpan}">${leftHtml}</div><div class="${rightSpan}">${rightHtml}</div></div></div>`;
                         }
                         case "tags": {
                             const tagList = (b.content || "").split(",").map((t) => t.trim()).filter(Boolean);
@@ -818,7 +1086,7 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
                                     onClick={() => {
                                         try {
                                             document.execCommand("removeFormat", false, undefined);
-                                        } catch (_) {}
+                                        } catch (_) { }
                                         updateBlock(block.id, cleanHtmlContent(block.content || ""));
                                     }}
                                     className="px-1.5 py-0.5 rounded font-bold bg-slate-100 text-slate-700 hover:bg-white border border-slate-300 cursor-pointer text-xs"
@@ -856,26 +1124,147 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
                                     updateBlock(block.id, target.innerHTML || "");
                                 }, 0);
                             }}
-                            registerRef={() => {}}
-                            onSaveSelection={() => {}}
+                            registerRef={(el) => { editorRefs.current[block.id] = el; }}
+                            onSaveSelection={() => { }}
                         />
                     </div>
                 );
-            case "image":
+            case "image": {
+                const st = block.style || {};
+                const currentAspect = st.aspectRatio || "16/9";
+                const currentFit = st.objectFit || "cover";
+                const currentMaxH = st.maxHeight || "380px";
+                const currentPos = st.objectPosition || "center";
+                const currentRad = st.borderRadius || "16px";
+
                 return (
-                    <div className="relative group/img">
-                        <img src={block.content} alt="Blog" className="w-full rounded-xl object-cover max-h-[400px]" />
-                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center rounded-xl">
-                            <input
-                                type="text"
-                                value={block.content}
-                                onChange={(e) => updateBlock(block.id, e.target.value)}
-                                className="w-3/4 px-4 py-2 bg-white/20 backdrop-blur rounded-lg text-white text-sm border border-white/30 outline-none"
-                                placeholder="Paste image URL..."
+                    <div className="space-y-3 group/imgcard">
+                        {/* Image Crop & Sizing Adjustment Toolbar */}
+                        <div className="flex items-center justify-between gap-2 flex-wrap bg-slate-100 p-2 rounded-xl border border-slate-200 text-xs">
+                            {/* Aspect Ratio / Crop Box */}
+                            <div className="flex items-center gap-1">
+                                <span className="text-[10px] font-black uppercase text-slate-500 mr-1 flex items-center gap-0.5">
+                                    <span className="material-symbols-outlined text-[13px]">aspect_ratio</span>
+                                    Ratio:
+                                </span>
+                                {[
+                                    { label: "16:9", val: "16/9" },
+                                    { label: "4:3", val: "4/3" },
+                                    { label: "1:1", val: "1/1" },
+                                    { label: "21:9", val: "21/9" },
+                                    { label: "Auto", val: "auto" },
+                                ].map((r) => (
+                                    <button
+                                        key={r.val}
+                                        type="button"
+                                        onClick={() => updateBlockStyle(block.id, { aspectRatio: r.val })}
+                                        className={`px-2 py-0.5 rounded font-bold transition-colors cursor-pointer ${currentAspect === r.val ? "bg-indigo-600 text-white shadow-2xs" : "bg-white text-slate-700 hover:bg-slate-200"
+                                            }`}
+                                    >
+                                        {r.label}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Fit Mode: Cover (Crop Fill) vs Contain (Fit) */}
+                            <div className="flex items-center gap-1">
+                                <span className="text-[10px] font-black uppercase text-slate-500 mr-1 flex items-center gap-0.5">
+                                    <span className="material-symbols-outlined text-[13px]">crop</span>
+                                    Fit:
+                                </span>
+                                {[
+                                    { label: "Crop Fill", val: "cover" as const, title: "Cover container & crop excess" },
+                                    { label: "Fit Whole", val: "contain" as const, title: "Contain entire photo without cropping" },
+                                    { label: "Stretch", val: "fill" as const, title: "Stretch to fill" },
+                                ].map((f) => (
+                                    <button
+                                        key={f.val}
+                                        type="button"
+                                        title={f.title}
+                                        onClick={() => updateBlockStyle(block.id, { objectFit: f.val })}
+                                        className={`px-2 py-0.5 rounded font-bold transition-colors cursor-pointer ${currentFit === f.val ? "bg-indigo-600 text-white shadow-2xs" : "bg-white text-slate-700 hover:bg-slate-200"
+                                            }`}
+                                    >
+                                        {f.label}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Height Presets */}
+                            <div className="flex items-center gap-1">
+                                <span className="text-[10px] font-black uppercase text-slate-500 mr-1 flex items-center gap-0.5">
+                                    <span className="material-symbols-outlined text-[13px]">height</span>
+                                    Height:
+                                </span>
+                                {[
+                                    { label: "240px", val: "240px" },
+                                    { label: "380px", val: "380px" },
+                                    { label: "500px", val: "500px" },
+                                ].map((h) => (
+                                    <button
+                                        key={h.val}
+                                        type="button"
+                                        onClick={() => updateBlockStyle(block.id, { maxHeight: h.val })}
+                                        className={`px-2 py-0.5 rounded font-bold transition-colors cursor-pointer ${currentMaxH === h.val ? "bg-indigo-600 text-white shadow-2xs" : "bg-white text-slate-700 hover:bg-slate-200"
+                                            }`}
+                                    >
+                                        {h.label}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Focus Position Alignment */}
+                            <div className="flex items-center gap-1">
+                                <span className="text-[10px] font-black uppercase text-slate-500 mr-1">Focus:</span>
+                                {(["top", "center", "bottom"] as const).map((pos) => (
+                                    <button
+                                        key={pos}
+                                        type="button"
+                                        onClick={() => updateBlockStyle(block.id, { objectPosition: pos })}
+                                        className={`px-1.5 py-0.5 rounded uppercase font-bold text-[10px] transition-colors cursor-pointer ${currentPos === pos ? "bg-indigo-600 text-white shadow-2xs" : "bg-white text-slate-700 hover:bg-slate-200"
+                                            }`}
+                                    >
+                                        {pos}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Cropped & Adjusted Image Container */}
+                        <div
+                            className="relative overflow-hidden border border-slate-200 shadow-md bg-slate-900 group/preview"
+                            style={{
+                                borderRadius: currentRad,
+                                maxHeight: currentMaxH,
+                            }}
+                        >
+                            <img
+                                src={block.content}
+                                alt="Blog illustration"
+                                className="w-full transition-all"
+                                style={{
+                                    aspectRatio: currentAspect,
+                                    objectFit: currentFit,
+                                    objectPosition: currentPos,
+                                    maxHeight: currentMaxH,
+                                }}
                             />
+
+                            {/* Quick URL change on hover */}
+                            <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover/preview:opacity-100 transition-opacity flex items-center gap-2">
+                                <span className="text-[10px] font-bold text-white uppercase tracking-wider shrink-0">Image URL:</span>
+                                <input
+                                    type="text"
+                                    value={block.content}
+                                    onChange={(e) => updateBlock(block.id, e.target.value)}
+                                    className="flex-1 px-3 py-1 bg-white/20 backdrop-blur rounded-lg text-white text-xs border border-white/30 outline-none placeholder-white/60 font-mono"
+                                    placeholder="Paste image URL..."
+                                />
+                            </div>
                         </div>
                     </div>
                 );
+            }
             case "video":
                 return (
                     <div className="aspect-video rounded-xl overflow-hidden bg-gray-100">
@@ -958,14 +1347,18 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
                 const config = block.splitConfig || {
                     layoutType: "image_text",
                     ratio: "50_50",
-                    leftTitle: "Left Title / Heading",
-                    leftContent: "Left side matter and paragraph details...",
+                    leftTitle: "Study Abroad Education Loans",
+                    leftContent: "Calculate your eligibility and compare offers from 15+ premier lending partners with collateral-free funding up to ₹75 Lakhs.",
                     leftImageUrl: "https://images.unsplash.com/photo-1523240795612-9a054b0db644?q=80&w=800",
-                    rightTitle: "Right Title / Heading",
-                    rightContent: "Right side matter and paragraph details...",
-                    rightItems: ["First key highlight", "Second key benefit"],
-                    buttonText: "Learn More & Apply",
-                    buttonUrl: "/apply",
+                    leftItems: ["100% Comprehensive funding", "Verified bank partners"],
+                    rightTitle: "Collateral-Free Education Loans",
+                    rightContent: "Secure up to ₹75 Lakhs without submitting physical property collateral. Fast approval in 48 hours with low rates.",
+                    rightItems: ["Up to ₹75 Lakhs collateral-free limit", "Interest rate from 8.5% p.a."],
+                    buttonText: "Explore Loan Options",
+                    buttonUrl: "/apply-loan",
+                    formTitle: "Instant Loan Inquiry & Registration",
+                    formSubtitle: "Enter your contact details to check eligibility & receive a callback within 15 minutes.",
+                    formButtonText: "Register & Check Eligibility",
                 };
                 const layout = config.layoutType || "image_text";
                 const ratio = config.ratio || "50_50";
@@ -976,36 +1369,272 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
                 else if (ratio === "60_40") { leftColSpan = "w-full md:w-7/12"; rightColSpan = "w-full md:w-5/12"; }
                 else if (ratio === "33_67") { leftColSpan = "w-full md:w-4/12"; rightColSpan = "w-full md:w-8/12"; }
 
+                const renderEditableForm = () => (
+                    <div className="bg-white p-5 rounded-2xl border-2 border-indigo-200 shadow-md space-y-3.5">
+                        <div className="flex items-center justify-between border-b border-indigo-50 pb-2">
+                            <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase tracking-wider rounded">
+                                📋 Registration Form Card
+                            </span>
+                            <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                Lead Capture
+                            </span>
+                        </div>
+
+                        <div className="space-y-2">
+                            <div>
+                                <label className="text-[10px] font-bold uppercase text-slate-500">Form Title</label>
+                                <input
+                                    type="text"
+                                    value={config.formTitle || "Instant Loan Inquiry & Registration"}
+                                    onChange={(e) => updateSplitConfig(block.id, { formTitle: e.target.value })}
+                                    className="w-full font-extrabold text-sm text-slate-900 border border-slate-200 rounded-lg px-2.5 py-1.5 focus:border-indigo-500 focus:outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold uppercase text-slate-500">Form Subtitle</label>
+                                <input
+                                    type="text"
+                                    value={config.formSubtitle || "Enter contact details to check eligibility & receive callback within 15 minutes."}
+                                    onChange={(e) => updateSplitConfig(block.id, { formSubtitle: e.target.value })}
+                                    className="w-full text-xs text-slate-600 border border-slate-200 rounded-lg px-2.5 py-1.5 focus:border-indigo-500 focus:outline-none"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Simulated Live Form Fields */}
+                        <div className="space-y-2 p-3 bg-slate-50/80 rounded-xl border border-slate-100">
+                            <div>
+                                <label className="text-[10px] font-bold uppercase text-slate-600">Student Full Name</label>
+                                <input
+                                    type="text"
+                                    disabled
+                                    placeholder="e.g. Rahul Sharma"
+                                    className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-400 cursor-not-allowed"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold uppercase text-slate-600">Mobile / WhatsApp Number</label>
+                                <input
+                                    type="text"
+                                    disabled
+                                    placeholder="+91 98765 43210"
+                                    className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-400 cursor-not-allowed"
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label className="text-[10px] font-bold uppercase text-slate-600">Target Country</label>
+                                    <select disabled className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-400 cursor-not-allowed">
+                                        <option>USA / UK / Canada</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-bold uppercase text-slate-600">Loan Amount</label>
+                                    <select disabled className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-400 cursor-not-allowed">
+                                        <option>₹10L - ₹75L+</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="text-[10px] font-bold uppercase text-slate-500">CTA Button Label</label>
+                            <input
+                                type="text"
+                                value={config.formButtonText || "Register & Check Eligibility"}
+                                onChange={(e) => updateSplitConfig(block.id, { formButtonText: e.target.value })}
+                                className="w-full text-xs font-bold text-indigo-700 bg-indigo-50/50 border border-indigo-200 rounded-lg px-2.5 py-1.5 focus:border-indigo-500 focus:outline-none"
+                            />
+                        </div>
+
+                        <div className="w-full mt-2 py-2.5 px-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5">
+                            <span>{config.formButtonText || "Register & Check Eligibility"}</span>
+                            <span>&rarr;</span>
+                        </div>
+                    </div>
+                );
+
+                const renderEditableContent = (side: "left" | "right") => {
+                    const isLeft = side === "left";
+                    const titleVal = isLeft ? config.leftTitle : config.rightTitle;
+                    const contentVal = isLeft ? config.leftContent : config.rightContent;
+                    const itemsVal = isLeft ? (config.leftItems || []) : (config.rightItems || []);
+
+                    return (
+                        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-3">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 block">
+                                {isLeft ? "Left Column Content" : "Right Column Content"}
+                            </span>
+                            <input
+                                type="text"
+                                value={titleVal || ""}
+                                onChange={(e) => updateSplitConfig(block.id, isLeft ? { leftTitle: e.target.value } : { rightTitle: e.target.value })}
+                                placeholder="Section Headline..."
+                                className="w-full font-bold text-base text-slate-900 border-b border-slate-200 pb-1 focus:outline-none focus:border-indigo-500"
+                            />
+                            <textarea
+                                value={contentVal || ""}
+                                onChange={(e) => updateSplitConfig(block.id, isLeft ? { leftContent: e.target.value } : { rightContent: e.target.value })}
+                                placeholder="Describe key benefits, loan details or context..."
+                                rows={3}
+                                className="w-full text-xs text-slate-700 leading-relaxed border border-slate-200 rounded-lg p-2 focus:outline-none focus:border-indigo-500"
+                            />
+
+                            {/* Checklist items */}
+                            <div className="space-y-1.5 pt-1">
+                                <div className="flex items-center justify-between">
+                                    <label className="text-[10px] font-bold uppercase text-slate-500">Key Highlights / Bullets</label>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const next = [...itemsVal, "New benefit highlight"];
+                                            updateSplitConfig(block.id, isLeft ? { leftItems: next } : { rightItems: next });
+                                        }}
+                                        className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 cursor-pointer"
+                                    >
+                                        + Add Bullet
+                                    </button>
+                                </div>
+                                {itemsVal.map((item, idx) => (
+                                    <div key={idx} className="flex items-center gap-1.5">
+                                        <span className="text-emerald-500 font-black text-xs">✓</span>
+                                        <input
+                                            type="text"
+                                            value={item}
+                                            onChange={(e) => {
+                                                const next = [...itemsVal];
+                                                next[idx] = e.target.value;
+                                                updateSplitConfig(block.id, isLeft ? { leftItems: next } : { rightItems: next });
+                                            }}
+                                            className="flex-1 text-xs border border-slate-200 rounded px-2 py-1 text-slate-700 focus:outline-none focus:border-indigo-500"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const next = itemsVal.filter((_, i) => i !== idx);
+                                                updateSplitConfig(block.id, isLeft ? { leftItems: next } : { rightItems: next });
+                                            }}
+                                            className="text-slate-400 hover:text-rose-500 text-xs px-1"
+                                        >
+                                            ×
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Optional Button */}
+                            <div className="space-y-2 pt-2 border-t border-slate-100">
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="text"
+                                        value={config.buttonText || ""}
+                                        onChange={(e) => updateSplitConfig(block.id, { buttonText: e.target.value })}
+                                        placeholder="Button label (optional)..."
+                                        className="w-1/2 px-2.5 py-1 text-xs border border-slate-200 rounded-lg text-slate-800"
+                                    />
+                                    <input
+                                        type="text"
+                                        value={config.buttonUrl || ""}
+                                        onChange={(e) => updateSplitConfig(block.id, { buttonUrl: e.target.value })}
+                                        placeholder="Button URL (/apply-loan)..."
+                                        className="w-1/2 px-2.5 py-1 text-xs border border-slate-200 rounded-lg text-slate-800 font-mono"
+                                    />
+                                </div>
+                                {config.buttonText && (
+                                    <div className="pt-1">
+                                        <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white font-bold rounded-xl text-xs shadow-md">
+                                            <span>{config.buttonText}</span>
+                                            <span>&rarr;</span>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    );
+                };
+
+                const renderEditableImage = (side: "left" | "right") => {
+                    const isLeft = side === "left";
+                    const urlVal = isLeft ? config.leftImageUrl : config.rightImageUrl;
+                    const capVal = isLeft ? config.leftImageCaption : config.rightImageCaption;
+
+                    return (
+                        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-2">
+                            <div className="relative rounded-lg overflow-hidden border border-slate-200 group bg-slate-900 h-48">
+                                <img
+                                    src={urlVal || "https://images.unsplash.com/photo-1523240795612-9a054b0db644?q=80&w=800"}
+                                    alt="Side visual"
+                                    className="w-full h-full object-cover"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-bold uppercase text-slate-500">Image URL</label>
+                                <input
+                                    type="text"
+                                    value={urlVal || ""}
+                                    onChange={(e) => updateSplitConfig(block.id, isLeft ? { leftImageUrl: e.target.value } : { rightImageUrl: e.target.value })}
+                                    placeholder="https://images.unsplash.com/..."
+                                    className="w-full px-2.5 py-1 text-xs border border-slate-200 rounded-lg text-slate-800 font-mono"
+                                />
+                            </div>
+                            <input
+                                type="text"
+                                value={capVal || ""}
+                                onChange={(e) => updateSplitConfig(block.id, isLeft ? { leftImageCaption: e.target.value } : { rightImageCaption: e.target.value })}
+                                placeholder="Caption under image (optional)..."
+                                className="w-full px-2.5 py-1 text-xs border border-slate-200 rounded-lg text-slate-600 italic"
+                            />
+                        </div>
+                    );
+                };
+
                 return (
                     <div className="p-5 bg-gradient-to-br from-slate-50 to-indigo-50/30 rounded-2xl border-2 border-indigo-200/80 shadow-xs space-y-4">
                         {/* Control Bar: Mode, Ratio, Swap */}
                         <div className="flex items-center justify-between gap-2 flex-wrap border-b border-indigo-100 pb-3">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                                 <span className="px-2.5 py-1 bg-indigo-600 text-white text-[10px] font-black uppercase tracking-wider rounded-md flex items-center gap-1">
                                     <span className="material-symbols-outlined text-[13px]">view_column</span>
                                     2-Column Split
                                 </span>
-                                <div className="flex items-center bg-white p-0.5 rounded-lg border border-slate-200 text-xs font-bold">
+                                <div className="flex items-center bg-white p-0.5 rounded-lg border border-slate-200 text-xs font-bold flex-wrap gap-0.5">
+                                    <button
+                                        type="button"
+                                        onClick={() => updateSplitConfig(block.id, { layoutType: "content_form" })}
+                                        className={`px-2 py-1 rounded transition-colors ${layout === "content_form" ? "bg-indigo-600 text-white font-black" : "text-slate-600 hover:text-slate-900"}`}
+                                        title="One side content matter, one side student registration card"
+                                    >
+                                        📝 Content + 📋 Register Form
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => updateSplitConfig(block.id, { layoutType: "form_content" })}
+                                        className={`px-2 py-1 rounded transition-colors ${layout === "form_content" ? "bg-indigo-600 text-white font-black" : "text-slate-600 hover:text-slate-900"}`}
+                                        title="One side student registration card, one side content matter"
+                                    >
+                                        📋 Register Form + 📝 Content
+                                    </button>
                                     <button
                                         type="button"
                                         onClick={() => updateSplitConfig(block.id, { layoutType: "image_text" })}
                                         className={`px-2 py-1 rounded transition-colors ${layout === "image_text" ? "bg-indigo-600 text-white font-black" : "text-slate-600 hover:text-slate-900"}`}
                                     >
-                                        🖼️ Left Image + 📝 Right Content
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => updateSplitConfig(block.id, { layoutType: "text_text" })}
-                                        className={`px-2 py-1 rounded transition-colors ${layout === "text_text" ? "bg-indigo-600 text-white font-black" : "text-slate-600 hover:text-slate-900"}`}
-                                    >
-                                        📝 Left Matter + 📝 Right Matter
+                                        🖼️ Image + 📝 Content
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => updateSplitConfig(block.id, { layoutType: "text_image" })}
                                         className={`px-2 py-1 rounded transition-colors ${layout === "text_image" ? "bg-indigo-600 text-white font-black" : "text-slate-600 hover:text-slate-900"}`}
                                     >
-                                        📝 Left Content + 🖼️ Right Image
+                                        📝 Content + 🖼️ Image
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => updateSplitConfig(block.id, { layoutType: "text_text" })}
+                                        className={`px-2 py-1 rounded transition-colors ${layout === "text_text" ? "bg-indigo-600 text-white font-black" : "text-slate-600 hover:text-slate-900"}`}
+                                    >
+                                        📝 2-Col Text
                                     </button>
                                 </div>
                             </div>
@@ -1033,6 +1662,10 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
                                             updateSplitConfig(block.id, { layoutType: "text_image" });
                                         } else if (layout === "text_image") {
                                             updateSplitConfig(block.id, { layoutType: "image_text" });
+                                        } else if (layout === "content_form") {
+                                            updateSplitConfig(block.id, { layoutType: "form_content" });
+                                        } else if (layout === "form_content") {
+                                            updateSplitConfig(block.id, { layoutType: "content_form" });
                                         } else {
                                             // swap contents
                                             updateSplitConfig(block.id, {
@@ -1056,118 +1689,16 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
                         <div className="flex flex-col md:flex-row gap-6 items-center">
                             {/* LEFT COLUMN */}
                             <div className={`${leftColSpan} space-y-3`}>
-                                {(layout === "image_text") ? (
-                                    <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-2">
-                                        <div className="relative rounded-lg overflow-hidden border border-slate-200 group bg-slate-900 h-44">
-                                            <img
-                                                src={config.leftImageUrl || "https://images.unsplash.com/photo-1523240795612-9a054b0db644?q=80&w=800"}
-                                                alt={config.leftImageAlt || "Left side image"}
-                                                className="w-full h-full object-cover"
-                                            />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] font-bold uppercase text-slate-500">Left Image URL</label>
-                                            <input
-                                                type="text"
-                                                value={config.leftImageUrl || ""}
-                                                onChange={(e) => updateSplitConfig(block.id, { leftImageUrl: e.target.value })}
-                                                placeholder="https://images.unsplash.com/..."
-                                                className="w-full px-2.5 py-1 text-xs border border-slate-200 rounded-lg text-slate-800 font-mono"
-                                            />
-                                        </div>
-                                        <input
-                                            type="text"
-                                            value={config.leftImageCaption || ""}
-                                            onChange={(e) => updateSplitConfig(block.id, { leftImageCaption: e.target.value })}
-                                            placeholder="Caption under left image (optional)..."
-                                            className="w-full px-2.5 py-1 text-xs border border-slate-200 rounded-lg text-slate-600 italic"
-                                        />
-                                    </div>
-                                ) : (
-                                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-2">
-                                        <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 block">Left Matter / Content</span>
-                                        <input
-                                            type="text"
-                                            value={config.leftTitle || ""}
-                                            onChange={(e) => updateSplitConfig(block.id, { leftTitle: e.target.value })}
-                                            placeholder="Left Side Heading..."
-                                            className="w-full font-bold text-base text-slate-900 border-b border-slate-200 pb-1 focus:outline-none focus:border-indigo-500"
-                                        />
-                                        <textarea
-                                            value={config.leftContent || ""}
-                                            onChange={(e) => updateSplitConfig(block.id, { leftContent: e.target.value })}
-                                            placeholder="Left side matter description and content details..."
-                                            rows={3}
-                                            className="w-full text-xs text-slate-700 leading-relaxed border border-slate-200 rounded-lg p-2 focus:outline-none focus:border-indigo-500"
-                                        />
-                                    </div>
-                                )}
+                                {layout === "image_text" && renderEditableImage("left")}
+                                {layout === "form_content" && renderEditableForm()}
+                                {(layout === "text_image" || layout === "content_form" || layout === "text_text") && renderEditableContent("left")}
                             </div>
 
                             {/* RIGHT COLUMN */}
                             <div className={`${rightColSpan} space-y-3`}>
-                                {(layout === "text_image") ? (
-                                    <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-2">
-                                        <div className="relative rounded-lg overflow-hidden border border-slate-200 group bg-slate-900 h-44">
-                                            <img
-                                                src={config.rightImageUrl || "https://images.unsplash.com/photo-1523240795612-9a054b0db644?q=80&w=800"}
-                                                alt={config.rightImageAlt || "Right side image"}
-                                                className="w-full h-full object-cover"
-                                            />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] font-bold uppercase text-slate-500">Right Image URL</label>
-                                            <input
-                                                type="text"
-                                                value={config.rightImageUrl || ""}
-                                                onChange={(e) => updateSplitConfig(block.id, { rightImageUrl: e.target.value })}
-                                                placeholder="https://images.unsplash.com/..."
-                                                className="w-full px-2.5 py-1 text-xs border border-slate-200 rounded-lg text-slate-800 font-mono"
-                                            />
-                                        </div>
-                                        <input
-                                            type="text"
-                                            value={config.rightImageCaption || ""}
-                                            onChange={(e) => updateSplitConfig(block.id, { rightImageCaption: e.target.value })}
-                                            placeholder="Caption under right image (optional)..."
-                                            className="w-full px-2.5 py-1 text-xs border border-slate-200 rounded-lg text-slate-600 italic"
-                                        />
-                                    </div>
-                                ) : (
-                                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-2">
-                                        <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 block">Right Matter / Content</span>
-                                        <input
-                                            type="text"
-                                            value={config.rightTitle || ""}
-                                            onChange={(e) => updateSplitConfig(block.id, { rightTitle: e.target.value })}
-                                            placeholder="Right Side Heading..."
-                                            className="w-full font-bold text-base text-slate-900 border-b border-slate-200 pb-1 focus:outline-none focus:border-indigo-500"
-                                        />
-                                        <textarea
-                                            value={config.rightContent || ""}
-                                            onChange={(e) => updateSplitConfig(block.id, { rightContent: e.target.value })}
-                                            placeholder="Right side matter description and content details..."
-                                            rows={3}
-                                            className="w-full text-xs text-slate-700 leading-relaxed border border-slate-200 rounded-lg p-2 focus:outline-none focus:border-indigo-500"
-                                        />
-                                        <div className="flex items-center gap-2 pt-1">
-                                            <input
-                                                type="text"
-                                                value={config.buttonText || ""}
-                                                onChange={(e) => updateSplitConfig(block.id, { buttonText: e.target.value })}
-                                                placeholder="Button label (optional)..."
-                                                className="w-1/2 px-2.5 py-1 text-xs border border-slate-200 rounded-lg text-slate-800"
-                                            />
-                                            <input
-                                                type="text"
-                                                value={config.buttonUrl || ""}
-                                                onChange={(e) => updateSplitConfig(block.id, { buttonUrl: e.target.value })}
-                                                placeholder="Button URL (/apply)..."
-                                                className="w-1/2 px-2.5 py-1 text-xs border border-slate-200 rounded-lg text-slate-800 font-mono"
-                                            />
-                                        </div>
-                                    </div>
-                                )}
+                                {layout === "text_image" && renderEditableImage("right")}
+                                {layout === "content_form" && renderEditableForm()}
+                                {(layout === "image_text" || layout === "form_content" || layout === "text_text") && renderEditableContent("right")}
                             </div>
                         </div>
                     </div>
@@ -1291,23 +1822,33 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
                         <hr className="my-4 border-slate-200" />
 
                         {/* Elements Section */}
-                        <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">🎨 Elements (Drag to Canvas)</h2>
+                        <div className="flex items-center justify-between mb-3">
+                            <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">🎨 Elements</h2>
+                            <span className="text-[10px] text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded">Click or Drag</span>
+                        </div>
                         <div className="space-y-2">
                             {ELEMENT_TYPES.map((el) => (
                                 <div
-                                    key={el.type}
+                                    key={el.label}
                                     draggable
-                                    onDragStart={(e) => handleDragStart(e, el.type)}
+                                    onDragStart={(e) => handleDragStart(e, el.type, el.defaultLayout)}
                                     onDragEnd={handleDragEnd}
-                                    className="flex items-center gap-3 p-2.5 rounded-lg border border-slate-100 cursor-grab active:cursor-grabbing hover:bg-slate-50 hover:border-slate-200 transition-all"
+                                    onClick={() => handleAddElement(el.type, el.defaultLayout)}
+                                    className="flex items-center justify-between p-2.5 rounded-xl border border-slate-200/80 cursor-pointer active:scale-[0.98] hover:bg-indigo-50/50 hover:border-indigo-300 transition-all group/item shadow-2xs bg-white"
+                                    title="Click to add or drag into position"
                                 >
-                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${COLOR_MAP[el.color]}`}>
-                                        <span className="material-symbols-outlined text-[18px]">{el.icon}</span>
+                                    <div className="flex items-center gap-2.5">
+                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${COLOR_MAP[el.color]}`}>
+                                            <span className="material-symbols-outlined text-[18px]">{el.icon}</span>
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-xs text-slate-800 group-hover/item:text-indigo-700 transition-colors">{el.label}</p>
+                                            <p className="text-[10px] text-slate-400">{el.desc}</p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <p className="font-bold text-xs text-slate-800">{el.label}</p>
-                                        <p className="text-[10px] text-slate-400">{el.desc}</p>
-                                    </div>
+                                    <span className="text-slate-300 group-hover/item:text-indigo-600 transition-colors text-sm font-bold opacity-0 group-hover/item:opacity-100 mr-1 shrink-0">
+                                        +
+                                    </span>
                                 </div>
                             ))}
                         </div>
@@ -1508,21 +2049,228 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
                             </button>
                         </div>
                         <div className="p-6">
-                            {editingBlock.type === "image" || editingBlock.type === "video" ? (
+                            {editingBlock.type === "image" ? (
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-700 mb-1 block">Image URL</label>
+                                        <input
+                                            type="text"
+                                            value={editingBlock.content}
+                                            onChange={(e) => setEditingBlock({ ...editingBlock, content: e.target.value })}
+                                            className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-200 outline-none font-mono"
+                                            placeholder="https://example.com/image.jpg"
+                                        />
+                                    </div>
+
+                                    {/* Crop Aspect Ratio */}
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-700 mb-1 block">Aspect Ratio / Crop Dimension</label>
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                            {[
+                                                { label: "16:9 Landscape", val: "16/9" },
+                                                { label: "4:3 Standard", val: "4/3" },
+                                                { label: "1:1 Square", val: "1/1" },
+                                                { label: "21:9 Ultra-Wide Banner", val: "21/9" },
+                                                { label: "Auto / Natural", val: "auto" },
+                                            ].map((r) => (
+                                                <button
+                                                    key={r.val}
+                                                    type="button"
+                                                    onClick={() => setEditingBlock({
+                                                        ...editingBlock,
+                                                        style: { ...editingBlock.style, aspectRatio: r.val },
+                                                    })}
+                                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${(editingBlock.style?.aspectRatio || "16/9") === r.val
+                                                            ? "bg-indigo-600 text-white border-indigo-600 shadow-2xs"
+                                                            : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                                                        }`}
+                                                >
+                                                    {r.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Fit Mode */}
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-700 mb-1 block">Crop & Fit Behavior</label>
+                                        <div className="flex items-center gap-2">
+                                            {[
+                                                { label: "Crop to Fill (Cover)", val: "cover" as const, desc: "Fills the container cleanly by cropping overflow" },
+                                                { label: "Fit Entire Image (Contain)", val: "contain" as const, desc: "Shows whole image without clipping" },
+                                                { label: "Stretch (Fill)", val: "fill" as const, desc: "Stretches to fill bounds" },
+                                            ].map((f) => (
+                                                <button
+                                                    key={f.val}
+                                                    type="button"
+                                                    title={f.desc}
+                                                    onClick={() => setEditingBlock({
+                                                        ...editingBlock,
+                                                        style: { ...editingBlock.style, objectFit: f.val },
+                                                    })}
+                                                    className={`flex-1 px-3 py-2 rounded-xl text-xs font-bold border text-center transition-all cursor-pointer ${(editingBlock.style?.objectFit || "cover") === f.val
+                                                            ? "bg-indigo-600 text-white border-indigo-600 shadow-2xs"
+                                                            : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                                                        }`}
+                                                >
+                                                    {f.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Height & Focus */}
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-700 mb-1 block">Max Height</label>
+                                            <select
+                                                value={editingBlock.style?.maxHeight || "380px"}
+                                                onChange={(e) => setEditingBlock({
+                                                    ...editingBlock,
+                                                    style: { ...editingBlock.style, maxHeight: e.target.value },
+                                                })}
+                                                className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs bg-white text-slate-800"
+                                            >
+                                                <option value="240px">240px (Compact)</option>
+                                                <option value="380px">380px (Standard Editorial)</option>
+                                                <option value="500px">500px (Large Feature)</option>
+                                                <option value="650px">650px (Hero Banner)</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-700 mb-1 block">Crop Focus Point</label>
+                                            <select
+                                                value={editingBlock.style?.objectPosition || "center"}
+                                                onChange={(e) => setEditingBlock({
+                                                    ...editingBlock,
+                                                    style: { ...editingBlock.style, objectPosition: e.target.value as any },
+                                                })}
+                                                className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs bg-white text-slate-800"
+                                            >
+                                                <option value="top">Top Focus</option>
+                                                <option value="center">Center Focus</option>
+                                                <option value="bottom">Bottom Focus</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    {/* Preview */}
+                                    {editingBlock.content && (
+                                        <div className="mt-2">
+                                            <span className="text-[10px] font-bold uppercase text-slate-500 block mb-1">Live Crop Preview</span>
+                                            <div
+                                                className="rounded-xl overflow-hidden border border-slate-200 bg-slate-900"
+                                                style={{ maxHeight: editingBlock.style?.maxHeight || "380px" }}
+                                            >
+                                                <img
+                                                    src={editingBlock.content}
+                                                    alt="Preview"
+                                                    className="w-full block"
+                                                    style={{
+                                                        aspectRatio: editingBlock.style?.aspectRatio || "16/9",
+                                                        objectFit: editingBlock.style?.objectFit || "cover",
+                                                        objectPosition: editingBlock.style?.objectPosition || "center",
+                                                        maxHeight: editingBlock.style?.maxHeight || "380px",
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            ) : editingBlock.type === "split_content" || editingBlock.type === "container" ? (
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-700 mb-1 block">Layout Mode</label>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {[
+                                                { id: "content_form" as const, label: "📝 Content + 📋 Register Form", desc: "One side content, one side student lead form" },
+                                                { id: "form_content" as const, label: "📋 Register Form + 📝 Content", desc: "One side student lead form, one side content" },
+                                                { id: "image_text" as const, label: "🖼️ Left Image + 📝 Right Content", desc: "Photo with side details" },
+                                                { id: "text_image" as const, label: "📝 Left Content + 🖼️ Right Image", desc: "Details with photo" },
+                                            ].map((m) => (
+                                                <button
+                                                    key={m.id}
+                                                    type="button"
+                                                    onClick={() => setEditingBlock({
+                                                        ...editingBlock,
+                                                        splitConfig: {
+                                                            ...(editingBlock.splitConfig || { layoutType: "content_form" }),
+                                                            layoutType: m.id,
+                                                        },
+                                                    })}
+                                                    className={`p-2.5 rounded-xl text-left border transition-all cursor-pointer ${(editingBlock.splitConfig?.layoutType || "content_form") === m.id
+                                                            ? "bg-indigo-50 border-indigo-600 text-indigo-900 font-bold shadow-2xs"
+                                                            : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                                                        }`}
+                                                >
+                                                    <p className="text-xs font-bold">{m.label}</p>
+                                                    <p className="text-[10px] text-slate-500 mt-0.5">{m.desc}</p>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {(editingBlock.splitConfig?.layoutType === "content_form" || editingBlock.splitConfig?.layoutType === "form_content") && (
+                                        <div className="p-4 bg-indigo-50/50 rounded-xl border border-indigo-100 space-y-3">
+                                            <span className="text-[10px] font-black uppercase text-indigo-700 block">Registration Form Settings</span>
+                                            <div>
+                                                <label className="text-xs font-bold text-slate-700 mb-1 block">Form Heading</label>
+                                                <input
+                                                    type="text"
+                                                    value={editingBlock.splitConfig?.formTitle || "Instant Loan Inquiry & Registration"}
+                                                    onChange={(e) => setEditingBlock({
+                                                        ...editingBlock,
+                                                        splitConfig: {
+                                                            ...(editingBlock.splitConfig || { layoutType: "content_form" }),
+                                                            formTitle: e.target.value,
+                                                        },
+                                                    })}
+                                                    className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-bold text-slate-700 mb-1 block">Form Subtitle</label>
+                                                <input
+                                                    type="text"
+                                                    value={editingBlock.splitConfig?.formSubtitle || "Enter your contact details to check eligibility & receive a callback within 15 minutes."}
+                                                    onChange={(e) => setEditingBlock({
+                                                        ...editingBlock,
+                                                        splitConfig: {
+                                                            ...(editingBlock.splitConfig || { layoutType: "content_form" }),
+                                                            formSubtitle: e.target.value,
+                                                        },
+                                                    })}
+                                                    className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-bold text-slate-700 mb-1 block">Submit CTA Button Label</label>
+                                                <input
+                                                    type="text"
+                                                    value={editingBlock.splitConfig?.formButtonText || "Register & Check Eligibility"}
+                                                    onChange={(e) => setEditingBlock({
+                                                        ...editingBlock,
+                                                        splitConfig: {
+                                                            ...(editingBlock.splitConfig || { layoutType: "content_form" }),
+                                                            formButtonText: e.target.value,
+                                                        },
+                                                    })}
+                                                    className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-indigo-700"
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            ) : editingBlock.type === "video" ? (
                                 <div>
-                                    <label className="text-xs font-bold text-slate-700 mb-2 block">
-                                        {editingBlock.type === "image" ? "Image URL" : "Video Embed URL"}
-                                    </label>
+                                    <label className="text-xs font-bold text-slate-700 mb-2 block">Video Embed URL</label>
                                     <input
                                         type="text"
                                         value={editingBlock.content}
                                         onChange={(e) => setEditingBlock({ ...editingBlock, content: e.target.value })}
                                         className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-200 outline-none"
-                                        placeholder={editingBlock.type === "image" ? "https://example.com/image.jpg" : "https://youtube.com/embed/..."}
+                                        placeholder="https://youtube.com/embed/..."
                                     />
-                                    {editingBlock.type === "image" && editingBlock.content && (
-                                        <img src={editingBlock.content} alt="Preview" className="mt-4 rounded-xl max-h-64 object-cover border border-slate-200" />
-                                    )}
                                 </div>
                             ) : editingBlock.type === "divider" || editingBlock.type === "spacer" ? (
                                 <p className="text-xs text-slate-500">This element has no editable content.</p>

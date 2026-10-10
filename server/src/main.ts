@@ -18,6 +18,14 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.setGlobalPrefix('api');
 
+  // Support direct calls to /blogs, /blogs/* without /api prefix
+  app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (req.url === '/blogs' || req.url.startsWith('/blogs/') || req.url.startsWith('/blogs?')) {
+      req.url = `/api${req.url}`;
+    }
+    next();
+  });
+
   // Cookie parser required for Double Cookie Submit CSRF protection
   app.use(cookieParser());
 

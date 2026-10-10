@@ -218,7 +218,7 @@ export default function ApplyLoanPage() {
                         firstName: prev.firstName || user?.firstName || "",
                         lastName: prev.lastName || user?.lastName || "",
                         email: prev.email || user?.email || "",
-                        phone: prev.phone || user?.phoneNumber || user?.mobile || "",
+                        phone: prev.phone || (user?.phoneNumber || user?.mobile || "").replace(/^\+91\s*/, "").replace(/\D/g, "").slice(0, 10) || "",
                         // Support both DD-MM-YYYY (from DatePicker / backend) and fallback fields
                         dateOfBirth: prev.dateOfBirth || user?.dateOfBirth || "",
                         pincode: prev.pincode || user?.pincode || "",
@@ -383,7 +383,7 @@ export default function ApplyLoanPage() {
         if (!formData.lastName.trim()) errors.lastName = "Last name is required";
         if (!formData.email.trim()) errors.email = "Email is required";
         else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) errors.email = "Please enter a valid email";
-        const appPhone = formData.phone.trim();
+        const appPhone = formData.phone.trim().replace(/^\+91\s*/, "").replace(/\D/g, "");
         if (!appPhone) {
             errors.phone = "Phone number is required";
         } else if (appPhone.length !== 10) {
@@ -655,6 +655,10 @@ export default function ApplyLoanPage() {
         );
     }
 
+    const isEmailLocked = Boolean(user?.email && formData.email);
+    const isPhoneLocked = Boolean((user?.phoneNumber || user?.mobile) && formData.phone);
+    const isDobLocked = Boolean(user?.dateOfBirth && formData.dateOfBirth);
+
     return (
         <div className="min-h-screen text-gray-900 overflow-hidden relative" style={{ background: 'linear-gradient(135deg, #ede0ff 0%, #f3eaff 25%, #fdf6ff 55%, #fef3e8 80%, #fde8c8 100%)' }}>
             {/* Bright Aesthetic Background Decorations mimicking the Homepage */}
@@ -880,14 +884,27 @@ export default function ApplyLoanPage() {
                                     </div>
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                        <InputField label="Email Address" icon="mail" value={formData.email} onChange={(v) => update("email", v.slice(0, 30))} placeholder="rahul@example.com" type="email" error={stepErrors.email} required maxLength={30} disabled={true} />
+                                        <InputField
+                                            label="Email Address"
+                                            icon="mail"
+                                            value={formData.email}
+                                            onChange={(v) => update("email", v.trim().toLowerCase().slice(0, 80))}
+                                            placeholder="rahul@example.com"
+                                            type="email"
+                                            error={stepErrors.email}
+                                            required
+                                            maxLength={80}
+                                            disabled={isEmailLocked}
+                                        />
                                         <div className="space-y-3">
                                             <label className="text-[10px] uppercase tracking-[0.2em] font-black text-gray-500 flex items-center justify-between">
                                                 <span>Mobile Number <span className="text-red-500 ml-1">*</span></span>
-                                                {/* <span className="text-[9px] font-extrabold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 flex items-center gap-1">
-                                                    <span className="material-symbols-outlined text-[11px]">lock</span>
-                                                    Locked
-                                                </span> */}
+                                                {isPhoneLocked && (
+                                                    <span className="text-[9px] font-extrabold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 flex items-center gap-1">
+                                                        <span className="material-symbols-outlined text-[11px]">lock</span>
+                                                        Locked
+                                                    </span>
+                                                )}
                                             </label>
                                             <div className="relative group">
                                                 <div className="absolute left-4 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-gray-400 select-none">
@@ -896,12 +913,25 @@ export default function ApplyLoanPage() {
                                                 </div>
                                                 <input
                                                     type="tel"
-                                                    disabled
-                                                    readOnly
+                                                    disabled={isPhoneLocked}
+                                                    readOnly={isPhoneLocked}
                                                     value={formData.phone.startsWith("+91 ") ? formData.phone.replace("+91 ", "") : formData.phone.replace(/^\+91/, "")}
-                                                    onChange={() => { }}
+                                                    onChange={(e) => {
+                                                        if (!isPhoneLocked) {
+                                                            const cleaned = e.target.value.replace(/\D/g, "").slice(0, 10);
+                                                            update("phone", cleaned);
+                                                        }
+                                                    }}
                                                     placeholder="98237 49821"
-                                                    className="w-full pl-20 pr-6 py-4 bg-gray-100/80 cursor-not-allowed text-gray-500 border border-gray-200 rounded-2xl shadow-sm outline-none text-sm font-bold select-none"
+                                                    maxLength={10}
+                                                    className={`w-full pl-20 pr-6 py-4 border rounded-2xl shadow-sm outline-none text-sm font-bold transition-all ${
+                                                        isPhoneLocked
+                                                            ? "bg-gray-100/80 cursor-not-allowed text-gray-500 border-gray-200 select-none"
+                                                            : "bg-white/70 focus:bg-white text-gray-900 " +
+                                                              (stepErrors.phone
+                                                                  ? "border-red-300 ring-2 ring-red-100"
+                                                                  : "border-gray-200 focus:border-[#6605c7]/50 focus:ring-4 focus:ring-purple-100 hover:border-gray-300")
+                                                    }`}
                                                 />
                                             </div>
                                             {stepErrors.phone && <p className="text-red-500 text-[10px] font-black uppercase tracking-wider pl-1">{stepErrors.phone}</p>}
@@ -916,7 +946,7 @@ export default function ApplyLoanPage() {
                                                 onChange={(v) => update("dateOfBirth", v)}
                                                 error={stepErrors.dateOfBirth}
                                                 required
-                                                disabled={true}
+                                                disabled={isDobLocked}
                                             />
                                         </div>
                                         <div className="relative">
@@ -1236,12 +1266,12 @@ function InputField({ label, icon, value, onChange, placeholder, type = "text", 
         <div className="space-y-3">
             <label className="text-[10px] uppercase tracking-[0.2em] font-black text-gray-500 flex items-center justify-between">
                 <span>{label} {required && <span className="text-red-500 ml-1">*</span>}</span>
-                {/* {disabled && (
+                {disabled && (
                     <span className="text-[9px] font-extrabold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 flex items-center gap-1">
                         <span className="material-symbols-outlined text-[11px]">lock</span>
                         Locked
                     </span>
-                )} */}
+                )}
             </label>
             <div className="relative group">
                 {icon && (

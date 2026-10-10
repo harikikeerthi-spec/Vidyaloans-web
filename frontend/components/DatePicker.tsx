@@ -133,8 +133,14 @@ export default function DatePicker({
             {/* Input Trigger Field */}
             <div className="field-group">
                 {label && (
-                    <label className="field-label text-[11px] font-bold text-slate-500 tracking-wider uppercase block mb-1.5 ml-0.5">
-                        {label} {required && <span className="text-rose-500 font-bold">*</span>}
+                    <label className="field-label text-[11px] font-bold text-slate-500 tracking-wider uppercase flex items-center justify-between mb-1.5 ml-0.5">
+                        <span>{label} {required && <span className="text-rose-500 font-bold">*</span>}</span>
+                        {disabled && (
+                            <span className="text-[9px] font-extrabold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 flex items-center gap-1">
+                                <span className="material-symbols-outlined text-[11px]">lock</span>
+                                Locked
+                            </span>
+                        )}
                     </label>
                 )}
 

@@ -49,6 +49,10 @@ export default function UserProfileEdit({ params }: { params?: Promise<{ id: str
                 }
                 const resJson = await response.json();
                 const data = resJson.data || resJson.user || resJson;
+                if ((data?.role || '').toLowerCase() === 'staff') {
+                    router.replace(`/admin/user-details/${userId}`);
+                    return;
+                }
                 setUserData(data);
 
                 const banks = (banksRes as any)?.success && Array.isArray((banksRes as any)?.data) ? (banksRes as any).data : [];

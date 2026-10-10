@@ -9,7 +9,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
     const pathname = usePathname();
     const isConnectedPage = pathname === "/connected";
     const isWhatsAppSimulatorPage = pathname === "/whatsapp-simulator";
-    const isLandingPage = pathname === "/landing" || pathname === "/apply";
+    const isLandingPage = pathname === "/landing";
     const showNavbar = !isConnectedPage && !isLandingPage;
     const showFooter = !isConnectedPage && !isWhatsAppSimulatorPage;
 

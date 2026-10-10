@@ -82,6 +82,11 @@ export interface BlogPost {
     isPublished?: boolean;
     published?: boolean;
     publishedAt?: string;
+    metaTitle?: string;
+    metaDescription?: string;
+    focusKeyword?: string;
+    canonicalUrl?: string;
+    noIndex?: boolean;
     createdAt: string;
     updatedAt: string;
 }

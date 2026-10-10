@@ -205,7 +205,7 @@ const ELEMENTOR_WIDGETS: ElementorWidget[] = [
 ];
 
 const PRESET_PORTAL_LINKS = [
-  { label: "Loan Application", url: "/apply", desc: "Direct loan eligibility & application form" },
+  { label: "Loan Application", url: "/apply-loan", desc: "Direct loan eligibility & application form" },
   { label: "Partner Banks", url: "/banks", desc: "Compare HDFC, IDFC, Axis & SBI rates" },
   { label: "EMI Calculator", url: "/emi-calculator", desc: "Interactive loan monthly repayment calculator" },
   { label: "Blog Hub", url: "/blog", desc: "Public education loan knowledge hub" },
@@ -860,11 +860,11 @@ export default function ITBlogsPage() {
         };
         break;
       case "button":
-        block.url = "/apply";
+        block.url = "/apply-loan";
         block.openInNewTab = true;
         break;
       case "link":
-        block.url = "/apply";
+        block.url = "/apply-loan";
         block.openInNewTab = true;
         break;
       case "cta":
@@ -902,7 +902,7 @@ export default function ITBlogsPage() {
             "Fast 48-hour conditional sanction",
           ],
           buttonText: "Check Eligibility & Apply",
-          buttonUrl: "/apply",
+          buttonUrl: "/apply-loan",
           buttonNewTab: true,
         };
         break;
@@ -1027,7 +1027,7 @@ export default function ITBlogsPage() {
         block.title = "VidyaLoan Education Advisor";
         block.subtitle = "Guiding 50,000+ Students to Fund Their Studies Abroad";
         block.items = [
-          { id: "1", title: "Apply for Study Abroad Loan", url: "/apply", badge: "Instant" },
+          { id: "1", title: "Apply for Study Abroad Loan", url: "/apply-loan", badge: "Instant" },
           { id: "2", title: "Compare 15+ Partner Bank Rates", url: "/banks", badge: "Compare" },
           { id: "3", title: "Free EMI Repayment Calculator", url: "/emi-calculator", badge: "Tool" },
           { id: "4", title: "Talk to a Loan Specialist", url: "/contact", badge: "Free" },
@@ -1417,7 +1417,7 @@ export default function ITBlogsPage() {
 
   const applyHyperlink = () => {
     if (!hyperlinkTargetBlockId) return;
-    const targetUrl = hyperlinkUrl.trim() || "/apply";
+    const targetUrl = hyperlinkUrl.trim() || "/apply-loan";
     const displayText = hyperlinkText.trim() || targetUrl;
 
     const saved = savedSelectionRef.current;
@@ -1496,136 +1496,241 @@ export default function ITBlogsPage() {
   const applyHighlight = (
     blockId: string,
     bg: string = "#fef08a",
-    textColor: string = "#854d0e"
+    _textColor?: string
   ) => {
     const sel = typeof window !== "undefined" ? window.getSelection() : null;
+    const el = document.getElementById(`editor-${blockId}`);
     if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
-      try {
-        const range = sel.getRangeAt(0);
-        let node: Node | null = range.commonAncestorContainer;
-        if (node.nodeType === Node.TEXT_NODE) {
-          node = node.parentNode;
-        }
+      const range = sel.getRangeAt(0);
+      const containerEl = el || (range.commonAncestorContainer as HTMLElement)?.closest?.('[contenteditable="true"]') as HTMLElement | null;
 
-        const existingMark =
-          (node as HTMLElement)?.closest?.("mark") ||
-          ((node as HTMLElement)?.tagName === "MARK" ? (node as HTMLElement) : null);
-
-        if (existingMark) {
-          const isSameColor =
-            existingMark.style.backgroundColor === bg ||
-            existingMark.getAttribute("data-color") === bg;
-          if (isSameColor) {
-            // Toggle off highlight
-            const textNode = document.createTextNode(existingMark.textContent || "");
-            existingMark.parentNode?.replaceChild(textNode, existingMark);
-          } else {
-            // Update color
-            existingMark.style.backgroundColor = bg;
-            existingMark.style.color = textColor;
-            existingMark.setAttribute("data-color", bg);
+      if (containerEl) {
+        const innerHighlights = Array.from(
+          containerEl.querySelectorAll('mark, [data-highlight="true"], span[style*="background"]')
+        ) as HTMLElement[];
+        innerHighlights.forEach((hl) => {
+          if (hl !== containerEl && (sel.containsNode(hl, true) || range.intersectsNode(hl))) {
+            hl.style.backgroundColor = "";
+            hl.style.background = "";
+            hl.removeAttribute("data-highlight");
+            if (hl.tagName === "MARK") {
+              const p = hl.parentNode;
+              if (p) {
+                while (hl.firstChild) p.insertBefore(hl.firstChild, hl);
+                p.removeChild(hl);
+              }
+            }
           }
-        } else {
-          const mark = document.createElement("mark");
-          mark.style.backgroundColor = bg;
-          mark.style.color = textColor;
-          mark.style.padding = "2px 6px";
-          mark.style.borderRadius = "4px";
-          mark.style.fontWeight = "600";
-          mark.setAttribute("data-color", bg);
+        });
+      }
 
-          try {
-            range.surroundContents(mark);
-          } catch {
-            const fragment = range.extractContents();
-            mark.appendChild(fragment);
-            range.insertNode(mark);
-          }
+      let node: Node | null = range.commonAncestorContainer;
+      if (node.nodeType === Node.TEXT_NODE) {
+        node = node.parentNode;
+      }
+      const existing = (node as HTMLElement)?.closest?.('[data-highlight="true"], mark') as HTMLElement | null;
+
+      if (existing && containerEl?.contains(existing) && existing.textContent?.trim() === range.toString().trim()) {
+        existing.style.backgroundColor = bg;
+        existing.style.background = bg;
+        existing.setAttribute("data-highlight", "true");
+        if (existing.tagName === "MARK") {
+          const span = document.createElement("span");
+          span.setAttribute("data-highlight", "true");
+          span.style.backgroundColor = bg;
+          span.innerHTML = existing.innerHTML;
+          existing.parentNode?.replaceChild(span, existing);
         }
+      } else {
+        const span = document.createElement("span");
+        span.setAttribute("data-highlight", "true");
+        span.style.backgroundColor = bg;
 
-        // Collapse selection so it doesn't remain trapped in blue browser selection
-        sel.collapseToEnd();
-      } catch (err) {
-        console.warn("Highlight fallback", err);
         try {
-          document.execCommand("hiliteColor", false, bg);
-        } catch (_) { }
-        sel?.collapseToEnd();
+          range.surroundContents(span);
+        } catch {
+          try {
+            const fragment = range.extractContents();
+            span.appendChild(fragment);
+            range.insertNode(span);
+          } catch (_) { }
+        }
       }
 
-      const el = document.getElementById(`editor-${blockId}`);
-      if (el) {
-        updateBlockContent(blockId, el.innerHTML);
+      if (containerEl) {
+        const marks = Array.from(containerEl.querySelectorAll("mark"));
+        marks.forEach((m) => {
+          const s = document.createElement("span");
+          s.setAttribute("data-highlight", "true");
+          s.style.backgroundColor = m.style.backgroundColor || bg;
+          s.innerHTML = m.innerHTML;
+          m.parentNode?.replaceChild(s, m);
+        });
+        updateBlockContent(blockId, containerEl.innerHTML);
       }
-    } else {
-      // Fallback: toggle full block highlight
-      setBlocks((prev) =>
-        prev.map((b) => {
-          if (b.id !== blockId) return b;
-          const text = b.content || "";
-          if (text.includes("<mark")) {
-            return {
-              ...b,
-              content: text.replace(/<mark[^>]*>([\s\S]*?)<\/mark>/gi, "$1"),
-            };
-          }
-          return {
-            ...b,
-            content: `<mark style="background-color: ${bg}; color: ${textColor}; padding: 2px 6px; border-radius: 4px; font-weight: 600;">${text}</mark>`,
-          };
-        })
-      );
     }
 
-    // Always immediately close highlight picker
     setActiveHighlightPicker(null);
   };
 
   const removeHighlight = (blockId: string) => {
     const sel = typeof window !== "undefined" ? window.getSelection() : null;
-    if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
-      try {
-        const range = sel.getRangeAt(0);
-        let node: Node | null = range.commonAncestorContainer;
-        if (node.nodeType === Node.TEXT_NODE) {
-          node = node.parentNode;
-        }
+    const el = document.getElementById(`editor-${blockId}`);
 
-        const existingMark =
-          (node as HTMLElement)?.closest?.("mark") ||
-          ((node as HTMLElement)?.tagName === "MARK" ? (node as HTMLElement) : null);
+    const cleanHighlightNode = (node: HTMLElement) => {
+      node.style.backgroundColor = "";
+      node.style.background = "";
+      node.removeAttribute("data-highlight");
+      node.removeAttribute("data-color");
 
-        if (existingMark) {
-          const textNode = document.createTextNode(existingMark.textContent || "");
-          existingMark.parentNode?.replaceChild(textNode, existingMark);
-        } else {
-          document.execCommand("hiliteColor", false, "transparent");
-        }
-        sel.collapseToEnd();
-      } catch (_) {
-        try {
-          document.execCommand("hiliteColor", false, "transparent");
-        } catch { }
-        sel?.collapseToEnd();
+      const c = node.style.color?.toLowerCase().trim();
+      if (
+        c === "#854d0e" || c === "rgb(133, 77, 14)" ||
+        c === "#14532d" || c === "rgb(20, 83, 45)" ||
+        c === "#0369a1" || c === "rgb(3, 105, 161)" ||
+        c === "#9d174d" || c === "rgb(157, 23, 77)" ||
+        c === "#6b21a8" || c === "rgb(107, 33, 168)" ||
+        c === "#9a3412" || c === "rgb(154, 52, 18)"
+      ) {
+        node.style.color = "";
       }
 
-      const el = document.getElementById(`editor-${blockId}`);
-      if (el) {
-        updateBlockContent(blockId, el.innerHTML);
+      if (node.style.padding === "2px 5px" || node.style.padding === "2px 6px") {
+        node.style.padding = "";
       }
-    } else {
-      setBlocks((prev) =>
-        prev.map((b) => {
-          if (b.id !== blockId) return b;
-          return {
-            ...b,
-            content: (b.content || "").replace(/<mark[^>]*>([\s\S]*?)<\/mark>/gi, "$1"),
-          };
-        })
-      );
+      if (node.style.borderRadius === "4px") {
+        node.style.borderRadius = "";
+      }
+      if (node.style.fontWeight === "600") {
+        node.style.fontWeight = "";
+      }
+
+      if (node.tagName === "MARK") {
+        const parent = node.parentNode;
+        if (parent) {
+          while (node.firstChild) {
+            parent.insertBefore(node.firstChild, node);
+          }
+          parent.removeChild(node);
+        }
+        return;
+      }
+
+      if (node.tagName === "SPAN") {
+        const remainingStyle = node.getAttribute("style")?.trim();
+        if (!remainingStyle || remainingStyle === "" || remainingStyle === ";") {
+          node.removeAttribute("style");
+          const parent = node.parentNode;
+          if (parent) {
+            while (node.firstChild) {
+              parent.insertBefore(node.firstChild, node);
+            }
+            parent.removeChild(node);
+          }
+        }
+      }
+    };
+
+    if (sel && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      const containerEl = el || (range.commonAncestorContainer as HTMLElement)?.closest?.('[contenteditable="true"]') as HTMLElement | null;
+
+      if (containerEl) {
+        const ancestorNodes = [range.commonAncestorContainer, range.startContainer, range.endContainer];
+        ancestorNodes.forEach((startNode) => {
+          let curr: Node | null = startNode;
+          if (curr.nodeType === Node.TEXT_NODE) {
+            curr = curr.parentNode;
+          }
+          while (curr && curr !== containerEl && containerEl.contains(curr)) {
+            const parentEl = curr as HTMLElement;
+            if (
+              parentEl.tagName === "MARK" ||
+              parentEl.getAttribute("data-highlight") === "true" ||
+              parentEl.style.backgroundColor ||
+              parentEl.style.background
+            ) {
+              const fullText = parentEl.textContent || "";
+              const selText = range.toString();
+              if (selText.trim() === fullText.trim() || selText.length >= fullText.length) {
+                cleanHighlightNode(parentEl);
+              } else if (selText.length > 0 && fullText.includes(selText)) {
+                const bg = parentEl.style.backgroundColor || parentEl.style.background;
+                const idx = fullText.indexOf(selText);
+                if (idx !== -1) {
+                  const beforeText = fullText.substring(0, idx);
+                  const afterText = fullText.substring(idx + selText.length);
+                  const frag = document.createDocumentFragment();
+
+                  if (beforeText) {
+                    const bSpan = parentEl.cloneNode(false) as HTMLElement;
+                    bSpan.textContent = beforeText;
+                    bSpan.style.backgroundColor = bg;
+                    bSpan.setAttribute("data-highlight", "true");
+                    frag.appendChild(bSpan);
+                  }
+
+                  const mSpan = parentEl.cloneNode(false) as HTMLElement;
+                  mSpan.textContent = selText;
+                  mSpan.style.backgroundColor = "";
+                  mSpan.style.background = "";
+                  mSpan.removeAttribute("data-highlight");
+                  cleanHighlightNode(mSpan);
+                  frag.appendChild(mSpan);
+
+                  if (afterText) {
+                    const aSpan = parentEl.cloneNode(false) as HTMLElement;
+                    aSpan.textContent = afterText;
+                    aSpan.style.backgroundColor = bg;
+                    aSpan.setAttribute("data-highlight", "true");
+                    frag.appendChild(aSpan);
+                  }
+
+                  parentEl.parentNode?.replaceChild(frag, parentEl);
+                  break;
+                } else {
+                  cleanHighlightNode(parentEl);
+                }
+              } else {
+                cleanHighlightNode(parentEl);
+              }
+            }
+            curr = curr.parentNode;
+          }
+        });
+
+        const allHighlights = Array.from(
+          containerEl.querySelectorAll('mark, [data-highlight="true"], span[style*="background"]')
+        ) as HTMLElement[];
+
+        allHighlights.forEach((candidate) => {
+          if (candidate !== containerEl) {
+            if (
+              sel.isCollapsed ||
+              sel.containsNode(candidate, true) ||
+              (range.intersectsNode && range.intersectsNode(candidate))
+            ) {
+              cleanHighlightNode(candidate);
+            }
+          }
+        });
+
+        const anyMarks = Array.from(containerEl.querySelectorAll("mark"));
+        anyMarks.forEach((m) => {
+          const parent = m.parentNode;
+          if (parent) {
+            while (m.firstChild) {
+              parent.insertBefore(m.firstChild, m);
+            }
+            parent.removeChild(m);
+          }
+        });
+
+        containerEl.normalize();
+        updateBlockContent(blockId, containerEl.innerHTML);
+      }
     }
 
-    // Always immediately close highlight picker
     setActiveHighlightPicker(null);
   };
 
@@ -1949,7 +2054,7 @@ export default function ITBlogsPage() {
           ...createBlock("cta", "Planning to pursue specialized vocational certification, pilot flight hours, or healthcare licensing? VidyaLoans provides targeted skill financing with zero collateral."),
           title: "Finance Your Specialized Career Certification",
           buttonText: "Check Skill Loan Eligibility →",
-          url: "/apply",
+          url: "/apply-loan",
           openInNewTab: true,
         },
         {
@@ -1981,7 +2086,7 @@ export default function ITBlogsPage() {
           ...createBlock("cta", "Compare customized offers from 15+ partner banks and secure your sanction letter within 72 hours."),
           title: "Get Sanctioned Before Visa Appointment",
           buttonText: "Start Free Eligibility Check →",
-          url: "/apply",
+          url: "/apply-loan",
           openInNewTab: true,
         },
       ];
@@ -2440,18 +2545,12 @@ export default function ITBlogsPage() {
               <h2 className="text-2xl font-black tracking-tight text-[#0A2540]">
                 IT Blog CMS & Publishing
               </h2>
-              {/* WordPress Elementor Reference Badge */}
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-50 text-[#E21B5A] border border-rose-200 flex items-center gap-1">
-                <span className="material-symbols-outlined text-xs">extension</span>
-                WordPress Elementor Engine
-              </span>
             </div>
-            <p className="text-xs text-slate-500 font-semibold mt-0.5">
             <p className="text-xs text-slate-500 font-semibold mt-0.5">
               Dynamic editorial publishing suite with live side-by-side preview, real-time word counting, rich content blocks, and SEO optimization.
             </p>
-            </p>
           </div>
+
 
           <div className="flex items-center gap-2.5">
             <button
@@ -2482,7 +2581,7 @@ export default function ITBlogsPage() {
               className="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-md"
             >
               <span className="material-symbols-outlined text-[18px]">add_circle</span>
-              + Create Dynamic Blog
+              Create Dynamic Blog
             </button>
           </div>
         </div>
@@ -2659,8 +2758,8 @@ export default function ITBlogsPage() {
                           <td className="px-6 py-4">
                             <span
                               className={`px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider ${blog.published
-                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                  : "bg-amber-50 text-amber-700 border border-amber-200"
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                : "bg-amber-50 text-amber-700 border border-amber-200"
                                 }`}
                             >
                               {blog.published ? "Published" : "Draft"}

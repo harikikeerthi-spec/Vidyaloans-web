@@ -272,7 +272,7 @@ const postAdmissionServices = [
     { icon: "💳", title: "Forex & Cards", desc: "Lock in the best exchange rates with zero-markup cards.", color: "linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%)", link: "/forex", img: "/images/services/forex-cards.jpg" },
     { icon: "🏠", title: "Student Housing", desc: "Verified accommodations near top global universities.", color: "linear-gradient(135deg, #4c1d95 0%, #5b21b6 100%)", link: "/housing", img: "/images/services/student-housing.jpg" },
     { icon: "📅", title: "Visa Slot Booking", desc: "Priority assistance with automated alerts for availability.", color: "linear-gradient(135deg, #7c2d12 0%, #9a3412 100%)", link: "/visa-slots", img: "/images/services/visa-slot.jpg" },
-    { icon: "🎙️", title: "Visa Interview", desc: "Practice with experts who have helped 10k+ students.", color: "linear-gradient(135deg, #064e3b 0%, #065f46 100%)", link: "/apply", img: "/images/services/visa-interview.jpg" },
+    { icon: "🎙️", title: "Visa Interview", desc: "Practice with experts who have helped 10k+ students.", color: "linear-gradient(135deg, #064e3b 0%, #065f46 100%)", link: "/apply-loan", img: "/images/services/visa-interview.jpg" },
     { icon: "📦", title: "Courier Services", desc: "Send documents globally with student discounts.", color: "linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%)", link: "/courier", img: "/images/services/courier.jpg" },
     { icon: "🏦", title: "Bank Account", desc: "Global accounts with zero student fees.", color: "linear-gradient(135deg, #164e63 0%, #155e75 100%)", link: "/bank-account", img: "/images/services/bank-account.jpg" },
 ];

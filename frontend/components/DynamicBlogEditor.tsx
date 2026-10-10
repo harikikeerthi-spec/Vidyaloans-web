@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { blogApi } from "@/lib/api";
 
@@ -22,7 +22,7 @@ export type BlockType =
   | "spacer";
 
 export interface SplitConfig {
-  layoutType: "image_text" | "text_text" | "text_image";
+  layoutType: "image_text" | "text_text" | "text_image" | "text_form" | "form_text";
   ratio?: "50_50" | "40_60" | "60_40" | "33_67";
   verticalAlign?: "top" | "center" | "bottom";
   cardStyle?: "clean" | "card" | "gradient" | "bordered";
@@ -41,6 +41,12 @@ export interface SplitConfig {
   buttonText?: string;
   buttonUrl?: string;
   buttonNewTab?: boolean;
+  // Lead Registration Form Fields
+  formTitle?: string;
+  formSubtitle?: string;
+  formButtonText?: string;
+  formRedirectUrl?: string;
+  formSource?: string;
 }
 
 export interface TableData {
@@ -64,6 +70,7 @@ export interface Block {
   tableData?: TableData;
   caption?: string;
   authorCitation?: string;
+  buttonText?: string;
   buttonUrl?: string;
   buttonNewTab?: boolean;
   codeLanguage?: string;
@@ -393,16 +400,16 @@ export default function DynamicBlogEditor({
   const [tags, setTags] = useState<string[]>(
     Array.isArray(initialBlog?.tags)
       ? initialBlog.tags.map((t: any) =>
-          typeof t === "string" ? t : t?.name || ""
-        )
+        typeof t === "string" ? t : t?.name || ""
+      )
       : ["EducationLoan", "StudyAbroad", "FintechGuidance"]
   );
   const [newTagInput, setNewTagInput] = useState("");
   const [authorName, setAuthorName] = useState(
     initialBlog?.authorName ||
-      (currentUser?.firstName
-        ? `${currentUser.firstName} ${currentUser.lastName || ""}`.trim()
-        : "VidyaLoan Editorial Desk")
+    (currentUser?.firstName
+      ? `${currentUser.firstName} ${currentUser.lastName || ""}`.trim()
+      : "VidyaLoan Editorial Desk")
   );
 
   // Content blocks
@@ -433,6 +440,40 @@ export default function DynamicBlogEditor({
   const [linkModalText, setLinkModalText] = useState("");
   const [linkModalNewTab, setLinkModalNewTab] = useState(true);
 
+  // SEO & Social Distribution Meta state
+  const initialSeoData = useMemo(() => {
+    if (!initialBlog?.content) return null;
+    const match = initialBlog.content.match(
+      /<!--SEO_JSON_START-->([\s\S]*?)<!--SEO_JSON_END-->/
+    );
+    if (match && match[1]) {
+      try {
+        return JSON.parse(match[1]);
+      } catch (_) {
+        return null;
+      }
+    }
+    return null;
+  }, [initialBlog?.content]);
+
+  const [metaTitle, setMetaTitle] = useState(
+    initialBlog?.metaTitle || initialSeoData?.metaTitle || ""
+  );
+  const [metaDescription, setMetaDescription] = useState(
+    initialBlog?.metaDescription || initialSeoData?.metaDescription || ""
+  );
+  const [focusKeyword, setFocusKeyword] = useState(
+    initialBlog?.focusKeyword || initialSeoData?.focusKeyword || ""
+  );
+  const [canonicalUrl, setCanonicalUrl] = useState(
+    initialBlog?.canonicalUrl || initialSeoData?.canonicalUrl || ""
+  );
+  const [noIndex, setNoIndex] = useState<boolean>(
+    Boolean(initialBlog?.noIndex ?? initialSeoData?.noIndex ?? false)
+  );
+  const [seoTab, setSeoTab] = useState<"fields" | "checklist" | "preview">("fields");
+  const [serpDevice, setSerpDevice] = useState<"desktop" | "mobile">("desktop");
+
   // Format date helper
   const nowFormattedDate = new Date().toLocaleDateString("en-IN", {
     month: "long",
@@ -452,6 +493,7 @@ export default function DynamicBlogEditor({
       if (b.splitConfig) {
         text += `${b.splitConfig.leftTitle || ""} ${b.splitConfig.leftContent || ""} `;
         text += `${b.splitConfig.rightTitle || ""} ${b.splitConfig.rightContent || ""} `;
+        text += `${b.splitConfig.formTitle || ""} ${b.splitConfig.formSubtitle || ""} `;
       }
       if (b.items) {
         text += b.items.map((i) => i.title).join(" ") + " ";
@@ -468,6 +510,311 @@ export default function DynamicBlogEditor({
   const wordCount = calculateWordCount();
   const readingTime = Math.max(1, Math.ceil(wordCount / 200));
 
+  // Real-time SEO Analyzer
+  const seoAnalysis = useMemo(() => {
+    const effectiveTitle = (metaTitle.trim() || title.trim());
+    const effectiveDesc = (metaDescription.trim() || subtitle.trim());
+    const kw = focusKeyword.trim().toLowerCase();
+    const effectiveSlug = (slug.trim() || title.toLowerCase().replace(/[^a-z0-9]+/g, "-")).toLowerCase();
+
+    // Plain text content of all blocks
+    let bodyText = "";
+    let hasH2 = false;
+    blocks.forEach((b) => {
+      if (b.type === "heading" && (b.level === 2 || !b.level)) hasH2 = true;
+      bodyText += " " + (b.content || "").replace(/<[^>]*>/g, " ");
+      if (b.splitConfig) {
+        bodyText += " " + (b.splitConfig.leftContent || "") + " " + (b.splitConfig.rightContent || "") + " " + (b.splitConfig.formTitle || "") + " " + (b.splitConfig.formSubtitle || "");
+      }
+    });
+
+    const bodyLower = bodyText.toLowerCase();
+    const kwCount = kw ? (bodyLower.match(new RegExp(kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi")) || []).length : 0;
+
+    const checklist: Array<{
+      id: string;
+      label: string;
+      status: "pass" | "warn" | "fail";
+      message: string;
+      weight: number;
+    }> = [];
+
+    // 1. Meta Title Length
+    if (effectiveTitle.length >= 40 && effectiveTitle.length <= 65) {
+      checklist.push({
+        id: "title-length",
+        label: "Title Length",
+        status: "pass",
+        message: `Optimal length (${effectiveTitle.length}/65 characters). Displays fully on Google.`,
+        weight: 15,
+      });
+    } else if (effectiveTitle.length > 65) {
+      checklist.push({
+        id: "title-length",
+        label: "Title Length",
+        status: "warn",
+        message: `Too long (${effectiveTitle.length} chars). Google may truncate titles over 65 chars.`,
+        weight: 8,
+      });
+    } else if (effectiveTitle.length > 0) {
+      checklist.push({
+        id: "title-length",
+        label: "Title Length",
+        status: "warn",
+        message: `Too short (${effectiveTitle.length} chars). Aim for 40-65 chars for higher CTR.`,
+        weight: 8,
+      });
+    } else {
+      checklist.push({
+        id: "title-length",
+        label: "Title Length",
+        status: "fail",
+        message: "No article headline or meta title provided.",
+        weight: 0,
+      });
+    }
+
+    // 2. Meta Description Length
+    if (effectiveDesc.length >= 120 && effectiveDesc.length <= 160) {
+      checklist.push({
+        id: "desc-length",
+        label: "Meta Description Length",
+        status: "pass",
+        message: `Optimal length (${effectiveDesc.length}/160 characters).`,
+        weight: 15,
+      });
+    } else if (effectiveDesc.length > 160) {
+      checklist.push({
+        id: "desc-length",
+        label: "Meta Description Length",
+        status: "warn",
+        message: `Too long (${effectiveDesc.length} chars). Google may truncate descriptions over 160 chars.`,
+        weight: 8,
+      });
+    } else if (effectiveDesc.length > 0) {
+      checklist.push({
+        id: "desc-length",
+        label: "Meta Description Length",
+        status: "warn",
+        message: `Too short (${effectiveDesc.length} chars). Aim for 120-160 chars for best SERP snippet.`,
+        weight: 8,
+      });
+    } else {
+      checklist.push({
+        id: "desc-length",
+        label: "Meta Description Length",
+        status: "fail",
+        message: "No meta description or subtitle provided.",
+        weight: 0,
+      });
+    }
+
+    // 3. Focus Keyword Defined
+    if (kw) {
+      checklist.push({
+        id: "kw-defined",
+        label: "Focus Keyword Defined",
+        status: "pass",
+        message: `Focus keyword: "${focusKeyword}"`,
+        weight: 10,
+      });
+
+      // 4. Keyword in Title
+      if (effectiveTitle.toLowerCase().includes(kw)) {
+        checklist.push({
+          id: "kw-title",
+          label: "Keyword in Title",
+          status: "pass",
+          message: `Focus keyword found in title.`,
+          weight: 15,
+        });
+      } else {
+        checklist.push({
+          id: "kw-title",
+          label: "Keyword in Title",
+          status: "warn",
+          message: `Focus keyword is missing from title.`,
+          weight: 0,
+        });
+      }
+
+      // 5. Keyword in Meta Description
+      if (effectiveDesc.toLowerCase().includes(kw)) {
+        checklist.push({
+          id: "kw-desc",
+          label: "Keyword in Meta Description",
+          status: "pass",
+          message: `Focus keyword found in meta description.`,
+          weight: 10,
+        });
+      } else {
+        checklist.push({
+          id: "kw-desc",
+          label: "Keyword in Meta Description",
+          status: "warn",
+          message: `Focus keyword is missing from meta description.`,
+          weight: 0,
+        });
+      }
+
+      // 6. Keyword in URL Slug
+      const kwSlug = kw.replace(/\s+/g, "-");
+      if (effectiveSlug.includes(kwSlug) || effectiveSlug.includes(kw.split(" ")[0])) {
+        checklist.push({
+          id: "kw-slug",
+          label: "Keyword in URL Slug",
+          status: "pass",
+          message: `Focus keyword found in URL slug.`,
+          weight: 10,
+        });
+      } else {
+        checklist.push({
+          id: "kw-slug",
+          label: "Keyword in URL Slug",
+          status: "warn",
+          message: `Keyword missing from slug. Include target query in URL for ranking boost.`,
+          weight: 0,
+        });
+      }
+
+      // 7. Keyword in Content
+      if (kwCount >= 2) {
+        checklist.push({
+          id: "kw-content",
+          label: "Keyword Density in Body",
+          status: "pass",
+          message: `Found ${kwCount} occurrences in article content.`,
+          weight: 10,
+        });
+      } else if (kwCount === 1) {
+        checklist.push({
+          id: "kw-content",
+          label: "Keyword Density in Body",
+          status: "warn",
+          message: `Found only 1 occurrence in body. Consider mentioning it in section headings.`,
+          weight: 5,
+        });
+      } else {
+        checklist.push({
+          id: "kw-content",
+          label: "Keyword Density in Body",
+          status: "fail",
+          message: `Focus keyword not found in article body content.`,
+          weight: 0,
+        });
+      }
+    } else {
+      checklist.push({
+        id: "kw-defined",
+        label: "Focus Keyword",
+        status: "warn",
+        message: `Set a target focus keyword to unlock search query optimization checks.`,
+        weight: 0,
+      });
+    }
+
+    // 8. Word Count / In-Depth Content
+    if (wordCount >= 600) {
+      checklist.push({
+        id: "word-count",
+        label: "Content Length",
+        status: "pass",
+        message: `Comprehensive depth (${wordCount} words). Search engines prioritize detailed guides.`,
+        weight: 10,
+      });
+    } else if (wordCount >= 300) {
+      checklist.push({
+        id: "word-count",
+        label: "Content Length",
+        status: "pass",
+        message: `Adequate word count (${wordCount} words). Expand towards 600+ words for competitive topics.`,
+        weight: 7,
+      });
+    } else {
+      checklist.push({
+        id: "word-count",
+        label: "Content Length",
+        status: "warn",
+        message: `Thin content warning (${wordCount} words). Aim for at least 300 words to rank well.`,
+        weight: 2,
+      });
+    }
+
+    // 9. Heading Hierarchy
+    if (hasH2) {
+      checklist.push({
+        id: "h2-structure",
+        label: "H2 Section Headings",
+        status: "pass",
+        message: `Structured with H2 subheadings for reader engagement and Google Featured Snippets.`,
+        weight: 5,
+      });
+    } else {
+      checklist.push({
+        id: "h2-structure",
+        label: "H2 Section Headings",
+        status: "warn",
+        message: `No H2 headings detected. Add Heading blocks to break content into scannable sections.`,
+        weight: 0,
+      });
+    }
+
+    // 10. Featured Image / Visual Assets
+    if (coverImage) {
+      checklist.push({
+        id: "cover-image",
+        label: "Social & Open Graph Visuals",
+        status: "pass",
+        message: `Cover image configured for Google Discover and Social share cards.`,
+        weight: 5,
+      });
+    } else {
+      checklist.push({
+        id: "cover-image",
+        label: "Social & Open Graph Visuals",
+        status: "warn",
+        message: `No cover image selected. Articles with images generate 94% more views.`,
+        weight: 0,
+      });
+    }
+
+    // 11. Indexing Status
+    if (noIndex) {
+      checklist.push({
+        id: "noindex-check",
+        label: "Search Engine Indexing",
+        status: "fail",
+        message: `Indexing blocked (noindex enabled). Google will NOT index this article!`,
+        weight: 0,
+      });
+    } else {
+      checklist.push({
+        id: "noindex-check",
+        label: "Search Engine Indexing",
+        status: "pass",
+        message: `Article is indexable (index, follow enabled).`,
+        weight: 5,
+      });
+    }
+
+    const totalWeight = checklist.reduce((acc, c) => acc + c.weight, 0);
+    const score = Math.min(100, Math.round((totalWeight / 100) * 100));
+
+    let rating = "Needs Work";
+    if (score >= 80) rating = "Excellent";
+    else if (score >= 60) rating = "Good";
+    else if (score >= 40) rating = "Fair";
+
+    return {
+      score,
+      rating,
+      checklist,
+      effectiveTitle,
+      effectiveDesc,
+      kwCount,
+    };
+  }, [metaTitle, title, metaDescription, subtitle, focusKeyword, slug, blocks, wordCount, coverImage, noIndex]);
+
   // Initialize blocks from initialBlog
   useEffect(() => {
     const sanitizeBlocks = (raw: any[]): Block[] => {
@@ -480,6 +827,28 @@ export default function DynamicBlogEditor({
     };
 
     if (initialBlog) {
+      if (initialBlog.metaTitle && !metaTitle) setMetaTitle(initialBlog.metaTitle);
+      if (initialBlog.metaDescription && !metaDescription) setMetaDescription(initialBlog.metaDescription);
+      if (initialBlog.focusKeyword && !focusKeyword) setFocusKeyword(initialBlog.focusKeyword);
+      if (initialBlog.canonicalUrl && !canonicalUrl) setCanonicalUrl(initialBlog.canonicalUrl);
+      if (typeof initialBlog.noIndex === "boolean") setNoIndex(initialBlog.noIndex);
+
+      if (initialBlog.content) {
+        const seoMatch = initialBlog.content.match(
+          /<!--SEO_JSON_START-->([\s\S]*?)<!--SEO_JSON_END-->/
+        );
+        if (seoMatch && seoMatch[1]) {
+          try {
+            const parsedSeo = JSON.parse(seoMatch[1]);
+            if (parsedSeo.metaTitle) setMetaTitle(parsedSeo.metaTitle);
+            if (parsedSeo.metaDescription) setMetaDescription(parsedSeo.metaDescription);
+            if (parsedSeo.focusKeyword) setFocusKeyword(parsedSeo.focusKeyword);
+            if (parsedSeo.canonicalUrl) setCanonicalUrl(parsedSeo.canonicalUrl);
+            if (typeof parsedSeo.noIndex === "boolean") setNoIndex(parsedSeo.noIndex);
+          } catch (_) { }
+        }
+      }
+
       if (Array.isArray(initialBlog.blocks) && initialBlog.blocks.length > 0) {
         setBlocks(sanitizeBlocks(initialBlog.blocks));
         return;
@@ -491,7 +860,7 @@ export default function DynamicBlogEditor({
             setBlocks(sanitizeBlocks(parsed));
             return;
           }
-        } catch (_) {}
+        } catch (_) { }
       }
       if (initialBlog.content) {
         // Parse embedded JSON comments or fallback
@@ -505,7 +874,7 @@ export default function DynamicBlogEditor({
               setBlocks(sanitizeBlocks(parsed));
               return;
             }
-          } catch (_) {}
+          } catch (_) { }
         } else {
           // If plain HTML content without blocks, wrap into text block
           setBlocks([
@@ -563,7 +932,7 @@ export default function DynamicBlogEditor({
               "Disbursed directly before visa stamping appointments",
             ],
             buttonText: "Check Your Eligibility",
-            buttonUrl: "/apply",
+            buttonUrl: "/apply-loan",
             buttonNewTab: true,
           },
         },
@@ -608,7 +977,7 @@ export default function DynamicBlogEditor({
           id: "cta-1",
           type: "button",
           content: "Get Expert Loan Advisory & 1-on-1 Guidance",
-          buttonUrl: "/apply",
+          buttonUrl: "/apply-loan",
           buttonNewTab: true,
         },
       ]);
@@ -654,7 +1023,7 @@ export default function DynamicBlogEditor({
             second: "2-digit",
           })
         );
-      } catch (_) {}
+      } catch (_) { }
     }, 1500);
 
     setSaveStatus("Saving...");
@@ -662,7 +1031,11 @@ export default function DynamicBlogEditor({
   }, [title, slug, subtitle, category, coverImage, tags, authorName, blocks]);
 
   // Block management functions
-  const addBlock = (type: BlockType, insertIndex?: number) => {
+  const addBlock = (
+    type: BlockType,
+    insertIndex?: number,
+    customSplitLayout?: "image_text" | "text_image" | "text_text" | "text_form" | "form_text"
+  ) => {
     const newId = `block-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
     let newBlock: Block;
 
@@ -688,8 +1061,29 @@ export default function DynamicBlogEditor({
           id: newId,
           type: "split_content",
           content: "",
-          splitConfig: {
-            layoutType: "image_text",
+          splitConfig: customSplitLayout === "text_form" ? {
+            layoutType: "text_form",
+            ratio: "50_50",
+            cardStyle: "clean",
+            leftTitle: "Fast-Track Your Study Abroad Education Loan",
+            leftContent:
+              "VidyaLoans partners directly with 15+ leading public banks, private NBFCs, and global fintech lenders to guarantee the lowest interest rates with 100% paperless verification.",
+            leftItems: [
+              "Up to ₹75 Lakhs collateral-free sanctions",
+              "Disbursement guaranteed before visa appointment",
+              "Zero processing charges & doorstep documentation",
+              "Tax exemption benefits under Section 80E",
+            ],
+            buttonText: "Explore Loan Options",
+            buttonUrl: "/apply-loan",
+            buttonNewTab: true,
+            formTitle: "Quick Loan Assessment & Registration",
+            formSubtitle: "Enter student details for immediate eligibility evaluation & dedicated counselor callback.",
+            formButtonText: "Register & Check Eligibility",
+            formRedirectUrl: "/apply-loan",
+            formSource: "blog_split_form",
+          } : {
+            layoutType: customSplitLayout || "image_text",
             ratio: "50_50",
             cardStyle: "clean",
             leftImageUrl:
@@ -704,8 +1098,13 @@ export default function DynamicBlogEditor({
               "Direct wire transfer to foreign universities",
             ],
             buttonText: "Explore Partner Programs",
-            buttonUrl: "/apply",
+            buttonUrl: "/apply-loan",
             buttonNewTab: true,
+            formTitle: "Quick Loan Assessment & Registration",
+            formSubtitle: "Enter student details for immediate eligibility evaluation & dedicated counselor callback.",
+            formButtonText: "Register & Check Eligibility",
+            formRedirectUrl: "/apply-loan",
+            formSource: "blog_split_form",
           },
         };
         break;
@@ -787,8 +1186,9 @@ export default function DynamicBlogEditor({
         newBlock = {
           id: newId,
           type: "button",
-          content: "Calculate Your Monthly Loan EMI",
-          buttonUrl: "/emi-calculator",
+          content: "Check Loan Eligibility Free",
+          buttonText: "Check Loan Eligibility Free",
+          buttonUrl: "/apply-loan",
           buttonNewTab: true,
         };
         break;
@@ -908,8 +1308,8 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
               lvl === 1
                 ? "text-3xl md:text-4xl font-black mt-10 mb-4"
                 : lvl === 2
-                ? "text-2xl md:text-3xl font-black mt-8 mb-3"
-                : "text-xl md:text-2xl font-bold mt-6 mb-2";
+                  ? "text-2xl md:text-3xl font-black mt-8 mb-3"
+                  : "text-xl md:text-2xl font-bold mt-6 mb-2";
             return `<h${lvl} id="${hId}" class="${sizeClass} text-slate-900 tracking-tight">${block.content || ""}</h${lvl}>`;
           }
           case "text": {
@@ -962,7 +1362,60 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
                 ${title ? `<h3 class="text-2xl font-black text-slate-900 tracking-tight mb-2">${title}</h3>` : ""}
                 ${content ? `<p class="text-slate-600 text-base leading-relaxed mb-4">${content}</p>` : ""}
                 ${items && items.length > 0 ? `<ul class="space-y-2 mb-5 pl-0 list-none">${items.map((it) => `<li class="flex items-center gap-2.5 text-sm text-slate-700 font-semibold"><span class="w-5 h-5 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-xs font-bold shrink-0">✓</span><span>${it}</span></li>`).join("")}</ul>` : ""}
-                ${btnText ? `<div><a href="${btnUrl || "/apply"}" class="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl text-xs uppercase tracking-wider shadow-md transition-all">${btnText} &rarr;</a></div>` : ""}
+                ${btnText ? `<div><a href="${btnUrl || "/apply-loan"}" class="inline-flex items-center gap-2 px-6 py-3 !bg-indigo-600 hover:!bg-indigo-700 !text-white font-bold rounded-2xl text-xs uppercase tracking-wider shadow-md transition-all" style="background-color: #4f46e5 !important; color: #ffffff !important; display: inline-flex;">${btnText} &rarr;</a></div>` : ""}
+              </div>`;
+
+            const formMarkup = (formTitle?: string, formSubtitle?: string, btnText?: string, redirectUrl?: string, source?: string) => `
+              <div class="bg-white p-6 md:p-8 rounded-3xl border border-indigo-100 shadow-xl shadow-indigo-100/50 not-prose my-2">
+                <div class="mb-4">
+                  <span class="inline-block px-2.5 py-1 bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase tracking-wider rounded-lg mb-2">Instant Pre-Assessment</span>
+                  <h4 class="text-xl font-black text-slate-900 tracking-tight mb-1">${formTitle || "Quick Loan Assessment & Registration"}</h4>
+                  <p class="text-slate-500 text-xs leading-relaxed">${formSubtitle || "Enter student details for immediate eligibility evaluation & dedicated counselor callback."}</p>
+                </div>
+                <form action="${redirectUrl || "/apply-loan"}" method="GET" class="space-y-3.5">
+                  <input type="hidden" name="source" value="${source || "blog_split_form"}" />
+                  <div>
+                    <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Student Full Name</label>
+                    <input type="text" name="name" required placeholder="Enter student full name" class="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:border-indigo-600 focus:bg-white transition-all" />
+                  </div>
+                  <div>
+                    <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Mobile / WhatsApp Number</label>
+                    <input type="tel" name="phone" required placeholder="+91 98765 43210" class="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:border-indigo-600 focus:bg-white transition-all" />
+                  </div>
+                  <div class="grid grid-cols-2 gap-2.5">
+                    <div>
+                      <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Target Country</label>
+                      <select name="country" class="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:border-indigo-600 focus:bg-white transition-all">
+                        <option value="USA">USA</option>
+                        <option value="UK">United Kingdom</option>
+                        <option value="Canada">Canada</option>
+                        <option value="Australia">Australia</option>
+                        <option value="Germany">Germany</option>
+                        <option value="Ireland">Ireland</option>
+                        <option value="India">India</option>
+                        <option value="Other">Other Global</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Loan Required</label>
+                      <select name="amount" class="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:border-indigo-600 focus:bg-white transition-all">
+                        <option value="Up to ₹20L">Up to ₹20 Lakhs</option>
+                        <option value="₹20L - ₹40L">₹20L - ₹40 Lakhs</option>
+                        <option value="₹40L - ₹75L">₹40L - ₹75 Lakhs</option>
+                        <option value="₹75L+">₹75 Lakhs+</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="pt-2">
+                    <button type="submit" class="w-full py-3 px-5 !bg-indigo-600 hover:!bg-indigo-700 !text-white font-bold rounded-xl text-xs uppercase tracking-wider shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer" style="background-color: #4f46e5 !important; color: #ffffff !important;">
+                      <span>${btnText || "Register & Check Eligibility"}</span>
+                      <span>&rarr;</span>
+                    </button>
+                  </div>
+                  <p class="text-[10px] text-slate-400 text-center flex items-center justify-center gap-1">
+                    <span class="text-emerald-500 font-bold">✓</span> Free Assessment • No Credit Score Impact • 100% Privacy
+                  </p>
+                </form>
               </div>`;
 
             let leftPart = "";
@@ -973,12 +1426,18 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
             } else if (layout === "text_image") {
               leftPart = textMarkup(cfg.leftTitle, cfg.leftContent, cfg.leftItems, cfg.buttonText, cfg.buttonUrl);
               rightPart = imgMarkup(cfg.rightImageUrl, cfg.rightImageCaption);
+            } else if (layout === "text_form") {
+              leftPart = textMarkup(cfg.leftTitle, cfg.leftContent, cfg.leftItems, cfg.buttonText, cfg.buttonUrl);
+              rightPart = formMarkup(cfg.formTitle, cfg.formSubtitle, cfg.formButtonText, cfg.formRedirectUrl, cfg.formSource);
+            } else if (layout === "form_text") {
+              leftPart = formMarkup(cfg.formTitle, cfg.formSubtitle, cfg.formButtonText, cfg.formRedirectUrl, cfg.formSource);
+              rightPart = textMarkup(cfg.rightTitle, cfg.rightContent, cfg.rightItems, cfg.buttonText, cfg.buttonUrl);
             } else {
               leftPart = textMarkup(cfg.leftTitle, cfg.leftContent, cfg.leftItems);
               rightPart = textMarkup(cfg.rightTitle, cfg.rightContent, cfg.rightItems, cfg.buttonText, cfg.buttonUrl);
             }
 
-            return `<div class="my-10 p-6 md:p-8 bg-slate-50/80 rounded-3xl border border-slate-200"><div class="grid grid-cols-1 md:grid-cols-12 gap-8 items-center"><div class="${leftSpan}">${leftPart}</div><div class="${rightSpan}">${rightPart}</div></div></div>`;
+            return `<div class="not-prose my-10 p-6 md:p-8 bg-slate-50/80 rounded-3xl border border-slate-200"><div class="grid grid-cols-1 md:grid-cols-12 gap-8 items-center"><div class="${leftSpan}">${leftPart}</div><div class="${rightSpan}">${rightPart}</div></div></div>`;
           }
           case "table": {
             const td = block.tableData || {
@@ -1025,7 +1484,10 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
             return `<div class="my-8 aspect-video rounded-3xl overflow-hidden shadow-lg border border-slate-200 bg-slate-950"><iframe src="${block.content || ""}" class="w-full h-full" frameborder="0" allowfullscreen></iframe></div>`;
           }
           case "button": {
-            return `<div class="my-8 text-center"><a href="${block.buttonUrl || "/apply"}" target="${block.buttonNewTab ? "_blank" : "_self"}" class="inline-flex items-center gap-2 px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl shadow-xl shadow-indigo-600/20 text-sm uppercase tracking-wider transition-all transform hover:-translate-y-0.5">${block.content || "Explore Options"} &rarr;</a></div>`;
+            const btnText = block.buttonText || block.content || "Explore Loan Options";
+            const btnUrl = block.buttonUrl || "/apply-loan";
+            const isNewTab = block.buttonNewTab !== false;
+            return `<div class="my-8 text-center not-prose blog-button-wrapper"><a href="${btnUrl}" target="${isNewTab ? "_blank" : "_self"}" ${isNewTab ? 'rel="noopener noreferrer"' : ""} class="blog-btn inline-flex items-center justify-center gap-2 px-8 py-3.5 !bg-indigo-600 hover:!bg-indigo-700 !text-white font-bold rounded-2xl shadow-xl shadow-indigo-600/25 text-sm uppercase tracking-wider transition-all transform hover:-translate-y-0.5" style="background-color: #4f46e5 !important; color: #ffffff !important; display: inline-flex; align-items: center; justify-content: center; padding: 14px 32px; border-radius: 16px; font-weight: 700; text-decoration: none; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; box-shadow: 0 10px 25px -5px rgba(79, 70, 229, 0.4);">${btnText} &rarr;</a></div>`;
           }
           case "code": {
             return `<pre class="my-8 p-6 bg-slate-900 text-emerald-400 rounded-3xl overflow-x-auto text-sm font-mono shadow-md"><code>${block.content || ""}</code></pre>`;
@@ -1051,9 +1513,16 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
       })
       .join("\n");
 
-    // Embed blocks JSON comment for lossless round-trip reloading
+    // Embed blocks JSON and SEO metadata comments for lossless round-trip reloading
     const jsonComment = `\n<!--BLOCKS_JSON_START-->${JSON.stringify(blocks)}<!--BLOCKS_JSON_END-->`;
-    return bodyHtml + jsonComment;
+    const seoComment = `\n<!--SEO_JSON_START-->${JSON.stringify({
+      metaTitle: metaTitle.trim(),
+      metaDescription: metaDescription.trim(),
+      focusKeyword: focusKeyword.trim(),
+      canonicalUrl: canonicalUrl.trim(),
+      noIndex: Boolean(noIndex),
+    })}<!--SEO_JSON_END-->`;
+    return bodyHtml + jsonComment + seoComment;
   };
 
   // Save / Publish action
@@ -1086,6 +1555,11 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
         tags,
         readTime: readingTime,
         authorName,
+        metaTitle: metaTitle.trim() || undefined,
+        metaDescription: metaDescription.trim() || undefined,
+        focusKeyword: focusKeyword.trim() || undefined,
+        canonicalUrl: canonicalUrl.trim() || undefined,
+        noIndex: Boolean(noIndex),
         isPublished: publish,
         published: publish,
         status: publish ? "published" : "draft",
@@ -1135,7 +1609,7 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
       if (sel && sel.rangeCount > 0) {
         try {
           savedRangeRef.current = sel.getRangeAt(0).cloneRange();
-        } catch (_) {}
+        } catch (_) { }
       }
     }
   }, []);
@@ -1150,7 +1624,7 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
         try {
           sel.removeAllRanges();
           sel.addRange(savedRangeRef.current);
-        } catch (_) {}
+        } catch (_) { }
       }
     }
   }, []);
@@ -1162,7 +1636,7 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
     }
     try {
       document.execCommand(cmd, false, val);
-    } catch (_) {}
+    } catch (_) { }
     if (blockId && editorRefs.current[blockId]) {
       const newHtml = editorRefs.current[blockId]?.innerHTML || "";
       updateBlock(blockId, { content: newHtml });
@@ -1187,7 +1661,7 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
           span.innerHTML = font.innerHTML;
           font.parentNode?.replaceChild(span, font);
         });
-      } catch (_) {}
+      } catch (_) { }
       const newHtml = el.innerHTML;
       updateBlock(blockId, { content: newHtml });
     } else {
@@ -1212,7 +1686,7 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
     if (sel && !sel.isCollapsed && sel.rangeCount > 0) {
       try {
         document.execCommand("fontName", false, fontFamily);
-      } catch (_) {}
+      } catch (_) { }
       const newHtml = el.innerHTML;
       updateBlock(blockId, { content: newHtml });
     } else {
@@ -1235,15 +1709,15 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
     restoreSelection(blockId);
     try {
       document.execCommand("foreColor", false, colorHex);
-    } catch (_) {}
+    } catch (_) { }
     const newHtml = el.innerHTML;
     updateBlock(blockId, { content: newHtml });
     saveSelection();
     setActiveColorBlockId(null);
   };
 
-  // Apply highlight to selected text
-  const applyHighlight = (blockId: string, bg: string, text: string) => {
+  // Apply highlight to selected text (preserving font size, family, and styles)
+  const applyHighlight = (blockId: string, bg: string, _textColor?: string) => {
     const el = editorRefs.current[blockId];
     if (!el) return;
     el.focus();
@@ -1251,18 +1725,76 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
     const sel = window.getSelection();
     if (sel && !sel.isCollapsed && sel.rangeCount > 0) {
       const range = sel.getRangeAt(0);
-      const span = document.createElement("mark");
-      span.style.backgroundColor = bg;
-      span.style.color = text;
-      span.style.padding = "2px 6px";
-      span.style.borderRadius = "4px";
-      span.style.fontWeight = "600";
-      try {
-        range.surroundContents(span);
-        sel.collapseToEnd();
-      } catch (_) {
-        document.execCommand("hiliteColor", false, bg);
+      if (!el.contains(range.commonAncestorContainer)) {
+        setActiveHighlightBlockId(null);
+        return;
       }
+
+      // 1. Remove background from any existing highlight elements inside or intersecting the range
+      // to avoid stacking nested background colors
+      const innerHighlights = Array.from(
+        el.querySelectorAll('mark, [data-highlight="true"], span[style*="background"]')
+      ) as HTMLElement[];
+      innerHighlights.forEach((hl) => {
+        if (hl !== el && (sel.containsNode(hl, true) || range.intersectsNode(hl))) {
+          hl.style.backgroundColor = "";
+          hl.style.background = "";
+          hl.removeAttribute("data-highlight");
+          if (hl.tagName === "MARK") {
+            const parent = hl.parentNode;
+            if (parent) {
+              while (hl.firstChild) parent.insertBefore(hl.firstChild, hl);
+              parent.removeChild(hl);
+            }
+          }
+        }
+      });
+
+      // 2. Check if selection is already inside an existing highlight container
+      let container: Node | null = range.commonAncestorContainer;
+      if (container.nodeType === Node.TEXT_NODE) {
+        container = container.parentNode;
+      }
+      const existing = (container as HTMLElement)?.closest?.('[data-highlight="true"], mark') as HTMLElement | null;
+      if (existing && el.contains(existing) && existing.textContent?.trim() === range.toString().trim()) {
+        existing.style.backgroundColor = bg;
+        existing.style.background = bg;
+        existing.setAttribute("data-highlight", "true");
+        if (existing.tagName === "MARK") {
+          const span = document.createElement("span");
+          span.setAttribute("data-highlight", "true");
+          span.style.backgroundColor = bg;
+          span.innerHTML = existing.innerHTML;
+          existing.parentNode?.replaceChild(span, existing);
+        }
+      } else {
+        const span = document.createElement("span");
+        span.setAttribute("data-highlight", "true");
+        span.style.backgroundColor = bg;
+
+        try {
+          range.surroundContents(span);
+        } catch (_) {
+          try {
+            const fragment = range.extractContents();
+            span.appendChild(fragment);
+            range.insertNode(span);
+          } catch (e) {
+            // Safe fallback
+          }
+        }
+      }
+
+      // 3. Convert any lingering <mark> tags into standard spans with their own background or unwrap
+      const marks = Array.from(el.querySelectorAll("mark"));
+      marks.forEach((m) => {
+        const s = document.createElement("span");
+        s.setAttribute("data-highlight", "true");
+        s.style.backgroundColor = m.style.backgroundColor || bg;
+        s.innerHTML = m.innerHTML;
+        m.parentNode?.replaceChild(s, m);
+      });
+
       const newHtml = el.innerHTML;
       updateBlock(blockId, { content: newHtml });
     }
@@ -1270,15 +1802,173 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
     setActiveHighlightBlockId(null);
   };
 
-  // Remove highlight
+  // Remove highlight (without modifying font size, font family, or font styles)
   const removeHighlight = (blockId: string) => {
     const el = editorRefs.current[blockId];
     if (!el) return;
     el.focus();
     restoreSelection(blockId);
-    try {
-      document.execCommand("removeFormat", false, undefined);
-    } catch (_) {}
+    const sel = window.getSelection();
+
+    const cleanHighlightNode = (node: HTMLElement) => {
+      // 1. Clear background styles
+      node.style.backgroundColor = "";
+      node.style.background = "";
+      node.removeAttribute("data-highlight");
+      node.removeAttribute("data-color");
+
+      // Clear legacy highlight text color if it was one of the swatch text colors
+      const c = node.style.color?.toLowerCase().trim();
+      if (
+        c === "#854d0e" || c === "rgb(133, 77, 14)" ||
+        c === "#14532d" || c === "rgb(20, 83, 45)" ||
+        c === "#0369a1" || c === "rgb(3, 105, 161)" ||
+        c === "#9d174d" || c === "rgb(157, 23, 77)" ||
+        c === "#6b21a8" || c === "rgb(107, 33, 168)" ||
+        c === "#9a3412" || c === "rgb(154, 52, 18)"
+      ) {
+        node.style.color = "";
+      }
+
+      // Clear legacy padding/borderRadius/fontWeight from old <mark> styling
+      if (node.style.padding === "2px 5px" || node.style.padding === "2px 6px") {
+        node.style.padding = "";
+      }
+      if (node.style.borderRadius === "4px") {
+        node.style.borderRadius = "";
+      }
+      if (node.style.fontWeight === "600") {
+        node.style.fontWeight = "";
+      }
+
+      // 2. If it's a <mark> tag, always unwrap it completely because browsers style <mark> with default yellow
+      if (node.tagName === "MARK") {
+        const parent = node.parentNode;
+        if (parent) {
+          while (node.firstChild) {
+            parent.insertBefore(node.firstChild, node);
+          }
+          parent.removeChild(node);
+        }
+        return;
+      }
+
+      // 3. If it's a <span>, only unwrap if it has NO other inline styles (preserving font-size, color, etc.)
+      if (node.tagName === "SPAN") {
+        const remainingStyle = node.getAttribute("style")?.trim();
+        if (!remainingStyle || remainingStyle === "" || remainingStyle === ";") {
+          node.removeAttribute("style");
+          const parent = node.parentNode;
+          if (parent) {
+            while (node.firstChild) {
+              parent.insertBefore(node.firstChild, node);
+            }
+            parent.removeChild(node);
+          }
+        }
+      }
+    };
+
+    if (sel && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+
+      // Check all ancestor highlight elements of the selection up to the editor container
+      const ancestorNodes = [range.commonAncestorContainer, range.startContainer, range.endContainer];
+      ancestorNodes.forEach((startNode) => {
+        let curr: Node | null = startNode;
+        if (curr.nodeType === Node.TEXT_NODE) {
+          curr = curr.parentNode;
+        }
+        while (curr && curr !== el && el.contains(curr)) {
+          const parentEl = curr as HTMLElement;
+          if (
+            parentEl.tagName === "MARK" ||
+            parentEl.getAttribute("data-highlight") === "true" ||
+            parentEl.style.backgroundColor ||
+            parentEl.style.background
+          ) {
+            // Check if selection covers the full text of this parent element
+            const fullText = parentEl.textContent || "";
+            const selText = range.toString();
+            if (selText.trim() === fullText.trim() || selText.length >= fullText.length) {
+              cleanHighlightNode(parentEl);
+            } else if (selText.length > 0 && fullText.includes(selText)) {
+              // Partial selection inside an enclosing highlight element: split into before, clean middle, after
+              const bg = parentEl.style.backgroundColor || parentEl.style.background;
+              const idx = fullText.indexOf(selText);
+              if (idx !== -1) {
+                const beforeText = fullText.substring(0, idx);
+                const afterText = fullText.substring(idx + selText.length);
+                const frag = document.createDocumentFragment();
+
+                if (beforeText) {
+                  const bSpan = parentEl.cloneNode(false) as HTMLElement;
+                  bSpan.textContent = beforeText;
+                  bSpan.style.backgroundColor = bg;
+                  bSpan.setAttribute("data-highlight", "true");
+                  frag.appendChild(bSpan);
+                }
+
+                const mSpan = parentEl.cloneNode(false) as HTMLElement;
+                mSpan.textContent = selText;
+                mSpan.style.backgroundColor = "";
+                mSpan.style.background = "";
+                mSpan.removeAttribute("data-highlight");
+                cleanHighlightNode(mSpan);
+                frag.appendChild(mSpan);
+
+                if (afterText) {
+                  const aSpan = parentEl.cloneNode(false) as HTMLElement;
+                  aSpan.textContent = afterText;
+                  aSpan.style.backgroundColor = bg;
+                  aSpan.setAttribute("data-highlight", "true");
+                  frag.appendChild(aSpan);
+                }
+
+                parentEl.parentNode?.replaceChild(frag, parentEl);
+                break;
+              } else {
+                cleanHighlightNode(parentEl);
+              }
+            } else {
+              cleanHighlightNode(parentEl);
+            }
+          }
+          curr = curr.parentNode;
+        }
+      });
+
+      // Also clean all highlight elements inside or intersecting the range
+      const allHighlights = Array.from(
+        el.querySelectorAll('mark, [data-highlight="true"], span[style*="background"]')
+      ) as HTMLElement[];
+
+      allHighlights.forEach((candidate) => {
+        if (candidate !== el) {
+          if (
+            sel.isCollapsed ||
+            sel.containsNode(candidate, true) ||
+            (range.intersectsNode && range.intersectsNode(candidate))
+          ) {
+            cleanHighlightNode(candidate);
+          }
+        }
+      });
+    }
+
+    // Always unwrap any lingering <mark> tags inside the block to guarantee no default yellow background can appear
+    const anyMarks = Array.from(el.querySelectorAll("mark"));
+    anyMarks.forEach((m) => {
+      const parent = m.parentNode;
+      if (parent) {
+        while (m.firstChild) {
+          parent.insertBefore(m.firstChild, m);
+        }
+        parent.removeChild(m);
+      }
+    });
+
+    el.normalize();
     const newHtml = el.innerHTML;
     updateBlock(blockId, { content: newHtml });
     saveSelection();
@@ -1302,7 +1992,7 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
     } else {
       try {
         document.execCommand("formatBlock", false, `<${tag}>`);
-      } catch (_) {}
+      } catch (_) { }
       const newHtml = el.innerHTML;
       updateBlock(blockId, { content: newHtml });
     }
@@ -1348,7 +2038,7 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
       el.focus();
       try {
         document.execCommand("removeFormat", false, undefined);
-      } catch (_) {}
+      } catch (_) { }
       const cleaned = cleanHtmlContent(el.innerHTML);
       el.innerHTML = cleaned;
       updateBlock(blockId, { content: cleaned });
@@ -1428,11 +2118,10 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
           <button
             type="button"
             onClick={() => setViewMode("edit")}
-            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-              viewMode === "edit"
+            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${viewMode === "edit"
                 ? "bg-indigo-600 text-white shadow-xs"
                 : "text-slate-400 hover:text-white"
-            }`}
+              }`}
             title="Document Editor"
           >
             <span className="material-symbols-outlined text-[15px]">edit_document</span>
@@ -1441,11 +2130,10 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
           <button
             type="button"
             onClick={() => setViewMode("split")}
-            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-              viewMode === "split"
+            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${viewMode === "split"
                 ? "bg-indigo-600 text-white shadow-xs"
                 : "text-slate-400 hover:text-white"
-            }`}
+              }`}
             title="Live Split-Screen Preview (Editor + Live Blog)"
           >
             <span className="material-symbols-outlined text-[15px]">vertical_split</span>
@@ -1454,11 +2142,10 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
           <button
             type="button"
             onClick={() => setViewMode("preview")}
-            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-              viewMode === "preview"
+            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${viewMode === "preview"
                 ? "bg-indigo-600 text-white shadow-xs"
                 : "text-slate-400 hover:text-white"
-            }`}
+              }`}
             title="Full Page Publication Preview"
           >
             <span className="material-symbols-outlined text-[15px]">visibility</span>
@@ -1467,11 +2154,10 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
           <button
             type="button"
             onClick={() => setViewMode("mobile")}
-            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-              viewMode === "mobile"
+            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${viewMode === "mobile"
                 ? "bg-indigo-600 text-white shadow-xs"
                 : "text-slate-400 hover:text-white"
-            }`}
+              }`}
             title="Mobile Responsive Preview"
           >
             <span className="material-symbols-outlined text-[15px]">smartphone</span>
@@ -1545,9 +2231,8 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
         {/* LEFT / CENTER PANEL: DOCUMENT EDITOR CANVAS */}
         {(viewMode === "edit" || viewMode === "split") && (
           <div
-            className={`flex-1 overflow-y-auto px-4 md:px-8 py-6 transition-all ${
-              viewMode === "split" ? "border-r border-slate-300/80 max-w-[55%]" : "max-w-4xl mx-auto w-full"
-            }`}
+            className={`flex-1 overflow-y-auto px-4 md:px-8 py-6 transition-all ${viewMode === "split" ? "border-r border-slate-300/80 max-w-[55%]" : "max-w-4xl mx-auto w-full"
+              }`}
           >
             <div className="bg-white rounded-3xl p-6 md:p-10 shadow-sm border border-slate-200 space-y-6">
               {/* Top Meta Bar */}
@@ -1581,10 +2266,29 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
                     <button
                       type="button"
                       onClick={() => setShowSeoPreview(!showSeoPreview)}
-                      className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 flex items-center gap-1.5 cursor-pointer"
+                      className={`px-3 py-1.5 border rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
+                        showSeoPreview
+                          ? "bg-indigo-600 text-white border-indigo-600 shadow-md"
+                          : "bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700"
+                      }`}
                     >
-                      <span className="material-symbols-outlined text-[15px] text-emerald-600">travel_explore</span>
-                      <span>SEO & Social Card</span>
+                      <span className={`material-symbols-outlined text-[15px] ${showSeoPreview ? "text-white" : "text-emerald-600"}`}>
+                        travel_explore
+                      </span>
+                      <span>SEO Studio</span>
+                      <span
+                        className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
+                          showSeoPreview
+                            ? "bg-white/20 text-white"
+                            : seoAnalysis.score >= 80
+                            ? "bg-emerald-100 text-emerald-800"
+                            : seoAnalysis.score >= 50
+                            ? "bg-amber-100 text-amber-800"
+                            : "bg-rose-100 text-rose-800"
+                        }`}
+                      >
+                        {seoAnalysis.score}%
+                      </span>
                     </button>
                   </div>
 
@@ -1619,11 +2323,10 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
                         <div
                           key={cov.url}
                           onClick={() => setCoverImage(cov.url)}
-                          className={`relative rounded-xl overflow-hidden aspect-video cursor-pointer border-2 transition-all ${
-                            coverImage === cov.url
+                          className={`relative rounded-xl overflow-hidden aspect-video cursor-pointer border-2 transition-all ${coverImage === cov.url
                               ? "border-indigo-600 shadow-md scale-102"
                               : "border-transparent opacity-75 hover:opacity-100"
-                          }`}
+                            }`}
                         >
                           <img
                             src={cov.url}
@@ -1649,65 +2352,464 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
                   </div>
                 )}
 
-                {/* SEO & Social Card Preview Drawer */}
+                {/* SEO & Search Engine Optimization Studio Drawer */}
                 {showSeoPreview && (
-                  <div className="p-5 bg-gradient-to-br from-slate-50 to-indigo-50/30 rounded-2xl border border-slate-200 space-y-4 animate-fade-in">
-                    <div className="flex items-center justify-between border-b border-slate-200/60 pb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="material-symbols-outlined text-emerald-600 text-lg">preview</span>
-                        <h4 className="text-xs font-black uppercase tracking-wider text-slate-800">
-                          Google Search Result & Social Share Card Preview
-                        </h4>
+                  <div className="p-6 bg-gradient-to-br from-white via-indigo-50/20 to-slate-50 rounded-3xl border border-indigo-100/80 shadow-lg space-y-6 animate-fade-in">
+                    {/* Header with Health Score Bar */}
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200/80 pb-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-emerald-500 text-white flex items-center justify-center shadow-xs">
+                            <span className="material-symbols-outlined text-lg">travel_explore</span>
+                          </div>
+                          <div>
+                            <h3 className="text-sm font-black text-slate-900 tracking-tight flex items-center gap-2">
+                              SEO & SERP Distribution Studio
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                                  seoAnalysis.score >= 80
+                                    ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                                    : seoAnalysis.score >= 50
+                                    ? "bg-amber-100 text-amber-800 border border-amber-200"
+                                    : "bg-rose-100 text-rose-800 border border-rose-200"
+                                }`}
+                              >
+                                {seoAnalysis.rating} ({seoAnalysis.score}/100)
+                              </span>
+                            </h3>
+                            <p className="text-xs text-slate-500">
+                              Fine-tune meta tags, search rankings, JSON-LD schema, and social cards
+                            </p>
+                          </div>
+                        </div>
                       </div>
+
+                      <div className="flex items-center gap-3">
+                        {/* Overall score meter */}
+                        <div className="w-36 hidden sm:block">
+                          <div className="flex justify-between text-[11px] font-semibold text-slate-500 mb-1">
+                            <span>SEO Health</span>
+                            <span className="font-bold text-slate-800">{seoAnalysis.score}%</span>
+                          </div>
+                          <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full transition-all duration-500 ${
+                                seoAnalysis.score >= 80
+                                  ? "bg-emerald-500"
+                                  : seoAnalysis.score >= 50
+                                  ? "bg-amber-500"
+                                  : "bg-rose-500"
+                              }`}
+                              style={{ width: `${seoAnalysis.score}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setShowSeoPreview(false)}
+                          className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center text-xs font-bold transition-colors cursor-pointer"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Studio Tabs */}
+                    <div className="flex flex-wrap items-center gap-2 border-b border-slate-200/60 pb-2">
                       <button
                         type="button"
-                        onClick={() => setShowSeoPreview(false)}
-                        className="text-slate-400 hover:text-slate-700 text-xs font-bold"
+                        onClick={() => setSeoTab("fields")}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                          seoTab === "fields"
+                            ? "bg-indigo-600 text-white shadow-xs"
+                            : "bg-slate-100 hover:bg-slate-200 text-slate-600"
+                        }`}
                       >
-                        ✕
+                        <span className="material-symbols-outlined text-sm">tune</span>
+                        <span>Meta Tags & Directives</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setSeoTab("checklist")}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                          seoTab === "checklist"
+                            ? "bg-indigo-600 text-white shadow-xs"
+                            : "bg-slate-100 hover:bg-slate-200 text-slate-600"
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-sm">fact_check</span>
+                        <span>
+                          SEO Checklist ({seoAnalysis.checklist.filter((c) => c.status === "pass").length}/
+                          {seoAnalysis.checklist.length})
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setSeoTab("preview")}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                          seoTab === "preview"
+                            ? "bg-indigo-600 text-white shadow-xs"
+                            : "bg-slate-100 hover:bg-slate-200 text-slate-600"
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-sm">preview</span>
+                        <span>Google SERP & Social Previews</span>
                       </button>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Google Search Snippet */}
-                      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-1">
-                        <span className="text-[10px] font-bold uppercase text-slate-400">
-                          Google Search Snippet
-                        </span>
-                        <p className="text-xs text-slate-600 truncate font-mono">
-                          https://vidyaloan.com/blog/{slug || "article-slug"}
-                        </p>
-                        <h5 className="text-base font-bold text-blue-800 hover:underline leading-snug cursor-pointer">
-                          {title || "Article Headline Here"} | VidyaLoan Hub
-                        </h5>
-                        <p className="text-xs text-slate-600 line-clamp-2">
-                          {subtitle ||
-                            "Discover comprehensive education loan terms, interest rates, and approval turnarounds for study abroad students."}
-                        </p>
-                      </div>
+                    {/* Tab 1: Meta Tags & Directives */}
+                    {seoTab === "fields" && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
+                        {/* Left Column */}
+                        <div className="space-y-4">
+                          <div>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                                <span className="material-symbols-outlined text-indigo-600 text-sm">key</span>
+                                Focus Keyword
+                              </label>
+                              {focusKeyword && (
+                                <span
+                                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                    seoAnalysis.kwCount > 0
+                                      ? "bg-emerald-100 text-emerald-800"
+                                      : "bg-amber-100 text-amber-800"
+                                  }`}
+                                >
+                                  {seoAnalysis.kwCount} in content
+                                </span>
+                              )}
+                            </div>
+                            <input
+                              type="text"
+                              value={focusKeyword}
+                              onChange={(e) => setFocusKeyword(e.target.value)}
+                              placeholder="e.g. study abroad education loan"
+                              className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                            />
+                            <p className="text-[11px] text-slate-400 mt-1">
+                              Primary search term this article should rank for on Google.
+                            </p>
+                          </div>
 
-                      {/* Social Share OpenGraph Card */}
-                      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-                        <div className="aspect-[21/9] bg-slate-100 overflow-hidden">
-                          <img
-                            src={coverImage}
-                            alt="Social preview"
-                            className="w-full h-full object-cover"
-                          />
+                          <div>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <label className="text-xs font-bold text-slate-700">
+                                Meta Title (SEO Title)
+                              </label>
+                              <span
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                  metaTitle.length >= 40 && metaTitle.length <= 65
+                                    ? "bg-emerald-100 text-emerald-800"
+                                    : metaTitle.length > 65
+                                    ? "bg-rose-100 text-rose-800"
+                                    : "bg-slate-100 text-slate-600"
+                                }`}
+                              >
+                                {metaTitle.length || (title ? title.length : 0)} / 60 chars
+                              </span>
+                            </div>
+                            <input
+                              type="text"
+                              value={metaTitle}
+                              onChange={(e) => setMetaTitle(e.target.value)}
+                              placeholder={title || "Defaults to article headline"}
+                              className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                            />
+                            <p className="text-[11px] text-slate-400 mt-1">
+                              Displayed in Google search results and browser tabs. Recommended 40-60 characters.
+                            </p>
+                          </div>
+
+                          <div>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <label className="text-xs font-bold text-slate-700">
+                                Meta Description
+                              </label>
+                              <span
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                  metaDescription.length >= 120 && metaDescription.length <= 160
+                                    ? "bg-emerald-100 text-emerald-800"
+                                    : metaDescription.length > 160
+                                    ? "bg-rose-100 text-rose-800"
+                                    : "bg-slate-100 text-slate-600"
+                                }`}
+                              >
+                                {metaDescription.length || (subtitle ? subtitle.length : 0)} / 155 chars
+                              </span>
+                            </div>
+                            <textarea
+                              rows={3}
+                              value={metaDescription}
+                              onChange={(e) => setMetaDescription(e.target.value)}
+                              placeholder={subtitle || "Defaults to article subtitle/excerpt"}
+                              className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-200 resize-none"
+                            />
+                            <p className="text-[11px] text-slate-400 mt-1">
+                              Summarizes content in search engine result snippets. Aim for 120-160 characters.
+                            </p>
+                          </div>
                         </div>
-                        <div className="p-3">
-                          <span className="text-[10px] font-mono uppercase text-slate-400">
-                            VIDYALOAN.COM
-                          </span>
-                          <h6 className="text-xs font-bold text-slate-900 truncate">
-                            {title || "Article Title"}
-                          </h6>
-                          <p className="text-[11px] text-slate-500 truncate">
-                            {subtitle || "Read the full analysis on VidyaLoan"}
-                          </p>
+
+                        {/* Right Column */}
+                        <div className="space-y-4">
+                          <div>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <label className="text-xs font-bold text-slate-700">
+                                Canonical URL
+                              </label>
+                              <span className="text-[10px] text-slate-400 font-semibold">Optional</span>
+                            </div>
+                            <input
+                              type="text"
+                              value={canonicalUrl}
+                              onChange={(e) => setCanonicalUrl(e.target.value)}
+                              placeholder={`https://vidyaloans.com/blog/${slug || "article-slug"}`}
+                              className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                            />
+                            <p className="text-[11px] text-slate-400 mt-1">
+                              Prevents duplicate content penalties if republished from another domain.
+                            </p>
+                          </div>
+
+                          {/* Indexing Directive */}
+                          <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-2xs space-y-2">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <span className="text-xs font-bold text-slate-800 block">
+                                  Search Engine Indexing
+                                </span>
+                                <span className="text-[11px] text-slate-500">
+                                  Allow Google, Bing, and web crawlers to index this page.
+                                </span>
+                              </div>
+                              <label className="relative inline-flex items-center cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={!noIndex}
+                                  onChange={(e) => setNoIndex(!e.target.checked)}
+                                  className="sr-only peer"
+                                />
+                                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                              </label>
+                            </div>
+
+                            {noIndex && (
+                              <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-rose-800 text-xs">
+                                <span className="material-symbols-outlined text-sm shrink-0">warning</span>
+                                <span>
+                                  <strong>Indexing Blocked:</strong> Search crawlers will receive <code>noindex, nofollow</code> headers and will exclude this article from search results.
+                                </span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Automated SEO Infrastructure Summary */}
+                          <div className="p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100 space-y-2">
+                            <span className="text-xs font-bold text-indigo-900 block flex items-center gap-1.5">
+                              <span className="material-symbols-outlined text-sm text-indigo-600">verified</span>
+                              Automated SEO Infrastructure
+                            </span>
+                            <div className="space-y-1 text-[11px] text-indigo-950/80">
+                              <p className="flex items-center gap-1.5">
+                                <span className="text-emerald-600 font-bold">✓</span>
+                                <strong>JSON-LD Schema:</strong> Injected server-side (<code>BlogPosting</code> & <code>BreadcrumbList</code>).
+                              </p>
+                              <p className="flex items-center gap-1.5">
+                                <span className="text-emerald-600 font-bold">✓</span>
+                                <strong>XML Sitemap:</strong> Auto-indexed at <code>/sitemap.xml</code> upon publishing.
+                              </p>
+                              <p className="flex items-center gap-1.5">
+                                <span className="text-emerald-600 font-bold">✓</span>
+                                <strong>SSR / Next.js Metadata:</strong> Fully rendered for WhatsApp, Twitter, LinkedIn & crawlers.
+                              </p>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    )}
+
+                    {/* Tab 2: SEO Checklist */}
+                    {seoTab === "checklist" && (
+                      <div className="space-y-3 animate-fade-in">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {seoAnalysis.checklist.map((check) => (
+                            <div
+                              key={check.id}
+                              className={`p-3.5 rounded-2xl border flex items-start gap-3 transition-colors ${
+                                check.status === "pass"
+                                  ? "bg-emerald-50/40 border-emerald-200/80"
+                                  : check.status === "warn"
+                                  ? "bg-amber-50/40 border-amber-200/80"
+                                  : "bg-rose-50/40 border-rose-200/80"
+                              }`}
+                            >
+                              <span
+                                className={`material-symbols-outlined text-lg shrink-0 mt-0.5 ${
+                                  check.status === "pass"
+                                    ? "text-emerald-600"
+                                    : check.status === "warn"
+                                    ? "text-amber-600"
+                                    : "text-rose-600"
+                                }`}
+                              >
+                                {check.status === "pass"
+                                  ? "check_circle"
+                                  : check.status === "warn"
+                                  ? "info"
+                                  : "cancel"}
+                              </span>
+                              <div className="space-y-0.5 flex-1">
+                                <div className="flex items-center justify-between">
+                                  <h5 className="text-xs font-bold text-slate-800">{check.label}</h5>
+                                  <span
+                                    className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
+                                      check.status === "pass"
+                                        ? "bg-emerald-100 text-emerald-800"
+                                        : check.status === "warn"
+                                        ? "bg-amber-100 text-amber-800"
+                                        : "bg-rose-100 text-rose-800"
+                                    }`}
+                                  >
+                                    {check.status === "pass"
+                                      ? "Optimal"
+                                      : check.status === "warn"
+                                      ? "Improve"
+                                      : "Fix"}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-slate-600 leading-snug">{check.message}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Tab 3: SERP & Social Previews */}
+                    {seoTab === "preview" && (
+                      <div className="space-y-6 animate-fade-in">
+                        {/* SERP Device Switcher */}
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black uppercase tracking-wider text-slate-500">
+                            Search Engine Snippet Simulation
+                          </span>
+                          <div className="inline-flex rounded-xl p-1 bg-slate-100 border border-slate-200 text-xs font-bold">
+                            <button
+                              type="button"
+                              onClick={() => setSerpDevice("desktop")}
+                              className={`px-3 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+                                serpDevice === "desktop"
+                                  ? "bg-white text-indigo-700 shadow-xs"
+                                  : "text-slate-500 hover:text-slate-800"
+                              }`}
+                            >
+                              <span className="material-symbols-outlined text-sm">laptop</span>
+                              Desktop SERP
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSerpDevice("mobile")}
+                              className={`px-3 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+                                serpDevice === "mobile"
+                                  ? "bg-white text-indigo-700 shadow-xs"
+                                  : "text-slate-500 hover:text-slate-800"
+                              }`}
+                            >
+                              <span className="material-symbols-outlined text-sm">smartphone</span>
+                              Mobile SERP
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Google SERP Container */}
+                        {serpDevice === "desktop" ? (
+                          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-1.5 max-w-2xl font-sans">
+                            <div className="flex items-center gap-2">
+                              <div className="w-6 h-6 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 text-xs font-black">
+                                V
+                              </div>
+                              <div className="leading-tight">
+                                <span className="text-xs text-slate-900 font-medium block">
+                                  VidyaLoans
+                                </span>
+                                <span className="text-[11px] text-slate-500 font-mono block">
+                                  https://vidyaloans.com › blog › {slug || "article-slug"}
+                                </span>
+                              </div>
+                            </div>
+                            <h4 className="text-lg font-medium text-[#1a0dab] hover:underline cursor-pointer leading-snug pt-1">
+                              {seoAnalysis.effectiveTitle || "Article Headline"} | VidyaLoan Hub
+                            </h4>
+                            <p className="text-xs text-slate-600 leading-relaxed line-clamp-2">
+                              {seoAnalysis.effectiveDesc ||
+                                "Discover comprehensive education loan terms, interest rates, and approval turnarounds for study abroad students."}
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-2 max-w-sm font-sans">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <div className="w-5 h-5 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 text-[10px] font-black">
+                                  V
+                                </div>
+                                <span className="text-xs text-slate-800 font-medium">VidyaLoans</span>
+                              </div>
+                              <span className="text-[10px] text-slate-400">vidyaloans.com</span>
+                            </div>
+                            <div className="flex gap-3">
+                              <div className="flex-1 space-y-1">
+                                <h4 className="text-sm font-semibold text-[#1a0dab] leading-snug">
+                                  {seoAnalysis.effectiveTitle || "Article Headline"}
+                                </h4>
+                                <p className="text-xs text-slate-600 line-clamp-2 leading-tight">
+                                  {seoAnalysis.effectiveDesc ||
+                                    "Comprehensive education loan rates and sanction insights."}
+                                </p>
+                              </div>
+                              {coverImage && (
+                                <img
+                                  src={coverImage}
+                                  alt="Preview"
+                                  className="w-16 h-16 rounded-xl object-cover shrink-0"
+                                />
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Social Share Preview (Open Graph) */}
+                        <div className="space-y-2 pt-2 border-t border-slate-200/60">
+                          <span className="text-xs font-black uppercase tracking-wider text-slate-500 block">
+                            Social Media Card Preview (LinkedIn, WhatsApp, X/Twitter)
+                          </span>
+                          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden max-w-xl">
+                            <div className="aspect-[1.91/1] bg-slate-100 overflow-hidden relative">
+                              <img
+                                src={coverImage}
+                                alt="Social preview"
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                            <div className="p-3.5 space-y-1">
+                              <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 block">
+                                VIDYALOANS.COM
+                              </span>
+                              <h5 className="text-sm font-bold text-slate-900 leading-snug truncate">
+                                {seoAnalysis.effectiveTitle || "Article Headline"}
+                              </h5>
+                              <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                                {seoAnalysis.effectiveDesc ||
+                                  "Comprehensive education loan guidance, interest rates, and loan sanction steps."}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1845,6 +2947,15 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
                   </button>
                   <button
                     type="button"
+                    onClick={() => addBlock("split_content", undefined, "text_form")}
+                    className="px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-lg text-xs font-bold flex items-center gap-1 shrink-0 cursor-pointer shadow-2xs border border-purple-200"
+                    title="Insert Editorial Content with Registration / Lead Form beside it"
+                  >
+                    <span className="material-symbols-outlined text-[15px]">how_to_reg</span>
+                    <span>Content + Reg Form</span>
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => addBlock("table")}
                     className="px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg text-xs font-bold text-slate-700 flex items-center gap-1 shrink-0 cursor-pointer"
                   >
@@ -1972,17 +3083,24 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
                               {bt.replace("_", " ")}
                             </button>
                           ))}
+                          <button
+                            type="button"
+                            onClick={() => addBlock("split_content", index, "text_form")}
+                            className="px-2.5 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-bold shrink-0 cursor-pointer flex items-center gap-1"
+                          >
+                            <span className="material-symbols-outlined text-[13px]">how_to_reg</span>
+                            <span>Content + Form</span>
+                          </button>
                         </div>
                       )}
 
                       {/* The Block Container */}
                       <div
                         onClick={() => setSelectedBlockId(block.id)}
-                        className={`p-4 rounded-2xl transition-all border ${
-                          isSelected
+                        className={`p-4 rounded-2xl transition-all border ${isSelected
                             ? "border-indigo-400 bg-indigo-50/15 shadow-sm ring-2 ring-indigo-500/10"
                             : "border-slate-200/90 hover:border-slate-300 bg-white"
-                        }`}
+                          }`}
                       >
                         {/* Block Header Control Bar */}
                         <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100 text-xs">
@@ -2005,11 +3123,10 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
                                     key={lvl}
                                     type="button"
                                     onClick={() => updateBlock(block.id, { level: lvl })}
-                                    className={`px-2 py-0.5 rounded text-[11px] font-bold cursor-pointer ${
-                                      (block.level || 2) === lvl
+                                    className={`px-2 py-0.5 rounded text-[11px] font-bold cursor-pointer ${(block.level || 2) === lvl
                                         ? "bg-indigo-600 text-white"
                                         : "text-slate-600 hover:text-slate-900"
-                                    }`}
+                                      }`}
                                   >
                                     H{lvl}
                                   </button>
@@ -2026,11 +3143,10 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
                                       key={t}
                                       type="button"
                                       onClick={() => updateBlock(block.id, { alertTone: t })}
-                                      className={`px-2 py-0.5 rounded text-[10px] font-bold capitalize cursor-pointer ${
-                                        (block.alertTone || "info") === t
+                                      className={`px-2 py-0.5 rounded text-[10px] font-bold capitalize cursor-pointer ${(block.alertTone || "info") === t
                                           ? "bg-slate-800 text-white"
                                           : "text-slate-600 hover:text-slate-900"
-                                      }`}
+                                        }`}
                                     >
                                       {t}
                                     </button>
@@ -2041,30 +3157,39 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
 
                             {/* Split Config Switcher if Split Content */}
                             {block.type === "split_content" && (
-                              <div className="flex items-center bg-slate-100 p-0.5 rounded-lg mr-2">
-                                {(["image_text", "text_image", "text_text"] as const).map(
-                                  (lt) => (
-                                    <button
-                                      key={lt}
-                                      type="button"
-                                      onClick={() =>
-                                        updateBlock(block.id, {
-                                          splitConfig: {
-                                            ...(block.splitConfig || {}),
-                                            layoutType: lt,
-                                          },
-                                        })
-                                      }
-                                      className={`px-2 py-0.5 rounded text-[10px] font-bold capitalize cursor-pointer ${
-                                        (block.splitConfig?.layoutType || "image_text") === lt
-                                          ? "bg-indigo-600 text-white"
-                                          : "text-slate-600 hover:text-slate-900"
+                              <div className="flex items-center bg-slate-100 p-0.5 rounded-lg mr-2 gap-0.5">
+                                {(
+                                  [
+                                    { id: "image_text", label: "Img+Txt" },
+                                    { id: "text_image", label: "Txt+Img" },
+                                    { id: "text_text", label: "Txt+Txt" },
+                                    { id: "text_form", label: "Txt+Form" },
+                                    { id: "form_text", label: "Form+Txt" },
+                                  ] as const
+                                ).map((item) => (
+                                  <button
+                                    key={item.id}
+                                    type="button"
+                                    onClick={() =>
+                                      updateBlock(block.id, {
+                                        splitConfig: {
+                                          ...(block.splitConfig || {}),
+                                          layoutType: item.id,
+                                          formTitle: block.splitConfig?.formTitle || "Quick Loan Assessment & Registration",
+                                          formSubtitle: block.splitConfig?.formSubtitle || "Enter student details for immediate eligibility evaluation & dedicated counselor callback.",
+                                          formButtonText: block.splitConfig?.formButtonText || "Register & Check Eligibility",
+                                          formRedirectUrl: block.splitConfig?.formRedirectUrl || "/apply-loan",
+                                        },
+                                      })
+                                    }
+                                    className={`px-2 py-0.5 rounded text-[10px] font-bold capitalize cursor-pointer transition-all ${(block.splitConfig?.layoutType || "image_text") === item.id
+                                        ? "bg-indigo-600 text-white shadow-xs"
+                                        : "text-slate-600 hover:text-slate-900"
                                       }`}
-                                    >
-                                      {lt === "image_text" ? "Img+Txt" : lt === "text_image" ? "Txt+Img" : "Txt+Txt"}
-                                    </button>
-                                  )
-                                )}
+                                  >
+                                    {item.label}
+                                  </button>
+                                ))}
                               </div>
                             )}
 
@@ -2113,13 +3238,12 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
                             value={block.content}
                             onChange={(e) => updateBlock(block.id, { content: e.target.value })}
                             placeholder="Enter Headline..."
-                            className={`w-full font-black text-slate-900 border-0 focus:ring-0 focus:outline-none bg-transparent ${
-                              block.level === 1
+                            className={`w-full font-black text-slate-900 border-0 focus:ring-0 focus:outline-none bg-transparent ${block.level === 1
                                 ? "text-2xl md:text-3xl"
                                 : block.level === 2
-                                ? "text-xl md:text-2xl"
-                                : "text-lg md:text-xl"
-                            }`}
+                                  ? "text-xl md:text-2xl"
+                                  : "text-lg md:text-xl"
+                              }`}
                           />
                         )}
 
@@ -2480,7 +3604,7 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
                             {/* Left Column Config */}
                             <div className="space-y-3">
                               <span className="text-[10px] font-black uppercase text-indigo-600 block">
-                                Left Column
+                                Left Column {block.splitConfig?.layoutType === "form_text" ? "(Registration Form)" : block.splitConfig?.layoutType === "image_text" ? "(Photo)" : "(Editorial Content)"}
                               </span>
                               {block.splitConfig?.layoutType === "image_text" ? (
                                 <div className="space-y-2">
@@ -2520,6 +3644,109 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
                                     className="w-full px-3 py-1 bg-white border border-slate-200 rounded-lg text-xs"
                                   />
                                 </div>
+                              ) : block.splitConfig?.layoutType === "form_text" ? (
+                                <div className="space-y-3 bg-white p-4 rounded-xl border border-indigo-100 shadow-2xs">
+                                  <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+                                    <span className="text-xs font-black uppercase text-indigo-700 flex items-center gap-1">
+                                      <span className="material-symbols-outlined text-sm">how_to_reg</span>
+                                      Lead Registration Form
+                                    </span>
+                                    <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-bold">
+                                      Interactive
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Form Header Title</label>
+                                    <input
+                                      type="text"
+                                      value={block.splitConfig?.formTitle || "Quick Loan Assessment & Registration"}
+                                      onChange={(e) =>
+                                        updateBlock(block.id, {
+                                          splitConfig: {
+                                            ...(block.splitConfig || { layoutType: "form_text" }),
+                                            formTitle: e.target.value,
+                                          },
+                                        })
+                                      }
+                                      placeholder="Form Title..."
+                                      className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Form Subtitle</label>
+                                    <input
+                                      type="text"
+                                      value={block.splitConfig?.formSubtitle || "Enter student details for immediate eligibility evaluation & callback."}
+                                      onChange={(e) =>
+                                        updateBlock(block.id, {
+                                          splitConfig: {
+                                            ...(block.splitConfig || { layoutType: "form_text" }),
+                                            formSubtitle: e.target.value,
+                                          },
+                                        })
+                                      }
+                                      placeholder="Form Subtitle..."
+                                      className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                                    />
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                      <label className="text-[10px] font-bold text-slate-500 uppercase">Button Text</label>
+                                      <input
+                                        type="text"
+                                        value={block.splitConfig?.formButtonText || "Register & Check Eligibility"}
+                                        onChange={(e) =>
+                                          updateBlock(block.id, {
+                                            splitConfig: {
+                                              ...(block.splitConfig || { layoutType: "form_text" }),
+                                              formButtonText: e.target.value,
+                                            },
+                                          })
+                                        }
+                                        placeholder="Button Text..."
+                                        className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="text-[10px] font-bold text-slate-500 uppercase">Action Route</label>
+                                      <input
+                                        type="text"
+                                        value={block.splitConfig?.formRedirectUrl || "/apply-loan"}
+                                        onChange={(e) =>
+                                          updateBlock(block.id, {
+                                            splitConfig: {
+                                              ...(block.splitConfig || { layoutType: "form_text" }),
+                                              formRedirectUrl: e.target.value,
+                                            },
+                                          })
+                                        }
+                                        placeholder="/apply-loan"
+                                        className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono"
+                                      />
+                                    </div>
+                                  </div>
+                                  {/* Form Mockup Preview */}
+                                  <div className="p-3 bg-gradient-to-br from-indigo-50/50 to-purple-50/30 rounded-xl border border-indigo-100/80 space-y-2 mt-2">
+                                    <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block">
+                                      Form Preview:
+                                    </span>
+                                    <div className="space-y-1.5 opacity-80 pointer-events-none">
+                                      <input disabled placeholder="Student Full Name" className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs" />
+                                      <input disabled placeholder="Mobile / WhatsApp Number (+91)" className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs" />
+                                      <div className="grid grid-cols-2 gap-1.5">
+                                        <select disabled className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-500">
+                                          <option>Target Country: USA / UK / Canada</option>
+                                        </select>
+                                        <select disabled className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-500">
+                                          <option>Loan: ₹20L - ₹50L</option>
+                                        </select>
+                                      </div>
+                                      <div className="w-full py-2 bg-indigo-600 text-white font-bold rounded-lg text-xs text-center shadow-xs">
+                                        {block.splitConfig?.formButtonText || "Register & Check Eligibility"} &rarr;
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
                               ) : (
                                 <div className="space-y-2">
                                   <input
@@ -2550,6 +3777,25 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
                                     placeholder="Left Column Content..."
                                     className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs"
                                   />
+                                  <div className="space-y-1">
+                                    <span className="text-[10px] font-bold text-slate-500 uppercase">
+                                      Key Highlights (one per line):
+                                    </span>
+                                    <textarea
+                                      rows={2}
+                                      value={(block.splitConfig?.leftItems || []).join("\n")}
+                                      onChange={(e) =>
+                                        updateBlock(block.id, {
+                                          splitConfig: {
+                                            ...(block.splitConfig || { layoutType: "text_form" }),
+                                            leftItems: e.target.value.split("\n").filter(Boolean),
+                                          },
+                                        })
+                                      }
+                                      placeholder="Benefit 1&#10;Benefit 2"
+                                      className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs"
+                                    />
+                                  </div>
                                 </div>
                               )}
                             </div>
@@ -2557,87 +3803,241 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
                             {/* Right Column Config */}
                             <div className="space-y-3">
                               <span className="text-[10px] font-black uppercase text-purple-600 block">
-                                Right Column
+                                Right Column {block.splitConfig?.layoutType === "text_form" ? "(Registration Form)" : block.splitConfig?.layoutType === "text_image" ? "(Photo)" : "(Editorial Content)"}
                               </span>
-                              <input
-                                type="text"
-                                value={block.splitConfig?.rightTitle || ""}
-                                onChange={(e) =>
-                                  updateBlock(block.id, {
-                                    splitConfig: {
-                                      ...(block.splitConfig || { layoutType: "image_text" }),
-                                      rightTitle: e.target.value,
-                                    },
-                                  })
-                                }
-                                placeholder="Right Column Title..."
-                                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold"
-                              />
-                              <textarea
-                                rows={3}
-                                value={block.splitConfig?.rightContent || ""}
-                                onChange={(e) =>
-                                  updateBlock(block.id, {
-                                    splitConfig: {
-                                      ...(block.splitConfig || { layoutType: "image_text" }),
-                                      rightContent: e.target.value,
-                                    },
-                                  })
-                                }
-                                placeholder="Right Column Content..."
-                                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs"
-                              />
+                              {block.splitConfig?.layoutType === "text_form" ? (
+                                <div className="space-y-3 bg-white p-4 rounded-xl border border-indigo-100 shadow-2xs">
+                                  <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+                                    <span className="text-xs font-black uppercase text-indigo-700 flex items-center gap-1">
+                                      <span className="material-symbols-outlined text-sm">how_to_reg</span>
+                                      Lead Registration Form
+                                    </span>
+                                    <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-bold">
+                                      Interactive
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Form Header Title</label>
+                                    <input
+                                      type="text"
+                                      value={block.splitConfig?.formTitle || "Quick Loan Assessment & Registration"}
+                                      onChange={(e) =>
+                                        updateBlock(block.id, {
+                                          splitConfig: {
+                                            ...(block.splitConfig || { layoutType: "text_form" }),
+                                            formTitle: e.target.value,
+                                          },
+                                        })
+                                      }
+                                      placeholder="Form Title..."
+                                      className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Form Subtitle</label>
+                                    <input
+                                      type="text"
+                                      value={block.splitConfig?.formSubtitle || "Enter student details for immediate eligibility evaluation & callback."}
+                                      onChange={(e) =>
+                                        updateBlock(block.id, {
+                                          splitConfig: {
+                                            ...(block.splitConfig || { layoutType: "text_form" }),
+                                            formSubtitle: e.target.value,
+                                          },
+                                        })
+                                      }
+                                      placeholder="Form Subtitle..."
+                                      className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                                    />
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                      <label className="text-[10px] font-bold text-slate-500 uppercase">Button Text</label>
+                                      <input
+                                        type="text"
+                                        value={block.splitConfig?.formButtonText || "Register & Check Eligibility"}
+                                        onChange={(e) =>
+                                          updateBlock(block.id, {
+                                            splitConfig: {
+                                              ...(block.splitConfig || { layoutType: "text_form" }),
+                                              formButtonText: e.target.value,
+                                            },
+                                          })
+                                        }
+                                        placeholder="Button Text..."
+                                        className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="text-[10px] font-bold text-slate-500 uppercase">Action Route</label>
+                                      <input
+                                        type="text"
+                                        value={block.splitConfig?.formRedirectUrl || "/apply-loan"}
+                                        onChange={(e) =>
+                                          updateBlock(block.id, {
+                                            splitConfig: {
+                                              ...(block.splitConfig || { layoutType: "text_form" }),
+                                              formRedirectUrl: e.target.value,
+                                            },
+                                          })
+                                        }
+                                        placeholder="/apply-loan"
+                                        className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono"
+                                      />
+                                    </div>
+                                  </div>
+                                  {/* Form Mockup Preview */}
+                                  <div className="p-3 bg-gradient-to-br from-indigo-50/50 to-purple-50/30 rounded-xl border border-indigo-100/80 space-y-2 mt-2">
+                                    <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block">
+                                      Form Preview:
+                                    </span>
+                                    <div className="space-y-1.5 opacity-80 pointer-events-none">
+                                      <input disabled placeholder="Student Full Name" className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs" />
+                                      <input disabled placeholder="Mobile / WhatsApp Number (+91)" className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs" />
+                                      <div className="grid grid-cols-2 gap-1.5">
+                                        <select disabled className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-500">
+                                          <option>Target Country: USA / UK / Canada</option>
+                                        </select>
+                                        <select disabled className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-500">
+                                          <option>Loan: ₹20L - ₹50L</option>
+                                        </select>
+                                      </div>
+                                      <div className="w-full py-2 bg-indigo-600 text-white font-bold rounded-lg text-xs text-center shadow-xs">
+                                        {block.splitConfig?.formButtonText || "Register & Check Eligibility"} &rarr;
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : block.splitConfig?.layoutType === "text_image" ? (
+                                <div className="space-y-2">
+                                  <input
+                                    type="text"
+                                    value={block.splitConfig?.rightImageUrl || ""}
+                                    onChange={(e) =>
+                                      updateBlock(block.id, {
+                                        splitConfig: {
+                                          ...(block.splitConfig || { layoutType: "text_image" }),
+                                          rightImageUrl: e.target.value,
+                                        },
+                                      })
+                                    }
+                                    placeholder="Right Image URL..."
+                                    className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-mono"
+                                  />
+                                  <div className="aspect-video bg-slate-200 rounded-xl overflow-hidden">
+                                    <img
+                                      src={block.splitConfig?.rightImageUrl || CURATED_COVERS[0].url}
+                                      alt="Preview"
+                                      className="w-full h-full object-cover"
+                                    />
+                                  </div>
+                                  <input
+                                    type="text"
+                                    value={block.splitConfig?.rightImageCaption || ""}
+                                    onChange={(e) =>
+                                      updateBlock(block.id, {
+                                        splitConfig: {
+                                          ...(block.splitConfig || { layoutType: "text_image" }),
+                                          rightImageCaption: e.target.value,
+                                        },
+                                      })
+                                    }
+                                    placeholder="Photo Caption..."
+                                    className="w-full px-3 py-1 bg-white border border-slate-200 rounded-lg text-xs"
+                                  />
+                                </div>
+                              ) : (
+                                <>
+                                  <input
+                                    type="text"
+                                    value={block.splitConfig?.rightTitle || ""}
+                                    onChange={(e) =>
+                                      updateBlock(block.id, {
+                                        splitConfig: {
+                                          ...(block.splitConfig || { layoutType: "image_text" }),
+                                          rightTitle: e.target.value,
+                                        },
+                                      })
+                                    }
+                                    placeholder="Right Column Title..."
+                                    className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold"
+                                  />
+                                  <textarea
+                                    rows={3}
+                                    value={block.splitConfig?.rightContent || ""}
+                                    onChange={(e) =>
+                                      updateBlock(block.id, {
+                                        splitConfig: {
+                                          ...(block.splitConfig || { layoutType: "image_text" }),
+                                          rightContent: e.target.value,
+                                        },
+                                      })
+                                    }
+                                    placeholder="Right Column Content..."
+                                    className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs"
+                                  />
 
-                              <div className="space-y-1.5">
-                                <span className="text-[10px] font-bold text-slate-500 uppercase">
-                                  Bullet Points (one per line):
-                                </span>
-                                <textarea
-                                  rows={2}
-                                  value={(block.splitConfig?.rightItems || []).join("\n")}
-                                  onChange={(e) =>
-                                    updateBlock(block.id, {
-                                      splitConfig: {
-                                        ...(block.splitConfig || { layoutType: "image_text" }),
-                                        rightItems: e.target.value.split("\n").filter(Boolean),
-                                      },
-                                    })
-                                  }
-                                  placeholder="Bullet 1&#10;Bullet 2"
-                                  className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs"
-                                />
-                              </div>
+                                  <div className="space-y-1.5">
+                                    <span className="text-[10px] font-bold text-slate-500 uppercase">
+                                      Bullet Points (one per line):
+                                    </span>
+                                    <textarea
+                                      rows={2}
+                                      value={(block.splitConfig?.rightItems || []).join("\n")}
+                                      onChange={(e) =>
+                                        updateBlock(block.id, {
+                                          splitConfig: {
+                                            ...(block.splitConfig || { layoutType: "image_text" }),
+                                            rightItems: e.target.value.split("\n").filter(Boolean),
+                                          },
+                                        })
+                                      }
+                                      placeholder="Bullet 1&#10;Bullet 2"
+                                      className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs"
+                                    />
+                                  </div>
 
-                              <div className="grid grid-cols-2 gap-2 pt-1">
-                                <input
-                                  type="text"
-                                  value={block.splitConfig?.buttonText || ""}
-                                  onChange={(e) =>
-                                    updateBlock(block.id, {
-                                      splitConfig: {
-                                        ...(block.splitConfig || { layoutType: "image_text" }),
-                                        buttonText: e.target.value,
-                                      },
-                                    })
-                                  }
-                                  placeholder="CTA Button Text"
-                                  className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs"
-                                />
-                                <input
-                                  type="text"
-                                  value={block.splitConfig?.buttonUrl || ""}
-                                  onChange={(e) =>
-                                    updateBlock(block.id, {
-                                      splitConfig: {
-                                        ...(block.splitConfig || { layoutType: "image_text" }),
-                                        buttonUrl: e.target.value,
-                                      },
-                                    })
-                                  }
-                                  placeholder="/apply or URL"
-                                  className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs"
-                                />
-                              </div>
+                                  <div className="grid grid-cols-2 gap-2 pt-1">
+                                    <input
+                                      type="text"
+                                      value={block.splitConfig?.buttonText || ""}
+                                      onChange={(e) =>
+                                        updateBlock(block.id, {
+                                          splitConfig: {
+                                            ...(block.splitConfig || { layoutType: "image_text" }),
+                                            buttonText: e.target.value,
+                                          },
+                                        })
+                                      }
+                                      placeholder="CTA Button Text"
+                                      className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs"
+                                    />
+                                    <input
+                                      type="text"
+                                      value={block.splitConfig?.buttonUrl || ""}
+                                      onChange={(e) =>
+                                        updateBlock(block.id, {
+                                          splitConfig: {
+                                            ...(block.splitConfig || { layoutType: "image_text" }),
+                                            buttonUrl: e.target.value,
+                                          },
+                                        })
+                                      }
+                                      placeholder="/apply-loan or URL"
+                                      className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs font-mono"
+                                    />
+                                  </div>
+
+                                  {block.splitConfig?.buttonText && (
+                                    <div className="pt-1">
+                                      <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white font-bold rounded-xl text-xs shadow-md">
+                                        <span>{block.splitConfig.buttonText}</span>
+                                        <span>&rarr;</span>
+                                      </div>
+                                    </div>
+                                  )}
+                                </>
+                              )}
                             </div>
                           </div>
                         )}
@@ -2841,11 +4241,10 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
                                         tableData: { ...td, hasHeader: !hasHeader },
                                       })
                                     }
-                                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                                      hasHeader
+                                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${hasHeader
                                         ? "bg-indigo-600 text-white shadow-2xs"
                                         : "bg-slate-200 text-slate-700 hover:bg-slate-300"
-                                    }`}
+                                      }`}
                                   >
                                     Header Row: {hasHeader ? "ON" : "OFF"}
                                   </button>
@@ -2858,11 +4257,10 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
                                         tableData: { ...td, isStriped: !isStriped },
                                       })
                                     }
-                                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                                      isStriped
+                                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${isStriped
                                         ? "bg-purple-600 text-white shadow-2xs"
                                         : "bg-slate-200 text-slate-700 hover:bg-slate-300"
-                                    }`}
+                                      }`}
                                   >
                                     Zebra Stripes: {isStriped ? "ON" : "OFF"}
                                   </button>
@@ -3328,21 +4726,78 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
 
                         {/* 11. BUTTON CTA */}
                         {block.type === "button" && (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <input
-                              type="text"
-                              value={block.content}
-                              onChange={(e) => updateBlock(block.id, { content: e.target.value })}
-                              placeholder="Button Label..."
-                              className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
-                            />
-                            <input
-                              type="text"
-                              value={block.buttonUrl || ""}
-                              onChange={(e) => updateBlock(block.id, { buttonUrl: e.target.value })}
-                              placeholder="Target URL (/apply or https://...)"
-                              className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono"
-                            />
+                          <div className="space-y-4">
+                            {/* Live Button Display in Editor UI */}
+                            <div className="p-6 bg-slate-50/90 rounded-2xl border border-slate-200/90 flex flex-col items-center justify-center gap-3 text-center my-1">
+                              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                CTA Button Preview (Live Appearance)
+                              </span>
+                              <div className="py-1">
+                                <a
+                                  href={block.buttonUrl || "/apply-loan"}
+                                  target={block.buttonNewTab !== false ? "_blank" : "_self"}
+                                  onClick={(e) => e.preventDefault()}
+                                  className="inline-flex items-center justify-center gap-2.5 px-8 py-3.5 !bg-indigo-600 hover:!bg-indigo-700 !text-white font-bold rounded-2xl shadow-xl shadow-indigo-600/25 text-sm uppercase tracking-wider transition-all cursor-pointer transform hover:-translate-y-0.5 active:translate-y-0"
+                                  style={{ backgroundColor: "#4f46e5", color: "#ffffff", display: "inline-flex" }}
+                                >
+                                  <span>{block.buttonText || block.content || "Explore Loan Options"}</span>
+                                  <span className="text-base">&rarr;</span>
+                                </a>
+                              </div>
+                              <span className="text-[11px] font-mono text-slate-500">
+                                Target Route: <strong className="text-indigo-600 font-bold">{block.buttonUrl || "/apply-loan"}</strong>
+                                {block.buttonNewTab !== false ? " (Opens in new tab)" : " (Same window)"}
+                              </span>
+                            </div>
+
+                            {/* Button Configuration Inputs */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                              <div>
+                                <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
+                                  Button Text / Label
+                                </label>
+                                <input
+                                  type="text"
+                                  value={block.buttonText || block.content || ""}
+                                  onChange={(e) =>
+                                    updateBlock(block.id, {
+                                      content: e.target.value,
+                                      buttonText: e.target.value,
+                                    })
+                                  }
+                                  placeholder="e.g. Check Loan Eligibility Free"
+                                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-indigo-600"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
+                                  Target Route / URL
+                                </label>
+                                <input
+                                  type="text"
+                                  value={block.buttonUrl || ""}
+                                  onChange={(e) =>
+                                    updateBlock(block.id, { buttonUrl: e.target.value })
+                                  }
+                                  placeholder="/apply-loan or https://..."
+                                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-mono focus:outline-none focus:border-indigo-600"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 pt-1">
+                              <label className="inline-flex items-center gap-2 text-xs text-slate-600 font-medium cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={block.buttonNewTab !== false}
+                                  onChange={(e) =>
+                                    updateBlock(block.id, { buttonNewTab: e.target.checked })
+                                  }
+                                  className="rounded text-indigo-600 accent-indigo-600 w-3.5 h-3.5"
+                                />
+                                <span>Open destination in a new browser tab</span>
+                              </label>
+                            </div>
                           </div>
                         )}
 
@@ -3382,18 +4837,22 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
                       { type: "heading", label: "+ Headline", icon: "title" },
                       { type: "text", label: "+ Paragraph", icon: "text_fields" },
                       { type: "split_content", label: "+ Split 2-Col", icon: "view_column" },
+                      { type: "split_content", label: "+ Content + Reg Form", icon: "how_to_reg", layout: "text_form" as const },
                       { type: "table", label: "+ Comparison Table", icon: "table_chart" },
                       { type: "quote", label: "+ Pull Quote", icon: "format_quote" },
                       { type: "alert", label: "+ Callout Box", icon: "campaign" },
                       { type: "image", label: "+ Image", icon: "image" },
                       { type: "button", label: "+ CTA Button", icon: "smart_button" },
                     ] as const
-                  ).map((btn) => (
+                  ).map((btn, bIdx) => (
                     <button
-                      key={btn.type}
+                      key={`${btn.type}-${bIdx}`}
                       type="button"
-                      onClick={() => addBlock(btn.type)}
-                      className="px-3 py-1.5 bg-slate-100 hover:bg-indigo-600 hover:text-white text-slate-700 rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                      onClick={() => addBlock(btn.type, undefined, (btn as any).layout)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer ${(btn as any).layout === "text_form"
+                          ? "bg-purple-50 hover:bg-purple-600 hover:text-white text-purple-700 border border-purple-200"
+                          : "bg-slate-100 hover:bg-indigo-600 hover:text-white text-slate-700"
+                        }`}
                     >
                       <span className="material-symbols-outlined text-[15px]">{btn.icon}</span>
                       <span>{btn.label}</span>
@@ -3408,13 +4867,12 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
         {/* RIGHT PANEL: LIVE EDITORIAL PREVIEW (FOR SPLIT OR FULL PREVIEW OR MOBILE) */}
         {(viewMode === "split" || viewMode === "preview" || viewMode === "mobile") && (
           <div
-            className={`flex-1 overflow-y-auto bg-white transition-all ${
-              viewMode === "mobile"
+            className={`flex-1 overflow-y-auto bg-white transition-all ${viewMode === "mobile"
                 ? "flex items-center justify-center p-8 bg-slate-200"
                 : viewMode === "split"
-                ? "p-6 md:p-10"
-                : "max-w-4xl mx-auto w-full p-8 md:p-14"
-            }`}
+                  ? "p-6 md:p-10"
+                  : "max-w-4xl mx-auto w-full p-8 md:p-14"
+              }`}
           >
             {/* MOBILE PHONE FRAME CONTAINER */}
             <div
@@ -3473,7 +4931,7 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
 
               {/* LIVE RENDERED ARTICLE CONTENT */}
               <div
-                className="prose prose-lg prose-indigo max-w-none space-y-4 [&_*:not(mark)]:bg-transparent"
+                className="prose prose-lg prose-indigo max-w-none space-y-4"
                 dangerouslySetInnerHTML={{ __html: generateCompleteHtml() }}
               />
 
@@ -3556,7 +5014,7 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
                     const linkHtml = `<a href="${linkModalUrl.trim()}"${targetAttr} class="text-indigo-600 underline font-bold">${linkModalText || linkModalUrl}</a>`;
                     try {
                       document.execCommand("insertHTML", false, linkHtml);
-                    } catch (_) {}
+                    } catch (_) { }
                   }
                   if (linkModalBlockId && editorEl) {
                     updateBlock(linkModalBlockId, { content: editorEl.innerHTML });
