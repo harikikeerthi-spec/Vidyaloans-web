@@ -58,13 +58,13 @@ export default function ITLayout({ children }: { children: React.ReactNode }) {
                     const open = list.filter((t: any) => t.status === 'open' || t.status === 'in_progress').length;
                     setOpenTicketsCount(open);
                 })
-                .catch(() => {});
+                .catch(() => { });
 
             blogApi.getAll(1, 100)
                 .then((res: any) => {
                     setBlogsCount((res.data || []).length);
                 })
-                .catch(() => {});
+                .catch(() => { });
         }
     }, [isLoading]);
 
@@ -113,9 +113,7 @@ export default function ITLayout({ children }: { children: React.ReactNode }) {
 
                 {/* Navigation Section */}
                 <nav className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto custom-scrollbar">
-                    <div className={`px-3 mb-2 mt-1 text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none whitespace-nowrap transition-all duration-300 ${!collapsed ? 'opacity-100' : 'opacity-0 group-hover/sidebar:opacity-100'}`}>
-                        IT Operations
-                    </div>
+
                     {navItems.map((item) => (
                         <NavItem
                             key={item.path}

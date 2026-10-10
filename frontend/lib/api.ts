@@ -2183,9 +2183,40 @@ export const mailApi = {
         priority?: 'high' | 'normal' | 'low';
         requestReadReceipt?: boolean;
         scheduledAt?: string | Date;
+        draftId?: string;
     }) => apiFetch(`${API_URL}/mail/send`, {
         method: "POST",
         body: JSON.stringify(data),
+    }),
+    getDrafts: (params: { mailboxEmail?: string; folder?: string } = {}) => {
+        const q = new URLSearchParams();
+        if (params.mailboxEmail) q.set("mailboxEmail", params.mailboxEmail);
+        if (params.folder) q.set("folder", params.folder);
+        const queryStr = q.toString() ? `?${q.toString()}` : "";
+        return apiFetch(`${API_URL}/mail/drafts${queryStr}`);
+    },
+    getDraft: (id: string) => apiFetch(`${API_URL}/mail/drafts/${id}`),
+    saveDraft: (data: {
+        id?: string;
+        senderEmail?: string;
+        senderName?: string;
+        to?: string | string[];
+        cc?: string | string[];
+        bcc?: string | string[];
+        subject?: string;
+        text?: string;
+        html?: string;
+        body?: string;
+        replyTo?: string;
+        attachments?: any[];
+        priority?: 'high' | 'normal' | 'low';
+        requestReadReceipt?: boolean;
+    }) => apiFetch(`${API_URL}/mail/drafts`, {
+        method: "POST",
+        body: JSON.stringify(data),
+    }),
+    deleteDraft: (id: string) => apiFetch(`${API_URL}/mail/drafts/${id}`, {
+        method: "DELETE",
     }),
     getScheduledEmails: () => apiFetch(`${API_URL}/mail/scheduled`),
     getSentEmails: (mailboxEmail?: string) => {

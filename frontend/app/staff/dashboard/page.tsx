@@ -178,6 +178,9 @@ export default function StaffDashboardPage() {
         trash: 0,
     });
 
+    // Dynamic Database Drafts State
+    const [recentDrafts, setRecentDrafts] = useState<any[]>([]);
+
     // Audit Trail State
     const [fullActivities, setFullActivities] = useState<any[]>([]);
     const [activitiesLoading, setActivitiesLoading] = useState(false);
@@ -215,12 +218,13 @@ export default function StaffDashboardPage() {
     const loadOverview = useCallback(async (silent?: boolean) => {
         if (!silent) setLoading(true);
         try {
-            const [blogStats, appStats, userStats, todayRes, mailStatsRes]: [any, any, any, any, any] = await Promise.all([
+            const [blogStats, appStats, userStats, todayRes, mailStatsRes, draftsRes]: [any, any, any, any, any, any] = await Promise.all([
                 adminApi.getBlogStats().catch(() => ({ data: {} })),
                 adminApi.getApplicationStats().catch(() => ({ data: {} })),
                 adminApi.getUserStats().catch(() => ({ data: {} })),
                 staffProfileApi.getTodayDashboard().catch(() => ({ data: {} })),
                 mailApi.getStats().catch(() => ({ data: {} })),
+                mailApi.getDrafts().catch(() => ({ data: [] })),
             ]);
 
             setStats({
@@ -246,12 +250,16 @@ export default function StaffDashboardPage() {
             } catch {}
 
             const s = mailStatsRes?.data || {};
+            const dbDrafts = Array.isArray(draftsRes?.data) ? draftsRes.data : [];
+            setRecentDrafts(dbDrafts);
+            const dynamicDraftsCount = s.drafts !== undefined ? Number(s.drafts) : dbDrafts.length;
+
             setMailStats({
                 total: Number(s.total || 0),
                 unread: Number(s.unread || 0),
                 read: Math.max(Number(s.read || 0), localReadCount),
                 sent: Math.max(Number(s.sent || 0), localSentCount),
-                drafts: Math.max(Number(s.drafts || 0), localDraftsCount),
+                drafts: Math.max(dynamicDraftsCount, localDraftsCount),
                 starred: Math.max(Number(s.starred || 0), localStarredCount),
                 spam: Number(s.spam || 0),
                 trash: Number(s.trash || 0),
@@ -406,13 +414,14 @@ export default function StaffDashboardPage() {
                         <div className="grid grid-cols-2 md:grid-cols-5 gap-3.5">
                             {/* Unread Mail */}
                             <div
-                                className="p-4 rounded-2xl border border-amber-200/80 bg-amber-50/50 flex flex-col justify-between min-h-[95px] transition-all"
+                                onClick={() => router.push('/staff/inbox?tab=inbox&filter=unread')}
+                                className="p-4 rounded-2xl border border-amber-200/80 bg-amber-50/50 hover:bg-amber-100/60 hover:border-amber-300 hover:shadow-xs cursor-pointer flex flex-col justify-between min-h-[95px] transition-all group"
                             >
                                 <div className="flex items-center justify-between">
                                     <span className="text-[10px] font-extrabold text-amber-800 uppercase tracking-wider flex items-center gap-1">
                                         Unread
                                     </span>
-                                    <span className="material-symbols-outlined text-amber-500 text-[18px]">
+                                    <span className="material-symbols-outlined text-amber-500 text-[18px] group-hover:scale-110 transition-transform">
                                         mark_email_unread
                                     </span>
                                 </div>
@@ -426,13 +435,14 @@ export default function StaffDashboardPage() {
 
                             {/* Read Mail */}
                             <div
-                                className="p-4 rounded-2xl border border-sky-200/80 bg-sky-50/50 flex flex-col justify-between min-h-[95px] transition-all"
+                                onClick={() => router.push('/staff/inbox?tab=inbox&filter=read')}
+                                className="p-4 rounded-2xl border border-sky-200/80 bg-sky-50/50 hover:bg-sky-100/60 hover:border-sky-300 hover:shadow-xs cursor-pointer flex flex-col justify-between min-h-[95px] transition-all group"
                             >
                                 <div className="flex items-center justify-between">
                                     <span className="text-[10px] font-extrabold text-sky-800 uppercase tracking-wider flex items-center gap-1">
                                         Read
                                     </span>
-                                    <span className="material-symbols-outlined text-sky-500 text-[18px]">
+                                    <span className="material-symbols-outlined text-sky-500 text-[18px] group-hover:scale-110 transition-transform">
                                         mark_email_read
                                     </span>
                                 </div>
@@ -444,13 +454,14 @@ export default function StaffDashboardPage() {
 
                             {/* Sent Mail */}
                             <div
-                                className="p-4 rounded-2xl border border-indigo-200/80 bg-indigo-50/50 flex flex-col justify-between min-h-[95px] transition-all"
+                                onClick={() => router.push('/staff/inbox?tab=sent')}
+                                className="p-4 rounded-2xl border border-indigo-200/80 bg-indigo-50/50 hover:bg-indigo-100/60 hover:border-indigo-300 hover:shadow-xs cursor-pointer flex flex-col justify-between min-h-[95px] transition-all group"
                             >
                                 <div className="flex items-center justify-between">
                                     <span className="text-[10px] font-extrabold text-indigo-800 uppercase tracking-wider flex items-center gap-1">
                                         Sent
                                     </span>
-                                    <span className="material-symbols-outlined text-indigo-500 text-[18px]">
+                                    <span className="material-symbols-outlined text-indigo-500 text-[18px] group-hover:scale-110 transition-transform">
                                         send
                                     </span>
                                 </div>
@@ -462,31 +473,36 @@ export default function StaffDashboardPage() {
 
                             {/* Drafts */}
                             <div
-                                className="p-4 rounded-2xl border border-purple-200/80 bg-purple-50/50 flex flex-col justify-between min-h-[95px] transition-all"
+                                onClick={() => router.push('/staff/inbox?tab=drafts')}
+                                className="p-4 rounded-2xl border border-purple-200/80 bg-purple-50/50 hover:bg-purple-100/60 hover:border-purple-300 hover:shadow-xs cursor-pointer flex flex-col justify-between min-h-[95px] transition-all group"
                             >
                                 <div className="flex items-center justify-between">
                                     <span className="text-[10px] font-extrabold text-purple-800 uppercase tracking-wider flex items-center gap-1">
                                         Drafts
                                     </span>
-                                    <span className="material-symbols-outlined text-purple-500 text-[18px]">
+                                    <span className="material-symbols-outlined text-purple-500 text-[18px] group-hover:scale-110 transition-transform">
                                         drafts
                                     </span>
                                 </div>
                                 <div className="mt-2 flex items-baseline justify-between">
                                     <span className="text-2xl font-black text-purple-900">{mailStats.drafts}</span>
-                                    <span className="text-[10px] font-medium text-purple-600">Saved</span>
+                                    <span className="text-[10px] font-bold text-purple-700 bg-purple-100/90 px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                                        Database Stored
+                                        <span className="material-symbols-outlined text-[12px] group-hover:translate-x-0.5 transition-transform">arrow_forward</span>
+                                    </span>
                                 </div>
                             </div>
 
                             {/* Starred / Priority */}
                             <div
-                                className="p-4 rounded-2xl border border-yellow-200/80 bg-amber-50/30 flex flex-col justify-between min-h-[95px] transition-all"
+                                onClick={() => router.push('/staff/inbox?tab=starred')}
+                                className="p-4 rounded-2xl border border-yellow-200/80 bg-amber-50/30 hover:bg-amber-100/50 hover:border-amber-300 hover:shadow-xs cursor-pointer flex flex-col justify-between min-h-[95px] transition-all group"
                             >
                                 <div className="flex items-center justify-between">
                                     <span className="text-[10px] font-extrabold text-amber-800 uppercase tracking-wider flex items-center gap-1">
                                         Starred
                                     </span>
-                                    <span className="material-symbols-outlined text-amber-500 text-[18px]">
+                                    <span className="material-symbols-outlined text-amber-500 text-[18px] group-hover:scale-110 transition-transform">
                                         star
                                     </span>
                                 </div>
@@ -496,6 +512,64 @@ export default function StaffDashboardPage() {
                                 </div>
                             </div>
                         </div>
+
+                        {/* Dynamic Draft Emails Stored in Database */}
+                        {recentDrafts.length > 0 && (
+                            <div className="mt-4 pt-4 border-t border-slate-100 space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <span className="material-symbols-outlined text-purple-600 text-[18px]">drafts</span>
+                                        <span className="text-[12px] font-bold text-slate-800">Dynamic Email Drafts in Database</span>
+                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 border border-purple-200">
+                                            {recentDrafts.length} Saved
+                                        </span>
+                                    </div>
+                                    <button
+                                        onClick={() => router.push('/staff/inbox?tab=drafts')}
+                                        className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 group cursor-pointer"
+                                    >
+                                        View All in Inbox
+                                        <span className="material-symbols-outlined text-[14px] group-hover:translate-x-0.5 transition-transform">arrow_forward</span>
+                                    </button>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                                    {recentDrafts.slice(0, 3).map((draft: any) => (
+                                        <div
+                                            key={draft.id}
+                                            onClick={() => router.push(`/staff/inbox?tab=drafts&draftId=${draft.id}`)}
+                                            className="p-3 rounded-xl border border-purple-100 bg-purple-50/30 hover:bg-purple-50 hover:border-purple-300 transition-all cursor-pointer flex flex-col justify-between group shadow-2xs"
+                                        >
+                                            <div>
+                                                <div className="flex items-center justify-between gap-2 mb-1">
+                                                    <span className="text-[10px] font-bold text-purple-700 bg-purple-100/80 px-1.5 py-0.5 rounded truncate max-w-[150px]">
+                                                        To: {draft.to || "(No recipient)"}
+                                                    </span>
+                                                    <span className="text-[9px] text-slate-400 font-medium">
+                                                        {formatAbsoluteDateTime(draft.updatedAt || draft.date)}
+                                                    </span>
+                                                </div>
+                                                <h4 className="text-[12px] font-bold text-slate-800 line-clamp-1 group-hover:text-purple-900 transition-colors">
+                                                    {draft.subject || "(Untitled Draft)"}
+                                                </h4>
+                                                <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">
+                                                    {draft.snippet || draft.text || "Empty draft content"}
+                                                </p>
+                                            </div>
+                                            <div className="mt-2.5 pt-2 border-t border-purple-100/60 flex items-center justify-between">
+                                                <span className="text-[9px] font-semibold text-slate-400 truncate max-w-[140px]">
+                                                    Mailbox: {draft.senderEmail || "staff@vidyaloans.in"}
+                                                </span>
+                                                <span className="text-[10px] font-bold text-purple-700 flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform">
+                                                    Resume
+                                                    <span className="material-symbols-outlined text-[13px]">arrow_forward</span>
+                                                </span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

@@ -14,16 +14,16 @@ import AdminCountriesSection from "@/components/Admin/AdminCountriesSection";
 import SiteSettingsSection from "@/components/Admin/SiteSettingsSection";
 import AdminErrorLogsSection from "@/components/Admin/AdminErrorLogsSection";
 import ProgressTracker from "@/components/ProgressTracker";
-import { 
-  Building2, 
-  X, 
-  Smile, 
-  Mail, 
-  Phone, 
-  AlertTriangle, 
-  Info, 
-  CheckCircle,
-  ChevronDown
+import {
+    Building2,
+    X,
+    Smile,
+    Mail,
+    Phone,
+    AlertTriangle,
+    Info,
+    CheckCircle,
+    ChevronDown
 } from 'lucide-react';
 
 // ─── Application Progress & Helpers ──────────────────────────────────────────────
@@ -587,7 +587,7 @@ export default function AdminDashboardPage() {
                         document.body.removeChild(link);
                         return;
                     }
-                } catch (e) {}
+                } catch (e) { }
                 window.open(`/api/documents/view/${userId}/${doc.docType}?download=true`, '_blank');
             } else if (doc.filePath) {
                 window.open(doc.filePath, '_blank');
@@ -648,15 +648,15 @@ export default function AdminDashboardPage() {
             : (Array.isArray(userObj.loans) && userObj.loans[0]?.bank ? userObj.loans[0].bank : '');
         const rawBank = (userObj.bank || userObj.partnerBank || userObj.bankId || userObj.loanBank || userObj.bankName || loanBank || '').toString().trim();
         const cleanBank = rawBank.toLowerCase().replace(/[^a-z0-9]/g, '');
-        
+
         if (cleanBank && Array.isArray(bankPartners) && bankPartners.length > 0) {
             const directMatch = bankPartners.find((b: any) => {
                 const bShort = (b.shortName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
                 const bName = (b.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
                 const bId = (b.id || '').toLowerCase().replace(/[^a-z0-9]/g, '');
                 return bShort === cleanBank || bName === cleanBank || bId === cleanBank ||
-                       cleanBank.includes(bShort) || (bShort && bShort.includes(cleanBank)) ||
-                       cleanBank.includes(bName) || (bName && bName.includes(cleanBank));
+                    cleanBank.includes(bShort) || (bShort && bShort.includes(cleanBank)) ||
+                    cleanBank.includes(bName) || (bName && bName.includes(cleanBank));
             });
             if (directMatch) return directMatch;
         }
@@ -682,7 +682,7 @@ export default function AdminDashboardPage() {
                 const bShort = (b.shortName || '').toLowerCase().trim();
                 const bName = (b.name || '').toLowerCase().trim();
                 return (bShort && bShort.length >= 3 && nameParts.includes(bShort)) ||
-                       (bName && bName.length >= 4 && nameParts.includes(bName));
+                    (bName && bName.length >= 4 && nameParts.includes(bName));
             });
             if (nameMatch) return nameMatch;
         }
@@ -877,10 +877,10 @@ export default function AdminDashboardPage() {
             // Always ensure bank partners and office locations are loaded
             referenceApi.getBanks().then((res: any) => {
                 if (res?.success && Array.isArray(res.data)) setBankPartners(res.data);
-            }).catch(() => {});
+            }).catch(() => { });
             referenceApi.getOffices().then((res: any) => {
                 if (res?.success && Array.isArray(res.data)) setOffices(res.data);
-            }).catch(() => {});
+            }).catch(() => { });
 
             let res: any;
             const isUserSection = activeSection === "users" || activeSection === "users_students" || activeSection === "users_staff" || activeSection === "users_agents" || activeSection === "users_banks";
@@ -1188,7 +1188,7 @@ export default function AdminDashboardPage() {
                 const bShort = (b.shortName || '').toLowerCase().trim();
                 const bName = (b.name || '').toLowerCase().trim();
                 return (bShort && (bShort === userBankKey || userBankKey.includes(bShort) || bShort.includes(userBankKey))) ||
-                       (bName && (bName === userBankKey || userBankKey.includes(bName) || bName.includes(userBankKey)));
+                    (bName && (bName === userBankKey || userBankKey.includes(bName) || bName.includes(userBankKey)));
             });
 
             if (!matchedPartner && cleanKey && bankPartners.length > 0) {
@@ -1196,7 +1196,7 @@ export default function AdminDashboardPage() {
                     const bShort = (b.shortName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
                     const bName = (b.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
                     return (bShort && (bShort.includes(cleanKey) || cleanKey.includes(bShort))) ||
-                           (bName && (bName.includes(cleanKey) || cleanKey.includes(bName)));
+                        (bName && (bName.includes(cleanKey) || cleanKey.includes(bName)));
                 });
             }
 
@@ -1989,8 +1989,7 @@ export default function AdminDashboardPage() {
                 </div>
 
                 <nav className="flex-1 px-2 py-4 space-y-0.5 overflow-y-auto custom-scrollbar">
-                    <div className={`px-3 mb-2 mt-2 text-[10px] font-semibold text-slate-500 uppercase tracking-widest leading-none whitespace-nowrap transition-all duration-300 ${sidebarOpen ? 'opacity-100' : 'opacity-0 group-hover/sidebar:opacity-100'}`}>Menu</div>
-                    
+
                     {/* Top menu items before users */}
                     {navItems.slice(0, 4).map(item => (
                         <NavItem key={item.section} {...item} active={activeSection} onClick={setActiveSection} expanded={sidebarOpen} />
@@ -2019,9 +2018,8 @@ export default function AdminDashboardPage() {
                                     <button
                                         key={item.section}
                                         onClick={() => setActiveSection(item.section)}
-                                        className={`w-full text-left px-2 py-1 rounded flex items-center gap-2 transition-colors text-[11px] ${
-                                            activeSection === item.section ? 'bg-indigo-500/10 text-indigo-400 font-semibold' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-300'
-                                        }`}
+                                        className={`w-full text-left px-2 py-1 rounded flex items-center gap-2 transition-colors text-[11px] ${activeSection === item.section ? 'bg-indigo-500/10 text-indigo-400 font-semibold' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-300'
+                                            }`}
                                     >
                                         <span className={`material-symbols-outlined text-[13px] ${activeSection === item.section ? 'text-indigo-400' : 'text-slate-500'}`}>{item.icon}</span>
                                         <span>{item.label}</span>
@@ -2060,9 +2058,8 @@ export default function AdminDashboardPage() {
                                     <button
                                         key={item.section}
                                         onClick={() => setActiveSection(item.section)}
-                                        className={`w-full text-left px-2 py-1 rounded flex items-center gap-2 transition-colors text-[11px] ${
-                                            activeSection === item.section ? 'bg-indigo-500/10 text-indigo-400' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-300'
-                                        }`}
+                                        className={`w-full text-left px-2 py-1 rounded flex items-center gap-2 transition-colors text-[11px] ${activeSection === item.section ? 'bg-indigo-500/10 text-indigo-400' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-300'
+                                            }`}
                                     >
                                         <span className={`material-symbols-outlined text-[13px] ${activeSection === item.section ? 'text-indigo-400' : 'text-slate-500'}`}>{item.icon}</span>
                                         <span>{item.label}</span>
@@ -2448,54 +2445,54 @@ export default function AdminDashboardPage() {
                                     </h3>
 
                                     <div className="space-y-3">
-                                    {[
-                                        {
-                                            label: 'Maintenance Mode',
-                                            description: 'Disable public access to the student portal',
-                                            icon: 'construction',
-                                            active: maintenanceMode,
-                                            toggle: () => setMaintenanceMode(!maintenanceMode)
-                                        },
-                                        {
-                                            label: 'AI Review Engine',
-                                            description: 'Enable automated application scoring',
-                                            icon: 'psychology',
-                                            active: true,
-                                            toggle: () => alert('AI Review toggle requires backend configuration')
-                                        },
-                                        {
-                                            label: 'DigiLocker Integration',
-                                            description: 'Direct document verification gateway',
-                                            icon: 'folder_managed',
-                                            active: true,
-                                            toggle: () => alert('DigiLocker toggle requires backend configuration')
-                                        },
-                                        {
-                                            label: 'Community Forum',
-                                            description: 'Enable social and peer-to-peer modules',
-                                            icon: 'forum',
-                                            active: true,
-                                            toggle: () => alert('Forum toggle requires backend configuration')
-                                        },
-                                    ].map((feature, i) => (
-                                        <div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded border border-slate-100 hover:border-slate-200 transition-colors">
-                                            <div className="flex items-center gap-3">
-                                                <div className={`w-8 h-8 rounded bg-white border border-slate-200 flex items-center justify-center text-slate-500 shadow-sm`}>
-                                                    <span className="material-symbols-outlined text-[16px]">{feature.icon}</span>
+                                        {[
+                                            {
+                                                label: 'Maintenance Mode',
+                                                description: 'Disable public access to the student portal',
+                                                icon: 'construction',
+                                                active: maintenanceMode,
+                                                toggle: () => setMaintenanceMode(!maintenanceMode)
+                                            },
+                                            {
+                                                label: 'AI Review Engine',
+                                                description: 'Enable automated application scoring',
+                                                icon: 'psychology',
+                                                active: true,
+                                                toggle: () => alert('AI Review toggle requires backend configuration')
+                                            },
+                                            {
+                                                label: 'DigiLocker Integration',
+                                                description: 'Direct document verification gateway',
+                                                icon: 'folder_managed',
+                                                active: true,
+                                                toggle: () => alert('DigiLocker toggle requires backend configuration')
+                                            },
+                                            {
+                                                label: 'Community Forum',
+                                                description: 'Enable social and peer-to-peer modules',
+                                                icon: 'forum',
+                                                active: true,
+                                                toggle: () => alert('Forum toggle requires backend configuration')
+                                            },
+                                        ].map((feature, i) => (
+                                            <div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded border border-slate-100 hover:border-slate-200 transition-colors">
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`w-8 h-8 rounded bg-white border border-slate-200 flex items-center justify-center text-slate-500 shadow-sm`}>
+                                                        <span className="material-symbols-outlined text-[16px]">{feature.icon}</span>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-xs font-semibold text-slate-900 leading-tight">{feature.label}</p>
+                                                        <p className="text-[10px] text-slate-500 mt-0.5">{feature.description}</p>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <p className="text-xs font-semibold text-slate-900 leading-tight">{feature.label}</p>
-                                                    <p className="text-[10px] text-slate-500 mt-0.5">{feature.description}</p>
-                                                </div>
+                                                <button
+                                                    onClick={feature.toggle}
+                                                    className={`relative inline-flex w-8 h-4 rounded-full transition-colors ${feature.active ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                                                >
+                                                    <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform ${feature.active ? 'translate-x-4.5' : 'translate-x-0.5'}`} style={{ transform: feature.active ? 'translateX(16px)' : 'translateX(2px)' }} />
+                                                </button>
                                             </div>
-                                            <button
-                                                onClick={feature.toggle}
-                                                className={`relative inline-flex w-8 h-4 rounded-full transition-colors ${feature.active ? 'bg-emerald-500' : 'bg-slate-300'}`}
-                                            >
-                                                <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform ${feature.active ? 'translate-x-4.5' : 'translate-x-0.5'}`} style={{ transform: feature.active ? 'translateX(16px)' : 'translateX(2px)' }} />
-                                            </button>
-                                        </div>
-                                    ))}
+                                        ))}
                                     </div>
                                 </div>
 
@@ -2890,31 +2887,31 @@ export default function AdminDashboardPage() {
                                     <h2 className="text-xl font-semibold text-slate-900 tracking-tight flex items-center gap-2.5">
                                         <span className="material-symbols-outlined text-indigo-600 text-[24px]">
                                             {activeSection === "users_students" ? "school" :
-                                             activeSection === "users_staff" ? "badge" :
-                                             activeSection === "users_agents" ? "support_agent" :
-                                             activeSection === "users_banks" ? "account_balance" : "groups"}
+                                                activeSection === "users_staff" ? "badge" :
+                                                    activeSection === "users_agents" ? "support_agent" :
+                                                        activeSection === "users_banks" ? "account_balance" : "groups"}
                                         </span>
                                         {activeSection === "users_students" ? "Students & User Accounts" :
-                                         activeSection === "users_staff" ? "Staff & Operations Team" :
-                                         activeSection === "users_agents" ? "Channel Agents & Partners" :
-                                         activeSection === "users_banks" ? "Bank Representatives & Officers" : "User Identity Directory"}
+                                            activeSection === "users_staff" ? "Staff & Operations Team" :
+                                                activeSection === "users_agents" ? "Channel Agents & Partners" :
+                                                    activeSection === "users_banks" ? "Bank Representatives & Officers" : "User Identity Directory"}
                                     </h2>
                                     <p className="text-slate-500 text-[11px] mt-1 font-medium flex items-center gap-1.5">
                                         <span className="material-symbols-outlined text-[14px]">info</span>
                                         {activeSection === "users_students" ? `Managing ${stats.studentCount || 0} registered student accounts and study abroad applicants` :
-                                         activeSection === "users_staff" ? `Managing ${stats.staffCount || 0} loan processing officers, underwriters, and operations staff` :
-                                         activeSection === "users_agents" ? `Managing ${stats.agentCount || 0} referral partners, consultants, and channel agents` :
-                                         activeSection === "users_banks" ? `Managing ${stats.bankCount || 0} bank partner accounts and financial institution officers` :
-                                         `Managing ${stats.userCount || 0} authenticated platform identity nodes`}
+                                            activeSection === "users_staff" ? `Managing ${stats.staffCount || 0} loan processing officers, underwriters, and operations staff` :
+                                                activeSection === "users_agents" ? `Managing ${stats.agentCount || 0} referral partners, consultants, and channel agents` :
+                                                    activeSection === "users_banks" ? `Managing ${stats.bankCount || 0} bank partner accounts and financial institution officers` :
+                                                        `Managing ${stats.userCount || 0} authenticated platform identity nodes`}
                                     </p>
                                 </div>
                                 <div className="flex gap-2 items-center">
                                     {activeSection === "users_staff" && (
-                                        <button 
+                                        <button
                                             onClick={() => {
                                                 loadOffices();
                                                 setShowAddOfficeModal(true);
-                                            }} 
+                                            }}
                                             className="px-3.5 py-2 bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300 rounded-lg text-xs font-semibold transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer"
                                             title="Register new office location (Location, City, Office)"
                                         >
@@ -2922,7 +2919,7 @@ export default function AdminDashboardPage() {
                                             Add Office
                                         </button>
                                     )}
-                                    <button 
+                                    <button
                                         onClick={() => {
                                             if (activeSection === "users_agents") {
                                                 router.push("/admin/users/agents/create");
@@ -2933,14 +2930,14 @@ export default function AdminDashboardPage() {
                                             } else {
                                                 openCreateUserModal("user");
                                             }
-                                        }} 
+                                        }}
                                         className="px-3.5 py-2 bg-indigo-600 text-white rounded-lg text-xs font-semibold hover:bg-indigo-700 transition-colors shadow-sm flex items-center gap-1.5 cursor-pointer"
                                     >
                                         <span className="material-symbols-outlined text-[16px]">person_add</span>
                                         {activeSection === "users_students" ? "Create Student Profile" :
-                                         activeSection === "users_staff" ? "Create Staff Profile" :
-                                         activeSection === "users_agents" ? "Create Agent Profile" :
-                                         activeSection === "users_banks" ? "Create Bank Officer Profile" : "Create Student Profile"}
+                                            activeSection === "users_staff" ? "Create Staff Profile" :
+                                                activeSection === "users_agents" ? "Create Agent Profile" :
+                                                    activeSection === "users_banks" ? "Create Bank Officer Profile" : "Create Student Profile"}
                                     </button>
                                 </div>
                             </div>
@@ -2991,16 +2988,16 @@ export default function AdminDashboardPage() {
                                     <StatCard label="Partner Institutions" value={stats.bankCount || 0} icon="account_balance_wallet" color="text-amber-600" loading={loading} />
                                 </div>
                             )}
-                            
+
                             {/* Entity Registry Table */}
                             <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
                                 <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
                                     <div>
                                         <h3 className="text-sm font-semibold text-slate-900">
                                             {activeSection === "users_students" ? "Student Registry" :
-                                             activeSection === "users_staff" ? "Staff Operations Roster" :
-                                             activeSection === "users_agents" ? "Agent Partner Directory" :
-                                             activeSection === "users_banks" ? "Bank Officers Directory" : "Entity Registry"}
+                                                activeSection === "users_staff" ? "Staff Operations Roster" :
+                                                    activeSection === "users_agents" ? "Agent Partner Directory" :
+                                                        activeSection === "users_banks" ? "Bank Officers Directory" : "Entity Registry"}
                                         </h3>
                                         <p className="text-[11px] text-slate-500 mt-1">{totalItems} records active in current buffer</p>
                                     </div>
@@ -3091,295 +3088,292 @@ export default function AdminDashboardPage() {
                                                 filteredData.map((item: any, idx: number) => {
                                                     const itemAssignedBank = getAssignedBank(item);
                                                     return (
-                                                    <tr key={idx} className={`group hover:bg-slate-50/50 transition-all ${selectedUsers.includes(item.id) ? 'bg-indigo-50/30' : ''}`}>
-                                                        <td className="px-5 py-3">
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={selectedUsers.includes(item.id)}
-                                                                onChange={() => toggleUserSelect(item.id)}
-                                                                className="rounded border-slate-300"
-                                                            />
-                                                        </td>
-                                                        <td className="px-5 py-3">
-                                                            <button 
-                                                                onClick={() => window.open(`/admin/user-details/${item.id}`, '_blank')}
-                                                                className="flex items-center gap-3 cursor-pointer hover:bg-indigo-50 p-2 rounded -m-2 transition-all group w-full text-left"
-                                                            >
-                                                                <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 border border-slate-200">
-                                                                    <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${item.email}`} alt="" className="w-full h-full object-cover" />
-                                                                </div>
-                                                                <div>
-                                                                    <p className="text-[12px] font-semibold text-slate-900 group-hover:text-indigo-600 underline transition-colors flex items-center gap-1.5 flex-wrap">
-                                                                        {item.firstName} {item.lastName}
-                                                                        {(item.isResigned || item.status === 'resigned') && (
-                                                                            <span className="text-[9px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded">Resigned (Invalid)</span>
-                                                                        )}
-                                                                        {item.isOnLeave && (
-                                                                            <span className="text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">On Leave</span>
-                                                                        )}
-                                                                        {(item.role === 'agent' || item.isDraft || item.status === 'draft') && (
-                                                                            item.isDraft || item.status === 'draft' ? (
-                                                                                <span className="text-[9px] font-extrabold text-amber-800 bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded flex items-center gap-0.5">
-                                                                                    <span className="material-symbols-outlined text-[10px]">edit_document</span>
-                                                                                    Draft
-                                                                                </span>
-                                                                            ) : (
-                                                                                <span className="text-[9px] font-extrabold text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded flex items-center gap-0.5">
-                                                                                    <span className="material-symbols-outlined text-[10px]">verified</span>
-                                                                                    Active Partner
-                                                                                </span>
-                                                                            )
-                                                                        )}
-                                                                    </p>
-                                                                    <div className="flex items-center gap-2 flex-wrap mt-0.5">
-                                                                        <p className="text-[10px] text-slate-500 font-medium">{item.email}</p>
-                                                                        {itemAssignedBank && (
-                                                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs" title={`Assigned Bank: ${itemAssignedBank.name}`}>
-                                                                                {itemAssignedBank.logoUrl ? (
-                                                                                    <img src={itemAssignedBank.logoUrl} alt="" className="w-3 h-3 object-contain" />
-                                                                                ) : (
-                                                                                    <span className="material-symbols-outlined text-[11px] text-emerald-600">account_balance</span>
-                                                                                )}
-                                                                                {itemAssignedBank.name} ({itemAssignedBank.shortName})
-                                                                            </span>
-                                                                        )}
-                                                                        {(item.officeLocation || item.officeId) && (
-                                                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100" title={`Assigned Office: ${item.officeLocation || item.officeId}`}>
-                                                                                <span className="material-symbols-outlined text-[11px] text-indigo-500">apartment</span>
-                                                                                {item.officeLocation ? item.officeLocation.split(' - ')[0] : 'Office'}
-                                                                            </span>
-                                                                        )}
-                                                                        {(item.role === 'staff' || activeSection === 'users_staff') && (
-                                                                            item.mailboxEmail ? (
-                                                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-violet-50 text-violet-700 border border-violet-200" title={`AWS SES Business Mailbox: ${item.mailboxEmail} (S3 prefix: ${item.mailboxPrefix || 'default'})`}>
-                                                                                    <span className="material-symbols-outlined text-[11px] text-violet-600">outgoing_mail</span>
-                                                                                    SES: {item.mailboxEmail}
-                                                                                </span>
-                                                                            ) : (
-                                                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium bg-slate-50 text-slate-400 border border-slate-200" title="No AWS SES email assigned yet">
-                                                                                    <span className="material-symbols-outlined text-[11px] text-slate-400">mail</span>
-                                                                                    SES Unassigned
-                                                                                </span>
-                                                                            )
-                                                                        )}
-                                                                        {item.role === 'agent' && (item.partnership || item.percentage) && (
-                                                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
-                                                                                <span className="material-symbols-outlined text-[11px] text-amber-600">handshake</span>
-                                                                                {item.partnership || 'Partner'} {item.percentage ? `· ${item.percentage}%` : ''}
-                                                                            </span>
-                                                                        )}
-                                                                        {item.role === 'agent' && item.panNumber && (
-                                                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono bg-slate-100 text-slate-700 border border-slate-200" title="PAN Number">
-                                                                                PAN: {item.panNumber}
-                                                                            </span>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-                                                            </button>
-                                                        </td>
-                                                        {activeSection === "users_banks" && (
-                                                            <>
-                                                                <td className="px-5 py-3">
-                                                                    {itemAssignedBank ? (
-                                                                        <div className="flex items-center gap-2.5">
-                                                                            {itemAssignedBank.logoUrl ? (
-                                                                                <img src={itemAssignedBank.logoUrl} alt="" className="w-8 h-8 rounded-lg object-contain bg-white border border-slate-200 p-1 shadow-xs flex-shrink-0" />
-                                                                            ) : (
-                                                                                <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-black text-xs flex-shrink-0">
-                                                                                    <span className="material-symbols-outlined text-[16px]">account_balance</span>
-                                                                                </div>
-                                                                            )}
-                                                                            <div className="min-w-0 flex-1">
-                                                                                <div className="flex items-center gap-1.5 flex-wrap">
-                                                                                    <span className="text-[12px] font-bold text-slate-900 leading-tight">
-                                                                                        {itemAssignedBank.name}
-                                                                                    </span>
-                                                                                    <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200 uppercase">
-                                                                                        {itemAssignedBank.shortName}
-                                                                                    </span>
-                                                                                </div>
-                                                                                <div className="flex items-center gap-2 mt-0.5">
-                                                                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-                                                                                        {itemAssignedBank.type || 'Lending Partner'}
-                                                                                    </p>
-                                                                                    {bankPartners.length > 0 && (
-                                                                                        <select
-                                                                                            disabled={updatingUserBank}
-                                                                                            value={(itemAssignedBank.shortName || '').toLowerCase()}
-                                                                                            onChange={(e) => {
-                                                                                                if (e.target.value) handleUpdateUserBank(item.id, item.email, e.target.value);
-                                                                                            }}
-                                                                                            className="text-[9px] font-semibold text-slate-500 hover:text-emerald-700 bg-transparent border-0 underline cursor-pointer p-0 focus:outline-none"
-                                                                                            title="Reassign Partner Bank"
-                                                                                        >
-                                                                                            {bankPartners.map((bp: any) => (
-                                                                                                <option key={bp.id || bp.shortName} value={bp.shortName}>
-                                                                                                    Reassign: {bp.name}
-                                                                                                </option>
-                                                                                            ))}
-                                                                                        </select>
-                                                                                    )}
-                                                                                </div>
-                                                                            </div>
-                                                                        </div>
-                                                                    ) : (
-                                                                        <div className="flex items-center gap-2">
-                                                                            <select
-                                                                                disabled={updatingUserBank}
-                                                                                onChange={(e) => {
-                                                                                    if (e.target.value) handleUpdateUserBank(item.id, item.email, e.target.value);
-                                                                                }}
-                                                                                defaultValue=""
-                                                                                className="text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-lg px-2.5 py-1 cursor-pointer transition-colors shadow-xs"
-                                                                            >
-                                                                                <option value="" disabled>+ Assign Bank Partner</option>
-                                                                                {bankPartners.map((bp: any) => (
-                                                                                    <option key={bp.id || bp.shortName} value={bp.shortName}>
-                                                                                        {bp.name} ({bp.shortName})
-                                                                                    </option>
-                                                                                ))}
-                                                                            </select>
-                                                                        </div>
-                                                                    )}
-                                                                </td>
-                                                                <td className="px-5 py-3">
-                                                                    {itemAssignedBank ? (
-                                                                        <div className="space-y-1">
-                                                                            <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-700">
-                                                                                <span className="material-symbols-outlined text-[13px]">percent</span>
-                                                                                <span>ROI: {itemAssignedBank.interestRateMin || 8.5}% - {itemAssignedBank.interestRateMax || 14.5}% p.a.</span>
-                                                                            </div>
-                                                                            <div className="flex items-center gap-1.5 text-[9px] font-semibold text-slate-600 flex-wrap">
-                                                                                <span className="px-1.5 py-0.5 bg-slate-50 rounded border border-slate-200" title="Max Loan Cap">
-                                                                                    Cap: {itemAssignedBank.maxLoanAmount || '₹1.50 Cr'}
-                                                                                </span>
-                                                                                <span className="px-1.5 py-0.5 bg-slate-50 rounded border border-slate-200" title="Collateral Free Limit">
-                                                                                    Collateral-Free: {itemAssignedBank.collateralFreeLimit || '₹50 L'}
-                                                                                </span>
-                                                                                <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-800 rounded border border-emerald-200" title="Turnaround SLA">
-                                                                                    SLA: {itemAssignedBank.processingTime || '3-5 Days'}
-                                                                                </span>
-                                                                            </div>
-                                                                        </div>
-                                                                    ) : (
-                                                                        <span className="text-[10px] font-medium text-slate-400 italic">Assign bank to view parameters</span>
-                                                                    )}
-                                                                </td>
-                                                            </>
-                                                        )}
-                                                        <td className="px-5 py-3">
-                                                            <div className="relative inline-block min-w-[125px]">
-                                                                <select
-                                                                    value={item.role || 'user'}
-                                                                    onChange={(e) => handleUserRole(item.email, e.target.value)}
-                                                                    className={`w-full px-2 py-0.5 pr-6 rounded text-[9px] font-bold uppercase tracking-widest border appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-500/50 transition-all ${
-                                                                        item.role === 'admin' ? 'bg-slate-900 text-white border-slate-900' :
-                                                                        item.role === 'super_admin' ? 'bg-indigo-900 text-white border-indigo-900' :
-                                                                        item.role === 'staff' ? 'bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100/50' :
-                                                                        item.role === 'bank' ? 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100/50' :
-                                                                        item.role === 'agent' ? 'bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100/50' :
-                                                                        item.role === 'student' ? 'bg-indigo-50 text-indigo-700 border-indigo-100 hover:bg-indigo-100/50' :
-                                                                        'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                                                                    }`}
-                                                                >
-                                                                    <option value="user" className="bg-white text-slate-900 font-medium">User</option>
-                                                                    <option value="student" className="bg-white text-slate-900 font-medium">Student</option>
-                                                                    <option value="staff" className="bg-white text-slate-900 font-medium">Staff</option>
-                                                                    <option value="bank" className="bg-white text-slate-900 font-medium">Bank</option>
-                                                                    <option value="agent" className="bg-white text-slate-900 font-medium">Agent</option>
-                                                                </select>
-                                                                <span className="material-symbols-outlined absolute right-1 top-1/2 -translate-y-1/2 text-[12px] pointer-events-none text-slate-400">
-                                                                    arrow_drop_down
-                                                                </span>
-                                                            </div>
-                                                            {(item.role === 'staff' || item.role === 'staff_admin') && (
-                                                                <div className="flex items-center gap-1 mt-1.5">
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => handleToggleResigned(item.id, !!(item.isResigned || item.status === 'resigned'))}
-                                                                        className={`px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wider rounded border transition-all cursor-pointer ${
-                                                                            (item.isResigned || item.status === 'resigned')
-                                                                                ? "bg-rose-600 text-white border-rose-700 shadow-xs"
-                                                                                : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-rose-50 hover:text-rose-600"
-                                                                        }`}
-                                                                        title={(item.isResigned || item.status === 'resigned') ? "Staff member is Resigned (Invalid). Click to reinstate." : "Click to mark staff member as Resigned (Invalid)"}
-                                                                    >
-                                                                        {(item.isResigned || item.status === 'resigned') ? '⛔ Resigned' : 'Resign'}
-                                                                    </button>
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => handleToggleLeave(item.id, !!item.isOnLeave)}
-                                                                        className={`px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wider rounded border transition-all cursor-pointer ${
-                                                                            item.isOnLeave
-                                                                                ? "bg-amber-500 text-white border-amber-600 shadow-xs"
-                                                                                : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
-                                                                        }`}
-                                                                        title={item.isOnLeave ? "Staff member is On Leave. Click to mark available." : "Click to mark staff member On Leave"}
-                                                                    >
-                                                                        {item.isOnLeave ? '🏖️ On Leave' : 'Leave'}
-                                                                    </button>
-                                                                </div>
-                                                            )}
-                                                        </td>
-                                                        <td className="px-5 py-3 text-[11px] font-medium text-slate-500 tabular-nums">
-                                                            {item.createdAt ? format(new Date(item.createdAt), 'MMM d, yyyy') : '—'}
-                                                        </td>
-                                                        <td className="px-5 py-3">
-                                                            {item.last_login_at ? (
-                                                                <div className="flex flex-col gap-1.5">
-                                                                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-700">
-                                                                        <span className="material-symbols-outlined text-[13px] text-indigo-500">location_on</span>
-                                                                        {item.last_login_location || 'Unknown'}
-                                                                    </div>
-                                                                    <div className="flex flex-wrap gap-1.5 text-[8px] font-black tracking-widest uppercase text-slate-500">
-                                                                        <span className="px-1.5 py-0.5 bg-slate-50 rounded border border-slate-200 flex items-center gap-1">
-                                                                            {item.last_login_device?.split(' - ')[0] || 'Device'}
-                                                                        </span>
-                                                                        <span className="px-1.5 py-0.5 bg-slate-50 rounded border border-slate-200 flex items-center gap-1">
-                                                                            {item.last_login_ip || '0.0.0.0'}
-                                                                        </span>
-                                                                    </div>
-                                                                </div>
-                                                            ) : (
-                                                                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 bg-slate-50 px-2 py-1 rounded border border-slate-100">Never Logged In</span>
-                                                            )}
-                                                        </td>
-                                                        <td className="px-5 py-3 text-right">
-                                                            <div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <tr key={idx} className={`group hover:bg-slate-50/50 transition-all ${selectedUsers.includes(item.id) ? 'bg-indigo-50/30' : ''}`}>
+                                                            <td className="px-5 py-3">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={selectedUsers.includes(item.id)}
+                                                                    onChange={() => toggleUserSelect(item.id)}
+                                                                    className="rounded border-slate-300"
+                                                                />
+                                                            </td>
+                                                            <td className="px-5 py-3">
                                                                 <button
                                                                     onClick={() => window.open(`/admin/user-details/${item.id}`, '_blank')}
-                                                                    className="p-1.5 text-slate-400 hover:text-indigo-600 rounded hover:bg-indigo-50 transition-all border border-transparent hover:border-indigo-100 cursor-pointer"
-                                                                    title="View Identity Profile"
+                                                                    className="flex items-center gap-3 cursor-pointer hover:bg-indigo-50 p-2 rounded -m-2 transition-all group w-full text-left"
                                                                 >
-                                                                    <span className="material-symbols-outlined text-[16px]">visibility</span>
+                                                                    <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 border border-slate-200">
+                                                                        <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${item.email}`} alt="" className="w-full h-full object-cover" />
+                                                                    </div>
+                                                                    <div>
+                                                                        <p className="text-[12px] font-semibold text-slate-900 group-hover:text-indigo-600 underline transition-colors flex items-center gap-1.5 flex-wrap">
+                                                                            {item.firstName} {item.lastName}
+                                                                            {(item.isResigned || item.status === 'resigned') && (
+                                                                                <span className="text-[9px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded">Resigned (Invalid)</span>
+                                                                            )}
+                                                                            {item.isOnLeave && (
+                                                                                <span className="text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">On Leave</span>
+                                                                            )}
+                                                                            {(item.role === 'agent' || item.isDraft || item.status === 'draft') && (
+                                                                                item.isDraft || item.status === 'draft' ? (
+                                                                                    <span className="text-[9px] font-extrabold text-amber-800 bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                                                                                        <span className="material-symbols-outlined text-[10px]">edit_document</span>
+                                                                                        Draft
+                                                                                    </span>
+                                                                                ) : (
+                                                                                    <span className="text-[9px] font-extrabold text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                                                                                        <span className="material-symbols-outlined text-[10px]">verified</span>
+                                                                                        Active Partner
+                                                                                    </span>
+                                                                                )
+                                                                            )}
+                                                                        </p>
+                                                                        <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                                                                            <p className="text-[10px] text-slate-500 font-medium">{item.email}</p>
+                                                                            {itemAssignedBank && (
+                                                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs" title={`Assigned Bank: ${itemAssignedBank.name}`}>
+                                                                                    {itemAssignedBank.logoUrl ? (
+                                                                                        <img src={itemAssignedBank.logoUrl} alt="" className="w-3 h-3 object-contain" />
+                                                                                    ) : (
+                                                                                        <span className="material-symbols-outlined text-[11px] text-emerald-600">account_balance</span>
+                                                                                    )}
+                                                                                    {itemAssignedBank.name} ({itemAssignedBank.shortName})
+                                                                                </span>
+                                                                            )}
+                                                                            {(item.officeLocation || item.officeId) && (
+                                                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100" title={`Assigned Office: ${item.officeLocation || item.officeId}`}>
+                                                                                    <span className="material-symbols-outlined text-[11px] text-indigo-500">apartment</span>
+                                                                                    {item.officeLocation ? item.officeLocation.split(' - ')[0] : 'Office'}
+                                                                                </span>
+                                                                            )}
+                                                                            {(item.role === 'staff' || activeSection === 'users_staff') && (
+                                                                                item.mailboxEmail ? (
+                                                                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-violet-50 text-violet-700 border border-violet-200" title={`AWS SES Business Mailbox: ${item.mailboxEmail} (S3 prefix: ${item.mailboxPrefix || 'default'})`}>
+                                                                                        <span className="material-symbols-outlined text-[11px] text-violet-600">outgoing_mail</span>
+                                                                                        SES: {item.mailboxEmail}
+                                                                                    </span>
+                                                                                ) : (
+                                                                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium bg-slate-50 text-slate-400 border border-slate-200" title="No AWS SES email assigned yet">
+                                                                                        <span className="material-symbols-outlined text-[11px] text-slate-400">mail</span>
+                                                                                        SES Unassigned
+                                                                                    </span>
+                                                                                )
+                                                                            )}
+                                                                            {item.role === 'agent' && (item.partnership || item.percentage) && (
+                                                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                                                                                    <span className="material-symbols-outlined text-[11px] text-amber-600">handshake</span>
+                                                                                    {item.partnership || 'Partner'} {item.percentage ? `· ${item.percentage}%` : ''}
+                                                                                </span>
+                                                                            )}
+                                                                            {item.role === 'agent' && item.panNumber && (
+                                                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono bg-slate-100 text-slate-700 border border-slate-200" title="PAN Number">
+                                                                                    PAN: {item.panNumber}
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
                                                                 </button>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => handleOpenEmailModal(item)}
-                                                                    className="p-1.5 text-slate-400 hover:text-indigo-600 rounded hover:bg-indigo-50 transition-all border border-transparent hover:border-indigo-100 cursor-pointer"
-                                                                    title="Send Email to User"
-                                                                >
-                                                                    <span className="material-symbols-outlined text-[16px]">mail</span>
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => setEditingUser({ ...item })}
-                                                                    className="p-1.5 text-slate-400 hover:text-slate-900 rounded hover:bg-slate-100 transition-all border border-transparent hover:border-slate-200 cursor-pointer"
-                                                                    title="Edit User"
-                                                                >
-                                                                    <span className="material-symbols-outlined text-[16px]">edit</span>
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => handleDeleteUser(item.id, `${item.firstName} ${item.lastName}`)}
-                                                                    className="p-1.5 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition-all border border-transparent hover:border-rose-100 cursor-pointer"
-                                                                    title="Delete User"
-                                                                >
-                                                                    <span className="material-symbols-outlined text-[16px]">delete</span>
-                                                                </button>
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })
+                                                            </td>
+                                                            {activeSection === "users_banks" && (
+                                                                <>
+                                                                    <td className="px-5 py-3">
+                                                                        {itemAssignedBank ? (
+                                                                            <div className="flex items-center gap-2.5">
+                                                                                {itemAssignedBank.logoUrl ? (
+                                                                                    <img src={itemAssignedBank.logoUrl} alt="" className="w-8 h-8 rounded-lg object-contain bg-white border border-slate-200 p-1 shadow-xs flex-shrink-0" />
+                                                                                ) : (
+                                                                                    <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-black text-xs flex-shrink-0">
+                                                                                        <span className="material-symbols-outlined text-[16px]">account_balance</span>
+                                                                                    </div>
+                                                                                )}
+                                                                                <div className="min-w-0 flex-1">
+                                                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                                                        <span className="text-[12px] font-bold text-slate-900 leading-tight">
+                                                                                            {itemAssignedBank.name}
+                                                                                        </span>
+                                                                                        <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200 uppercase">
+                                                                                            {itemAssignedBank.shortName}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                    <div className="flex items-center gap-2 mt-0.5">
+                                                                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                                                                                            {itemAssignedBank.type || 'Lending Partner'}
+                                                                                        </p>
+                                                                                        {bankPartners.length > 0 && (
+                                                                                            <select
+                                                                                                disabled={updatingUserBank}
+                                                                                                value={(itemAssignedBank.shortName || '').toLowerCase()}
+                                                                                                onChange={(e) => {
+                                                                                                    if (e.target.value) handleUpdateUserBank(item.id, item.email, e.target.value);
+                                                                                                }}
+                                                                                                className="text-[9px] font-semibold text-slate-500 hover:text-emerald-700 bg-transparent border-0 underline cursor-pointer p-0 focus:outline-none"
+                                                                                                title="Reassign Partner Bank"
+                                                                                            >
+                                                                                                {bankPartners.map((bp: any) => (
+                                                                                                    <option key={bp.id || bp.shortName} value={bp.shortName}>
+                                                                                                        Reassign: {bp.name}
+                                                                                                    </option>
+                                                                                                ))}
+                                                                                            </select>
+                                                                                        )}
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div className="flex items-center gap-2">
+                                                                                <select
+                                                                                    disabled={updatingUserBank}
+                                                                                    onChange={(e) => {
+                                                                                        if (e.target.value) handleUpdateUserBank(item.id, item.email, e.target.value);
+                                                                                    }}
+                                                                                    defaultValue=""
+                                                                                    className="text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-lg px-2.5 py-1 cursor-pointer transition-colors shadow-xs"
+                                                                                >
+                                                                                    <option value="" disabled>+ Assign Bank Partner</option>
+                                                                                    {bankPartners.map((bp: any) => (
+                                                                                        <option key={bp.id || bp.shortName} value={bp.shortName}>
+                                                                                            {bp.name} ({bp.shortName})
+                                                                                        </option>
+                                                                                    ))}
+                                                                                </select>
+                                                                            </div>
+                                                                        )}
+                                                                    </td>
+                                                                    <td className="px-5 py-3">
+                                                                        {itemAssignedBank ? (
+                                                                            <div className="space-y-1">
+                                                                                <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-700">
+                                                                                    <span className="material-symbols-outlined text-[13px]">percent</span>
+                                                                                    <span>ROI: {itemAssignedBank.interestRateMin || 8.5}% - {itemAssignedBank.interestRateMax || 14.5}% p.a.</span>
+                                                                                </div>
+                                                                                <div className="flex items-center gap-1.5 text-[9px] font-semibold text-slate-600 flex-wrap">
+                                                                                    <span className="px-1.5 py-0.5 bg-slate-50 rounded border border-slate-200" title="Max Loan Cap">
+                                                                                        Cap: {itemAssignedBank.maxLoanAmount || '₹1.50 Cr'}
+                                                                                    </span>
+                                                                                    <span className="px-1.5 py-0.5 bg-slate-50 rounded border border-slate-200" title="Collateral Free Limit">
+                                                                                        Collateral-Free: {itemAssignedBank.collateralFreeLimit || '₹50 L'}
+                                                                                    </span>
+                                                                                    <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-800 rounded border border-emerald-200" title="Turnaround SLA">
+                                                                                        SLA: {itemAssignedBank.processingTime || '3-5 Days'}
+                                                                                    </span>
+                                                                                </div>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <span className="text-[10px] font-medium text-slate-400 italic">Assign bank to view parameters</span>
+                                                                        )}
+                                                                    </td>
+                                                                </>
+                                                            )}
+                                                            <td className="px-5 py-3">
+                                                                <div className="relative inline-block min-w-[125px]">
+                                                                    <select
+                                                                        value={item.role || 'user'}
+                                                                        onChange={(e) => handleUserRole(item.email, e.target.value)}
+                                                                        className={`w-full px-2 py-0.5 pr-6 rounded text-[9px] font-bold uppercase tracking-widest border appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-500/50 transition-all ${item.role === 'admin' ? 'bg-slate-900 text-white border-slate-900' :
+                                                                                item.role === 'super_admin' ? 'bg-indigo-900 text-white border-indigo-900' :
+                                                                                    item.role === 'staff' ? 'bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100/50' :
+                                                                                        item.role === 'bank' ? 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100/50' :
+                                                                                            item.role === 'agent' ? 'bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100/50' :
+                                                                                                item.role === 'student' ? 'bg-indigo-50 text-indigo-700 border-indigo-100 hover:bg-indigo-100/50' :
+                                                                                                    'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                                                                            }`}
+                                                                    >
+                                                                        <option value="user" className="bg-white text-slate-900 font-medium">User</option>
+                                                                        <option value="student" className="bg-white text-slate-900 font-medium">Student</option>
+                                                                        <option value="staff" className="bg-white text-slate-900 font-medium">Staff</option>
+                                                                        <option value="bank" className="bg-white text-slate-900 font-medium">Bank</option>
+                                                                        <option value="agent" className="bg-white text-slate-900 font-medium">Agent</option>
+                                                                    </select>
+                                                                    <span className="material-symbols-outlined absolute right-1 top-1/2 -translate-y-1/2 text-[12px] pointer-events-none text-slate-400">
+                                                                        arrow_drop_down
+                                                                    </span>
+                                                                </div>
+                                                                {(item.role === 'staff' || item.role === 'staff_admin') && (
+                                                                    <div className="flex items-center gap-1 mt-1.5">
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => handleToggleResigned(item.id, !!(item.isResigned || item.status === 'resigned'))}
+                                                                            className={`px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wider rounded border transition-all cursor-pointer ${(item.isResigned || item.status === 'resigned')
+                                                                                    ? "bg-rose-600 text-white border-rose-700 shadow-xs"
+                                                                                    : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-rose-50 hover:text-rose-600"
+                                                                                }`}
+                                                                            title={(item.isResigned || item.status === 'resigned') ? "Staff member is Resigned (Invalid). Click to reinstate." : "Click to mark staff member as Resigned (Invalid)"}
+                                                                        >
+                                                                            {(item.isResigned || item.status === 'resigned') ? '⛔ Resigned' : 'Resign'}
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => handleToggleLeave(item.id, !!item.isOnLeave)}
+                                                                            className={`px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wider rounded border transition-all cursor-pointer ${item.isOnLeave
+                                                                                    ? "bg-amber-500 text-white border-amber-600 shadow-xs"
+                                                                                    : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                                                                                }`}
+                                                                            title={item.isOnLeave ? "Staff member is On Leave. Click to mark available." : "Click to mark staff member On Leave"}
+                                                                        >
+                                                                            {item.isOnLeave ? '🏖️ On Leave' : 'Leave'}
+                                                                        </button>
+                                                                    </div>
+                                                                )}
+                                                            </td>
+                                                            <td className="px-5 py-3 text-[11px] font-medium text-slate-500 tabular-nums">
+                                                                {item.createdAt ? format(new Date(item.createdAt), 'MMM d, yyyy') : '—'}
+                                                            </td>
+                                                            <td className="px-5 py-3">
+                                                                {item.last_login_at ? (
+                                                                    <div className="flex flex-col gap-1.5">
+                                                                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-700">
+                                                                            <span className="material-symbols-outlined text-[13px] text-indigo-500">location_on</span>
+                                                                            {item.last_login_location || 'Unknown'}
+                                                                        </div>
+                                                                        <div className="flex flex-wrap gap-1.5 text-[8px] font-black tracking-widest uppercase text-slate-500">
+                                                                            <span className="px-1.5 py-0.5 bg-slate-50 rounded border border-slate-200 flex items-center gap-1">
+                                                                                {item.last_login_device?.split(' - ')[0] || 'Device'}
+                                                                            </span>
+                                                                            <span className="px-1.5 py-0.5 bg-slate-50 rounded border border-slate-200 flex items-center gap-1">
+                                                                                {item.last_login_ip || '0.0.0.0'}
+                                                                            </span>
+                                                                        </div>
+                                                                    </div>
+                                                                ) : (
+                                                                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 bg-slate-50 px-2 py-1 rounded border border-slate-100">Never Logged In</span>
+                                                                )}
+                                                            </td>
+                                                            <td className="px-5 py-3 text-right">
+                                                                <div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                    <button
+                                                                        onClick={() => window.open(`/admin/user-details/${item.id}`, '_blank')}
+                                                                        className="p-1.5 text-slate-400 hover:text-indigo-600 rounded hover:bg-indigo-50 transition-all border border-transparent hover:border-indigo-100 cursor-pointer"
+                                                                        title="View Identity Profile"
+                                                                    >
+                                                                        <span className="material-symbols-outlined text-[16px]">visibility</span>
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleOpenEmailModal(item)}
+                                                                        className="p-1.5 text-slate-400 hover:text-indigo-600 rounded hover:bg-indigo-50 transition-all border border-transparent hover:border-indigo-100 cursor-pointer"
+                                                                        title="Send Email to User"
+                                                                    >
+                                                                        <span className="material-symbols-outlined text-[16px]">mail</span>
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => setEditingUser({ ...item })}
+                                                                        className="p-1.5 text-slate-400 hover:text-slate-900 rounded hover:bg-slate-100 transition-all border border-transparent hover:border-slate-200 cursor-pointer"
+                                                                        title="Edit User"
+                                                                    >
+                                                                        <span className="material-symbols-outlined text-[16px]">edit</span>
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleDeleteUser(item.id, `${item.firstName} ${item.lastName}`)}
+                                                                        className="p-1.5 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition-all border border-transparent hover:border-rose-100 cursor-pointer"
+                                                                        title="Delete User"
+                                                                    >
+                                                                        <span className="material-symbols-outlined text-[16px]">delete</span>
+                                                                    </button>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })
                                             ) : (
                                                 <tr>
                                                     <td colSpan={activeSection === "users_banks" ? 8 : 6} className="px-6 py-12 text-center">
@@ -3460,7 +3454,7 @@ export default function AdminDashboardPage() {
                                 </div>
                                 <div className="flex items-center gap-2.5 self-stretch sm:self-auto justify-end flex-wrap">
                                     {/* Auto-Assign Unassigned (Solid Primary Button) */}
-                                    <button 
+                                    <button
                                         onClick={handleAutoAssignAll}
                                         className="inline-flex items-center gap-2 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold text-xs rounded-lg shadow-xs transition-colors cursor-pointer"
                                         title="Distribute all unassigned applications across active staff members via round-robin"
@@ -3470,13 +3464,12 @@ export default function AdminDashboardPage() {
                                     </button>
 
                                     {/* Live Sync Subtle Toggle */}
-                                    <button 
+                                    <button
                                         onClick={() => setAutoRefreshEnabled(!autoRefreshEnabled)}
-                                        className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
-                                            autoRefreshEnabled 
-                                                ? 'bg-emerald-50/80 text-emerald-700 border-emerald-200/80 hover:bg-emerald-100/70' 
+                                        className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${autoRefreshEnabled
+                                                ? 'bg-emerald-50/80 text-emerald-700 border-emerald-200/80 hover:bg-emerald-100/70'
                                                 : 'bg-white text-slate-600 border-slate-200/80 hover:bg-slate-50'
-                                        }`}
+                                            }`}
                                         title={autoRefreshEnabled ? "Live auto-sync enabled (click to pause)" : "Auto-sync paused (click to enable)"}
                                     >
                                         <span className={`w-2 h-2 rounded-full ${autoRefreshEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}></span>
@@ -3484,8 +3477,8 @@ export default function AdminDashboardPage() {
                                     </button>
 
                                     {/* Refresh Icon Button */}
-                                    <button 
-                                        onClick={() => loadData()} 
+                                    <button
+                                        onClick={() => loadData()}
                                         className="p-2 bg-white hover:bg-slate-50 text-slate-600 hover:text-slate-900 border border-slate-200/80 rounded-lg shadow-2xs transition-colors cursor-pointer"
                                         title="Refresh applications now"
                                     >
@@ -3520,19 +3513,17 @@ export default function AdminDashboardPage() {
                                         return (
                                             <button
                                                 onClick={() => setFilterStaff(isUnassignedSelected ? 'all' : 'unassigned')}
-                                                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all shrink-0 cursor-pointer border ${
-                                                    isUnassignedSelected
+                                                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all shrink-0 cursor-pointer border ${isUnassignedSelected
                                                         ? 'bg-rose-100 text-rose-800 border-rose-300 ring-2 ring-rose-400/30'
                                                         : unassignedCount > 0
                                                             ? 'bg-rose-50/90 text-rose-700 border-rose-200/80 hover:bg-rose-100/70'
                                                             : 'bg-slate-50 text-slate-600 border-slate-200/80 hover:bg-slate-100'
-                                                }`}
+                                                    }`}
                                             >
                                                 <span className={`w-2 h-2 rounded-full ${unassignedCount > 0 ? 'bg-rose-500 animate-pulse' : 'bg-slate-400'}`}></span>
                                                 <span>Unassigned</span>
-                                                <span className={`font-bold text-[11px] px-1.5 py-0.2 rounded ${
-                                                    unassignedCount > 0 ? 'bg-rose-200/70 text-rose-900' : 'bg-slate-200 text-slate-700'
-                                                }`}>
+                                                <span className={`font-bold text-[11px] px-1.5 py-0.2 rounded ${unassignedCount > 0 ? 'bg-rose-200/70 text-rose-900' : 'bg-slate-200 text-slate-700'
+                                                    }`}>
                                                     {unassignedCount}
                                                 </span>
                                             </button>
@@ -3554,11 +3545,10 @@ export default function AdminDashboardPage() {
                                             <button
                                                 key={staff.id}
                                                 onClick={() => setFilterStaff(isActive ? 'all' : staff.id)}
-                                                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-all shrink-0 cursor-pointer border ${
-                                                    isActive
+                                                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-all shrink-0 cursor-pointer border ${isActive
                                                         ? 'bg-indigo-50 text-indigo-900 border-indigo-300 ring-2 ring-indigo-500/20 font-semibold'
                                                         : 'bg-white text-slate-700 border-slate-200/80 hover:border-slate-300 hover:bg-slate-50'
-                                                }`}
+                                                    }`}
                                             >
                                                 <img
                                                     src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${staff.email}`}
@@ -3566,9 +3556,8 @@ export default function AdminDashboardPage() {
                                                     className="w-5 h-5 rounded-full bg-slate-100 shrink-0"
                                                 />
                                                 <span className="truncate max-w-[120px]" title={staffName}>{staffName}</span>
-                                                <span className={`font-bold text-[11px] px-1.5 py-0.2 rounded ${
-                                                    isActive ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'
-                                                }`}>
+                                                <span className={`font-bold text-[11px] px-1.5 py-0.2 rounded ${isActive ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'
+                                                    }`}>
                                                     {assignedCount}
                                                 </span>
                                             </button>
@@ -3857,7 +3846,7 @@ export default function AdminDashboardPage() {
                                                 pagedApplications.map((item: any) => {
                                                     const progress = getApplicationDisplayProgress(item);
                                                     const stageLabel = getApplicationStageLabel(item, progress);
-                                                    
+
                                                     // Resolve assigned staff member info
                                                     const assignedStaffId = (item.assignedStaffId || '').trim();
                                                     const assignedStaffEmail = (item.assignedStaffEmail || '').trim().toLowerCase();
@@ -3889,11 +3878,10 @@ export default function AdminDashboardPage() {
                                                     const fullTarget = uni ? (destination && destination.toLowerCase() !== 'global' ? `${uni} (${destination})` : uni) : destination;
 
                                                     return (
-                                                        <tr 
-                                                            key={item.id} 
-                                                            className={`transition-colors group hover:bg-slate-50/70 ${
-                                                                isRowSelected ? 'bg-indigo-50/50' : (isUnassigned ? 'bg-rose-50/20' : '')
-                                                            }`}
+                                                        <tr
+                                                            key={item.id}
+                                                            className={`transition-colors group hover:bg-slate-50/70 ${isRowSelected ? 'bg-indigo-50/50' : (isUnassigned ? 'bg-rose-50/20' : '')
+                                                                }`}
                                                         >
                                                             {/* Checkbox */}
                                                             <td className="px-4 py-3">
@@ -4001,9 +3989,8 @@ export default function AdminDashboardPage() {
                                                                             alt=""
                                                                             className="w-5 h-5 rounded-full bg-slate-100 shrink-0"
                                                                         />
-                                                                        <span className={`text-xs font-medium truncate max-w-[110px] ${
-                                                                            isUnassigned ? 'text-rose-600 font-semibold' : 'text-slate-800'
-                                                                        }`} title={staffDisplayName}>
+                                                                        <span className={`text-xs font-medium truncate max-w-[110px] ${isUnassigned ? 'text-rose-600 font-semibold' : 'text-slate-800'
+                                                                            }`} title={staffDisplayName}>
                                                                             {staffDisplayName}
                                                                         </span>
                                                                         {isSanctionLocked ? (
@@ -4040,15 +4027,14 @@ export default function AdminDashboardPage() {
                                                             <td className="px-4 py-3">
                                                                 <div className="space-y-1.5 min-w-[150px]">
                                                                     <div className="flex items-center justify-between gap-2">
-                                                                        <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium border ${
-                                                                            progress >= 100 
-                                                                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80' 
-                                                                                : progress >= 75 
-                                                                                    ? 'bg-indigo-50 text-indigo-700 border-indigo-200/80' 
-                                                                                    : progress >= 40 
-                                                                                        ? 'bg-blue-50 text-blue-700 border-blue-200/80' 
+                                                                        <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium border ${progress >= 100
+                                                                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80'
+                                                                                : progress >= 75
+                                                                                    ? 'bg-indigo-50 text-indigo-700 border-indigo-200/80'
+                                                                                    : progress >= 40
+                                                                                        ? 'bg-blue-50 text-blue-700 border-blue-200/80'
                                                                                         : 'bg-amber-50 text-amber-700 border-amber-200/80'
-                                                                        }`}>
+                                                                            }`}>
                                                                             {stageLabel}
                                                                         </span>
                                                                         <span className="text-[11px] font-semibold text-slate-600 tabular-nums">
@@ -4057,12 +4043,11 @@ export default function AdminDashboardPage() {
                                                                     </div>
                                                                     <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden">
                                                                         <div
-                                                                            className={`h-full rounded-full transition-all duration-500 ${
-                                                                                progress >= 100 ? 'bg-emerald-500' :
-                                                                                progress >= 75 ? 'bg-indigo-600' :
-                                                                                progress >= 40 ? 'bg-blue-500' :
-                                                                                'bg-amber-500'
-                                                                            }`}
+                                                                            className={`h-full rounded-full transition-all duration-500 ${progress >= 100 ? 'bg-emerald-500' :
+                                                                                    progress >= 75 ? 'bg-indigo-600' :
+                                                                                        progress >= 40 ? 'bg-blue-500' :
+                                                                                            'bg-amber-500'
+                                                                                }`}
                                                                             style={{ width: `${progress}%` }}
                                                                         />
                                                                     </div>
@@ -4141,11 +4126,10 @@ export default function AdminDashboardPage() {
                                                                 {showEllipsis && <span className="px-1 text-slate-400 text-xs">...</span>}
                                                                 <button
                                                                     onClick={() => setAppPage(p)}
-                                                                    className={`w-7 h-7 rounded-md font-bold text-xs transition-all cursor-pointer ${
-                                                                        p === currentAppPage
+                                                                    className={`w-7 h-7 rounded-md font-bold text-xs transition-all cursor-pointer ${p === currentAppPage
                                                                             ? 'bg-indigo-600 text-white shadow-xs'
                                                                             : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
-                                                                    }`}
+                                                                        }`}
                                                                 >
                                                                     {p}
                                                                 </button>
@@ -4248,782 +4232,779 @@ export default function AdminDashboardPage() {
                         </div>
                     )}
 
-            {/* ─── Application Detail Drawer ────────────────────────────────── */}
-            {selectedApp && (
-                <div className="fixed inset-0 z-[100] flex justify-end">
-                    <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px] animate-fade-in" onClick={() => { setSelectedApp(null); setAiReview(null); setDrawerTab('details'); }} />
-                    <div className="relative w-full max-w-2xl bg-white shadow-2xl flex flex-col animate-slide-in-right border-l border-slate-200">
-                        <div className="sticky top-0 z-20 bg-white border-b border-slate-100 px-8 py-6">
-                            <div className="flex items-center justify-between mb-6">
-                                <div>
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-lg bg-slate-900 flex items-center justify-center text-white shadow-lg shadow-slate-900/20">
-                                            <span className="material-symbols-outlined text-[20px]">description</span>
-                                        </div>
+                    {/* ─── Application Detail Drawer ────────────────────────────────── */}
+                    {selectedApp && (
+                        <div className="fixed inset-0 z-[100] flex justify-end">
+                            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px] animate-fade-in" onClick={() => { setSelectedApp(null); setAiReview(null); setDrawerTab('details'); }} />
+                            <div className="relative w-full max-w-2xl bg-white shadow-2xl flex flex-col animate-slide-in-right border-l border-slate-200">
+                                <div className="sticky top-0 z-20 bg-white border-b border-slate-100 px-8 py-6">
+                                    <div className="flex items-center justify-between mb-6">
                                         <div>
-                                            <h2 className="text-[20px] font-bold text-slate-900 tracking-tight">Application Profile</h2>
-                                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Ref: {selectedApp.applicationNumber || `${selectedApp.id?.substring(0, 8)} (Pre-bank)`}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <span className={`inline-flex items-center px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest border ${selectedApp.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
-                                            selectedApp.status === 'rejected' ? 'bg-rose-50 text-rose-700 border-rose-100' :
-                                                'bg-blue-50 text-blue-700 border-blue-100'
-                                        }`}>{selectedApp.status}</span>
-                                    <button onClick={() => { setSelectedApp(null); setAiReview(null); setDrawerTab('details'); }} className="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-all border border-transparent hover:border-slate-100">
-                                        <span className="material-symbols-outlined">close</span>
-                                    </button>
-                                </div>
-                            </div>
-                            <div className="flex gap-8 overflow-x-auto pb-2">
-                                <button onClick={() => setDrawerTab('details')} className={`whitespace-nowrap pb-3 text-[11px] font-black uppercase tracking-widest border-b-2 transition-all ${drawerTab === 'details' ? 'border-purple-600 text-purple-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>Applicant Info</button>
-                                <button onClick={() => setDrawerTab('documents')} className={`whitespace-nowrap pb-3 text-[11px] font-black uppercase tracking-widest border-b-2 transition-all flex items-center gap-2 ${drawerTab === 'documents' ? 'border-purple-600 text-purple-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
-                                    <span className="material-symbols-outlined text-[14px]">description</span>
-                                    Documents
-                                </button>
-                                <button onClick={() => setDrawerTab('notes')} className={`whitespace-nowrap pb-3 text-[11px] font-black uppercase tracking-widest border-b-2 transition-all flex items-center gap-2 ${drawerTab === 'notes' ? 'border-purple-600 text-purple-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
-                                    <span className="material-symbols-outlined text-[14px]">note</span>
-                                    Admin Notes
-                                </button>
-                                <button onClick={() => setDrawerTab('history')} className={`whitespace-nowrap pb-3 text-[11px] font-black uppercase tracking-widest border-b-2 transition-all flex items-center gap-2 ${drawerTab === 'history' ? 'border-purple-600 text-purple-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
-                                    <span className="material-symbols-outlined text-[14px]">timeline</span>
-                                    Timeline
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar">
-                            {drawerTab === 'details' ? (
-                                <>
-                                    <div className="space-y-6">
-                                        <div className="flex items-center gap-3 mb-4">
-                                            <span className="material-symbols-outlined text-purple-600 text-[20px]">person</span>
-                                            <h3 className="text-[13px] font-bold text-gray-900 uppercase tracking-wide">Applicant Details</h3>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-y-4 gap-x-6 bg-purple-50/30 p-6 rounded-lg border border-purple-100">
-                                            <DetailRow label="Full Name" value={`${selectedApp.firstName || ''} ${selectedApp.lastName || ''}`.trim() || '—'} />
-                                            <DetailRow label="Email Address" value={selectedApp.email || '—'} />
-                                            <DetailRow label="Phone Number" value={selectedApp.phone || selectedApp.mobile || '—'} />
-                                            <DetailRow label="Date of Birth" value={(() => {
-                                                const rawDob = selectedApp.dateOfBirth || selectedApp.dob || selectedApp.user?.dateOfBirth || selectedApp.user?.dob;
-                                                if (!rawDob) return '—';
-                                                try {
-                                                    const p = new Date(rawDob);
-                                                    return isNaN(p.getTime()) ? String(rawDob) : format(p, 'dd MMM yyyy');
-                                                } catch {
-                                                    return String(rawDob);
-                                                }
-                                            })()} />
-                                            <DetailRow label="Gender" value={(() => {
-                                                const g = selectedApp.gender || selectedApp.user?.gender;
-                                                if (!g) return '—';
-                                                return g.charAt(0).toUpperCase() + g.slice(1).toLowerCase();
-                                            })()} />
-                                            <div>
-                                                <DetailRow label="Address" value={selectedApp.address || '—'} />
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 rounded-lg bg-slate-900 flex items-center justify-center text-white shadow-lg shadow-slate-900/20">
+                                                    <span className="material-symbols-outlined text-[20px]">description</span>
+                                                </div>
+                                                <div>
+                                                    <h2 className="text-[20px] font-bold text-slate-900 tracking-tight">Application Profile</h2>
+                                                    <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Ref: {selectedApp.applicationNumber || `${selectedApp.id?.substring(0, 8)} (Pre-bank)`}</p>
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-
-                                    <div className="space-y-6">
-                                        <div className="flex items-center gap-3 mb-4">
-                                            <span className="material-symbols-outlined text-purple-600 text-[20px]">account_balance</span>
-                                            <h3 className="text-[13px] font-bold text-gray-900 uppercase tracking-wide">Loan Details</h3>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-y-4 gap-x-6 bg-purple-50/30 p-6 rounded-lg border border-purple-100">
-                                            <DetailRow 
-                                                label="Bank Partner" 
-                                                value={(() => {
-                                                    const raw = selectedApp.bank || selectedApp.partnerBank || selectedApp.user?.bank;
-                                                    if (raw && !['any bank', 'any', '-', 'pending partner', 'n/a', 'not assigned', 'unassigned'].includes(raw.toLowerCase().trim())) {
-                                                        const b = getAssignedBank(selectedApp);
-                                                        return b ? `${b.name} (${b.shortName})` : raw;
-                                                    }
-                                                    return 'Not Assigned';
-                                                })()} 
-                                            />
-                                            <DetailRow 
-                                                label="Field of Study" 
-                                                value={(() => {
-                                                    const val = selectedApp.loanType || selectedApp.fieldOfStudy || selectedApp.courseType || selectedApp.programFocus || selectedApp.courseName || selectedApp.course;
-                                                    if (!val) return '—';
-                                                    const clean = String(val).trim();
-                                                    if (/^undergraduate(\s*abroad)?$/i.test(clean)) return 'Undergraduate Abroad';
-                                                    if (/^postgraduate(\s*abroad)?$/i.test(clean)) return 'Postgraduate Abroad';
-                                                    if (/^(doctoral|doctorate|phd)(\s*abroad)?$/i.test(clean) || clean.toLowerCase() === 'doctoral/phd abroad') return 'Doctoral/PhD Abroad';
-                                                    if (/^professional(\s*course)?$/i.test(clean)) return 'Professional Course';
-                                                    return clean;
-                                                })()} 
-                                            />
-                                            <DetailRow label="Loan Amount" value={selectedApp.amount ? new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(selectedApp.amount) : '—'} highlight />
-                                            <DetailRow label="University" value={selectedApp.universityName || selectedApp.targetUniversity || '—'} />
-                                            <DetailRow label="Country" value={selectedApp.country || selectedApp.studyDestination || '—'} />
-                                            <DetailRow 
-                                                label="Applied On" 
-                                                value={(() => {
-                                                    const rawDate = selectedApp.appliedOn || selectedApp.appliedDate || selectedApp.submittedAt || selectedApp.createdAt || selectedApp.created_at || selectedApp.lanEnteredAt;
-                                                    if (!rawDate) return '—';
-                                                    try {
-                                                        const parsed = new Date(rawDate);
-                                                        return isNaN(parsed.getTime()) ? '—' : format(parsed, 'dd MMM yyyy');
-                                                    } catch {
-                                                        return '—';
-                                                    }
-                                                })()} 
-                                            />
+                                        <div className="flex items-center gap-3">
+                                            <span className={`inline-flex items-center px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest border ${selectedApp.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
+                                                selectedApp.status === 'rejected' ? 'bg-rose-50 text-rose-700 border-rose-100' :
+                                                    'bg-blue-50 text-blue-700 border-blue-100'
+                                                }`}>{selectedApp.status}</span>
+                                            <button onClick={() => { setSelectedApp(null); setAiReview(null); setDrawerTab('details'); }} className="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-all border border-transparent hover:border-slate-100">
+                                                <span className="material-symbols-outlined">close</span>
+                                            </button>
                                         </div>
                                     </div>
+                                    <div className="flex gap-8 overflow-x-auto pb-2">
+                                        <button onClick={() => setDrawerTab('details')} className={`whitespace-nowrap pb-3 text-[11px] font-black uppercase tracking-widest border-b-2 transition-all ${drawerTab === 'details' ? 'border-purple-600 text-purple-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>Applicant Info</button>
+                                        <button onClick={() => setDrawerTab('documents')} className={`whitespace-nowrap pb-3 text-[11px] font-black uppercase tracking-widest border-b-2 transition-all flex items-center gap-2 ${drawerTab === 'documents' ? 'border-purple-600 text-purple-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
+                                            <span className="material-symbols-outlined text-[14px]">description</span>
+                                            Documents
+                                        </button>
+                                        <button onClick={() => setDrawerTab('notes')} className={`whitespace-nowrap pb-3 text-[11px] font-black uppercase tracking-widest border-b-2 transition-all flex items-center gap-2 ${drawerTab === 'notes' ? 'border-purple-600 text-purple-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
+                                            <span className="material-symbols-outlined text-[14px]">note</span>
+                                            Admin Notes
+                                        </button>
+                                        <button onClick={() => setDrawerTab('history')} className={`whitespace-nowrap pb-3 text-[11px] font-black uppercase tracking-widest border-b-2 transition-all flex items-center gap-2 ${drawerTab === 'history' ? 'border-purple-600 text-purple-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
+                                            <span className="material-symbols-outlined text-[14px]">timeline</span>
+                                            Timeline
+                                        </button>
+                                    </div>
+                                </div>
 
-                                    {/* Application Metadata & Source */}
-                                    <div className="space-y-6">
-                                        <div className="flex items-center gap-3 mb-4">
-                                            <span className="material-symbols-outlined text-blue-600 text-[20px]">info</span>
-                                            <h3 className="text-[13px] font-bold text-gray-900 uppercase tracking-wide">Application Source & Metadata</h3>
-                                        </div>
-                                        <div className="grid grid-cols-1 gap-4 bg-blue-50/30 p-6 rounded-lg border border-blue-100">
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div className="flex flex-col gap-1">
-                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Application ID</span>
-                                                    <span className="text-[13px] font-bold text-blue-600 font-mono">{selectedApp.applicationNumber || selectedApp.id?.substring(0, 12) || '—'}</span>
+                                <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar">
+                                    {drawerTab === 'details' ? (
+                                        <>
+                                            <div className="space-y-6">
+                                                <div className="flex items-center gap-3 mb-4">
+                                                    <span className="material-symbols-outlined text-purple-600 text-[20px]">person</span>
+                                                    <h3 className="text-[13px] font-bold text-gray-900 uppercase tracking-wide">Applicant Details</h3>
                                                 </div>
-                                                <div className="flex flex-col gap-1">
-                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Reference ID</span>
-                                                    <span className="text-[13px] font-bold text-slate-900">{selectedApp.referenceId || '—'}</span>
+                                                <div className="grid grid-cols-2 gap-y-4 gap-x-6 bg-purple-50/30 p-6 rounded-lg border border-purple-100">
+                                                    <DetailRow label="Full Name" value={`${selectedApp.firstName || ''} ${selectedApp.lastName || ''}`.trim() || '—'} />
+                                                    <DetailRow label="Email Address" value={selectedApp.email || '—'} />
+                                                    <DetailRow label="Phone Number" value={selectedApp.phone || selectedApp.mobile || '—'} />
+                                                    <DetailRow label="Date of Birth" value={(() => {
+                                                        const rawDob = selectedApp.dateOfBirth || selectedApp.dob || selectedApp.user?.dateOfBirth || selectedApp.user?.dob;
+                                                        if (!rawDob) return '—';
+                                                        try {
+                                                            const p = new Date(rawDob);
+                                                            return isNaN(p.getTime()) ? String(rawDob) : format(p, 'dd MMM yyyy');
+                                                        } catch {
+                                                            return String(rawDob);
+                                                        }
+                                                    })()} />
+                                                    <DetailRow label="Gender" value={(() => {
+                                                        const g = selectedApp.gender || selectedApp.user?.gender;
+                                                        if (!g) return '—';
+                                                        return g.charAt(0).toUpperCase() + g.slice(1).toLowerCase();
+                                                    })()} />
+                                                    <div>
+                                                        <DetailRow label="Address" value={selectedApp.address || '—'} />
+                                                    </div>
                                                 </div>
                                             </div>
 
-                                            <div className="pt-4 border-t border-blue-100 grid grid-cols-1 gap-4">
-                                                {/* Staff Information */}
-                                                <div className="flex items-start gap-3 p-4 bg-white rounded-lg border border-blue-100">
-                                                    <span className="material-symbols-outlined text-blue-600 text-[20px] flex-shrink-0">person</span>
-                                                    <div className="flex-1">
-                                                        <div className="flex items-center justify-between mb-1">
-                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Processing Staff</p>
-                                                            {['sanctioned', 'conditional_sanction', 'partial_sanction', 'disbursed', 'partially_disbursed', 'approved'].includes((selectedApp.status || '').toLowerCase()) ? (
-                                                                <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 inline-flex items-center gap-1" title="Sanctioned application — staff assignment is locked">
-                                                                    🔒 Locked (Sanctioned)
-                                                                </span>
-                                                            ) : (
-                                                                (() => {
+                                            <div className="space-y-6">
+                                                <div className="flex items-center gap-3 mb-4">
+                                                    <span className="material-symbols-outlined text-purple-600 text-[20px]">account_balance</span>
+                                                    <h3 className="text-[13px] font-bold text-gray-900 uppercase tracking-wide">Loan Details</h3>
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-y-4 gap-x-6 bg-purple-50/30 p-6 rounded-lg border border-purple-100">
+                                                    <DetailRow
+                                                        label="Bank Partner"
+                                                        value={(() => {
+                                                            const raw = selectedApp.bank || selectedApp.partnerBank || selectedApp.user?.bank;
+                                                            if (raw && !['any bank', 'any', '-', 'pending partner', 'n/a', 'not assigned', 'unassigned'].includes(raw.toLowerCase().trim())) {
+                                                                const b = getAssignedBank(selectedApp);
+                                                                return b ? `${b.name} (${b.shortName})` : raw;
+                                                            }
+                                                            return 'Not Assigned';
+                                                        })()}
+                                                    />
+                                                    <DetailRow
+                                                        label="Field of Study"
+                                                        value={(() => {
+                                                            const val = selectedApp.loanType || selectedApp.fieldOfStudy || selectedApp.courseType || selectedApp.programFocus || selectedApp.courseName || selectedApp.course;
+                                                            if (!val) return '—';
+                                                            const clean = String(val).trim();
+                                                            if (/^undergraduate(\s*abroad)?$/i.test(clean)) return 'Undergraduate Abroad';
+                                                            if (/^postgraduate(\s*abroad)?$/i.test(clean)) return 'Postgraduate Abroad';
+                                                            if (/^(doctoral|doctorate|phd)(\s*abroad)?$/i.test(clean) || clean.toLowerCase() === 'doctoral/phd abroad') return 'Doctoral/PhD Abroad';
+                                                            if (/^professional(\s*course)?$/i.test(clean)) return 'Professional Course';
+                                                            return clean;
+                                                        })()}
+                                                    />
+                                                    <DetailRow label="Loan Amount" value={selectedApp.amount ? new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(selectedApp.amount) : '—'} highlight />
+                                                    <DetailRow label="University" value={selectedApp.universityName || selectedApp.targetUniversity || '—'} />
+                                                    <DetailRow label="Country" value={selectedApp.country || selectedApp.studyDestination || '—'} />
+                                                    <DetailRow
+                                                        label="Applied On"
+                                                        value={(() => {
+                                                            const rawDate = selectedApp.appliedOn || selectedApp.appliedDate || selectedApp.submittedAt || selectedApp.createdAt || selectedApp.created_at || selectedApp.lanEnteredAt;
+                                                            if (!rawDate) return '—';
+                                                            try {
+                                                                const parsed = new Date(rawDate);
+                                                                return isNaN(parsed.getTime()) ? '—' : format(parsed, 'dd MMM yyyy');
+                                                            } catch {
+                                                                return '—';
+                                                            }
+                                                        })()}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {/* Application Metadata & Source */}
+                                            <div className="space-y-6">
+                                                <div className="flex items-center gap-3 mb-4">
+                                                    <span className="material-symbols-outlined text-blue-600 text-[20px]">info</span>
+                                                    <h3 className="text-[13px] font-bold text-gray-900 uppercase tracking-wide">Application Source & Metadata</h3>
+                                                </div>
+                                                <div className="grid grid-cols-1 gap-4 bg-blue-50/30 p-6 rounded-lg border border-blue-100">
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div className="flex flex-col gap-1">
+                                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Application ID</span>
+                                                            <span className="text-[13px] font-bold text-blue-600 font-mono">{selectedApp.applicationNumber || selectedApp.id?.substring(0, 12) || '—'}</span>
+                                                        </div>
+                                                        <div className="flex flex-col gap-1">
+                                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Reference ID</span>
+                                                            <span className="text-[13px] font-bold text-slate-900">{selectedApp.referenceId || '—'}</span>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="pt-4 border-t border-blue-100 grid grid-cols-1 gap-4">
+                                                        {/* Staff Information */}
+                                                        <div className="flex items-start gap-3 p-4 bg-white rounded-lg border border-blue-100">
+                                                            <span className="material-symbols-outlined text-blue-600 text-[20px] flex-shrink-0">person</span>
+                                                            <div className="flex-1">
+                                                                <div className="flex items-center justify-between mb-1">
+                                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Processing Staff</p>
+                                                                    {['sanctioned', 'conditional_sanction', 'partial_sanction', 'disbursed', 'partially_disbursed', 'approved'].includes((selectedApp.status || '').toLowerCase()) ? (
+                                                                        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 inline-flex items-center gap-1" title="Sanctioned application — staff assignment is locked">
+                                                                            🔒 Locked (Sanctioned)
+                                                                        </span>
+                                                                    ) : (
+                                                                        (() => {
+                                                                            const drawerMatchedStaff = staffMembers.find((s: any) =>
+                                                                                s.id === selectedApp.assignedStaffId ||
+                                                                                s.linkedUserId === selectedApp.assignedStaffId ||
+                                                                                s.email === selectedApp.assignedStaffId ||
+                                                                                `${s.firstName || ''} ${s.lastName || ''}`.trim() === selectedApp.staffName
+                                                                            );
+                                                                            return (
+                                                                                <select
+                                                                                    value={drawerMatchedStaff ? drawerMatchedStaff.id : (selectedApp.assignedStaffId || '')}
+                                                                                    disabled={reassigningAppId === selectedApp.id}
+                                                                                    onChange={(e) => handleReassignStaff(selectedApp.id, e.target.value)}
+                                                                                    className="px-2 py-0.5 text-[10px] font-semibold bg-white border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700 cursor-pointer"
+                                                                                >
+                                                                                    <option value="" disabled>-- Reassign Staff --</option>
+                                                                                    {staffMembers.map((s: any) => {
+                                                                                        const isResigned = s.isResigned || s.status === 'resigned' || s.status === 'inactive' || s.status === 'invalid';
+                                                                                        const name = `${s.firstName || s.email} ${s.lastName || ''}`.trim();
+                                                                                        const label = isResigned && !name.includes('(Invalid)') ? `${name} (Invalid)` : name;
+                                                                                        return (
+                                                                                            <option key={s.id} value={s.id}>
+                                                                                                {label}
+                                                                                            </option>
+                                                                                        );
+                                                                                    })}
+                                                                                </select>
+                                                                            );
+                                                                        })()
+                                                                    )}
+                                                                </div>
+                                                                {(() => {
                                                                     const drawerMatchedStaff = staffMembers.find((s: any) =>
                                                                         s.id === selectedApp.assignedStaffId ||
                                                                         s.linkedUserId === selectedApp.assignedStaffId ||
                                                                         s.email === selectedApp.assignedStaffId ||
                                                                         `${s.firstName || ''} ${s.lastName || ''}`.trim() === selectedApp.staffName
                                                                     );
-                                                                    return (
-                                                                        <select
-                                                                            value={drawerMatchedStaff ? drawerMatchedStaff.id : (selectedApp.assignedStaffId || '')}
-                                                                            disabled={reassigningAppId === selectedApp.id}
-                                                                            onChange={(e) => handleReassignStaff(selectedApp.id, e.target.value)}
-                                                                            className="px-2 py-0.5 text-[10px] font-semibold bg-white border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700 cursor-pointer"
-                                                                        >
-                                                                            <option value="" disabled>-- Reassign Staff --</option>
-                                                                            {staffMembers.map((s: any) => {
-                                                                                const isResigned = s.isResigned || s.status === 'resigned' || s.status === 'inactive' || s.status === 'invalid';
-                                                                                const name = `${s.firstName || s.email} ${s.lastName || ''}`.trim();
-                                                                                const label = isResigned && !name.includes('(Invalid)') ? `${name} (Invalid)` : name;
-                                                                                return (
-                                                                                    <option key={s.id} value={s.id}>
-                                                                                        {label}
-                                                                                    </option>
-                                                                                );
-                                                                            })}
-                                                                        </select>
-                                                                    );
-                                                                })()
-                                                            )}
+                                                                    const name = drawerMatchedStaff ? `${drawerMatchedStaff.firstName || ''} ${drawerMatchedStaff.lastName || ''}`.trim() || drawerMatchedStaff.email : (selectedApp.staffName || selectedApp.processingStaff || 'Unassigned');
+                                                                    return <p className="text-[12px] font-bold text-slate-900">{name}</p>;
+                                                                })()}
+                                                                {selectedApp.staffId && <p className="text-[10px] text-slate-500 font-medium mt-1">Staff ID: {selectedApp.staffId}</p>}
+                                                                {selectedApp.staffEmail && <p className="text-[10px] text-slate-500 font-medium">{selectedApp.staffEmail}</p>}
+                                                            </div>
                                                         </div>
+
+                                                        {/* Dynamic Region / Location Information */}
                                                         {(() => {
-                                                            const drawerMatchedStaff = staffMembers.find((s: any) =>
-                                                                s.id === selectedApp.assignedStaffId ||
-                                                                s.linkedUserId === selectedApp.assignedStaffId ||
-                                                                s.email === selectedApp.assignedStaffId ||
-                                                                `${s.firstName || ''} ${s.lastName || ''}`.trim() === selectedApp.staffName
+                                                            const city = selectedApp.city || selectedApp.user?.city || '';
+                                                            const state = selectedApp.state || selectedApp.user?.state || '';
+                                                            const pincode = selectedApp.pincode || selectedApp.user?.pincode || '';
+                                                            const address = selectedApp.address || selectedApp.user?.address || '';
+                                                            const country = selectedApp.nationality || 'India';
+                                                            const studyTarget = selectedApp.country || selectedApp.studyDestination || '';
+
+                                                            const getIndianZone = (stateName: string) => {
+                                                                if (!stateName) return null;
+                                                                const s = stateName.toLowerCase();
+                                                                if (['telangana', 'andhra', 'karnataka', 'tamil nadu', 'kerala', 'puducherry'].some(x => s.includes(x))) return 'South India Zone';
+                                                                if (['maharashtra', 'gujarat', 'goa', 'rajasthan'].some(x => s.includes(x))) return 'West India Zone';
+                                                                if (['delhi', 'punjab', 'haryana', 'uttar pradesh', 'uttarakhand', 'himachal', 'jammu', 'chandigarh'].some(x => s.includes(x))) return 'North India Zone';
+                                                                if (['west bengal', 'bihar', 'odisha', 'jharkhand', 'assam', 'sikkim', 'meghalaya', 'tripura', 'manipur'].some(x => s.includes(x))) return 'East / North-East Zone';
+                                                                if (['madhya pradesh', 'chhattisgarh'].some(x => s.includes(x))) return 'Central India Zone';
+                                                                return `${stateName} Zone`;
+                                                            };
+
+                                                            const zoneLabel = selectedApp.region || getIndianZone(state) || (state ? `${state} Zone` : (city ? `${city} Region` : 'Domestic (India)'));
+                                                            const formattedLocation = [city, state].filter(Boolean).join(', ') || state || city || 'Location not specified';
+
+                                                            return (
+                                                                <div className="flex items-start gap-3.5 p-4 bg-white rounded-lg border border-emerald-100 shadow-2xs hover:border-emerald-200 transition-colors">
+                                                                    <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 flex-shrink-0 mt-0.5">
+                                                                        <span className="material-symbols-outlined text-[18px]">location_on</span>
+                                                                    </div>
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <div className="flex items-center justify-between mb-1 gap-2 flex-wrap">
+                                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Region / Location</p>
+                                                                            <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                                                {zoneLabel}
+                                                                            </span>
+                                                                        </div>
+                                                                        <p className="text-[13px] font-bold text-slate-900 truncate">{formattedLocation}</p>
+
+                                                                        <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-100 text-[10px]">
+                                                                            <div>
+                                                                                <span className="text-slate-400 font-medium block">Origin Country:</span>
+                                                                                <span className="font-semibold text-slate-700">{country} {pincode ? `(PIN: ${pincode})` : ''}</span>
+                                                                            </div>
+                                                                            {studyTarget && (
+                                                                                <div>
+                                                                                    <span className="text-slate-400 font-medium block">Target Destination:</span>
+                                                                                    <span className="font-semibold text-indigo-600">✈️ {studyTarget}</span>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+
+                                                                        {address && (
+                                                                            <div className="mt-2 text-[10px] text-slate-500 bg-slate-50 p-2 rounded border border-slate-100">
+                                                                                <span className="font-bold text-slate-600">Address: </span>
+                                                                                {address}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
                                                             );
-                                                            const name = drawerMatchedStaff ? `${drawerMatchedStaff.firstName || ''} ${drawerMatchedStaff.lastName || ''}`.trim() || drawerMatchedStaff.email : (selectedApp.staffName || selectedApp.processingStaff || 'Unassigned');
-                                                            return <p className="text-[12px] font-bold text-slate-900">{name}</p>;
                                                         })()}
-                                                        {selectedApp.staffId && <p className="text-[10px] text-slate-500 font-medium mt-1">Staff ID: {selectedApp.staffId}</p>}
-                                                        {selectedApp.staffEmail && <p className="text-[10px] text-slate-500 font-medium">{selectedApp.staffEmail}</p>}
-                                                    </div>
-                                                </div>
 
-                                                {/* Dynamic Region / Location Information */}
-                                                {(() => {
-                                                    const city = selectedApp.city || selectedApp.user?.city || '';
-                                                    const state = selectedApp.state || selectedApp.user?.state || '';
-                                                    const pincode = selectedApp.pincode || selectedApp.user?.pincode || '';
-                                                    const address = selectedApp.address || selectedApp.user?.address || '';
-                                                    const country = selectedApp.nationality || 'India';
-                                                    const studyTarget = selectedApp.country || selectedApp.studyDestination || '';
-
-                                                    const getIndianZone = (stateName: string) => {
-                                                        if (!stateName) return null;
-                                                        const s = stateName.toLowerCase();
-                                                        if (['telangana', 'andhra', 'karnataka', 'tamil nadu', 'kerala', 'puducherry'].some(x => s.includes(x))) return 'South India Zone';
-                                                        if (['maharashtra', 'gujarat', 'goa', 'rajasthan'].some(x => s.includes(x))) return 'West India Zone';
-                                                        if (['delhi', 'punjab', 'haryana', 'uttar pradesh', 'uttarakhand', 'himachal', 'jammu', 'chandigarh'].some(x => s.includes(x))) return 'North India Zone';
-                                                        if (['west bengal', 'bihar', 'odisha', 'jharkhand', 'assam', 'sikkim', 'meghalaya', 'tripura', 'manipur'].some(x => s.includes(x))) return 'East / North-East Zone';
-                                                        if (['madhya pradesh', 'chhattisgarh'].some(x => s.includes(x))) return 'Central India Zone';
-                                                        return `${stateName} Zone`;
-                                                    };
-
-                                                    const zoneLabel = selectedApp.region || getIndianZone(state) || (state ? `${state} Zone` : (city ? `${city} Region` : 'Domestic (India)'));
-                                                    const formattedLocation = [city, state].filter(Boolean).join(', ') || state || city || 'Location not specified';
-
-                                                    return (
-                                                        <div className="flex items-start gap-3.5 p-4 bg-white rounded-lg border border-emerald-100 shadow-2xs hover:border-emerald-200 transition-colors">
-                                                            <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 flex-shrink-0 mt-0.5">
-                                                                <span className="material-symbols-outlined text-[18px]">location_on</span>
+                                                        {/* Dynamic Assigned Counselor Information */}
+                                                        <div className="flex items-start gap-3.5 p-4 bg-white rounded-lg border border-amber-100 shadow-2xs hover:border-amber-200 transition-colors">
+                                                            <div className="w-8 h-8 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 flex-shrink-0 mt-0.5">
+                                                                <span className="material-symbols-outlined text-[18px]">support_agent</span>
                                                             </div>
                                                             <div className="flex-1 min-w-0">
                                                                 <div className="flex items-center justify-between mb-1 gap-2 flex-wrap">
-                                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Region / Location</p>
-                                                                    <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                                                        {zoneLabel}
-                                                                    </span>
-                                                                </div>
-                                                                <p className="text-[13px] font-bold text-slate-900 truncate">{formattedLocation}</p>
-                                                                
-                                                                <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-100 text-[10px]">
-                                                                    <div>
-                                                                        <span className="text-slate-400 font-medium block">Origin Country:</span>
-                                                                        <span className="font-semibold text-slate-700">{country} {pincode ? `(PIN: ${pincode})` : ''}</span>
-                                                                    </div>
-                                                                    {studyTarget && (
-                                                                        <div>
-                                                                            <span className="text-slate-400 font-medium block">Target Destination:</span>
-                                                                            <span className="font-semibold text-indigo-600">✈️ {studyTarget}</span>
-                                                                        </div>
-                                                                    )}
+                                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Assigned Counselor</p>
+                                                                    <select
+                                                                        value={
+                                                                            selectedApp.counselorId ||
+                                                                            staffMembers.find((s: any) =>
+                                                                                s.id === selectedApp.counselorId ||
+                                                                                `${s.firstName || ''} ${s.lastName || ''}`.trim() === (selectedApp.counselorName || selectedApp.counselor)
+                                                                            )?.id || ''
+                                                                        }
+                                                                        disabled={reassigningCounselorAppId === selectedApp.id}
+                                                                        onChange={(e) => handleReassignCounselor(selectedApp.id, e.target.value)}
+                                                                        className="px-2 py-0.5 text-[10px] font-semibold bg-white border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-700 cursor-pointer"
+                                                                    >
+                                                                        <option value="" disabled>-- Assign Counselor --</option>
+                                                                        {staffMembers.map((s: any) => {
+                                                                            const isResigned = s.isResigned || s.status === 'resigned' || s.status === 'inactive' || s.status === 'invalid';
+                                                                            const name = `${s.firstName || s.email} ${s.lastName || ''}`.trim();
+                                                                            const label = isResigned && !name.includes('(Invalid)') ? `${name} (Invalid)` : name;
+                                                                            return (
+                                                                                <option key={s.id} value={s.id}>
+                                                                                    {label}
+                                                                                </option>
+                                                                            );
+                                                                        })}
+                                                                    </select>
                                                                 </div>
 
-                                                                {address && (
-                                                                    <div className="mt-2 text-[10px] text-slate-500 bg-slate-50 p-2 rounded border border-slate-100">
-                                                                        <span className="font-bold text-slate-600">Address: </span>
-                                                                        {address}
-                                                                    </div>
-                                                                )}
+                                                                {(() => {
+                                                                    const matchedCounselor = staffMembers.find((s: any) =>
+                                                                        s.id === selectedApp.counselorId ||
+                                                                        s.email === selectedApp.counselorEmail ||
+                                                                        `${s.firstName || ''} ${s.lastName || ''}`.trim() === (selectedApp.counselorName || selectedApp.counselor)
+                                                                    );
+                                                                    const counselorName = matchedCounselor
+                                                                        ? `${matchedCounselor.firstName || ''} ${matchedCounselor.lastName || ''}`.trim() || matchedCounselor.email
+                                                                        : (selectedApp.counselorName || selectedApp.counselor || '');
+                                                                    const counselorEmail = matchedCounselor?.email || selectedApp.counselorEmail;
+                                                                    const counselorPhone = matchedCounselor?.phoneNumber || matchedCounselor?.mobile || selectedApp.counselorPhone;
+
+                                                                    if (counselorName) {
+                                                                        return (
+                                                                            <div>
+                                                                                <div className="flex items-center gap-2 mt-0.5">
+                                                                                    <p className="text-[12px] font-bold text-slate-900">{counselorName}</p>
+                                                                                    <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                                                                        Student Advisor
+                                                                                    </span>
+                                                                                </div>
+                                                                                <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-100 text-[10px]">
+                                                                                    {counselorEmail && (
+                                                                                        <p className="text-slate-500 font-medium truncate flex items-center gap-1">
+                                                                                            <span className="material-symbols-outlined text-[13px] text-slate-400">mail</span>
+                                                                                            {counselorEmail}
+                                                                                        </p>
+                                                                                    )}
+                                                                                    {counselorPhone && (
+                                                                                        <p className="text-slate-500 font-medium truncate flex items-center gap-1">
+                                                                                            <span className="material-symbols-outlined text-[13px] text-slate-400">call</span>
+                                                                                            {counselorPhone}
+                                                                                        </p>
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+                                                                        );
+                                                                    }
+
+                                                                    return (
+                                                                        <div className="mt-1">
+                                                                            <p className="text-[11px] text-amber-700 font-medium bg-amber-50/60 p-2 rounded border border-amber-100/80">
+                                                                                No counselor currently assigned. Select a staff member from the dropdown above to assign dedicated student guidance.
+                                                                            </p>
+                                                                        </div>
+                                                                    );
+                                                                })()}
                                                             </div>
                                                         </div>
-                                                    );
-                                                })()}
-
-                                                {/* Dynamic Assigned Counselor Information */}
-                                                <div className="flex items-start gap-3.5 p-4 bg-white rounded-lg border border-amber-100 shadow-2xs hover:border-amber-200 transition-colors">
-                                                    <div className="w-8 h-8 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 flex-shrink-0 mt-0.5">
-                                                        <span className="material-symbols-outlined text-[18px]">support_agent</span>
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center justify-between mb-1 gap-2 flex-wrap">
-                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Assigned Counselor</p>
-                                                            <select
-                                                                value={
-                                                                    selectedApp.counselorId ||
-                                                                    staffMembers.find((s: any) => 
-                                                                        s.id === selectedApp.counselorId || 
-                                                                        `${s.firstName || ''} ${s.lastName || ''}`.trim() === (selectedApp.counselorName || selectedApp.counselor)
-                                                                    )?.id || ''
-                                                                }
-                                                                disabled={reassigningCounselorAppId === selectedApp.id}
-                                                                onChange={(e) => handleReassignCounselor(selectedApp.id, e.target.value)}
-                                                                className="px-2 py-0.5 text-[10px] font-semibold bg-white border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-700 cursor-pointer"
-                                                            >
-                                                                <option value="" disabled>-- Assign Counselor --</option>
-                                                                {staffMembers.map((s: any) => {
-                                                                    const isResigned = s.isResigned || s.status === 'resigned' || s.status === 'inactive' || s.status === 'invalid';
-                                                                    const name = `${s.firstName || s.email} ${s.lastName || ''}`.trim();
-                                                                    const label = isResigned && !name.includes('(Invalid)') ? `${name} (Invalid)` : name;
-                                                                    return (
-                                                                        <option key={s.id} value={s.id}>
-                                                                            {label}
-                                                                        </option>
-                                                                    );
-                                                                })}
-                                                            </select>
-                                                        </div>
-
-                                                        {(() => {
-                                                            const matchedCounselor = staffMembers.find((s: any) =>
-                                                                s.id === selectedApp.counselorId ||
-                                                                s.email === selectedApp.counselorEmail ||
-                                                                `${s.firstName || ''} ${s.lastName || ''}`.trim() === (selectedApp.counselorName || selectedApp.counselor)
-                                                            );
-                                                            const counselorName = matchedCounselor
-                                                                ? `${matchedCounselor.firstName || ''} ${matchedCounselor.lastName || ''}`.trim() || matchedCounselor.email
-                                                                : (selectedApp.counselorName || selectedApp.counselor || '');
-                                                            const counselorEmail = matchedCounselor?.email || selectedApp.counselorEmail;
-                                                            const counselorPhone = matchedCounselor?.phoneNumber || matchedCounselor?.mobile || selectedApp.counselorPhone;
-
-                                                            if (counselorName) {
-                                                                return (
-                                                                    <div>
-                                                                        <div className="flex items-center gap-2 mt-0.5">
-                                                                            <p className="text-[12px] font-bold text-slate-900">{counselorName}</p>
-                                                                            <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                                                                                Student Advisor
-                                                                            </span>
-                                                                        </div>
-                                                                        <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-100 text-[10px]">
-                                                                            {counselorEmail && (
-                                                                                <p className="text-slate-500 font-medium truncate flex items-center gap-1">
-                                                                                    <span className="material-symbols-outlined text-[13px] text-slate-400">mail</span>
-                                                                                    {counselorEmail}
-                                                                                </p>
-                                                                            )}
-                                                                            {counselorPhone && (
-                                                                                <p className="text-slate-500 font-medium truncate flex items-center gap-1">
-                                                                                    <span className="material-symbols-outlined text-[13px] text-slate-400">call</span>
-                                                                                    {counselorPhone}
-                                                                                </p>
-                                                                            )}
-                                                                        </div>
-                                                                    </div>
-                                                                );
-                                                            }
-
-                                                            return (
-                                                                <div className="mt-1">
-                                                                    <p className="text-[11px] text-amber-700 font-medium bg-amber-50/60 p-2 rounded border border-amber-100/80">
-                                                                        No counselor currently assigned. Select a staff member from the dropdown above to assign dedicated student guidance.
-                                                                    </p>
-                                                                </div>
-                                                            );
-                                                        })()}
                                                     </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    </div>
 
-                                </>
-                            ) : drawerTab === 'documents' ? (
-                                <div className="space-y-6">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <div className="flex items-center gap-3">
-                                            <span className="material-symbols-outlined text-purple-600 text-[20px]">description</span>
-                                            <h3 className="text-[13px] font-bold text-gray-900 uppercase tracking-wide">Attached Documents</h3>
-                                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
-                                                {drawerDocs.length} files
-                                            </span>
-                                        </div>
-                                        <button
-                                            onClick={() => fetchDrawerApplicationData(selectedApp.id)}
-                                            disabled={drawerDocsLoading}
-                                            className="p-1.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-all cursor-pointer"
-                                            title="Refresh Documents"
-                                        >
-                                            <span className={`material-symbols-outlined text-[18px] ${drawerDocsLoading ? 'animate-spin text-purple-600' : ''}`}>refresh</span>
-                                        </button>
-                                    </div>
+                                        </>
+                                    ) : drawerTab === 'documents' ? (
+                                        <div className="space-y-6">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <div className="flex items-center gap-3">
+                                                    <span className="material-symbols-outlined text-purple-600 text-[20px]">description</span>
+                                                    <h3 className="text-[13px] font-bold text-gray-900 uppercase tracking-wide">Attached Documents</h3>
+                                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                                                        {drawerDocs.length} files
+                                                    </span>
+                                                </div>
+                                                <button
+                                                    onClick={() => fetchDrawerApplicationData(selectedApp.id)}
+                                                    disabled={drawerDocsLoading}
+                                                    className="p-1.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-all cursor-pointer"
+                                                    title="Refresh Documents"
+                                                >
+                                                    <span className={`material-symbols-outlined text-[18px] ${drawerDocsLoading ? 'animate-spin text-purple-600' : ''}`}>refresh</span>
+                                                </button>
+                                            </div>
 
-                                    {/* Summary Quick Stats */}
-                                    <div className="grid grid-cols-4 gap-2">
-                                        <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-center">
-                                            <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Total</p>
-                                            <p className="text-[15px] font-bold text-slate-800">{drawerDocs.length}</p>
-                                        </div>
-                                        <div className="p-2.5 rounded-lg bg-emerald-50/60 border border-emerald-200 text-center">
-                                            <p className="text-[9px] font-black uppercase tracking-wider text-emerald-600">Verified</p>
-                                            <p className="text-[15px] font-bold text-emerald-700">{drawerDocs.filter((d: any) => ['verified', 'approved'].includes(d.status)).length}</p>
-                                        </div>
-                                        <div className="p-2.5 rounded-lg bg-amber-50/60 border border-amber-200 text-center">
-                                            <p className="text-[9px] font-black uppercase tracking-wider text-amber-600">Pending</p>
-                                            <p className="text-[15px] font-bold text-amber-700">{drawerDocs.filter((d: any) => ['pending', 'uploaded'].includes(d.status)).length}</p>
-                                        </div>
-                                        <div className="p-2.5 rounded-lg bg-rose-50/60 border border-rose-200 text-center">
-                                            <p className="text-[9px] font-black uppercase tracking-wider text-rose-600">Rejected</p>
-                                            <p className="text-[15px] font-bold text-rose-700">{drawerDocs.filter((d: any) => d.status === 'rejected').length}</p>
-                                        </div>
-                                    </div>
+                                            {/* Summary Quick Stats */}
+                                            <div className="grid grid-cols-4 gap-2">
+                                                <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-center">
+                                                    <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Total</p>
+                                                    <p className="text-[15px] font-bold text-slate-800">{drawerDocs.length}</p>
+                                                </div>
+                                                <div className="p-2.5 rounded-lg bg-emerald-50/60 border border-emerald-200 text-center">
+                                                    <p className="text-[9px] font-black uppercase tracking-wider text-emerald-600">Verified</p>
+                                                    <p className="text-[15px] font-bold text-emerald-700">{drawerDocs.filter((d: any) => ['verified', 'approved'].includes(d.status)).length}</p>
+                                                </div>
+                                                <div className="p-2.5 rounded-lg bg-amber-50/60 border border-amber-200 text-center">
+                                                    <p className="text-[9px] font-black uppercase tracking-wider text-amber-600">Pending</p>
+                                                    <p className="text-[15px] font-bold text-amber-700">{drawerDocs.filter((d: any) => ['pending', 'uploaded'].includes(d.status)).length}</p>
+                                                </div>
+                                                <div className="p-2.5 rounded-lg bg-rose-50/60 border border-rose-200 text-center">
+                                                    <p className="text-[9px] font-black uppercase tracking-wider text-rose-600">Rejected</p>
+                                                    <p className="text-[15px] font-bold text-rose-700">{drawerDocs.filter((d: any) => d.status === 'rejected').length}</p>
+                                                </div>
+                                            </div>
 
-                                    {drawerDocsLoading ? (
-                                        <div className="flex flex-col items-center justify-center py-16 bg-purple-50/30 rounded-lg border border-dashed border-purple-200">
-                                            <div className="w-8 h-8 border-3 border-purple-200 border-t-purple-600 rounded-full animate-spin mb-3" />
-                                            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Loading application documents...</p>
-                                        </div>
-                                    ) : drawerDocs.length === 0 ? (
-                                        <div className="flex flex-col items-center justify-center py-14 bg-slate-50 rounded-lg border border-dashed border-slate-200 text-center px-4">
-                                            <span className="material-symbols-outlined text-4xl text-slate-300 mb-2">folder_off</span>
-                                            <p className="text-[12px] font-bold text-slate-700">No documents found for this application</p>
-                                            <p className="text-[10px] text-slate-400 mt-1 max-w-sm">The applicant has not uploaded documents yet, or documents are pending sync from student vault.</p>
-                                            <button
-                                                onClick={() => fetchDrawerApplicationData(selectedApp.id)}
-                                                className="mt-4 px-3 py-1.5 text-[11px] font-bold bg-white text-purple-600 border border-purple-200 rounded-lg hover:bg-purple-50 transition-all inline-flex items-center gap-1.5 shadow-xs cursor-pointer"
-                                            >
-                                                <span className="material-symbols-outlined text-[14px]">sync</span>
-                                                Check Again
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        <div className="space-y-3">
-                                            {drawerDocs.map((doc: any, i: number) => {
-                                                const docTitle = doc.docName || (doc.docType ? doc.docType.replace(/_/g, ' ').toUpperCase() : 'Document');
-                                                const isUploaded = Boolean(doc.filePath || doc.url || doc.status === 'verified' || doc.status === 'approved' || doc.status === 'pending');
-                                                const docDate = doc.uploadedAt || doc.createdAt || doc.updatedAt;
-                                                return (
-                                                    <div key={doc.id || i} className="p-4 bg-white rounded-lg border border-slate-200 hover:border-purple-200 hover:shadow-xs transition-all">
-                                                        <div className="flex items-start justify-between gap-3">
-                                                            <div className="flex items-start gap-3 min-w-0">
-                                                                <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
-                                                                    ['verified', 'approved'].includes(doc.status) ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
-                                                                    doc.status === 'rejected' ? 'bg-rose-50 text-rose-600 border border-rose-100' :
-                                                                    isUploaded ? 'bg-amber-50 text-amber-600 border border-amber-100' :
-                                                                    'bg-slate-100 text-slate-400 border border-slate-200'
-                                                                }`}>
-                                                                    <span className="material-symbols-outlined text-[18px]">
-                                                                        {['verified', 'approved'].includes(doc.status) ? 'verified' :
-                                                                         doc.status === 'rejected' ? 'error' :
-                                                                         isUploaded ? 'article' : 'upload_file'}
-                                                                    </span>
-                                                                </div>
-                                                                <div className="min-w-0">
-                                                                    <div className="flex items-center gap-2 flex-wrap">
-                                                                        <p className="text-[12px] font-bold text-slate-900 truncate">{docTitle}</p>
-                                                                        {doc.isVaultDoc && (
-                                                                            <span className="px-1.5 py-0.2 rounded text-[8px] font-bold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200">
-                                                                                Vault
+                                            {drawerDocsLoading ? (
+                                                <div className="flex flex-col items-center justify-center py-16 bg-purple-50/30 rounded-lg border border-dashed border-purple-200">
+                                                    <div className="w-8 h-8 border-3 border-purple-200 border-t-purple-600 rounded-full animate-spin mb-3" />
+                                                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Loading application documents...</p>
+                                                </div>
+                                            ) : drawerDocs.length === 0 ? (
+                                                <div className="flex flex-col items-center justify-center py-14 bg-slate-50 rounded-lg border border-dashed border-slate-200 text-center px-4">
+                                                    <span className="material-symbols-outlined text-4xl text-slate-300 mb-2">folder_off</span>
+                                                    <p className="text-[12px] font-bold text-slate-700">No documents found for this application</p>
+                                                    <p className="text-[10px] text-slate-400 mt-1 max-w-sm">The applicant has not uploaded documents yet, or documents are pending sync from student vault.</p>
+                                                    <button
+                                                        onClick={() => fetchDrawerApplicationData(selectedApp.id)}
+                                                        className="mt-4 px-3 py-1.5 text-[11px] font-bold bg-white text-purple-600 border border-purple-200 rounded-lg hover:bg-purple-50 transition-all inline-flex items-center gap-1.5 shadow-xs cursor-pointer"
+                                                    >
+                                                        <span className="material-symbols-outlined text-[14px]">sync</span>
+                                                        Check Again
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-3">
+                                                    {drawerDocs.map((doc: any, i: number) => {
+                                                        const docTitle = doc.docName || (doc.docType ? doc.docType.replace(/_/g, ' ').toUpperCase() : 'Document');
+                                                        const isUploaded = Boolean(doc.filePath || doc.url || doc.status === 'verified' || doc.status === 'approved' || doc.status === 'pending');
+                                                        const docDate = doc.uploadedAt || doc.createdAt || doc.updatedAt;
+                                                        return (
+                                                            <div key={doc.id || i} className="p-4 bg-white rounded-lg border border-slate-200 hover:border-purple-200 hover:shadow-xs transition-all">
+                                                                <div className="flex items-start justify-between gap-3">
+                                                                    <div className="flex items-start gap-3 min-w-0">
+                                                                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${['verified', 'approved'].includes(doc.status) ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
+                                                                                doc.status === 'rejected' ? 'bg-rose-50 text-rose-600 border border-rose-100' :
+                                                                                    isUploaded ? 'bg-amber-50 text-amber-600 border border-amber-100' :
+                                                                                        'bg-slate-100 text-slate-400 border border-slate-200'
+                                                                            }`}>
+                                                                            <span className="material-symbols-outlined text-[18px]">
+                                                                                {['verified', 'approved'].includes(doc.status) ? 'verified' :
+                                                                                    doc.status === 'rejected' ? 'error' :
+                                                                                        isUploaded ? 'article' : 'upload_file'}
                                                                             </span>
-                                                                        )}
-                                                                        {doc.isRequired && (
-                                                                            <span className="px-1.5 py-0.2 rounded text-[8px] font-bold uppercase tracking-wider bg-rose-50 text-rose-700 border border-rose-200">
-                                                                                Required
-                                                                            </span>
+                                                                        </div>
+                                                                        <div className="min-w-0">
+                                                                            <div className="flex items-center gap-2 flex-wrap">
+                                                                                <p className="text-[12px] font-bold text-slate-900 truncate">{docTitle}</p>
+                                                                                {doc.isVaultDoc && (
+                                                                                    <span className="px-1.5 py-0.2 rounded text-[8px] font-bold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                                                                        Vault
+                                                                                    </span>
+                                                                                )}
+                                                                                {doc.isRequired && (
+                                                                                    <span className="px-1.5 py-0.2 rounded text-[8px] font-bold uppercase tracking-wider bg-rose-50 text-rose-700 border border-rose-200">
+                                                                                        Required
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
+                                                                            <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-500 font-medium flex-wrap">
+                                                                                {doc.fileName && (
+                                                                                    <span className="truncate max-w-[200px] text-slate-700 font-mono text-[10px]">{doc.fileName}</span>
+                                                                                )}
+                                                                                {doc.fileSize && (
+                                                                                    <span>• {formatFileSize(doc.fileSize)}</span>
+                                                                                )}
+                                                                                <span>• {docDate ? format(new Date(docDate), 'dd MMM yyyy, hh:mm a') : 'No upload date'}</span>
+                                                                            </div>
+                                                                            {doc.rejectionReason && (
+                                                                                <p className="mt-2 text-[10px] text-rose-700 bg-rose-50 px-2.5 py-1.5 rounded border border-rose-200 font-medium">
+                                                                                    <span className="font-bold">Rejection note: </span>{doc.rejectionReason}
+                                                                                </p>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-1.5 shrink-0">
+                                                                        <span className={`inline-flex items-center px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded-full border ${['verified', 'approved'].includes(doc.status) ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                                                                doc.status === 'rejected' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                                                                                    isUploaded ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                                                                        'bg-slate-100 text-slate-500 border-slate-200'
+                                                                            }`}>
+                                                                            {['verified', 'approved'].includes(doc.status) && '✓ Verified'}
+                                                                            {doc.status === 'rejected' && '✗ Rejected'}
+                                                                            {!['verified', 'approved', 'rejected'].includes(doc.status) && isUploaded && '⏳ Pending'}
+                                                                            {!isUploaded && '— Not Uploaded'}
+                                                                        </span>
+                                                                        {isUploaded && (
+                                                                            <>
+                                                                                <button
+                                                                                    onClick={() => handleViewDoc(doc)}
+                                                                                    className="p-1.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded transition-all cursor-pointer"
+                                                                                    title="Preview Document"
+                                                                                >
+                                                                                    <span className="material-symbols-outlined text-[17px]">visibility</span>
+                                                                                </button>
+                                                                                <button
+                                                                                    onClick={() => handleDownloadDoc(doc)}
+                                                                                    className="p-1.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded transition-all cursor-pointer"
+                                                                                    title="Download Document"
+                                                                                >
+                                                                                    <span className="material-symbols-outlined text-[17px]">download</span>
+                                                                                </button>
+                                                                            </>
                                                                         )}
                                                                     </div>
-                                                                    <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-500 font-medium flex-wrap">
-                                                                        {doc.fileName && (
-                                                                            <span className="truncate max-w-[200px] text-slate-700 font-mono text-[10px]">{doc.fileName}</span>
-                                                                        )}
-                                                                        {doc.fileSize && (
-                                                                            <span>• {formatFileSize(doc.fileSize)}</span>
-                                                                        )}
-                                                                        <span>• {docDate ? format(new Date(docDate), 'dd MMM yyyy, hh:mm a') : 'No upload date'}</span>
-                                                                    </div>
-                                                                    {doc.rejectionReason && (
-                                                                        <p className="mt-2 text-[10px] text-rose-700 bg-rose-50 px-2.5 py-1.5 rounded border border-rose-200 font-medium">
-                                                                            <span className="font-bold">Rejection note: </span>{doc.rejectionReason}
-                                                                        </p>
-                                                                    )}
                                                                 </div>
                                                             </div>
-                                                            <div className="flex items-center gap-1.5 shrink-0">
-                                                                <span className={`inline-flex items-center px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded-full border ${
-                                                                    ['verified', 'approved'].includes(doc.status) ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                                                                    doc.status === 'rejected' ? 'bg-rose-50 text-rose-700 border-rose-200' :
-                                                                    isUploaded ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                                                                    'bg-slate-100 text-slate-500 border-slate-200'
-                                                                }`}>
-                                                                    {['verified', 'approved'].includes(doc.status) && '✓ Verified'}
-                                                                    {doc.status === 'rejected' && '✗ Rejected'}
-                                                                    {!['verified', 'approved', 'rejected'].includes(doc.status) && isUploaded && '⏳ Pending'}
-                                                                    {!isUploaded && '— Not Uploaded'}
-                                                                </span>
-                                                                {isUploaded && (
-                                                                    <>
-                                                                        <button
-                                                                            onClick={() => handleViewDoc(doc)}
-                                                                            className="p-1.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded transition-all cursor-pointer"
-                                                                            title="Preview Document"
-                                                                        >
-                                                                            <span className="material-symbols-outlined text-[17px]">visibility</span>
-                                                                        </button>
-                                                                        <button
-                                                                            onClick={() => handleDownloadDoc(doc)}
-                                                                            className="p-1.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded transition-all cursor-pointer"
-                                                                            title="Download Document"
-                                                                        >
-                                                                            <span className="material-symbols-outlined text-[17px]">download</span>
-                                                                        </button>
-                                                                    </>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
-                                </div>
-                            ) : drawerTab === 'notes' ? (
-                                <div className="space-y-6">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <div className="flex items-center gap-3">
-                                            <span className="material-symbols-outlined text-purple-600 text-[20px]">note</span>
-                                            <h3 className="text-[13px] font-bold text-gray-900 uppercase tracking-wide">Admin Notes</h3>
-                                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
-                                                {drawerNotes.length} notes
-                                            </span>
-                                        </div>
-                                        <button
-                                            onClick={() => fetchDrawerApplicationData(selectedApp.id)}
-                                            disabled={drawerNotesLoading}
-                                            className="p-1.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-all cursor-pointer"
-                                            title="Refresh Notes"
-                                        >
-                                            <span className={`material-symbols-outlined text-[18px] ${drawerNotesLoading ? 'animate-spin text-purple-600' : ''}`}>refresh</span>
-                                        </button>
-                                    </div>
-
-                                    {/* Add Note Input Box */}
-                                    <div className="bg-purple-50/50 p-4 rounded-xl border border-purple-100">
-                                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">
-                                            New Internal Remark / Note
-                                        </label>
-                                        <textarea
-                                            value={newDrawerNote}
-                                            onChange={(e) => setNewDrawerNote(e.target.value)}
-                                            placeholder="Write an internal note or observation regarding this application..."
-                                            rows={3}
-                                            disabled={savingDrawerNote}
-                                            className="w-full px-4 py-3 bg-white border border-purple-200/80 rounded-lg text-[12px] font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-600/20 focus:border-purple-600 transition-all resize-none shadow-2xs"
-                                        />
-                                        <div className="flex items-center justify-between mt-3">
-                                            <p className="text-[10px] text-slate-400 font-medium flex items-center gap-1">
-                                                <span className="material-symbols-outlined text-[14px]">lock</span>
-                                                Visible to admin and staff only
-                                            </p>
-                                            <button
-                                                onClick={handleSaveDrawerNote}
-                                                disabled={savingDrawerNote || !newDrawerNote.trim()}
-                                                className="px-4 py-2 bg-purple-600 text-white text-[11px] font-bold rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all inline-flex items-center gap-1.5 shadow-xs cursor-pointer"
-                                            >
-                                                {savingDrawerNote ? (
-                                                    <>
-                                                        <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                                        Saving...
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <span className="material-symbols-outlined text-[15px]">send</span>
-                                                        Save Note
-                                                    </>
-                                                )}
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {/* Dynamic Notes Feed */}
-                                    <div className="space-y-3">
-                                        <div className="flex items-center justify-between">
-                                            <p className="text-[11px] font-bold text-gray-700 uppercase tracking-wide">Recorded Notes</p>
-                                            {drawerNotes.length > 0 && (
-                                                <span className="text-[10px] text-slate-400 font-medium">Newest first</span>
+                                                        );
+                                                    })}
+                                                </div>
                                             )}
                                         </div>
+                                    ) : drawerTab === 'notes' ? (
+                                        <div className="space-y-6">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <div className="flex items-center gap-3">
+                                                    <span className="material-symbols-outlined text-purple-600 text-[20px]">note</span>
+                                                    <h3 className="text-[13px] font-bold text-gray-900 uppercase tracking-wide">Admin Notes</h3>
+                                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                                                        {drawerNotes.length} notes
+                                                    </span>
+                                                </div>
+                                                <button
+                                                    onClick={() => fetchDrawerApplicationData(selectedApp.id)}
+                                                    disabled={drawerNotesLoading}
+                                                    className="p-1.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-all cursor-pointer"
+                                                    title="Refresh Notes"
+                                                >
+                                                    <span className={`material-symbols-outlined text-[18px] ${drawerNotesLoading ? 'animate-spin text-purple-600' : ''}`}>refresh</span>
+                                                </button>
+                                            </div>
 
-                                        {drawerNotesLoading ? (
-                                            <div className="flex flex-col items-center justify-center py-14 bg-purple-50/20 rounded-lg border border-dashed border-purple-200">
-                                                <div className="w-8 h-8 border-3 border-purple-200 border-t-purple-600 rounded-full animate-spin mb-3" />
-                                                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Loading notes...</p>
+                                            {/* Add Note Input Box */}
+                                            <div className="bg-purple-50/50 p-4 rounded-xl border border-purple-100">
+                                                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                                                    New Internal Remark / Note
+                                                </label>
+                                                <textarea
+                                                    value={newDrawerNote}
+                                                    onChange={(e) => setNewDrawerNote(e.target.value)}
+                                                    placeholder="Write an internal note or observation regarding this application..."
+                                                    rows={3}
+                                                    disabled={savingDrawerNote}
+                                                    className="w-full px-4 py-3 bg-white border border-purple-200/80 rounded-lg text-[12px] font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-600/20 focus:border-purple-600 transition-all resize-none shadow-2xs"
+                                                />
+                                                <div className="flex items-center justify-between mt-3">
+                                                    <p className="text-[10px] text-slate-400 font-medium flex items-center gap-1">
+                                                        <span className="material-symbols-outlined text-[14px]">lock</span>
+                                                        Visible to admin and staff only
+                                                    </p>
+                                                    <button
+                                                        onClick={handleSaveDrawerNote}
+                                                        disabled={savingDrawerNote || !newDrawerNote.trim()}
+                                                        className="px-4 py-2 bg-purple-600 text-white text-[11px] font-bold rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all inline-flex items-center gap-1.5 shadow-xs cursor-pointer"
+                                                    >
+                                                        {savingDrawerNote ? (
+                                                            <>
+                                                                <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                                                Saving...
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <span className="material-symbols-outlined text-[15px]">send</span>
+                                                                Save Note
+                                                            </>
+                                                        )}
+                                                    </button>
+                                                </div>
                                             </div>
-                                        ) : drawerNotes.length === 0 ? (
-                                            <div className="flex flex-col items-center justify-center py-12 bg-slate-50 rounded-lg border border-dashed border-slate-200 text-center px-4">
-                                                <span className="material-symbols-outlined text-4xl text-slate-300 mb-2">speaker_notes_off</span>
-                                                <p className="text-[12px] font-bold text-slate-700">No admin notes added yet</p>
-                                                <p className="text-[10px] text-slate-400 mt-1 max-w-sm">Use the field above to record internal notes, remarks, or updates about this application.</p>
-                                            </div>
-                                        ) : (
+
+                                            {/* Dynamic Notes Feed */}
                                             <div className="space-y-3">
-                                                {drawerNotes.map((item: any, i: number) => {
-                                                    const noteTime = item.createdAt ? new Date(item.createdAt) : null;
-                                                    const isAutoOrSystem = (item.authorName || '').toLowerCase().includes('system') || item.type === 'ai_review' || item.type === 'share';
-                                                    return (
-                                                        <div key={item.id || i} className="p-4 bg-white rounded-xl border border-slate-200 hover:border-purple-200 hover:shadow-xs transition-all">
-                                                            <div className="flex items-start justify-between gap-2 mb-2">
-                                                                <div className="flex items-center gap-2 flex-wrap">
-                                                                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold ${
-                                                                        isAutoOrSystem ? 'bg-indigo-100 text-indigo-700' : 'bg-purple-100 text-purple-700'
-                                                                    }`}>
-                                                                        <span className="material-symbols-outlined text-[15px]">
-                                                                            {isAutoOrSystem ? 'smart_toy' : 'person'}
-                                                                        </span>
-                                                                    </div>
-                                                                    <div>
-                                                                        <p className="text-[12px] font-bold text-slate-900 leading-tight">
-                                                                            {item.authorName || item.author || 'Admin Staff'}
-                                                                        </p>
-                                                                        <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">
-                                                                            {item.type ? item.type.replace(/_/g, ' ') : 'Internal Note'}
-                                                                        </span>
-                                                                    </div>
-                                                                </div>
-                                                                {noteTime && (
-                                                                    <div className="text-right">
-                                                                        <p className="text-[10px] font-semibold text-slate-600">{format(noteTime, 'dd MMM yyyy, hh:mm a')}</p>
-                                                                        <p className="text-[9px] text-slate-400 font-medium">{formatDistanceToNow(noteTime, { addSuffix: true })}</p>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                            <p className="text-[12px] text-slate-700 whitespace-pre-wrap leading-relaxed bg-slate-50/70 p-3 rounded-lg border border-slate-100 mt-2">
-                                                                {item.content}
-                                                            </p>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            ) : drawerTab === 'history' ? (
-                                <div className="space-y-6">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <div className="flex items-center gap-3">
-                                            <span className="material-symbols-outlined text-purple-600 text-[20px]">timeline</span>
-                                            <h3 className="text-[13px] font-bold text-gray-900 uppercase tracking-wide">Application Timeline</h3>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-purple-50 text-purple-700 border border-purple-200">
-                                                Stage: {formatStatusLabel(selectedApp.stage || selectedApp.currentStage || 'Draft')}
-                                            </span>
-                                            <button
-                                                onClick={() => fetchDrawerApplicationData(selectedApp.id)}
-                                                disabled={drawerTimelineLoading}
-                                                className="p-1.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-all cursor-pointer"
-                                                title="Refresh Timeline"
-                                            >
-                                                <span className={`material-symbols-outlined text-[18px] ${drawerTimelineLoading ? 'animate-spin text-purple-600' : ''}`}>refresh</span>
-                                            </button>
-                                        </div>
-                                    </div>
+                                                <div className="flex items-center justify-between">
+                                                    <p className="text-[11px] font-bold text-gray-700 uppercase tracking-wide">Recorded Notes</p>
+                                                    {drawerNotes.length > 0 && (
+                                                        <span className="text-[10px] text-slate-400 font-medium">Newest first</span>
+                                                    )}
+                                                </div>
 
-                                    {/* Application Progress (Standard 8 Steps) */}
-                                    <ProgressTracker
-                                        application={selectedApp}
-                                        documents={drawerDocs}
-                                        compact={true}
-                                        title="Application Progress"
-                                        className="mb-6"
-                                    />
-
-                                    {/* Timeline Event List */}
-                                    {drawerTimelineLoading ? (
-                                        <div className="flex flex-col items-center justify-center py-16 bg-purple-50/30 rounded-lg border border-dashed border-purple-200">
-                                            <div className="w-8 h-8 border-3 border-purple-200 border-t-purple-600 rounded-full animate-spin mb-3" />
-                                            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Loading application timeline...</p>
-                                        </div>
-                                    ) : (
-                                        <div className="relative pl-6 space-y-6 before:absolute before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
-                                            {(() => {
-                                                let events = [...drawerTimeline];
-                                                if (events.length === 0) {
-                                                    if (selectedApp.createdAt) {
-                                                        events.push({
-                                                            title: 'Application Created',
-                                                            toStatus: 'draft',
-                                                            createdAt: selectedApp.createdAt,
-                                                            notes: 'Application draft was initiated by applicant.',
-                                                            changedByName: selectedApp.firstName ? `${selectedApp.firstName} ${selectedApp.lastName || ''}`.trim() : 'Applicant'
-                                                        });
-                                                    }
-                                                    if (selectedApp.submittedAt || (selectedApp.status && selectedApp.status !== 'draft')) {
-                                                        events.push({
-                                                            title: 'Application Submitted',
-                                                            toStatus: 'submitted',
-                                                            createdAt: selectedApp.submittedAt || selectedApp.createdAt,
-                                                            notes: 'Application submitted for admin & staff processing.',
-                                                            changedByName: selectedApp.firstName ? `${selectedApp.firstName} ${selectedApp.lastName || ''}`.trim() : 'Applicant'
-                                                        });
-                                                    }
-                                                    if (drawerDocs.some((d: any) => ['verified', 'approved'].includes(d.status))) {
-                                                        const verifiedDoc = drawerDocs.find((d: any) => ['verified', 'approved'].includes(d.status));
-                                                        events.push({
-                                                            title: 'Documents Verified',
-                                                            toStatus: 'documents_verified',
-                                                            createdAt: verifiedDoc?.updatedAt || verifiedDoc?.uploadedAt || selectedApp.updatedAt || selectedApp.createdAt,
-                                                            notes: 'Applicant documents were checked and verified.',
-                                                            changedByName: selectedApp.staffName || 'Staff Reviewer'
-                                                        });
-                                                    }
-                                                    if (selectedApp.status && selectedApp.status !== 'draft' && selectedApp.status !== 'submitted') {
-                                                        events.push({
-                                                            title: `Current Status: ${formatStatusLabel(selectedApp.status)}`,
-                                                            toStatus: selectedApp.status,
-                                                            createdAt: selectedApp.updatedAt || selectedApp.createdAt,
-                                                            notes: selectedApp.remarks || selectedApp.rejectionReason || 'Application status updated.',
-                                                            changedByName: selectedApp.staffName || 'System'
-                                                        });
-                                                    }
-                                                }
-
-                                                // Sort newest first
-                                                events.sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-
-                                                return events.map((item: any, i: number) => {
-                                                    const itemStatus = item.toStatus || item.toStage || item.status || 'updated';
-                                                    const meta = getTimelineIcon(itemStatus);
-                                                    const title = item.title || (item.toStatus ? `Status: ${formatStatusLabel(item.toStatus)}` : (item.toStage ? `Stage: ${formatStatusLabel(item.toStage)}` : 'Application Event'));
-                                                    const time = item.createdAt ? new Date(item.createdAt) : null;
-
-                                                    return (
-                                                        <div key={item.id || i} className="relative group">
-                                                            {/* Node Icon */}
-                                                            <div className={`absolute -left-6 top-0.5 w-6 h-6 rounded-full border-2 flex items-center justify-center shadow-xs transition-transform group-hover:scale-110 ${meta.color}`}>
-                                                                <span className="material-symbols-outlined text-[13px]">{meta.icon}</span>
-                                                            </div>
-
-                                                            <div className="bg-white p-4 rounded-xl border border-slate-200 hover:border-purple-200 hover:shadow-xs transition-all">
-                                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-2">
-                                                                    <div className="flex items-center gap-2 flex-wrap">
-                                                                        <p className="text-[12px] font-bold text-slate-900">{title}</p>
-                                                                        {item.fromStatus && item.toStatus && item.fromStatus !== item.toStatus && (
-                                                                            <span className="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider bg-slate-100 text-slate-600 border border-slate-200">
-                                                                                {item.fromStatus} → {item.toStatus}
-                                                                            </span>
+                                                {drawerNotesLoading ? (
+                                                    <div className="flex flex-col items-center justify-center py-14 bg-purple-50/20 rounded-lg border border-dashed border-purple-200">
+                                                        <div className="w-8 h-8 border-3 border-purple-200 border-t-purple-600 rounded-full animate-spin mb-3" />
+                                                        <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Loading notes...</p>
+                                                    </div>
+                                                ) : drawerNotes.length === 0 ? (
+                                                    <div className="flex flex-col items-center justify-center py-12 bg-slate-50 rounded-lg border border-dashed border-slate-200 text-center px-4">
+                                                        <span className="material-symbols-outlined text-4xl text-slate-300 mb-2">speaker_notes_off</span>
+                                                        <p className="text-[12px] font-bold text-slate-700">No admin notes added yet</p>
+                                                        <p className="text-[10px] text-slate-400 mt-1 max-w-sm">Use the field above to record internal notes, remarks, or updates about this application.</p>
+                                                    </div>
+                                                ) : (
+                                                    <div className="space-y-3">
+                                                        {drawerNotes.map((item: any, i: number) => {
+                                                            const noteTime = item.createdAt ? new Date(item.createdAt) : null;
+                                                            const isAutoOrSystem = (item.authorName || '').toLowerCase().includes('system') || item.type === 'ai_review' || item.type === 'share';
+                                                            return (
+                                                                <div key={item.id || i} className="p-4 bg-white rounded-xl border border-slate-200 hover:border-purple-200 hover:shadow-xs transition-all">
+                                                                    <div className="flex items-start justify-between gap-2 mb-2">
+                                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold ${isAutoOrSystem ? 'bg-indigo-100 text-indigo-700' : 'bg-purple-100 text-purple-700'
+                                                                                }`}>
+                                                                                <span className="material-symbols-outlined text-[15px]">
+                                                                                    {isAutoOrSystem ? 'smart_toy' : 'person'}
+                                                                                </span>
+                                                                            </div>
+                                                                            <div>
+                                                                                <p className="text-[12px] font-bold text-slate-900 leading-tight">
+                                                                                    {item.authorName || item.author || 'Admin Staff'}
+                                                                                </p>
+                                                                                <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">
+                                                                                    {item.type ? item.type.replace(/_/g, ' ') : 'Internal Note'}
+                                                                                </span>
+                                                                            </div>
+                                                                        </div>
+                                                                        {noteTime && (
+                                                                            <div className="text-right">
+                                                                                <p className="text-[10px] font-semibold text-slate-600">{format(noteTime, 'dd MMM yyyy, hh:mm a')}</p>
+                                                                                <p className="text-[9px] text-slate-400 font-medium">{formatDistanceToNow(noteTime, { addSuffix: true })}</p>
+                                                                            </div>
                                                                         )}
                                                                     </div>
-                                                                    {time && (
-                                                                        <div className="text-left sm:text-right">
-                                                                            <p className="text-[10px] font-semibold text-slate-700">{format(time, 'dd MMM yyyy, hh:mm a')}</p>
-                                                                            <p className="text-[9px] text-slate-400 font-medium">{formatDistanceToNow(time, { addSuffix: true })}</p>
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-
-                                                                {(item.changedByName || item.changedBy) && (
-                                                                    <p className="text-[10px] text-slate-500 font-medium mb-1.5">
-                                                                        <span className="text-slate-400">Updated by:</span> <span className="font-semibold text-slate-700">{item.changedByName || item.changedBy}</span>
+                                                                    <p className="text-[12px] text-slate-700 whitespace-pre-wrap leading-relaxed bg-slate-50/70 p-3 rounded-lg border border-slate-100 mt-2">
+                                                                        {item.content}
                                                                     </p>
-                                                                )}
-
-                                                                {(item.notes || item.changeReason) && (
-                                                                    <div className="mt-2 p-2.5 rounded-lg bg-slate-50 border border-slate-200/80 text-[11px] text-slate-700 font-medium">
-                                                                        {item.notes || item.changeReason}
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                });
-                                            })()}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
-                                    )}
+                                    ) : drawerTab === 'history' ? (
+                                        <div className="space-y-6">
+                                            <div className="flex items-center justify-between mb-4">
+                                                <div className="flex items-center gap-3">
+                                                    <span className="material-symbols-outlined text-purple-600 text-[20px]">timeline</span>
+                                                    <h3 className="text-[13px] font-bold text-gray-900 uppercase tracking-wide">Application Timeline</h3>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-purple-50 text-purple-700 border border-purple-200">
+                                                        Stage: {formatStatusLabel(selectedApp.stage || selectedApp.currentStage || 'Draft')}
+                                                    </span>
+                                                    <button
+                                                        onClick={() => fetchDrawerApplicationData(selectedApp.id)}
+                                                        disabled={drawerTimelineLoading}
+                                                        className="p-1.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-all cursor-pointer"
+                                                        title="Refresh Timeline"
+                                                    >
+                                                        <span className={`material-symbols-outlined text-[18px] ${drawerTimelineLoading ? 'animate-spin text-purple-600' : ''}`}>refresh</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* Application Progress (Standard 8 Steps) */}
+                                            <ProgressTracker
+                                                application={selectedApp}
+                                                documents={drawerDocs}
+                                                compact={true}
+                                                title="Application Progress"
+                                                className="mb-6"
+                                            />
+
+                                            {/* Timeline Event List */}
+                                            {drawerTimelineLoading ? (
+                                                <div className="flex flex-col items-center justify-center py-16 bg-purple-50/30 rounded-lg border border-dashed border-purple-200">
+                                                    <div className="w-8 h-8 border-3 border-purple-200 border-t-purple-600 rounded-full animate-spin mb-3" />
+                                                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Loading application timeline...</p>
+                                                </div>
+                                            ) : (
+                                                <div className="relative pl-6 space-y-6 before:absolute before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
+                                                    {(() => {
+                                                        let events = [...drawerTimeline];
+                                                        if (events.length === 0) {
+                                                            if (selectedApp.createdAt) {
+                                                                events.push({
+                                                                    title: 'Application Created',
+                                                                    toStatus: 'draft',
+                                                                    createdAt: selectedApp.createdAt,
+                                                                    notes: 'Application draft was initiated by applicant.',
+                                                                    changedByName: selectedApp.firstName ? `${selectedApp.firstName} ${selectedApp.lastName || ''}`.trim() : 'Applicant'
+                                                                });
+                                                            }
+                                                            if (selectedApp.submittedAt || (selectedApp.status && selectedApp.status !== 'draft')) {
+                                                                events.push({
+                                                                    title: 'Application Submitted',
+                                                                    toStatus: 'submitted',
+                                                                    createdAt: selectedApp.submittedAt || selectedApp.createdAt,
+                                                                    notes: 'Application submitted for admin & staff processing.',
+                                                                    changedByName: selectedApp.firstName ? `${selectedApp.firstName} ${selectedApp.lastName || ''}`.trim() : 'Applicant'
+                                                                });
+                                                            }
+                                                            if (drawerDocs.some((d: any) => ['verified', 'approved'].includes(d.status))) {
+                                                                const verifiedDoc = drawerDocs.find((d: any) => ['verified', 'approved'].includes(d.status));
+                                                                events.push({
+                                                                    title: 'Documents Verified',
+                                                                    toStatus: 'documents_verified',
+                                                                    createdAt: verifiedDoc?.updatedAt || verifiedDoc?.uploadedAt || selectedApp.updatedAt || selectedApp.createdAt,
+                                                                    notes: 'Applicant documents were checked and verified.',
+                                                                    changedByName: selectedApp.staffName || 'Staff Reviewer'
+                                                                });
+                                                            }
+                                                            if (selectedApp.status && selectedApp.status !== 'draft' && selectedApp.status !== 'submitted') {
+                                                                events.push({
+                                                                    title: `Current Status: ${formatStatusLabel(selectedApp.status)}`,
+                                                                    toStatus: selectedApp.status,
+                                                                    createdAt: selectedApp.updatedAt || selectedApp.createdAt,
+                                                                    notes: selectedApp.remarks || selectedApp.rejectionReason || 'Application status updated.',
+                                                                    changedByName: selectedApp.staffName || 'System'
+                                                                });
+                                                            }
+                                                        }
+
+                                                        // Sort newest first
+                                                        events.sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+
+                                                        return events.map((item: any, i: number) => {
+                                                            const itemStatus = item.toStatus || item.toStage || item.status || 'updated';
+                                                            const meta = getTimelineIcon(itemStatus);
+                                                            const title = item.title || (item.toStatus ? `Status: ${formatStatusLabel(item.toStatus)}` : (item.toStage ? `Stage: ${formatStatusLabel(item.toStage)}` : 'Application Event'));
+                                                            const time = item.createdAt ? new Date(item.createdAt) : null;
+
+                                                            return (
+                                                                <div key={item.id || i} className="relative group">
+                                                                    {/* Node Icon */}
+                                                                    <div className={`absolute -left-6 top-0.5 w-6 h-6 rounded-full border-2 flex items-center justify-center shadow-xs transition-transform group-hover:scale-110 ${meta.color}`}>
+                                                                        <span className="material-symbols-outlined text-[13px]">{meta.icon}</span>
+                                                                    </div>
+
+                                                                    <div className="bg-white p-4 rounded-xl border border-slate-200 hover:border-purple-200 hover:shadow-xs transition-all">
+                                                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-2">
+                                                                            <div className="flex items-center gap-2 flex-wrap">
+                                                                                <p className="text-[12px] font-bold text-slate-900">{title}</p>
+                                                                                {item.fromStatus && item.toStatus && item.fromStatus !== item.toStatus && (
+                                                                                    <span className="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider bg-slate-100 text-slate-600 border border-slate-200">
+                                                                                        {item.fromStatus} → {item.toStatus}
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
+                                                                            {time && (
+                                                                                <div className="text-left sm:text-right">
+                                                                                    <p className="text-[10px] font-semibold text-slate-700">{format(time, 'dd MMM yyyy, hh:mm a')}</p>
+                                                                                    <p className="text-[9px] text-slate-400 font-medium">{formatDistanceToNow(time, { addSuffix: true })}</p>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+
+                                                                        {(item.changedByName || item.changedBy) && (
+                                                                            <p className="text-[10px] text-slate-500 font-medium mb-1.5">
+                                                                                <span className="text-slate-400">Updated by:</span> <span className="font-semibold text-slate-700">{item.changedByName || item.changedBy}</span>
+                                                                            </p>
+                                                                        )}
+
+                                                                        {(item.notes || item.changeReason) && (
+                                                                            <div className="mt-2 p-2.5 rounded-lg bg-slate-50 border border-slate-200/80 text-[11px] text-slate-700 font-medium">
+                                                                                {item.notes || item.changeReason}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        });
+                                                    })()}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : null}
                                 </div>
-                            ) : null}
-                        </div>
 
-                        <div className="sticky bottom-0 bg-gray-50 p-6 pt-4 border-t border-gray-200">
-                            <div className="flex items-center gap-2 mb-4">
-                                <span className="material-symbols-outlined text-slate-600 text-[18px]">info</span>
-                                <h3 className="text-[12px] font-bold text-gray-900 uppercase tracking-wide">Application Information</h3>
+                                <div className="sticky bottom-0 bg-gray-50 p-6 pt-4 border-t border-gray-200">
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <span className="material-symbols-outlined text-slate-600 text-[18px]">info</span>
+                                        <h3 className="text-[12px] font-bold text-gray-900 uppercase tracking-wide">Application Information</h3>
+                                    </div>
+                                    <div className="px-4 py-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                        <p className="text-[11px] font-medium text-blue-900">
+                                            To take action on this application (Approve, Reject, Send Back, Add Remarks, or Assign Mentor), use the
+                                            <span className="font-bold text-blue-700"> Application Management Panel</span> from the admin dashboard.
+                                        </p>
+                                    </div>
+                                    <p className="text-[9px] text-gray-500 text-center font-bold uppercase tracking-tighter mt-4">
+                                        This is a read-only preview
+                                    </p>
+                                </div>
                             </div>
-                            <div className="px-4 py-3 bg-blue-50 border border-blue-200 rounded-lg">
-                                <p className="text-[11px] font-medium text-blue-900">
-                                    To take action on this application (Approve, Reject, Send Back, Add Remarks, or Assign Mentor), use the 
-                                    <span className="font-bold text-blue-700"> Application Management Panel</span> from the admin dashboard.
-                                </p>
-                            </div>
-                            <p className="text-[9px] text-gray-500 text-center font-bold uppercase tracking-tighter mt-4">
-                                This is a read-only preview
-                            </p>
                         </div>
-                    </div>
-                </div>
-            )}
+                    )}
 
-            <style jsx>{`
+                    <style jsx>{`
                 @keyframes slideInRight {
                     from { transform: translateX(100%); }
                     to { transform: translateX(0); }
@@ -5040,663 +5021,214 @@ export default function AdminDashboardPage() {
                 }
             `}</style>
 
-            {/* ─── Create User / Staff Modal ─────────────────────────────── */}
-            {/* ─── Create User / Staff Modal ─────────────────────────────── */}
-            {showCreateUserModal && (
-                (newUserQuery.role === 'staff' || newUserQuery.role === 'staff_admin') ? (
-                    <div 
-                        role="dialog"
-                        aria-modal="true"
-                        aria-labelledby="create-staff-modal-title"
-                        className="fixed inset-0 z-[70] flex items-center justify-center p-4 sm:p-6"
-                    >
-                        <div 
-                            className="absolute inset-0 bg-slate-950/60 backdrop-blur-xs transition-opacity" 
-                            onClick={() => setShowCreateUserModal(false)} 
-                        />
-                        <div className="relative w-full max-w-[540px] bg-white rounded-xl shadow-2xl overflow-hidden border border-[#E2E8F0] flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
-                            {/* 1. Header (Left-Aligned with 1px Divider) */}
-                            <div className="px-6 py-5 border-b border-[#E2E8F0] shrink-0 flex items-start justify-between gap-4 bg-white">
-                                <div className="min-w-0">
-                                    <h3 id="create-staff-modal-title" className="text-lg font-bold text-slate-900 tracking-tight">
-                                        Create Staff Profile
-                                    </h3>
-                                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                                        Register and onboard a new loan processing officer, verification staff, or team lead.
-                                    </p>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => setShowCreateUserModal(false)}
-                                    aria-label="Close dialog"
-                                    className="w-8 h-8 rounded-md flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
-                                >
-                                    <span className="material-symbols-outlined text-[20px]" aria-hidden="true">close</span>
-                                </button>
-                            </div>
-
-                            {/* 2 & 3. Form Area (Unified Pure White Background, 4-6px inputs, no icons, tight asterisks) */}
-                            <div className="overflow-y-auto p-6 bg-white flex-1">
-                                <form id="staff-creation-form" onSubmit={handleCreateUser} className="space-y-6">
-                                    {/* Section 1: Basic Information */}
-                                    <div>
-                                        <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-4">
-                                            Basic Information
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <label htmlFor="create-staff-first-name" className="text-[13px] font-medium text-slate-700 mb-1.5 block">
-                                                    First Name<span className="text-rose-500">*</span>
-                                                </label>
-                                                <input 
-                                                    id="create-staff-first-name"
-                                                    required 
-                                                    type="text" 
-                                                    value={newUserQuery.firstName} 
-                                                    onChange={e => setNewUserQuery({ ...newUserQuery, firstName: e.target.value })} 
-                                                    className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-[6px] text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400" 
-                                                    placeholder="E.g. Hari" 
-                                                />
-                                            </div>
-                                            <div>
-                                                <label htmlFor="create-staff-last-name" className="text-[13px] font-medium text-slate-700 mb-1.5 block">
-                                                    Last Name<span className="text-rose-500">*</span>
-                                                </label>
-                                                <input 
-                                                    id="create-staff-last-name"
-                                                    required 
-                                                    type="text" 
-                                                    value={newUserQuery.lastName} 
-                                                    onChange={e => setNewUserQuery({ ...newUserQuery, lastName: e.target.value })} 
-                                                    className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-[6px] text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400" 
-                                                    placeholder="E.g. Kalyan" 
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <div className="grid grid-cols-2 gap-4 mt-4">
-                                            <div>
-                                                <label htmlFor="create-staff-email" className="text-[13px] font-medium text-slate-700 mb-1 block">
-                                                    Login Email Address<span className="text-rose-500">*</span>
-                                                </label>
-                                                <input 
-                                                    id="create-staff-email"
-                                                    required 
-                                                    type="email" 
-                                                    value={newUserQuery.email} 
-                                                    onChange={e => setNewUserQuery({ ...newUserQuery, email: e.target.value })} 
-                                                    className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-[6px] text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400" 
-                                                    placeholder="staff.personal@gmail.com" 
-                                                />
-                                                <p className="text-[11px] text-slate-400 mt-1">Normal email used to log into the staff portal.</p>
-                                            </div>
-                                            <div>
-                                                <label htmlFor="create-staff-mobile" className="text-[13px] font-medium text-slate-700 mb-1 block">
-                                                    Mobile Number<span className="text-rose-500">*</span>
-                                                </label>
-                                                <input 
-                                                    id="create-staff-mobile"
-                                                    required 
-                                                    type="tel" 
-                                                    value={newUserQuery.mobile} 
-                                                    onChange={e => setNewUserQuery({ ...newUserQuery, mobile: e.target.value })} 
-                                                    className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-[6px] text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400" 
-                                                    placeholder="+91 98765 43210" 
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Standard 1px Section Divider */}
-                                    <div className="border-t border-[#E2E8F0]" />
-
-                                    {/* Section 2: AWS SES Mailbox & Folder Isolation */}
-                                    <div>
-                                        <div className="flex items-center justify-between mb-1">
-                                            <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                                AWS SES Mailbox & S3 Folder Isolation
-                                            </div>
-                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
-                                                Inbox Routing
-                                            </span>
-                                        </div>
-                                        <p className="text-[12px] text-slate-500 mb-3.5">
-                                            Assign an isolated business address and S3 inbox folder. When this staff sends mail, it goes from this address, and their inbox will strictly load from this folder.
-                                        </p>
-
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <label htmlFor="create-staff-mailbox-email" className="text-[13px] font-medium text-slate-700 mb-1.5 block">
-                                                    Official Business Email (SES)
-                                                </label>
-                                                <input 
-                                                    id="create-staff-mailbox-email"
-                                                    type="email" 
-                                                    value={newUserQuery.mailboxEmail} 
-                                                    onChange={e => {
-                                                        const val = e.target.value;
-                                                        const slug = val.split('@')[0].toLowerCase().replace(/[^a-z0-9_-]/g, '');
-                                                        setNewUserQuery(prev => ({ 
-                                                            ...prev, 
-                                                            mailboxEmail: val,
-                                                            // Only auto-suggest prefix if prefix was previously empty or matches auto-generated slug
-                                                            mailboxPrefix: (!prev.mailboxPrefix || prev.mailboxPrefix.startsWith('staff/')) && slug ? `${slug}/` : prev.mailboxPrefix
-                                                        }));
-                                                    }} 
-                                                    className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-[6px] text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400" 
-                                                    placeholder="priya@vidyaloans.in" 
-                                                />
-                                                {newUserQuery.firstName && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                            const cleanFirst = newUserQuery.firstName.toLowerCase().replace(/[^a-z0-9]/g, '');
-                                                            const cleanLast = (newUserQuery.lastName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-                                                            const alias = cleanLast ? `${cleanFirst}.${cleanLast}@vidyaloans.in` : `${cleanFirst}@vidyaloans.in`;
-                                                            const prefix = `${cleanFirst}/`;
-                                                            setNewUserQuery(prev => ({
-                                                                ...prev,
-                                                                mailboxEmail: alias,
-                                                                mailboxPrefix: prev.mailboxPrefix || prefix
-                                                            }));
-                                                        }}
-                                                        className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 mt-1 cursor-pointer block"
-                                                    >
-                                                        + Auto-suggest: {newUserQuery.firstName.toLowerCase()}@vidyaloans.in
-                                                    </button>
-                                                )}
-                                            </div>
-
-                                            <div>
-                                                <label htmlFor="create-staff-mailbox-prefix" className="text-[13px] font-medium text-slate-700 mb-1.5 block">
-                                                    Assigned S3 Folder Prefix
-                                                </label>
-                                                <input 
-                                                    id="create-staff-mailbox-prefix"
-                                                    type="text" 
-                                                    value={newUserQuery.mailboxPrefix} 
-                                                    onChange={e => setNewUserQuery({ ...newUserQuery, mailboxPrefix: e.target.value })} 
-                                                    className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-[6px] text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400" 
-                                                    placeholder="abhi/ or support/" 
-                                                />
-                                                <p className="text-[11px] text-slate-400 mt-1">S3 path matching AWS SES Receipt Rule prefix (e.g. <code>abhi/</code>).</p>
-                                            </div>
-                                        </div>
-
-                                        <div className="mt-3.5 bg-slate-50 border border-[#E2E8F0] rounded-[6px] p-3 flex items-start gap-3">
-                                            <input
-                                                id="create-staff-access-support"
-                                                type="checkbox"
-                                                checked={newUserQuery.canAccessSupport}
-                                                onChange={e => setNewUserQuery({ ...newUserQuery, canAccessSupport: e.target.checked })}
-                                                className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 mt-0.5 cursor-pointer"
-                                            />
-                                            <label htmlFor="create-staff-access-support" className="text-xs text-slate-700 cursor-pointer">
-                                                <span className="font-semibold block text-slate-800">Allow access to General Support Inbox (support/)</span>
-                                                <span className="text-slate-500 block text-[11px] mt-0.5">
-                                                    When unchecked (recommended), this staff member can only view and manage emails in their assigned folder.
-                                                </span>
-                                            </label>
-                                        </div>
-                                    </div>
-
-                                    {/* Standard 1px Section Divider */}
-                                    <div className="border-t border-[#E2E8F0]" />
-
-                                    {/* Section 2: Office & Work Location */}
-                                    <div>
-                                        <div className="flex items-center justify-between mb-3">
-                                            <label htmlFor="create-staff-office" className="text-xs font-semibold uppercase tracking-wider text-slate-500 block">
-                                                Office & Work Location<span className="text-rose-500">*</span>
-                                            </label>
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    loadOffices();
-                                                    setShowAddOfficeModal(true);
-                                                }}
-                                                className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-slate-600 bg-white border border-[#CBD5E1] rounded-[6px] hover:bg-slate-50 hover:border-slate-400 hover:text-slate-900 transition-colors cursor-pointer"
-                                            >
-                                                <span className="material-symbols-outlined text-[14px]">add</span>
-                                                Add Office
-                                            </button>
-                                        </div>
-
-                                        <select
-                                            id="create-staff-office"
-                                            required
-                                            value={newUserQuery.officeId || ""}
-                                            onChange={e => {
-                                                const selected = offices.find(o => o.id === e.target.value);
-                                                setNewUserQuery({
-                                                    ...newUserQuery,
-                                                    officeId: e.target.value,
-                                                    officeLocation: selected ? `${selected.name} - ${selected.city} (${selected.location})` : ""
-                                                });
-                                            }}
-                                            className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-[6px] text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 cursor-pointer"
-                                        >
-                                            <option value="">-- Select Office Location ({offices.length} Registered) --</option>
-                                            {offices.map((off: any) => (
-                                                <option key={off.id} value={off.id}>
-                                                    {off.name} · {off.city} ({off.location})
-                                                </option>
-                                            ))}
-                                        </select>
-
-                                        {/* 4. Inline Alert Box for Helper Text */}
-                                        <div className="bg-slate-50 border border-[#E2E8F0] rounded-[4px] p-3 flex items-start gap-2.5 mt-3">
-                                            <span className="material-symbols-outlined text-slate-400 text-[18px] shrink-0 mt-0.5">info</span>
-                                            <p className="text-[12px] text-slate-600 leading-relaxed">
-                                                Assigns the staff member to an operational branch and sets their queue allocation. Staff can log in directly at <code className="bg-slate-200/70 px-1 py-0.5 rounded text-slate-800 font-mono text-[11px]">/staff/login</code>.
-                                            </p>
-                                        </div>
-                                    </div>
-                                </form>
-                            </div>
-
-                            {/* 5. Sticky Action Footer (Right-Aligned Buttons) */}
-                            <div className="sticky bottom-0 bg-white border-t border-[#E2E8F0] px-6 py-4 flex items-center justify-end gap-3 z-10 shrink-0">
-                                <button 
-                                    type="button" 
-                                    onClick={() => setShowCreateUserModal(false)} 
-                                    className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-[6px] transition-colors cursor-pointer"
-                                >
-                                    Cancel
-                                </button>
-                                <button 
-                                    form="staff-creation-form" 
-                                    type="submit" 
-                                    disabled={createUserLoading} 
-                                    className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white text-sm font-medium rounded-[6px] shadow-sm transition-all flex items-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-                                >
-                                    {createUserLoading ? (
-                                        <>
-                                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                            <span>Creating...</span>
-                                        </>
-                                    ) : (
-                                        <span>Create Staff Profile</span>
-                                    )}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                ) : newUserQuery.role === 'bank' ? (
-                    <div 
-                        role="dialog"
-                        aria-modal="true"
-                        aria-labelledby="create-bank-rep-modal-title"
-                        className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center p-4 z-50"
-                        onClick={() => setShowCreateUserModal(false)}
-                    >
-                        <div 
-                            className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[94vh] animate-in fade-in zoom-in-95 duration-200"
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            {/* Header - Seamless white without border */}
-                            <div className="flex items-start justify-between px-7 sm:px-8 pt-7 sm:pt-8 pb-4 shrink-0">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0">
-                                        <Building2 size={24} />
-                                    </div>
-                                    <div>
-                                        <h2 id="create-bank-rep-modal-title" className="text-xl font-bold text-slate-900 tracking-tight">
-                                            Create Bank Representative Profile
-                                        </h2>
-                                        <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-                                            Register a new lending partner officer or bank representative.
-                                        </p>
-                                    </div>
-                                </div>
-                                <button 
-                                    type="button"
-                                    onClick={() => setShowCreateUserModal(false)}
-                                    className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-lg transition-colors cursor-pointer"
-                                    aria-label="Close dialog"
-                                >
-                                    <X size={20} />
-                                </button>
-                            </div>
-
-                            {/* Body & Form */}
-                            <form id="create-bank-rep-form" onSubmit={handleCreateUser} className="flex flex-col flex-1 overflow-hidden m-0">
-                                <div className="px-7 sm:px-8 py-2 space-y-6 overflow-y-auto flex-1">
-                                    
-                                    {/* Basic Information Section */}
-                                    <section>
-                                        <div className="flex items-center gap-2 mb-4 text-indigo-600 font-bold text-xs uppercase tracking-wider">
-                                            <Smile size={18} />
-                                            <span>BASIC INFORMATION</span>
-                                        </div>
-                                        
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                            {/* First Name */}
-                                            <div className="space-y-1.5">
-                                                <label className="text-xs font-semibold text-slate-700 flex items-center">
-                                                    First Name <span className="text-red-500 ml-1">*</span>
-                                                </label>
-                                                <input 
-                                                    type="text" 
-                                                    required
-                                                    placeholder="E.g. Hari" 
-                                                    value={newUserQuery.firstName || ""}
-                                                    onChange={(e) => setNewUserQuery({ ...newUserQuery, firstName: e.target.value })}
-                                                    className="w-full px-4 py-3 bg-[#F8FAFC]/90 border border-slate-200/90 rounded-xl text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                                                />
-                                            </div>
-
-                                            {/* Last Name */}
-                                            <div className="space-y-1.5">
-                                                <label className="text-xs font-semibold text-slate-700 flex items-center">
-                                                    Last Name <span className="text-red-500 ml-1">*</span>
-                                                </label>
-                                                <input 
-                                                    type="text" 
-                                                    required
-                                                    placeholder="E.g. Kalyan" 
-                                                    value={newUserQuery.lastName || ""}
-                                                    onChange={(e) => setNewUserQuery({ ...newUserQuery, lastName: e.target.value })}
-                                                    className="w-full px-4 py-3 bg-[#F8FAFC]/90 border border-slate-200/90 rounded-xl text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                                                />
-                                            </div>
-
-                                            {/* Email Address */}
-                                            <div className="space-y-1.5">
-                                                <label className="text-xs font-semibold text-slate-700 flex items-center">
-                                                    Email Address <span className="text-red-500 ml-1">*</span>
-                                                </label>
-                                                <div className="relative">
-                                                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                                                        <Mail size={18} />
-                                                    </div>
-                                                    <input 
-                                                        type="email" 
-                                                        required
-                                                        placeholder="officer@bank.com" 
-                                                        value={newUserQuery.email || ""}
-                                                        onChange={(e) => setNewUserQuery({ ...newUserQuery, email: e.target.value })}
-                                                        className="w-full pl-10 pr-4 py-3 bg-[#F8FAFC]/90 border border-slate-200/90 rounded-xl text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            {/* Mobile Number */}
-                                            <div className="space-y-1.5">
-                                                <label className="text-xs font-semibold text-slate-700 flex items-center">
-                                                    Mobile Number <span className="text-red-500 ml-1">*</span>
-                                                </label>
-                                                <div className="relative">
-                                                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                                                        <Phone size={18} />
-                                                    </div>
-                                                    <input 
-                                                        type="tel" 
-                                                        required
-                                                        placeholder="+91 98765 43210" 
-                                                        value={newUserQuery.mobile || ""}
-                                                        onChange={(e) => setNewUserQuery({ ...newUserQuery, mobile: e.target.value })}
-                                                        className="w-full pl-10 pr-4 py-3 bg-[#F8FAFC]/90 border border-slate-200/90 rounded-xl text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </section>
-
-                                    {/* Assigned Lending Bank Partner Enclosed Box */}
-                                    <section className="bg-[#F8FAFC]/90 border border-slate-200/80 rounded-2xl p-5 sm:p-6 space-y-3.5">
-                                        <label className="flex items-center gap-2 text-xs font-bold text-slate-900">
-                                            <Building2 size={18} className="text-slate-800" />
-                                            <span>Assigned Lending Bank Partner</span>
-                                            <span className="text-red-500">*</span>
-                                        </label>
-                                        
-                                        {/* Error State Select with Custom Downward Chevron */}
-                                        <div className="relative">
-                                            <select 
-                                                required
-                                                value={newUserQuery.bank || ""}
-                                                onChange={(e) => {
-                                                    const selectedVal = e.target.value;
-                                                    const selectedObj = bankPartners.find((b: any) => b.shortName?.toLowerCase() === selectedVal?.toLowerCase() || b.id === selectedVal);
-                                                    setNewUserQuery({ 
-                                                        ...newUserQuery, 
-                                                        bank: selectedVal,
-                                                        firstName: newUserQuery.firstName || (selectedObj?.shortName || selectedVal)
-                                                    });
-                                                }}
-                                                className={`w-full px-4 py-3 bg-white rounded-xl text-sm font-medium text-slate-800 outline-none appearance-none shadow-2xs pr-10 transition-all cursor-pointer ${
-                                                    !newUserQuery.bank 
-                                                        ? 'border-2 border-red-400 focus:ring-2 focus:ring-red-100' 
-                                                        : 'border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'
-                                                }`}
-                                            >
-                                                <option value="">-- Select Bank Partner ({bankPartners && bankPartners.length > 0 ? `${bankPartners.length} Active Partners` : '5 Active Partners'}) --</option>
-                                                {bankPartners && bankPartners.length > 0 ? (
-                                                    bankPartners.map((bp: any) => (
-                                                        <option key={bp.id || bp.shortName} value={bp.shortName}>
-                                                            {bp.name} ({bp.shortName?.toUpperCase()})
-                                                        </option>
-                                                    ))
-                                                ) : (
-                                                    <>
-                                                        <option value="avanse">Avanse Financial Services (AVANSE)</option>
-                                                        <option value="auxilo">Auxilo Finserve (AUXILO)</option>
-                                                        <option value="poonawalla">Poonawalla Fincorp (POONAWALLA)</option>
-                                                        <option value="idfc">IDFC FIRST Bank (IDFC)</option>
-                                                        <option value="credila">HDFC Credila (CREDILA)</option>
-                                                    </>
-                                                )}
-                                            </select>
-                                            <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-600">
-                                                <ChevronDown size={18} />
-                                            </div>
-                                        </div>
-
-                                        {/* Validation Message */}
-                                        {!newUserQuery.bank && (
-                                            <div className="flex items-center gap-1.5 text-red-500 text-xs font-medium pt-0.5">
-                                                <AlertTriangle size={15} className="text-red-500 shrink-0" />
-                                                <span>Selecting a bank partner is required before submitting.</span>
-                                            </div>
-                                        )}
-
-                                        {/* Info Box */}
-                                        <div className="flex gap-3 bg-[#EFF6FF] border border-blue-100/90 text-blue-900 rounded-xl p-3.5 mt-3">
-                                            <Info size={18} className="text-blue-500 shrink-0 mt-0.5" />
-                                            <p className="text-xs text-blue-900/80 leading-relaxed font-normal">
-                                                Links the officer profile to the selected lender&apos;s underwriting portal, auto-allocation queue, and decision system.
-                                            </p>
-                                        </div>
-                                    </section>
-                                </div>
-
-                                {/* Footer - Clean white matching screenshot */}
-                                <div className="px-7 sm:px-8 py-5 pb-7 sm:pb-8 bg-white flex items-center justify-between gap-4 shrink-0">
-                                    <button 
-                                        type="button" 
-                                        onClick={() => setShowCreateUserModal(false)}
-                                        className="px-7 py-3 text-xs font-bold tracking-wider text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors uppercase cursor-pointer shadow-2xs"
-                                    >
-                                        CANCEL
-                                    </button>
-                                    
-                                    <button 
-                                        type="submit"
-                                        disabled={
-                                            createUserLoading || 
-                                            !newUserQuery.bank || 
-                                            !newUserQuery.firstName?.trim() || 
-                                            !newUserQuery.lastName?.trim() || 
-                                            !newUserQuery.email?.trim() || 
-                                            !newUserQuery.mobile?.trim()
-                                        }
-                                        className={
-                                            (createUserLoading || 
-                                            !newUserQuery.bank || 
-                                            !newUserQuery.firstName?.trim() || 
-                                            !newUserQuery.lastName?.trim() || 
-                                            !newUserQuery.email?.trim() || 
-                                            !newUserQuery.mobile?.trim())
-                                                ? "flex-1 sm:flex-initial px-8 py-3 rounded-xl flex items-center justify-center gap-2 font-bold text-xs uppercase tracking-wider bg-[#E8EFF7] text-[#8C9BAE] cursor-not-allowed transition-colors"
-                                                : "flex-1 sm:flex-initial px-8 py-3 rounded-xl flex items-center justify-center gap-2 font-bold text-xs uppercase tracking-wider bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer shadow-md shadow-indigo-200 transition-colors active:scale-[0.99]"
-                                        }
-                                    >
-                                        {createUserLoading ? (
-                                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                        ) : (
-                                            <CheckCircle size={18} className={
-                                                (createUserLoading || 
-                                                !newUserQuery.bank || 
-                                                !newUserQuery.firstName?.trim() || 
-                                                !newUserQuery.lastName?.trim() || 
-                                                !newUserQuery.email?.trim() || 
-                                                !newUserQuery.mobile?.trim()) ? "text-[#8C9BAE]" : "text-white"
-                                            } />
-                                        )}
-                                        <span>{createUserLoading ? "CREATING..." : "CREATE BANK OFFICER PROFILE"}</span>
-                                    </button>
-                                </div>
-                            </form>
-
-                        </div>
-                    </div>
-                ) : (
-                <div 
-                    role="dialog"
-                    aria-modal="true"
-                    aria-labelledby="create-user-modal-title"
-                    className="fixed inset-0 z-[70] flex items-center justify-center p-4 sm:p-6"
-                >
-                    <div 
-                        className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm transition-opacity" 
-                        onClick={() => setShowCreateUserModal(false)} 
-                    />
-                    <div className="relative w-full max-w-3xl bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200/80 flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
-                        {/* Modal Header */}
-                        <div className="p-6 sm:p-8 pb-5 border-b border-slate-100 shrink-0 flex items-start justify-between gap-4 bg-slate-50/50">
-                            <div className="flex items-center gap-3.5">
-                                <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center shrink-0 shadow-xs">
-                                    <span className="material-symbols-outlined text-2xl">
-                                        {newUserQuery.role === 'staff' || newUserQuery.role === 'staff_admin' ? 'badge' :
-                                         newUserQuery.role === 'agent' ? 'support_agent' :
-                                         newUserQuery.role === 'bank' ? 'account_balance' : 'school'}
-                                    </span>
-                                </div>
-                                <div>
-                                    <h3 id="create-user-modal-title" className="text-xl sm:text-2xl font-bold font-display text-slate-900 tracking-tight flex items-center gap-2">
-                                        {newUserQuery.role === 'staff' || newUserQuery.role === 'staff_admin' ? 'Create Staff Profile' :
-                                         newUserQuery.role === 'agent' ? 'Create Agent Partner Profile' :
-                                         newUserQuery.role === 'bank' ? 'Create Bank Representative Profile' : 'Create Student Profile'}
-                                    </h3>
-                                    <p className="text-xs sm:text-sm font-normal text-slate-500 mt-0.5">
-                                        {newUserQuery.role === 'staff' || newUserQuery.role === 'staff_admin' ? 'Register and onboard a new loan processing officer, verification staff, or team lead.' :
-                                         newUserQuery.role === 'agent' ? 'Register a new education consultant or referral channel partner.' :
-                                         newUserQuery.role === 'bank' ? 'Register a new lending partner officer or bank representative.' :
-                                         'Comprehensive registration and account setup for study abroad student applicants.'}
-                                    </p>
-                                </div>
-                            </div>
-
-                            {/* Accessible Large Close Button (48x48px target) outside form inputs */}
-                            <button
-                                type="button"
-                                onClick={() => setShowCreateUserModal(false)}
-                                aria-label="Close dialog"
-                                className="w-12 h-12 -mr-2 -mt-2 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shrink-0"
+                    {/* ─── Create User / Staff Modal ─────────────────────────────── */}
+                    {/* ─── Create User / Staff Modal ─────────────────────────────── */}
+                    {showCreateUserModal && (
+                        (newUserQuery.role === 'staff' || newUserQuery.role === 'staff_admin') ? (
+                            <div
+                                role="dialog"
+                                aria-modal="true"
+                                aria-labelledby="create-staff-modal-title"
+                                className="fixed inset-0 z-[70] flex items-center justify-center p-4 sm:p-6"
                             >
-                                <span className="material-symbols-outlined text-2xl" aria-hidden="true">close</span>
-                            </button>
-                        </div>
-
-                        {/* Modal Body */}
-                        <div className="overflow-y-auto no-scrollbar p-6 sm:p-8 space-y-6">
-                            <form id="student-creation-form" onSubmit={handleCreateUser} className="space-y-6">
-                                <section>
-                                    <div className="inline-flex items-center gap-2 mb-5 text-indigo-600 font-bold text-xs uppercase tracking-widest leading-none">
-                                        <span className="material-symbols-outlined text-base">face</span>
-                                        <span>Basic Information</span>
-                                    </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                                        <div>
-                                            <label htmlFor="create-user-first-name" className="text-xs font-bold text-slate-700 mb-1.5 block">
-                                                First Name <span className="text-rose-500">*</span>
-                                            </label>
-                                            <input 
-                                                id="create-user-first-name"
-                                                required 
-                                                type="text" 
-                                                value={newUserQuery.firstName} 
-                                                onChange={e => setNewUserQuery({ ...newUserQuery, firstName: e.target.value })} 
-                                                className="w-full min-h-[48px] px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400" 
-                                                placeholder="E.g. Hari" 
-                                            />
+                                <div
+                                    className="absolute inset-0 bg-slate-950/60 backdrop-blur-xs transition-opacity"
+                                    onClick={() => setShowCreateUserModal(false)}
+                                />
+                                <div className="relative w-full max-w-[540px] bg-white rounded-xl shadow-2xl overflow-hidden border border-[#E2E8F0] flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
+                                    {/* 1. Header (Left-Aligned with 1px Divider) */}
+                                    <div className="px-6 py-5 border-b border-[#E2E8F0] shrink-0 flex items-start justify-between gap-4 bg-white">
+                                        <div className="min-w-0">
+                                            <h3 id="create-staff-modal-title" className="text-lg font-bold text-slate-900 tracking-tight">
+                                                Create Staff Profile
+                                            </h3>
+                                            <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                                                Register and onboard a new loan processing officer, verification staff, or team lead.
+                                            </p>
                                         </div>
-                                        <div>
-                                            <label htmlFor="create-user-last-name" className="text-xs font-bold text-slate-700 mb-1.5 block">
-                                                Last Name <span className="text-rose-500">*</span>
-                                            </label>
-                                            <input 
-                                                id="create-user-last-name"
-                                                required 
-                                                type="text" 
-                                                value={newUserQuery.lastName} 
-                                                onChange={e => setNewUserQuery({ ...newUserQuery, lastName: e.target.value })} 
-                                                className="w-full min-h-[48px] px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400" 
-                                                placeholder="E.g. Kalyan" 
-                                            />
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mt-4">
-                                        <div>
-                                            <label htmlFor="create-user-email" className="text-xs font-bold text-slate-700 mb-1.5 block">
-                                                Email Address <span className="text-rose-500">*</span>
-                                            </label>
-                                            <div className="relative flex items-center">
-                                                <div className="absolute left-3.5 top-1/2 -translate-y-1/2 flex items-center gap-2 pointer-events-none text-slate-400">
-                                                    <span className="material-symbols-outlined text-[18px]">mail</span>
-                                                    <span className="w-px h-4 bg-slate-300"></span>
-                                                </div>
-                                                <input 
-                                                    id="create-user-email"
-                                                    required 
-                                                    type="email" 
-                                                    value={newUserQuery.email} 
-                                                    onChange={e => setNewUserQuery({ ...newUserQuery, email: e.target.value })} 
-                                                    className="w-full min-h-[48px] pl-12 pr-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400" 
-                                                    placeholder={newUserQuery.role === 'staff' ? 'staff.name@vidyaloans.com' : newUserQuery.role === 'bank' ? 'officer@bank.com' : 'example@gmail.com'} 
-                                                />
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <label htmlFor="create-user-mobile" className="text-xs font-bold text-slate-700 mb-1.5 block">
-                                                Mobile Number <span className="text-rose-500">*</span>
-                                            </label>
-                                            <div className="relative flex items-center">
-                                                <div className="absolute left-3.5 top-1/2 -translate-y-1/2 flex items-center gap-2 pointer-events-none text-slate-400">
-                                                    <span className="material-symbols-outlined text-[18px]">call</span>
-                                                    <span className="w-px h-4 bg-slate-300"></span>
-                                                </div>
-                                                <input 
-                                                    id="create-user-mobile"
-                                                    required 
-                                                    type="tel" 
-                                                    value={newUserQuery.mobile} 
-                                                    onChange={e => setNewUserQuery({ ...newUserQuery, mobile: e.target.value })} 
-                                                    className="w-full min-h-[48px] pl-12 pr-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400" 
-                                                    placeholder="+91 98765 43210" 
-                                                />
-                                            </div>
-                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowCreateUserModal(false)}
+                                            aria-label="Close dialog"
+                                            className="w-8 h-8 rounded-md flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
+                                        >
+                                            <span className="material-symbols-outlined text-[20px]" aria-hidden="true">close</span>
+                                        </button>
                                     </div>
 
-                                    {/* Office Location for Staff */}
-                                    {newUserQuery.role === 'staff' && (
-                                        <div className="mt-6 p-5 sm:p-6 rounded-2xl bg-indigo-50/70 border border-indigo-100/90 space-y-3">
+                                    {/* 2 & 3. Form Area (Unified Pure White Background, 4-6px inputs, no icons, tight asterisks) */}
+                                    <div className="overflow-y-auto p-6 bg-white flex-1">
+                                        <form id="staff-creation-form" onSubmit={handleCreateUser} className="space-y-6">
+                                            {/* Section 1: Basic Information */}
                                             <div>
-                                                <div className="flex items-center justify-between mb-1.5">
-                                                    <label htmlFor="create-staff-office" className="text-xs font-bold text-indigo-950 block">
-                                                        Office & Work Location <span className="text-rose-500">*</span>
+                                                <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-4">
+                                                    Basic Information
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div>
+                                                        <label htmlFor="create-staff-first-name" className="text-[13px] font-medium text-slate-700 mb-1.5 block">
+                                                            First Name<span className="text-rose-500">*</span>
+                                                        </label>
+                                                        <input
+                                                            id="create-staff-first-name"
+                                                            required
+                                                            type="text"
+                                                            value={newUserQuery.firstName}
+                                                            onChange={e => setNewUserQuery({ ...newUserQuery, firstName: e.target.value })}
+                                                            className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-[6px] text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400"
+                                                            placeholder="E.g. Hari"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label htmlFor="create-staff-last-name" className="text-[13px] font-medium text-slate-700 mb-1.5 block">
+                                                            Last Name<span className="text-rose-500">*</span>
+                                                        </label>
+                                                        <input
+                                                            id="create-staff-last-name"
+                                                            required
+                                                            type="text"
+                                                            value={newUserQuery.lastName}
+                                                            onChange={e => setNewUserQuery({ ...newUserQuery, lastName: e.target.value })}
+                                                            className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-[6px] text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400"
+                                                            placeholder="E.g. Kalyan"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-4 mt-4">
+                                                    <div>
+                                                        <label htmlFor="create-staff-email" className="text-[13px] font-medium text-slate-700 mb-1 block">
+                                                            Login Email Address<span className="text-rose-500">*</span>
+                                                        </label>
+                                                        <input
+                                                            id="create-staff-email"
+                                                            required
+                                                            type="email"
+                                                            value={newUserQuery.email}
+                                                            onChange={e => setNewUserQuery({ ...newUserQuery, email: e.target.value })}
+                                                            className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-[6px] text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400"
+                                                            placeholder="staff.personal@gmail.com"
+                                                        />
+                                                        <p className="text-[11px] text-slate-400 mt-1">Normal email used to log into the staff portal.</p>
+                                                    </div>
+                                                    <div>
+                                                        <label htmlFor="create-staff-mobile" className="text-[13px] font-medium text-slate-700 mb-1 block">
+                                                            Mobile Number<span className="text-rose-500">*</span>
+                                                        </label>
+                                                        <input
+                                                            id="create-staff-mobile"
+                                                            required
+                                                            type="tel"
+                                                            value={newUserQuery.mobile}
+                                                            onChange={e => setNewUserQuery({ ...newUserQuery, mobile: e.target.value })}
+                                                            className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-[6px] text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400"
+                                                            placeholder="+91 98765 43210"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Standard 1px Section Divider */}
+                                            <div className="border-t border-[#E2E8F0]" />
+
+                                            {/* Section 2: AWS SES Mailbox & Folder Isolation */}
+                                            <div>
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                                        AWS SES Mailbox & S3 Folder Isolation
+                                                    </div>
+                                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                                        Inbox Routing
+                                                    </span>
+                                                </div>
+                                                <p className="text-[12px] text-slate-500 mb-3.5">
+                                                    Assign an isolated business address and S3 inbox folder. When this staff sends mail, it goes from this address, and their inbox will strictly load from this folder.
+                                                </p>
+
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div>
+                                                        <label htmlFor="create-staff-mailbox-email" className="text-[13px] font-medium text-slate-700 mb-1.5 block">
+                                                            Official Business Email (SES)
+                                                        </label>
+                                                        <input
+                                                            id="create-staff-mailbox-email"
+                                                            type="email"
+                                                            value={newUserQuery.mailboxEmail}
+                                                            onChange={e => {
+                                                                const val = e.target.value;
+                                                                const slug = val.split('@')[0].toLowerCase().replace(/[^a-z0-9_-]/g, '');
+                                                                setNewUserQuery(prev => ({
+                                                                    ...prev,
+                                                                    mailboxEmail: val,
+                                                                    // Only auto-suggest prefix if prefix was previously empty or matches auto-generated slug
+                                                                    mailboxPrefix: (!prev.mailboxPrefix || prev.mailboxPrefix.startsWith('staff/')) && slug ? `${slug}/` : prev.mailboxPrefix
+                                                                }));
+                                                            }}
+                                                            className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-[6px] text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400"
+                                                            placeholder="priya@vidyaloans.in"
+                                                        />
+                                                        {newUserQuery.firstName && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const cleanFirst = newUserQuery.firstName.toLowerCase().replace(/[^a-z0-9]/g, '');
+                                                                    const cleanLast = (newUserQuery.lastName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                                                                    const alias = cleanLast ? `${cleanFirst}.${cleanLast}@vidyaloans.in` : `${cleanFirst}@vidyaloans.in`;
+                                                                    const prefix = `${cleanFirst}/`;
+                                                                    setNewUserQuery(prev => ({
+                                                                        ...prev,
+                                                                        mailboxEmail: alias,
+                                                                        mailboxPrefix: prev.mailboxPrefix || prefix
+                                                                    }));
+                                                                }}
+                                                                className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 mt-1 cursor-pointer block"
+                                                            >
+                                                                + Auto-suggest: {newUserQuery.firstName.toLowerCase()}@vidyaloans.in
+                                                            </button>
+                                                        )}
+                                                    </div>
+
+                                                    <div>
+                                                        <label htmlFor="create-staff-mailbox-prefix" className="text-[13px] font-medium text-slate-700 mb-1.5 block">
+                                                            Assigned S3 Folder Prefix
+                                                        </label>
+                                                        <input
+                                                            id="create-staff-mailbox-prefix"
+                                                            type="text"
+                                                            value={newUserQuery.mailboxPrefix}
+                                                            onChange={e => setNewUserQuery({ ...newUserQuery, mailboxPrefix: e.target.value })}
+                                                            className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-[6px] text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400"
+                                                            placeholder="abhi/ or support/"
+                                                        />
+                                                        <p className="text-[11px] text-slate-400 mt-1">S3 path matching AWS SES Receipt Rule prefix (e.g. <code>abhi/</code>).</p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="mt-3.5 bg-slate-50 border border-[#E2E8F0] rounded-[6px] p-3 flex items-start gap-3">
+                                                    <input
+                                                        id="create-staff-access-support"
+                                                        type="checkbox"
+                                                        checked={newUserQuery.canAccessSupport}
+                                                        onChange={e => setNewUserQuery({ ...newUserQuery, canAccessSupport: e.target.checked })}
+                                                        className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 mt-0.5 cursor-pointer"
+                                                    />
+                                                    <label htmlFor="create-staff-access-support" className="text-xs text-slate-700 cursor-pointer">
+                                                        <span className="font-semibold block text-slate-800">Allow access to General Support Inbox (support/)</span>
+                                                        <span className="text-slate-500 block text-[11px] mt-0.5">
+                                                            When unchecked (recommended), this staff member can only view and manage emails in their assigned folder.
+                                                        </span>
+                                                    </label>
+                                                </div>
+                                            </div>
+
+                                            {/* Standard 1px Section Divider */}
+                                            <div className="border-t border-[#E2E8F0]" />
+
+                                            {/* Section 2: Office & Work Location */}
+                                            <div>
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <label htmlFor="create-staff-office" className="text-xs font-semibold uppercase tracking-wider text-slate-500 block">
+                                                        Office & Work Location<span className="text-rose-500">*</span>
                                                     </label>
                                                     <button
                                                         type="button"
@@ -5704,14 +5236,16 @@ export default function AdminDashboardPage() {
                                                             loadOffices();
                                                             setShowAddOfficeModal(true);
                                                         }}
-                                                        className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 bg-white px-2.5 py-1 rounded-lg border border-indigo-200 shadow-2xs hover:bg-indigo-50 transition-all cursor-pointer"
+                                                        className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-slate-600 bg-white border border-[#CBD5E1] rounded-[6px] hover:bg-slate-50 hover:border-slate-400 hover:text-slate-900 transition-colors cursor-pointer"
                                                     >
-                                                        <span className="material-symbols-outlined text-[15px]">add_circle</span>
+                                                        <span className="material-symbols-outlined text-[14px]">add</span>
                                                         Add Office
                                                     </button>
                                                 </div>
+
                                                 <select
                                                     id="create-staff-office"
+                                                    required
                                                     value={newUserQuery.officeId || ""}
                                                     onChange={e => {
                                                         const selected = offices.find(o => o.id === e.target.value);
@@ -5721,7 +5255,7 @@ export default function AdminDashboardPage() {
                                                             officeLocation: selected ? `${selected.name} - ${selected.city} (${selected.location})` : ""
                                                         });
                                                     }}
-                                                    className="w-full min-h-[48px] px-4 py-3 bg-white border border-indigo-200 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 cursor-pointer shadow-xs"
+                                                    className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-[6px] text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 cursor-pointer"
                                                 >
                                                     <option value="">-- Select Office Location ({offices.length} Registered) --</option>
                                                     {offices.map((off: any) => (
@@ -5730,1240 +5264,1678 @@ export default function AdminDashboardPage() {
                                                         </option>
                                                     ))}
                                                 </select>
-                                            </div>
 
-                                            <div className="flex items-start gap-2 pt-1">
-                                                <span className="material-symbols-outlined text-indigo-600 text-base mt-0.5 shrink-0">info</span>
-                                                <p className="text-xs text-indigo-900/80 font-medium leading-relaxed">
-                                                    Assigns the staff member to an operational branch and sets their queue allocation. Staff can log in directly at <code className="bg-indigo-100 px-1 py-0.5 rounded text-indigo-800 font-mono">/staff/login</code>.
+                                                {/* 4. Inline Alert Box for Helper Text */}
+                                                <div className="bg-slate-50 border border-[#E2E8F0] rounded-[4px] p-3 flex items-start gap-2.5 mt-3">
+                                                    <span className="material-symbols-outlined text-slate-400 text-[18px] shrink-0 mt-0.5">info</span>
+                                                    <p className="text-[12px] text-slate-600 leading-relaxed">
+                                                        Assigns the staff member to an operational branch and sets their queue allocation. Staff can log in directly at <code className="bg-slate-200/70 px-1 py-0.5 rounded text-slate-800 font-mono text-[11px]">/staff/login</code>.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </form>
+                                    </div>
+
+                                    {/* 5. Sticky Action Footer (Right-Aligned Buttons) */}
+                                    <div className="sticky bottom-0 bg-white border-t border-[#E2E8F0] px-6 py-4 flex items-center justify-end gap-3 z-10 shrink-0">
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowCreateUserModal(false)}
+                                            className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-[6px] transition-colors cursor-pointer"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            form="staff-creation-form"
+                                            type="submit"
+                                            disabled={createUserLoading}
+                                            className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white text-sm font-medium rounded-[6px] shadow-sm transition-all flex items-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                                        >
+                                            {createUserLoading ? (
+                                                <>
+                                                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                                    <span>Creating...</span>
+                                                </>
+                                            ) : (
+                                                <span>Create Staff Profile</span>
+                                            )}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : newUserQuery.role === 'bank' ? (
+                            <div
+                                role="dialog"
+                                aria-modal="true"
+                                aria-labelledby="create-bank-rep-modal-title"
+                                className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center p-4 z-50"
+                                onClick={() => setShowCreateUserModal(false)}
+                            >
+                                <div
+                                    className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[94vh] animate-in fade-in zoom-in-95 duration-200"
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    {/* Header - Seamless white without border */}
+                                    <div className="flex items-start justify-between px-7 sm:px-8 pt-7 sm:pt-8 pb-4 shrink-0">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0">
+                                                <Building2 size={24} />
+                                            </div>
+                                            <div>
+                                                <h2 id="create-bank-rep-modal-title" className="text-xl font-bold text-slate-900 tracking-tight">
+                                                    Create Bank Representative Profile
+                                                </h2>
+                                                <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+                                                    Register a new lending partner officer or bank representative.
                                                 </p>
                                             </div>
                                         </div>
-                                    )}
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowCreateUserModal(false)}
+                                            className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-lg transition-colors cursor-pointer"
+                                            aria-label="Close dialog"
+                                        >
+                                            <X size={20} />
+                                        </button>
+                                    </div>
 
-                                    {/* Agent Partner Specific Details */}
-                                    {newUserQuery.role === 'agent' && (
-                                        <div className="mt-6 p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-amber-50/80 via-orange-50/40 to-amber-50/90 border border-amber-200/80 space-y-5 shadow-xs">
-                                            <div className="flex items-center justify-between border-b border-amber-200/60 pb-3">
-                                                <div className="flex items-center gap-2 text-amber-900 font-bold text-xs uppercase tracking-wider">
-                                                    <span className="material-symbols-outlined text-amber-600 text-lg">handshake</span>
-                                                    Channel Partnership & Compliance Setup
+                                    {/* Body & Form */}
+                                    <form id="create-bank-rep-form" onSubmit={handleCreateUser} className="flex flex-col flex-1 overflow-hidden m-0">
+                                        <div className="px-7 sm:px-8 py-2 space-y-6 overflow-y-auto flex-1">
+
+                                            {/* Basic Information Section */}
+                                            <section>
+                                                <div className="flex items-center gap-2 mb-4 text-indigo-600 font-bold text-xs uppercase tracking-wider">
+                                                    <Smile size={18} />
+                                                    <span>BASIC INFORMATION</span>
                                                 </div>
-                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
-                                                    Draft Enabled
+
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                    {/* First Name */}
+                                                    <div className="space-y-1.5">
+                                                        <label className="text-xs font-semibold text-slate-700 flex items-center">
+                                                            First Name <span className="text-red-500 ml-1">*</span>
+                                                        </label>
+                                                        <input
+                                                            type="text"
+                                                            required
+                                                            placeholder="E.g. Hari"
+                                                            value={newUserQuery.firstName || ""}
+                                                            onChange={(e) => setNewUserQuery({ ...newUserQuery, firstName: e.target.value })}
+                                                            className="w-full px-4 py-3 bg-[#F8FAFC]/90 border border-slate-200/90 rounded-xl text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                                                        />
+                                                    </div>
+
+                                                    {/* Last Name */}
+                                                    <div className="space-y-1.5">
+                                                        <label className="text-xs font-semibold text-slate-700 flex items-center">
+                                                            Last Name <span className="text-red-500 ml-1">*</span>
+                                                        </label>
+                                                        <input
+                                                            type="text"
+                                                            required
+                                                            placeholder="E.g. Kalyan"
+                                                            value={newUserQuery.lastName || ""}
+                                                            onChange={(e) => setNewUserQuery({ ...newUserQuery, lastName: e.target.value })}
+                                                            className="w-full px-4 py-3 bg-[#F8FAFC]/90 border border-slate-200/90 rounded-xl text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                                                        />
+                                                    </div>
+
+                                                    {/* Email Address */}
+                                                    <div className="space-y-1.5">
+                                                        <label className="text-xs font-semibold text-slate-700 flex items-center">
+                                                            Email Address <span className="text-red-500 ml-1">*</span>
+                                                        </label>
+                                                        <div className="relative">
+                                                            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                                                                <Mail size={18} />
+                                                            </div>
+                                                            <input
+                                                                type="email"
+                                                                required
+                                                                placeholder="officer@bank.com"
+                                                                value={newUserQuery.email || ""}
+                                                                onChange={(e) => setNewUserQuery({ ...newUserQuery, email: e.target.value })}
+                                                                className="w-full pl-10 pr-4 py-3 bg-[#F8FAFC]/90 border border-slate-200/90 rounded-xl text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Mobile Number */}
+                                                    <div className="space-y-1.5">
+                                                        <label className="text-xs font-semibold text-slate-700 flex items-center">
+                                                            Mobile Number <span className="text-red-500 ml-1">*</span>
+                                                        </label>
+                                                        <div className="relative">
+                                                            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                                                                <Phone size={18} />
+                                                            </div>
+                                                            <input
+                                                                type="tel"
+                                                                required
+                                                                placeholder="+91 98765 43210"
+                                                                value={newUserQuery.mobile || ""}
+                                                                onChange={(e) => setNewUserQuery({ ...newUserQuery, mobile: e.target.value })}
+                                                                className="w-full pl-10 pr-4 py-3 bg-[#F8FAFC]/90 border border-slate-200/90 rounded-xl text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </section>
+
+                                            {/* Assigned Lending Bank Partner Enclosed Box */}
+                                            <section className="bg-[#F8FAFC]/90 border border-slate-200/80 rounded-2xl p-5 sm:p-6 space-y-3.5">
+                                                <label className="flex items-center gap-2 text-xs font-bold text-slate-900">
+                                                    <Building2 size={18} className="text-slate-800" />
+                                                    <span>Assigned Lending Bank Partner</span>
+                                                    <span className="text-red-500">*</span>
+                                                </label>
+
+                                                {/* Error State Select with Custom Downward Chevron */}
+                                                <div className="relative">
+                                                    <select
+                                                        required
+                                                        value={newUserQuery.bank || ""}
+                                                        onChange={(e) => {
+                                                            const selectedVal = e.target.value;
+                                                            const selectedObj = bankPartners.find((b: any) => b.shortName?.toLowerCase() === selectedVal?.toLowerCase() || b.id === selectedVal);
+                                                            setNewUserQuery({
+                                                                ...newUserQuery,
+                                                                bank: selectedVal,
+                                                                firstName: newUserQuery.firstName || (selectedObj?.shortName || selectedVal)
+                                                            });
+                                                        }}
+                                                        className={`w-full px-4 py-3 bg-white rounded-xl text-sm font-medium text-slate-800 outline-none appearance-none shadow-2xs pr-10 transition-all cursor-pointer ${!newUserQuery.bank
+                                                                ? 'border-2 border-red-400 focus:ring-2 focus:ring-red-100'
+                                                                : 'border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'
+                                                            }`}
+                                                    >
+                                                        <option value="">-- Select Bank Partner ({bankPartners && bankPartners.length > 0 ? `${bankPartners.length} Active Partners` : '5 Active Partners'}) --</option>
+                                                        {bankPartners && bankPartners.length > 0 ? (
+                                                            bankPartners.map((bp: any) => (
+                                                                <option key={bp.id || bp.shortName} value={bp.shortName}>
+                                                                    {bp.name} ({bp.shortName?.toUpperCase()})
+                                                                </option>
+                                                            ))
+                                                        ) : (
+                                                            <>
+                                                                <option value="avanse">Avanse Financial Services (AVANSE)</option>
+                                                                <option value="auxilo">Auxilo Finserve (AUXILO)</option>
+                                                                <option value="poonawalla">Poonawalla Fincorp (POONAWALLA)</option>
+                                                                <option value="idfc">IDFC FIRST Bank (IDFC)</option>
+                                                                <option value="credila">HDFC Credila (CREDILA)</option>
+                                                            </>
+                                                        )}
+                                                    </select>
+                                                    <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-600">
+                                                        <ChevronDown size={18} />
+                                                    </div>
+                                                </div>
+
+                                                {/* Validation Message */}
+                                                {!newUserQuery.bank && (
+                                                    <div className="flex items-center gap-1.5 text-red-500 text-xs font-medium pt-0.5">
+                                                        <AlertTriangle size={15} className="text-red-500 shrink-0" />
+                                                        <span>Selecting a bank partner is required before submitting.</span>
+                                                    </div>
+                                                )}
+
+                                                {/* Info Box */}
+                                                <div className="flex gap-3 bg-[#EFF6FF] border border-blue-100/90 text-blue-900 rounded-xl p-3.5 mt-3">
+                                                    <Info size={18} className="text-blue-500 shrink-0 mt-0.5" />
+                                                    <p className="text-xs text-blue-900/80 leading-relaxed font-normal">
+                                                        Links the officer profile to the selected lender&apos;s underwriting portal, auto-allocation queue, and decision system.
+                                                    </p>
+                                                </div>
+                                            </section>
+                                        </div>
+
+                                        {/* Footer - Clean white matching screenshot */}
+                                        <div className="px-7 sm:px-8 py-5 pb-7 sm:pb-8 bg-white flex items-center justify-between gap-4 shrink-0">
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowCreateUserModal(false)}
+                                                className="px-7 py-3 text-xs font-bold tracking-wider text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors uppercase cursor-pointer shadow-2xs"
+                                            >
+                                                CANCEL
+                                            </button>
+
+                                            <button
+                                                type="submit"
+                                                disabled={
+                                                    createUserLoading ||
+                                                    !newUserQuery.bank ||
+                                                    !newUserQuery.firstName?.trim() ||
+                                                    !newUserQuery.lastName?.trim() ||
+                                                    !newUserQuery.email?.trim() ||
+                                                    !newUserQuery.mobile?.trim()
+                                                }
+                                                className={
+                                                    (createUserLoading ||
+                                                        !newUserQuery.bank ||
+                                                        !newUserQuery.firstName?.trim() ||
+                                                        !newUserQuery.lastName?.trim() ||
+                                                        !newUserQuery.email?.trim() ||
+                                                        !newUserQuery.mobile?.trim())
+                                                        ? "flex-1 sm:flex-initial px-8 py-3 rounded-xl flex items-center justify-center gap-2 font-bold text-xs uppercase tracking-wider bg-[#E8EFF7] text-[#8C9BAE] cursor-not-allowed transition-colors"
+                                                        : "flex-1 sm:flex-initial px-8 py-3 rounded-xl flex items-center justify-center gap-2 font-bold text-xs uppercase tracking-wider bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer shadow-md shadow-indigo-200 transition-colors active:scale-[0.99]"
+                                                }
+                                            >
+                                                {createUserLoading ? (
+                                                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                                ) : (
+                                                    <CheckCircle size={18} className={
+                                                        (createUserLoading ||
+                                                            !newUserQuery.bank ||
+                                                            !newUserQuery.firstName?.trim() ||
+                                                            !newUserQuery.lastName?.trim() ||
+                                                            !newUserQuery.email?.trim() ||
+                                                            !newUserQuery.mobile?.trim()) ? "text-[#8C9BAE]" : "text-white"
+                                                    } />
+                                                )}
+                                                <span>{createUserLoading ? "CREATING..." : "CREATE BANK OFFICER PROFILE"}</span>
+                                            </button>
+                                        </div>
+                                    </form>
+
+                                </div>
+                            </div>
+                        ) : (
+                            <div
+                                role="dialog"
+                                aria-modal="true"
+                                aria-labelledby="create-user-modal-title"
+                                className="fixed inset-0 z-[70] flex items-center justify-center p-4 sm:p-6"
+                            >
+                                <div
+                                    className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm transition-opacity"
+                                    onClick={() => setShowCreateUserModal(false)}
+                                />
+                                <div className="relative w-full max-w-3xl bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200/80 flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
+                                    {/* Modal Header */}
+                                    <div className="p-6 sm:p-8 pb-5 border-b border-slate-100 shrink-0 flex items-start justify-between gap-4 bg-slate-50/50">
+                                        <div className="flex items-center gap-3.5">
+                                            <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center shrink-0 shadow-xs">
+                                                <span className="material-symbols-outlined text-2xl">
+                                                    {newUserQuery.role === 'staff' || newUserQuery.role === 'staff_admin' ? 'badge' :
+                                                        newUserQuery.role === 'agent' ? 'support_agent' :
+                                                            newUserQuery.role === 'bank' ? 'account_balance' : 'school'}
                                                 </span>
                                             </div>
-
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                                                <div>
-                                                    <label htmlFor="create-agent-partnership" className="text-xs font-bold text-slate-800 mb-1.5 block">
-                                                        Partnership Type / Channel <span className="text-rose-500">*</span>
-                                                    </label>
-                                                    <select
-                                                        id="create-agent-partnership"
-                                                        value={newUserQuery.partnership || "Individual Consultant"}
-                                                        onChange={e => setNewUserQuery({ ...newUserQuery, partnership: e.target.value })}
-                                                        className="w-full min-h-[48px] px-4 py-3 bg-white border border-amber-300/80 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/30 cursor-pointer shadow-xs"
-                                                    >
-                                                        <option value="Individual Consultant">Individual Education Consultant</option>
-                                                        <option value="Study Abroad Consultancy">Study Abroad Consultancy / Firm</option>
-                                                        <option value="University Referral Partner">University Referral Partner</option>
-                                                        <option value="Corporate Channel Partner">Corporate Channel Partner</option>
-                                                        <option value="Financial Advisor">Financial Advisor / DSA</option>
-                                                    </select>
-                                                </div>
-
-                                                <div>
-                                                    <label htmlFor="create-agent-percentage" className="text-xs font-bold text-slate-800 mb-1.5 block">
-                                                        Commission Rate (%) <span className="text-rose-500">*</span>
-                                                    </label>
-                                                    <div className="relative">
-                                                        <input
-                                                            id="create-agent-percentage"
-                                                            type="number"
-                                                            step="0.1"
-                                                            min="0"
-                                                            max="25"
-                                                            value={newUserQuery.percentage || "1.5"}
-                                                            onChange={e => setNewUserQuery({ ...newUserQuery, percentage: e.target.value })}
-                                                            className="w-full min-h-[48px] pl-4 pr-11 py-3 bg-white border border-amber-300/80 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/30 shadow-xs"
-                                                            placeholder="1.5"
-                                                        />
-                                                        <span className="material-symbols-outlined absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-lg pointer-events-none">percent</span>
-                                                    </div>
-                                                    <p className="text-[10px] text-slate-500 mt-1">Agreed payout % on disbursed student loan value.</p>
-                                                </div>
-                                            </div>
-
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                                                <div>
-                                                    <label htmlFor="create-agent-pan" className="text-xs font-bold text-slate-800 mb-1.5 block">
-                                                        Agent / Company PAN Number <span className="text-rose-500">*</span>
-                                                    </label>
-                                                    <div className="relative">
-                                                        <input
-                                                            id="create-agent-pan"
-                                                            type="text"
-                                                            maxLength={10}
-                                                            value={newUserQuery.panNumber || ""}
-                                                            onChange={e => setNewUserQuery({ ...newUserQuery, panNumber: e.target.value.toUpperCase() })}
-                                                            className="w-full min-h-[48px] pl-11 pr-4 py-3 bg-white border border-amber-300/80 rounded-xl text-sm font-semibold tracking-wider text-slate-900 uppercase focus:outline-none focus:ring-2 focus:ring-amber-500/30 shadow-xs"
-                                                            placeholder="ABCDE1234F"
-                                                        />
-                                                        <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-amber-600 text-lg pointer-events-none">badge</span>
-                                                    </div>
-                                                </div>
-
-                                                <div>
-                                                    <label htmlFor="create-agent-business" className="text-xs font-bold text-slate-800 mb-1.5 block">
-                                                        Business / Consultancy Name
-                                                    </label>
-                                                    <div className="relative">
-                                                        <input
-                                                            id="create-agent-business"
-                                                            type="text"
-                                                            value={newUserQuery.businessName || ""}
-                                                            onChange={e => setNewUserQuery({ ...newUserQuery, businessName: e.target.value })}
-                                                            className="w-full min-h-[48px] pl-11 pr-4 py-3 bg-white border border-amber-300/80 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/30 shadow-xs"
-                                                            placeholder="E.g. Global EdTech Advisors"
-                                                        />
-                                                        <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-lg pointer-events-none">business</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                                                <div>
-                                                    <label htmlFor="create-agent-gstin" className="text-xs font-bold text-slate-800 mb-1.5 block">
-                                                        GSTIN / Registration No. (Optional)
-                                                    </label>
-                                                    <input
-                                                        id="create-agent-gstin"
-                                                        type="text"
-                                                        value={newUserQuery.gstin || ""}
-                                                        onChange={e => setNewUserQuery({ ...newUserQuery, gstin: e.target.value.toUpperCase() })}
-                                                        className="w-full min-h-[48px] px-4 py-3 bg-white border border-amber-300/80 rounded-xl text-sm font-medium uppercase text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/30 shadow-xs"
-                                                        placeholder="22AAAAA0000A1Z5"
-                                                    />
-                                                </div>
-
-                                                <div>
-                                                    <label htmlFor="create-agent-photo" className="text-xs font-bold text-slate-800 mb-1.5 block">
-                                                        Profile Photo URL or File
-                                                    </label>
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-12 h-12 rounded-xl border border-amber-200 bg-white overflow-hidden flex items-center justify-center shrink-0 shadow-2xs">
-                                                            {newUserQuery.profilePhoto ? (
-                                                                <img src={newUserQuery.profilePhoto} alt="Preview" className="w-full h-full object-cover" />
-                                                            ) : (
-                                                                <span className="material-symbols-outlined text-amber-500 text-2xl">account_circle</span>
-                                                            )}
-                                                        </div>
-                                                        <div className="flex-1 flex gap-2">
-                                                            <input
-                                                                id="create-agent-photo"
-                                                                type="text"
-                                                                value={newUserQuery.profilePhoto || ""}
-                                                                onChange={e => setNewUserQuery({ ...newUserQuery, profilePhoto: e.target.value })}
-                                                                className="flex-1 min-h-[48px] px-3 py-2 bg-white border border-amber-300/80 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/30 shadow-xs"
-                                                                placeholder="https://... or upload"
-                                                            />
-                                                            <label className="min-h-[48px] px-3.5 bg-white hover:bg-amber-50 text-amber-800 border border-amber-300/80 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs transition-all shrink-0">
-                                                                <span className="material-symbols-outlined text-sm">upload</span>
-                                                                <span>Upload</span>
-                                                                <input
-                                                                    type="file"
-                                                                    accept="image/*"
-                                                                    className="hidden"
-                                                                    onChange={e => {
-                                                                        const file = e.target.files?.[0];
-                                                                        if (file) {
-                                                                            const reader = new FileReader();
-                                                                            reader.onload = () => {
-                                                                                setNewUserQuery(prev => ({ ...prev, profilePhoto: reader.result as string }));
-                                                                            };
-                                                                            reader.readAsDataURL(file);
-                                                                        }
-                                                                    }}
-                                                                />
-                                                            </label>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {/* Document Checklist & Uploads */}
-                                            <div className="pt-2">
-                                                <label className="text-xs font-bold text-slate-800 mb-2 block flex items-center justify-between">
-                                                    <span>Agent KYC & Agreement Documents</span>
-                                                    <span className="text-[10px] font-normal text-slate-500">Attach now or Save as Draft to complete later</span>
-                                                </label>
-                                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                                    {[
-                                                        { key: 'pan_card', label: 'PAN Card Copy' },
-                                                        { key: 'business_registration', label: 'Registration / GST' },
-                                                        { key: 'signed_agreement', label: 'Partner Agreement' }
-                                                    ].map(doc => {
-                                                        const isUploaded = (newUserQuery.documents || []).some(d => d.type === doc.key);
-                                                        return (
-                                                            <label 
-                                                                key={doc.key}
-                                                                className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-all ${
-                                                                    isUploaded 
-                                                                        ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
-                                                                        : 'bg-white border-dashed border-amber-300 hover:border-amber-400 text-slate-600'
-                                                                }`}
-                                                            >
-                                                                <span className="material-symbols-outlined text-xl">
-                                                                    {isUploaded ? 'task_alt' : 'note_add'}
-                                                                </span>
-                                                                <span className="text-xs font-bold text-center leading-tight">{doc.label}</span>
-                                                                <span className="text-[10px] text-slate-400">
-                                                                    {isUploaded ? 'Attached ✓' : 'Click to attach'}
-                                                                </span>
-                                                                <input
-                                                                    type="file"
-                                                                    className="hidden"
-                                                                    onChange={e => {
-                                                                        const file = e.target.files?.[0];
-                                                                        if (file) {
-                                                                            setNewUserQuery(prev => {
-                                                                                const updatedDocs = (prev.documents || []).filter(d => d.type !== doc.key);
-                                                                                return {
-                                                                                    ...prev,
-                                                                                    documents: [
-                                                                                        ...updatedDocs,
-                                                                                        {
-                                                                                            name: file.name,
-                                                                                            type: doc.key,
-                                                                                            uploadedAt: new Date().toISOString()
-                                                                                        }
-                                                                                    ]
-                                                                                };
-                                                                            });
-                                                                        }
-                                                                    }}
-                                                                />
-                                                            </label>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </div>
-
-                                            <div className="p-3 bg-amber-100/60 rounded-xl border border-amber-200 text-amber-900 text-xs flex items-start gap-2">
-                                                <span className="material-symbols-outlined text-amber-700 text-base mt-0.5 shrink-0">info</span>
-                                                <p className="leading-relaxed">
-                                                    <strong>Draft Mode:</strong> If documents or PAN details are not yet complete, select <strong>"Save as Draft"</strong>. No email will be sent until the agent profile is formally submitted and activated.
+                                            <div>
+                                                <h3 id="create-user-modal-title" className="text-xl sm:text-2xl font-bold font-display text-slate-900 tracking-tight flex items-center gap-2">
+                                                    {newUserQuery.role === 'staff' || newUserQuery.role === 'staff_admin' ? 'Create Staff Profile' :
+                                                        newUserQuery.role === 'agent' ? 'Create Agent Partner Profile' :
+                                                            newUserQuery.role === 'bank' ? 'Create Bank Representative Profile' : 'Create Student Profile'}
+                                                </h3>
+                                                <p className="text-xs sm:text-sm font-normal text-slate-500 mt-0.5">
+                                                    {newUserQuery.role === 'staff' || newUserQuery.role === 'staff_admin' ? 'Register and onboard a new loan processing officer, verification staff, or team lead.' :
+                                                        newUserQuery.role === 'agent' ? 'Register a new education consultant or referral channel partner.' :
+                                                            newUserQuery.role === 'bank' ? 'Register a new lending partner officer or bank representative.' :
+                                                                'Comprehensive registration and account setup for study abroad student applicants.'}
                                                 </p>
                                             </div>
                                         </div>
-                                    )}
 
-                                    {newUserQuery.role === 'bank' && (
-                                        <div className="mt-6 p-5 sm:p-6 rounded-2xl bg-slate-50 border border-slate-200/90 space-y-4">
-                                            <div className="space-y-1.5">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="material-symbols-outlined text-slate-700 text-lg">account_balance</span>
-                                                    <label htmlFor="create-bank-select" className="text-xs font-bold text-slate-900 block">
-                                                        Assigned Lending Bank Partner <span className="text-rose-500">*</span>
-                                                    </label>
+                                        {/* Accessible Large Close Button (48x48px target) outside form inputs */}
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowCreateUserModal(false)}
+                                            aria-label="Close dialog"
+                                            className="w-12 h-12 -mr-2 -mt-2 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shrink-0"
+                                        >
+                                            <span className="material-symbols-outlined text-2xl" aria-hidden="true">close</span>
+                                        </button>
+                                    </div>
+
+                                    {/* Modal Body */}
+                                    <div className="overflow-y-auto no-scrollbar p-6 sm:p-8 space-y-6">
+                                        <form id="student-creation-form" onSubmit={handleCreateUser} className="space-y-6">
+                                            <section>
+                                                <div className="inline-flex items-center gap-2 mb-5 text-indigo-600 font-bold text-xs uppercase tracking-widest leading-none">
+                                                    <span className="material-symbols-outlined text-base">face</span>
+                                                    <span>Basic Information</span>
                                                 </div>
-                                                <select
-                                                    id="create-bank-select"
-                                                    required
-                                                    value={newUserQuery.bank || ""}
-                                                    onChange={e => {
-                                                        const selected = bankPartners.find(b => b.shortName === e.target.value);
-                                                        setNewUserQuery({
-                                                            ...newUserQuery,
-                                                            bank: e.target.value,
-                                                            firstName: newUserQuery.firstName || (selected?.shortName || e.target.value)
-                                                        });
-                                                    }}
-                                                    className={`w-full min-h-[48px] px-4 py-3 bg-white rounded-xl text-sm font-semibold text-slate-900 focus:outline-none transition-all cursor-pointer shadow-2xs ${
-                                                        !newUserQuery.bank
-                                                            ? 'border-2 border-rose-400 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20'
-                                                            : 'border border-slate-300 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/20'
-                                                    }`}
-                                                >
-                                                    <option value="">-- Select Bank Partner ({bankPartners.length} Active Partners) --</option>
-                                                    {bankPartners.map((bp: any) => (
-                                                        <option key={bp.id || bp.shortName} value={bp.shortName}>
-                                                            {bp.name} ({bp.shortName.toUpperCase()}) · {bp.type} · ROI {bp.interestRateMin}% - {bp.interestRateMax}%
-                                                        </option>
-                                                    ))}
-                                                </select>
-                                                {!newUserQuery.bank && (
-                                                    <p className="text-[11px] text-rose-600 font-bold flex items-center gap-1.5 pt-0.5">
-                                                        <span className="material-symbols-outlined text-[14px]">warning</span>
-                                                        Selecting a bank partner is required before submitting.
-                                                    </p>
-                                                )}
-                                            </div>
-
-                                            {/* Informational Helper Callout */}
-                                            <div className="p-3 bg-blue-50/70 rounded-xl border border-blue-200/70 text-blue-900 text-xs flex items-start gap-2.5">
-                                                <span className="material-symbols-outlined text-blue-600 text-base mt-0.5 shrink-0">info</span>
-                                                <p className="leading-relaxed font-medium">
-                                                    Links the officer profile to the selected lender's underwriting portal, auto-allocation queue, and decision system.
-                                                </p>
-                                            </div>
-                                        </div>
-                                    )}
-                                </section>
-                            </form>
-                        </div>
-
-                        {/* Modal Footer with 48px min-height buttons */}
-                        <div className="p-5 sm:p-6 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-center gap-3 shrink-0">
-                            <button 
-                                type="button" 
-                                onClick={() => setShowCreateUserModal(false)} 
-                                className="w-full sm:w-auto min-h-[48px] px-6 py-3 bg-white hover:bg-slate-100 text-slate-700 rounded-xl font-bold text-xs uppercase tracking-wider border border-slate-200 transition-all cursor-pointer text-center"
-                            >
-                                Cancel
-                            </button>
-
-                            {/* Save as Draft Button for Agents */}
-                            {newUserQuery.role === 'agent' && (
-                                <button
-                                    type="button"
-                                    disabled={createUserLoading || !newUserQuery.email || !newUserQuery.firstName}
-                                    onClick={() => handleCreateUser(undefined, true)}
-                                    className="w-full sm:w-auto min-h-[48px] px-6 py-3 bg-amber-50 hover:bg-amber-100 text-amber-900 rounded-xl font-bold text-xs uppercase tracking-wider border border-amber-300 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
-                                    title="Save agent information with incomplete details as Draft without sending notification email"
-                                >
-                                    <span className="material-symbols-outlined text-base">save</span>
-                                    Save as Draft
-                                </button>
-                            )}
-
-                            <button 
-                                form="student-creation-form" 
-                                type="submit" 
-                                disabled={
-                                    createUserLoading || 
-                                    (newUserQuery.role === 'bank' && (
-                                        !newUserQuery.bank || 
-                                        !newUserQuery.firstName?.trim() || 
-                                        !newUserQuery.lastName?.trim() || 
-                                        !newUserQuery.email?.trim() || 
-                                        !newUserQuery.mobile?.trim()
-                                    ))
-                                } 
-                                className="w-full sm:flex-1 min-h-[48px] bg-slate-900 hover:bg-slate-800 text-white px-6 py-3 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-slate-900/10 active:scale-[0.99] transition-all cursor-pointer disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed disabled:shadow-none disabled:active:scale-100"
-                            >
-                                {createUserLoading ? (
-                                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                ) : (
-                                    <>
-                                        <span className="material-symbols-outlined text-lg">check_circle</span>
-                                        {newUserQuery.role === 'staff' || newUserQuery.role === 'staff_admin' ? 'Create Staff Profile' :
-                                         newUserQuery.role === 'agent' ? 'Submit & Activate Agent Profile' :
-                                         newUserQuery.role === 'bank' ? 'Create Bank Officer Profile' : 'Create Student Profile'}
-                                    </>
-                                )}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                )
-            )}
-
-            {/* ─── Edit User Modal ─────────────────────────────────────────── */}
-            {editingUser && (
-                <div className="fixed inset-0 z-[120] flex items-center justify-center p-6">
-                    <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]" onClick={() => setEditingUser(null)} />
-                    <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in duration-200">
-                        <div className="p-8">
-                            <div className="flex items-center gap-3 mb-8">
-                                <div className="w-10 h-10 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                                    <span className="material-symbols-outlined text-[20px]">person_edit</span>
-                                </div>
-                                <div>
-                                    <h3 className="text-[18px] font-bold text-slate-900 tracking-tight">Identity Modification</h3>
-                                    <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mt-1">Target: {editingUser.email}</p>
-                                </div>
-                            </div>
-
-                            <form onSubmit={handleUpdateUser} className="space-y-6">
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">First Name</label>
-                                        <input required type="text" value={editingUser.firstName} onChange={e => setEditingUser({ ...editingUser, firstName: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-400 transition-all" />
-                                    </div>
-                                    <div>
-                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Last Name</label>
-                                        <input required type="text" value={editingUser.lastName} onChange={e => setEditingUser({ ...editingUser, lastName: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-400 transition-all" />
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Contact Phone Number</label>
-                                    <input type="tel" value={editingUser.phoneNumber || editingUser.mobile || ""} onChange={e => setEditingUser({ ...editingUser, phoneNumber: e.target.value, mobile: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-400 transition-all" placeholder="+91 XXXX-XXXXXX" />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Email Address</label>
-                                    <input required type="email" value={editingUser.email || ""} onChange={e => setEditingUser({ ...editingUser, email: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all" placeholder="user@example.com" />
-                                </div>
-                                {(editingUser.role === 'staff' || editingUser.role === 'staff_admin') && (
-                                    <>
-                                        <div>
-                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">
-                                                Assigned Office & Location
-                                            </label>
-                                            <select
-                                                value={editingUser.officeId || ""}
-                                                onChange={e => {
-                                                    const sel = offices.find(o => o.id === e.target.value);
-                                                    setEditingUser({
-                                                        ...editingUser,
-                                                        officeId: e.target.value,
-                                                        officeLocation: sel ? `${sel.name} - ${sel.city} (${sel.location})` : ""
-                                                    });
-                                                }}
-                                                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-400 transition-all cursor-pointer"
-                                            >
-                                                <option value="">-- Select Office Location --</option>
-                                                {offices.map((off: any) => (
-                                                    <option key={off.id} value={off.id}>
-                                                        {off.name} · {off.city} ({off.location})
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                            <div>
-                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">
-                                                    Assigned AWS SES Business Email
-                                                </label>
-                                                <input
-                                                    type="email"
-                                                    value={editingUser.mailboxEmail || ""}
-                                                    onChange={e => setEditingUser({ ...editingUser, mailboxEmail: e.target.value })}
-                                                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-mono font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-600/20 focus:border-violet-600 transition-all"
-                                                    placeholder="e.g. staff.name@vidyaloans.in"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">
-                                                    AWS S3 Mailbox Folder Prefix
-                                                </label>
-                                                <input
-                                                    type="text"
-                                                    value={editingUser.mailboxPrefix || ""}
-                                                    onChange={e => setEditingUser({ ...editingUser, mailboxPrefix: e.target.value })}
-                                                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-mono font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-600/20 focus:border-violet-600 transition-all"
-                                                    placeholder="e.g. staff/name/ or name/"
-                                                />
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-2 pt-1">
-                                            <input
-                                                id="edit-modal-can-access-support"
-                                                type="checkbox"
-                                                checked={!!editingUser.canAccessSupport}
-                                                onChange={e => setEditingUser({ ...editingUser, canAccessSupport: e.target.checked })}
-                                                className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
-                                            />
-                                            <label htmlFor="edit-modal-can-access-support" className="text-xs font-semibold text-slate-700 cursor-pointer">
-                                                Allow access to general support queue & unassigned inquiries
-                                            </label>
-                                        </div>
-                                    </>
-                                )}
-                                <div className="pt-4 flex gap-4">
-                                    <button type="button" onClick={() => setEditingUser(null)} className="flex-1 px-6 py-3 bg-slate-50 text-slate-400 rounded-lg font-black uppercase tracking-widest text-[10px] hover:bg-slate-100 hover:text-slate-600 transition-all border border-slate-100">Cancel</button>
-                                    <button type="submit" disabled={updateLoading} className="flex-[2] bg-slate-900 text-white py-3 rounded-lg font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 shadow-lg shadow-slate-900/10 active:scale-95 transition-all">
-                                        {updateLoading ? "SYNCING..." : "Commit Changes"}
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* ─── Send Email Modal ─────────────────────────────────────────── */}
-            {emailModalUser && (
-                <div className="fixed inset-0 z-[125] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
-                    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity" onClick={() => setEmailModalUser(null)} />
-                    <div className="relative w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in duration-200 my-auto">
-                        {/* Header */}
-                        <div className="px-6 sm:px-8 pt-7 pb-5 bg-gradient-to-br from-indigo-50/70 via-slate-50 to-white border-b border-slate-100">
-                            <div className="flex items-start justify-between">
-                                <div className="flex items-center gap-3.5">
-                                    <div className="w-11 h-11 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-600/20">
-                                        <span className="material-symbols-outlined text-[22px]">outgoing_mail</span>
-                                    </div>
-                                    <div>
-                                        <h3 className="text-lg font-bold text-slate-900 tracking-tight flex items-center gap-2">
-                                            Send Email Message
-                                            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">Direct Dispatch</span>
-                                        </h3>
-                                        <p className="text-xs text-slate-500 font-medium mt-0.5">
-                                            Communicate directly with this account holder
-                                        </p>
-                                    </div>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => setEmailModalUser(null)}
-                                    className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-                                >
-                                    <span className="material-symbols-outlined text-[18px]">close</span>
-                                </button>
-                            </div>
-
-                            {/* Recipient summary card */}
-                            <div className="mt-4 p-3 rounded-xl bg-white border border-slate-200/80 shadow-xs flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-9 h-9 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-xs">
-                                        {((emailModalUser.firstName?.[0] || '') + (emailModalUser.lastName?.[0] || 'U')).toUpperCase()}
-                                    </div>
-                                    <div>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-xs font-bold text-slate-900">
-                                                {emailModalUser.firstName} {emailModalUser.lastName}
-                                            </span>
-                                            <span className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
-                                                {emailModalUser.role || 'user'}
-                                            </span>
-                                        </div>
-                                        <div className="text-[11px] text-slate-500 font-mono mt-0.5 flex items-center gap-1">
-                                            <span className="material-symbols-outlined text-[12px] text-slate-400">mail</span>
-                                            {emailModalUser.email}
-                                        </div>
-                                    </div>
-                                </div>
-                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                                    Verified Target
-                                </span>
-                            </div>
-                        </div>
-
-                        {/* Form Body */}
-                        <form onSubmit={handleSendEmail} className="p-6 sm:p-8 space-y-5">
-                            {/* Quick Template Selector */}
-                            <div>
-                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block flex items-center justify-between">
-                                    <span>Quick Preset Templates</span>
-                                    <span className="text-slate-400 font-normal">Click to auto-fill</span>
-                                </label>
-                                <div className="grid grid-cols-3 gap-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => handleSelectTemplate('status')}
-                                        className="text-left p-2.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-200 transition-all group"
-                                    >
-                                        <div className="text-[11px] font-bold text-slate-800 group-hover:text-indigo-700 flex items-center gap-1.5">
-                                            <span className="material-symbols-outlined text-[14px] text-indigo-500">sync_alt</span>
-                                            Status Update
-                                        </div>
-                                        <div className="text-[10px] text-slate-400 mt-0.5 truncate">Application review note</div>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => handleSelectTemplate('docs')}
-                                        className="text-left p-2.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-200 transition-all group"
-                                    >
-                                        <div className="text-[11px] font-bold text-slate-800 group-hover:text-indigo-700 flex items-center gap-1.5">
-                                            <span className="material-symbols-outlined text-[14px] text-amber-500">upload_file</span>
-                                            Request Docs
-                                        </div>
-                                        <div className="text-[10px] text-slate-400 mt-0.5 truncate">KYC / Missing files</div>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => handleSelectTemplate('welcome')}
-                                        className="text-left p-2.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-200 transition-all group"
-                                    >
-                                        <div className="text-[11px] font-bold text-slate-800 group-hover:text-indigo-700 flex items-center gap-1.5">
-                                            <span className="material-symbols-outlined text-[14px] text-emerald-500">waving_hand</span>
-                                            Welcome Note
-                                        </div>
-                                        <div className="text-[10px] text-slate-400 mt-0.5 truncate">Onboarding greeting</div>
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Subject Line */}
-                            <div>
-                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 block">
-                                    Email Subject <span className="text-rose-500">*</span>
-                                </label>
-                                <input
-                                    required
-                                    type="text"
-                                    value={emailSubject}
-                                    onChange={e => setEmailSubject(e.target.value)}
-                                    placeholder="Enter concise email subject..."
-                                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all"
-                                />
-                            </div>
-
-                            {/* Body Message */}
-                            <div>
-                                <div className="flex items-center justify-between mb-1.5">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">
-                                        Message Body <span className="text-rose-500">*</span>
-                                    </label>
-                                    <span className="text-[10px] text-slate-400 font-mono">
-                                        {emailContent.length} chars
-                                    </span>
-                                </div>
-                                <textarea
-                                    required
-                                    rows={6}
-                                    value={emailContent}
-                                    onChange={e => setEmailContent(e.target.value)}
-                                    placeholder="Type your message here..."
-                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all resize-y font-sans leading-relaxed"
-                                />
-                            </div>
-
-                            {/* Action Buttons */}
-                            <div className="pt-2 flex items-center gap-3 border-t border-slate-100">
-                                <button
-                                    type="button"
-                                    onClick={() => setEmailModalUser(null)}
-                                    disabled={sendingEmail}
-                                    className="flex-1 px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg font-bold text-xs tracking-wider uppercase transition-colors"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={sendingEmail}
-                                    className="flex-[2] px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white rounded-lg font-bold text-xs tracking-wider uppercase transition-all shadow-md shadow-indigo-600/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-                                >
-                                    {sendingEmail ? (
-                                        <>
-                                            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                                            Sending Email...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <span className="material-symbols-outlined text-[16px]">send</span>
-                                            Send Email Message
-                                        </>
-                                    )}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {/* ─── Add Office Modal ──────────────────────────────────────── */}
-            {showAddOfficeModal && (
-                <div className="fixed inset-0 z-[130] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={() => setShowAddOfficeModal(false)} />
-                    <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden animate-fade-in flex flex-col max-h-[90vh] border border-slate-200">
-                        {/* Modal Header */}
-                        <div className="p-6 sm:p-8 pb-4 border-b border-slate-100 shrink-0 bg-slate-50/50">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center">
-                                        <span className="material-symbols-outlined text-[22px]">domain_add</span>
-                                    </div>
-                                    <div>
-                                        <h3 className="text-xl font-bold text-slate-900 tracking-tight">Add Office & Location</h3>
-                                        <p className="text-xs text-slate-500 font-medium mt-0.5">
-                                            Define new branches, cities, and physical office locations for staff deployment
-                                        </p>
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={() => setShowAddOfficeModal(false)}
-                                    className="p-2 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
-                                >
-                                    <span className="material-symbols-outlined text-[20px]">close</span>
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Modal Body */}
-                        <div className="overflow-y-auto p-6 sm:p-8 space-y-6">
-                            <form id="add-office-form" onSubmit={handleCreateOffice} className="space-y-4">
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5 block">
-                                            Office / Branch Name *
-                                        </label>
-                                        <input
-                                            required
-                                            type="text"
-                                            value={newOfficeData.name}
-                                            onChange={e => setNewOfficeData({ ...newOfficeData, name: e.target.value })}
-                                            placeholder="e.g. VidyaLoans HQ / South Hub"
-                                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5 block">
-                                            City *
-                                        </label>
-                                        <input
-                                            required
-                                            type="text"
-                                            value={newOfficeData.city}
-                                            onChange={e => setNewOfficeData({ ...newOfficeData, city: e.target.value })}
-                                            placeholder="e.g. Hyderabad, Bengaluru, Mumbai"
-                                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5 block">
-                                        Location / Address Details *
-                                    </label>
-                                    <input
-                                        required
-                                        type="text"
-                                        value={newOfficeData.location}
-                                        onChange={e => setNewOfficeData({ ...newOfficeData, location: e.target.value })}
-                                        placeholder="e.g. Cyber Towers, Phase 2, HITEC City"
-                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                                    />
-                                </div>
-                            </form>
-
-                            {/* Existing Offices List */}
-                            <div className="pt-4 border-t border-slate-100">
-                                <div className="flex items-center justify-between mb-3">
-                                    <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                                        <span className="material-symbols-outlined text-[16px] text-indigo-600">apartment</span>
-                                        Registered Offices ({offices.length})
-                                    </h4>
-                                    {officesLoading && (
-                                        <div className="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-                                    )}
-                                </div>
-
-                                {offices.length === 0 ? (
-                                    <div className="p-6 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                                        <span className="material-symbols-outlined text-3xl text-slate-300 block mb-1">domain</span>
-                                        <p className="text-xs text-slate-500 font-medium">No offices registered yet. Fill out the form above to add the first office.</p>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                                        {offices.map((off: any) => (
-                                            <div key={off.id} className="p-3 bg-slate-50 hover:bg-indigo-50/40 border border-slate-200 rounded-xl flex items-center justify-between transition-colors">
-                                                <div className="flex items-start gap-2.5">
-                                                    <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-indigo-600 shrink-0 mt-0.5">
-                                                        <span className="material-symbols-outlined text-[16px]">location_on</span>
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                                                    <div>
+                                                        <label htmlFor="create-user-first-name" className="text-xs font-bold text-slate-700 mb-1.5 block">
+                                                            First Name <span className="text-rose-500">*</span>
+                                                        </label>
+                                                        <input
+                                                            id="create-user-first-name"
+                                                            required
+                                                            type="text"
+                                                            value={newUserQuery.firstName}
+                                                            onChange={e => setNewUserQuery({ ...newUserQuery, firstName: e.target.value })}
+                                                            className="w-full min-h-[48px] px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400"
+                                                            placeholder="E.g. Hari"
+                                                        />
                                                     </div>
                                                     <div>
-                                                        <div className="flex items-center gap-2">
-                                                            <p className="text-xs font-bold text-slate-900">{off.name}</p>
-                                                            <span className="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 text-[9px] font-bold">
-                                                                {off.city}
-                                                            </span>
-                                                        </div>
-                                                        <p className="text-[11px] text-slate-500 mt-0.5">{off.location}</p>
+                                                        <label htmlFor="create-user-last-name" className="text-xs font-bold text-slate-700 mb-1.5 block">
+                                                            Last Name <span className="text-rose-500">*</span>
+                                                        </label>
+                                                        <input
+                                                            id="create-user-last-name"
+                                                            required
+                                                            type="text"
+                                                            value={newUserQuery.lastName}
+                                                            onChange={e => setNewUserQuery({ ...newUserQuery, lastName: e.target.value })}
+                                                            className="w-full min-h-[48px] px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400"
+                                                            placeholder="E.g. Kalyan"
+                                                        />
                                                     </div>
                                                 </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleDeleteOffice(off.id, off.name)}
-                                                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                                                    title="Delete office"
-                                                >
-                                                    <span className="material-symbols-outlined text-[16px]">delete</span>
-                                                </button>
-                                            </div>
-                                        ))}
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mt-4">
+                                                    <div>
+                                                        <label htmlFor="create-user-email" className="text-xs font-bold text-slate-700 mb-1.5 block">
+                                                            Email Address <span className="text-rose-500">*</span>
+                                                        </label>
+                                                        <div className="relative flex items-center">
+                                                            <div className="absolute left-3.5 top-1/2 -translate-y-1/2 flex items-center gap-2 pointer-events-none text-slate-400">
+                                                                <span className="material-symbols-outlined text-[18px]">mail</span>
+                                                                <span className="w-px h-4 bg-slate-300"></span>
+                                                            </div>
+                                                            <input
+                                                                id="create-user-email"
+                                                                required
+                                                                type="email"
+                                                                value={newUserQuery.email}
+                                                                onChange={e => setNewUserQuery({ ...newUserQuery, email: e.target.value })}
+                                                                className="w-full min-h-[48px] pl-12 pr-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400"
+                                                                placeholder={newUserQuery.role === 'staff' ? 'staff.name@vidyaloans.com' : newUserQuery.role === 'bank' ? 'officer@bank.com' : 'example@gmail.com'}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <label htmlFor="create-user-mobile" className="text-xs font-bold text-slate-700 mb-1.5 block">
+                                                            Mobile Number <span className="text-rose-500">*</span>
+                                                        </label>
+                                                        <div className="relative flex items-center">
+                                                            <div className="absolute left-3.5 top-1/2 -translate-y-1/2 flex items-center gap-2 pointer-events-none text-slate-400">
+                                                                <span className="material-symbols-outlined text-[18px]">call</span>
+                                                                <span className="w-px h-4 bg-slate-300"></span>
+                                                            </div>
+                                                            <input
+                                                                id="create-user-mobile"
+                                                                required
+                                                                type="tel"
+                                                                value={newUserQuery.mobile}
+                                                                onChange={e => setNewUserQuery({ ...newUserQuery, mobile: e.target.value })}
+                                                                className="w-full min-h-[48px] pl-12 pr-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all placeholder:text-slate-400"
+                                                                placeholder="+91 98765 43210"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Office Location for Staff */}
+                                                {newUserQuery.role === 'staff' && (
+                                                    <div className="mt-6 p-5 sm:p-6 rounded-2xl bg-indigo-50/70 border border-indigo-100/90 space-y-3">
+                                                        <div>
+                                                            <div className="flex items-center justify-between mb-1.5">
+                                                                <label htmlFor="create-staff-office" className="text-xs font-bold text-indigo-950 block">
+                                                                    Office & Work Location <span className="text-rose-500">*</span>
+                                                                </label>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        loadOffices();
+                                                                        setShowAddOfficeModal(true);
+                                                                    }}
+                                                                    className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 bg-white px-2.5 py-1 rounded-lg border border-indigo-200 shadow-2xs hover:bg-indigo-50 transition-all cursor-pointer"
+                                                                >
+                                                                    <span className="material-symbols-outlined text-[15px]">add_circle</span>
+                                                                    Add Office
+                                                                </button>
+                                                            </div>
+                                                            <select
+                                                                id="create-staff-office"
+                                                                value={newUserQuery.officeId || ""}
+                                                                onChange={e => {
+                                                                    const selected = offices.find(o => o.id === e.target.value);
+                                                                    setNewUserQuery({
+                                                                        ...newUserQuery,
+                                                                        officeId: e.target.value,
+                                                                        officeLocation: selected ? `${selected.name} - ${selected.city} (${selected.location})` : ""
+                                                                    });
+                                                                }}
+                                                                className="w-full min-h-[48px] px-4 py-3 bg-white border border-indigo-200 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 cursor-pointer shadow-xs"
+                                                            >
+                                                                <option value="">-- Select Office Location ({offices.length} Registered) --</option>
+                                                                {offices.map((off: any) => (
+                                                                    <option key={off.id} value={off.id}>
+                                                                        {off.name} · {off.city} ({off.location})
+                                                                    </option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+
+                                                        <div className="flex items-start gap-2 pt-1">
+                                                            <span className="material-symbols-outlined text-indigo-600 text-base mt-0.5 shrink-0">info</span>
+                                                            <p className="text-xs text-indigo-900/80 font-medium leading-relaxed">
+                                                                Assigns the staff member to an operational branch and sets their queue allocation. Staff can log in directly at <code className="bg-indigo-100 px-1 py-0.5 rounded text-indigo-800 font-mono">/staff/login</code>.
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Agent Partner Specific Details */}
+                                                {newUserQuery.role === 'agent' && (
+                                                    <div className="mt-6 p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-amber-50/80 via-orange-50/40 to-amber-50/90 border border-amber-200/80 space-y-5 shadow-xs">
+                                                        <div className="flex items-center justify-between border-b border-amber-200/60 pb-3">
+                                                            <div className="flex items-center gap-2 text-amber-900 font-bold text-xs uppercase tracking-wider">
+                                                                <span className="material-symbols-outlined text-amber-600 text-lg">handshake</span>
+                                                                Channel Partnership & Compliance Setup
+                                                            </div>
+                                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                                                                Draft Enabled
+                                                            </span>
+                                                        </div>
+
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                                                            <div>
+                                                                <label htmlFor="create-agent-partnership" className="text-xs font-bold text-slate-800 mb-1.5 block">
+                                                                    Partnership Type / Channel <span className="text-rose-500">*</span>
+                                                                </label>
+                                                                <select
+                                                                    id="create-agent-partnership"
+                                                                    value={newUserQuery.partnership || "Individual Consultant"}
+                                                                    onChange={e => setNewUserQuery({ ...newUserQuery, partnership: e.target.value })}
+                                                                    className="w-full min-h-[48px] px-4 py-3 bg-white border border-amber-300/80 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/30 cursor-pointer shadow-xs"
+                                                                >
+                                                                    <option value="Individual Consultant">Individual Education Consultant</option>
+                                                                    <option value="Study Abroad Consultancy">Study Abroad Consultancy / Firm</option>
+                                                                    <option value="University Referral Partner">University Referral Partner</option>
+                                                                    <option value="Corporate Channel Partner">Corporate Channel Partner</option>
+                                                                    <option value="Financial Advisor">Financial Advisor / DSA</option>
+                                                                </select>
+                                                            </div>
+
+                                                            <div>
+                                                                <label htmlFor="create-agent-percentage" className="text-xs font-bold text-slate-800 mb-1.5 block">
+                                                                    Commission Rate (%) <span className="text-rose-500">*</span>
+                                                                </label>
+                                                                <div className="relative">
+                                                                    <input
+                                                                        id="create-agent-percentage"
+                                                                        type="number"
+                                                                        step="0.1"
+                                                                        min="0"
+                                                                        max="25"
+                                                                        value={newUserQuery.percentage || "1.5"}
+                                                                        onChange={e => setNewUserQuery({ ...newUserQuery, percentage: e.target.value })}
+                                                                        className="w-full min-h-[48px] pl-4 pr-11 py-3 bg-white border border-amber-300/80 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/30 shadow-xs"
+                                                                        placeholder="1.5"
+                                                                    />
+                                                                    <span className="material-symbols-outlined absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-lg pointer-events-none">percent</span>
+                                                                </div>
+                                                                <p className="text-[10px] text-slate-500 mt-1">Agreed payout % on disbursed student loan value.</p>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                                                            <div>
+                                                                <label htmlFor="create-agent-pan" className="text-xs font-bold text-slate-800 mb-1.5 block">
+                                                                    Agent / Company PAN Number <span className="text-rose-500">*</span>
+                                                                </label>
+                                                                <div className="relative">
+                                                                    <input
+                                                                        id="create-agent-pan"
+                                                                        type="text"
+                                                                        maxLength={10}
+                                                                        value={newUserQuery.panNumber || ""}
+                                                                        onChange={e => setNewUserQuery({ ...newUserQuery, panNumber: e.target.value.toUpperCase() })}
+                                                                        className="w-full min-h-[48px] pl-11 pr-4 py-3 bg-white border border-amber-300/80 rounded-xl text-sm font-semibold tracking-wider text-slate-900 uppercase focus:outline-none focus:ring-2 focus:ring-amber-500/30 shadow-xs"
+                                                                        placeholder="ABCDE1234F"
+                                                                    />
+                                                                    <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-amber-600 text-lg pointer-events-none">badge</span>
+                                                                </div>
+                                                            </div>
+
+                                                            <div>
+                                                                <label htmlFor="create-agent-business" className="text-xs font-bold text-slate-800 mb-1.5 block">
+                                                                    Business / Consultancy Name
+                                                                </label>
+                                                                <div className="relative">
+                                                                    <input
+                                                                        id="create-agent-business"
+                                                                        type="text"
+                                                                        value={newUserQuery.businessName || ""}
+                                                                        onChange={e => setNewUserQuery({ ...newUserQuery, businessName: e.target.value })}
+                                                                        className="w-full min-h-[48px] pl-11 pr-4 py-3 bg-white border border-amber-300/80 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/30 shadow-xs"
+                                                                        placeholder="E.g. Global EdTech Advisors"
+                                                                    />
+                                                                    <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-lg pointer-events-none">business</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                                                            <div>
+                                                                <label htmlFor="create-agent-gstin" className="text-xs font-bold text-slate-800 mb-1.5 block">
+                                                                    GSTIN / Registration No. (Optional)
+                                                                </label>
+                                                                <input
+                                                                    id="create-agent-gstin"
+                                                                    type="text"
+                                                                    value={newUserQuery.gstin || ""}
+                                                                    onChange={e => setNewUserQuery({ ...newUserQuery, gstin: e.target.value.toUpperCase() })}
+                                                                    className="w-full min-h-[48px] px-4 py-3 bg-white border border-amber-300/80 rounded-xl text-sm font-medium uppercase text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/30 shadow-xs"
+                                                                    placeholder="22AAAAA0000A1Z5"
+                                                                />
+                                                            </div>
+
+                                                            <div>
+                                                                <label htmlFor="create-agent-photo" className="text-xs font-bold text-slate-800 mb-1.5 block">
+                                                                    Profile Photo URL or File
+                                                                </label>
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className="w-12 h-12 rounded-xl border border-amber-200 bg-white overflow-hidden flex items-center justify-center shrink-0 shadow-2xs">
+                                                                        {newUserQuery.profilePhoto ? (
+                                                                            <img src={newUserQuery.profilePhoto} alt="Preview" className="w-full h-full object-cover" />
+                                                                        ) : (
+                                                                            <span className="material-symbols-outlined text-amber-500 text-2xl">account_circle</span>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="flex-1 flex gap-2">
+                                                                        <input
+                                                                            id="create-agent-photo"
+                                                                            type="text"
+                                                                            value={newUserQuery.profilePhoto || ""}
+                                                                            onChange={e => setNewUserQuery({ ...newUserQuery, profilePhoto: e.target.value })}
+                                                                            className="flex-1 min-h-[48px] px-3 py-2 bg-white border border-amber-300/80 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/30 shadow-xs"
+                                                                            placeholder="https://... or upload"
+                                                                        />
+                                                                        <label className="min-h-[48px] px-3.5 bg-white hover:bg-amber-50 text-amber-800 border border-amber-300/80 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs transition-all shrink-0">
+                                                                            <span className="material-symbols-outlined text-sm">upload</span>
+                                                                            <span>Upload</span>
+                                                                            <input
+                                                                                type="file"
+                                                                                accept="image/*"
+                                                                                className="hidden"
+                                                                                onChange={e => {
+                                                                                    const file = e.target.files?.[0];
+                                                                                    if (file) {
+                                                                                        const reader = new FileReader();
+                                                                                        reader.onload = () => {
+                                                                                            setNewUserQuery(prev => ({ ...prev, profilePhoto: reader.result as string }));
+                                                                                        };
+                                                                                        reader.readAsDataURL(file);
+                                                                                    }
+                                                                                }}
+                                                                            />
+                                                                        </label>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Document Checklist & Uploads */}
+                                                        <div className="pt-2">
+                                                            <label className="text-xs font-bold text-slate-800 mb-2 block flex items-center justify-between">
+                                                                <span>Agent KYC & Agreement Documents</span>
+                                                                <span className="text-[10px] font-normal text-slate-500">Attach now or Save as Draft to complete later</span>
+                                                            </label>
+                                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                                                {[
+                                                                    { key: 'pan_card', label: 'PAN Card Copy' },
+                                                                    { key: 'business_registration', label: 'Registration / GST' },
+                                                                    { key: 'signed_agreement', label: 'Partner Agreement' }
+                                                                ].map(doc => {
+                                                                    const isUploaded = (newUserQuery.documents || []).some(d => d.type === doc.key);
+                                                                    return (
+                                                                        <label
+                                                                            key={doc.key}
+                                                                            className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-all ${isUploaded
+                                                                                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                                                                                    : 'bg-white border-dashed border-amber-300 hover:border-amber-400 text-slate-600'
+                                                                                }`}
+                                                                        >
+                                                                            <span className="material-symbols-outlined text-xl">
+                                                                                {isUploaded ? 'task_alt' : 'note_add'}
+                                                                            </span>
+                                                                            <span className="text-xs font-bold text-center leading-tight">{doc.label}</span>
+                                                                            <span className="text-[10px] text-slate-400">
+                                                                                {isUploaded ? 'Attached ✓' : 'Click to attach'}
+                                                                            </span>
+                                                                            <input
+                                                                                type="file"
+                                                                                className="hidden"
+                                                                                onChange={e => {
+                                                                                    const file = e.target.files?.[0];
+                                                                                    if (file) {
+                                                                                        setNewUserQuery(prev => {
+                                                                                            const updatedDocs = (prev.documents || []).filter(d => d.type !== doc.key);
+                                                                                            return {
+                                                                                                ...prev,
+                                                                                                documents: [
+                                                                                                    ...updatedDocs,
+                                                                                                    {
+                                                                                                        name: file.name,
+                                                                                                        type: doc.key,
+                                                                                                        uploadedAt: new Date().toISOString()
+                                                                                                    }
+                                                                                                ]
+                                                                                            };
+                                                                                        });
+                                                                                    }
+                                                                                }}
+                                                                            />
+                                                                        </label>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="p-3 bg-amber-100/60 rounded-xl border border-amber-200 text-amber-900 text-xs flex items-start gap-2">
+                                                            <span className="material-symbols-outlined text-amber-700 text-base mt-0.5 shrink-0">info</span>
+                                                            <p className="leading-relaxed">
+                                                                <strong>Draft Mode:</strong> If documents or PAN details are not yet complete, select <strong>"Save as Draft"</strong>. No email will be sent until the agent profile is formally submitted and activated.
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {newUserQuery.role === 'bank' && (
+                                                    <div className="mt-6 p-5 sm:p-6 rounded-2xl bg-slate-50 border border-slate-200/90 space-y-4">
+                                                        <div className="space-y-1.5">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="material-symbols-outlined text-slate-700 text-lg">account_balance</span>
+                                                                <label htmlFor="create-bank-select" className="text-xs font-bold text-slate-900 block">
+                                                                    Assigned Lending Bank Partner <span className="text-rose-500">*</span>
+                                                                </label>
+                                                            </div>
+                                                            <select
+                                                                id="create-bank-select"
+                                                                required
+                                                                value={newUserQuery.bank || ""}
+                                                                onChange={e => {
+                                                                    const selected = bankPartners.find(b => b.shortName === e.target.value);
+                                                                    setNewUserQuery({
+                                                                        ...newUserQuery,
+                                                                        bank: e.target.value,
+                                                                        firstName: newUserQuery.firstName || (selected?.shortName || e.target.value)
+                                                                    });
+                                                                }}
+                                                                className={`w-full min-h-[48px] px-4 py-3 bg-white rounded-xl text-sm font-semibold text-slate-900 focus:outline-none transition-all cursor-pointer shadow-2xs ${!newUserQuery.bank
+                                                                        ? 'border-2 border-rose-400 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20'
+                                                                        : 'border border-slate-300 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/20'
+                                                                    }`}
+                                                            >
+                                                                <option value="">-- Select Bank Partner ({bankPartners.length} Active Partners) --</option>
+                                                                {bankPartners.map((bp: any) => (
+                                                                    <option key={bp.id || bp.shortName} value={bp.shortName}>
+                                                                        {bp.name} ({bp.shortName.toUpperCase()}) · {bp.type} · ROI {bp.interestRateMin}% - {bp.interestRateMax}%
+                                                                    </option>
+                                                                ))}
+                                                            </select>
+                                                            {!newUserQuery.bank && (
+                                                                <p className="text-[11px] text-rose-600 font-bold flex items-center gap-1.5 pt-0.5">
+                                                                    <span className="material-symbols-outlined text-[14px]">warning</span>
+                                                                    Selecting a bank partner is required before submitting.
+                                                                </p>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Informational Helper Callout */}
+                                                        <div className="p-3 bg-blue-50/70 rounded-xl border border-blue-200/70 text-blue-900 text-xs flex items-start gap-2.5">
+                                                            <span className="material-symbols-outlined text-blue-600 text-base mt-0.5 shrink-0">info</span>
+                                                            <p className="leading-relaxed font-medium">
+                                                                Links the officer profile to the selected lender's underwriting portal, auto-allocation queue, and decision system.
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </section>
+                                        </form>
                                     </div>
-                                )}
+
+                                    {/* Modal Footer with 48px min-height buttons */}
+                                    <div className="p-5 sm:p-6 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-center gap-3 shrink-0">
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowCreateUserModal(false)}
+                                            className="w-full sm:w-auto min-h-[48px] px-6 py-3 bg-white hover:bg-slate-100 text-slate-700 rounded-xl font-bold text-xs uppercase tracking-wider border border-slate-200 transition-all cursor-pointer text-center"
+                                        >
+                                            Cancel
+                                        </button>
+
+                                        {/* Save as Draft Button for Agents */}
+                                        {newUserQuery.role === 'agent' && (
+                                            <button
+                                                type="button"
+                                                disabled={createUserLoading || !newUserQuery.email || !newUserQuery.firstName}
+                                                onClick={() => handleCreateUser(undefined, true)}
+                                                className="w-full sm:w-auto min-h-[48px] px-6 py-3 bg-amber-50 hover:bg-amber-100 text-amber-900 rounded-xl font-bold text-xs uppercase tracking-wider border border-amber-300 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                                                title="Save agent information with incomplete details as Draft without sending notification email"
+                                            >
+                                                <span className="material-symbols-outlined text-base">save</span>
+                                                Save as Draft
+                                            </button>
+                                        )}
+
+                                        <button
+                                            form="student-creation-form"
+                                            type="submit"
+                                            disabled={
+                                                createUserLoading ||
+                                                (newUserQuery.role === 'bank' && (
+                                                    !newUserQuery.bank ||
+                                                    !newUserQuery.firstName?.trim() ||
+                                                    !newUserQuery.lastName?.trim() ||
+                                                    !newUserQuery.email?.trim() ||
+                                                    !newUserQuery.mobile?.trim()
+                                                ))
+                                            }
+                                            className="w-full sm:flex-1 min-h-[48px] bg-slate-900 hover:bg-slate-800 text-white px-6 py-3 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-slate-900/10 active:scale-[0.99] transition-all cursor-pointer disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed disabled:shadow-none disabled:active:scale-100"
+                                        >
+                                            {createUserLoading ? (
+                                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                            ) : (
+                                                <>
+                                                    <span className="material-symbols-outlined text-lg">check_circle</span>
+                                                    {newUserQuery.role === 'staff' || newUserQuery.role === 'staff_admin' ? 'Create Staff Profile' :
+                                                        newUserQuery.role === 'agent' ? 'Submit & Activate Agent Profile' :
+                                                            newUserQuery.role === 'bank' ? 'Create Bank Officer Profile' : 'Create Student Profile'}
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
+                        )
+                    )}
 
-                        {/* Modal Footer */}
-                        <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-3 shrink-0">
-                            <button
-                                type="button"
-                                onClick={() => setShowAddOfficeModal(false)}
-                                className="flex-1 px-6 py-3 bg-white text-slate-600 rounded-xl font-bold text-xs hover:bg-slate-100 border border-slate-200 transition-all cursor-pointer"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                form="add-office-form"
-                                type="submit"
-                                disabled={createOfficeLoading}
-                                className="flex-[2] bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-indigo-600/20 active:scale-95 transition-all cursor-pointer"
-                            >
-                                {createOfficeLoading ? (
-                                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                ) : (
-                                    <>
-                                        <span className="material-symbols-outlined text-[16px]">save</span>
-                                        Save Office
-                                    </>
-                                )}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* ─── User Profile & Credentials Modal ─────────────────────────────────────────── */}
-            {selectedUserProfile && (
-                <div className="fixed inset-0 z-[110] flex justify-end">
-                    <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px] animate-fade-in" onClick={() => { setSelectedUserProfile(null); setUserCredentials(null); setUserLoans([]); }} />
-                    <div className="relative w-full max-w-2xl bg-white shadow-2xl flex flex-col animate-slide-in-right border-l border-slate-200 overflow-hidden">
-                        <div className="sticky top-0 z-20 bg-white border-b border-slate-100 px-8 py-6">
-                            <div className="flex items-center justify-between mb-6">
-                                <div>
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-lg">
-                                            <span className="material-symbols-outlined text-[24px]">person</span>
+                    {/* ─── Edit User Modal ─────────────────────────────────────────── */}
+                    {editingUser && (
+                        <div className="fixed inset-0 z-[120] flex items-center justify-center p-6">
+                            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]" onClick={() => setEditingUser(null)} />
+                            <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in duration-200">
+                                <div className="p-8">
+                                    <div className="flex items-center gap-3 mb-8">
+                                        <div className="w-10 h-10 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                                            <span className="material-symbols-outlined text-[20px]">person_edit</span>
                                         </div>
                                         <div>
-                                            <h2 className="text-[20px] font-bold text-slate-900 tracking-tight">{selectedUserProfile.firstName} {selectedUserProfile.lastName}</h2>
-                                            <div className="flex items-center gap-2 flex-wrap mt-0.5">
-                                                <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">{selectedUserProfile.email}</p>
-                                                {(() => {
-                                                    const assignedBank = getAssignedBank(selectedUserProfile) || (userLoans?.[0] ? getAssignedBank(userLoans[0]) : null);
-                                                    return assignedBank ? (
-                                                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded text-[10px] font-bold shadow-2xs">
-                                                            {assignedBank.logoUrl ? (
-                                                                <img src={assignedBank.logoUrl} alt="" className="w-3.5 h-3.5 object-contain" />
-                                                            ) : (
-                                                                <span className="material-symbols-outlined text-[13px] text-emerald-600">account_balance</span>
-                                                            )}
-                                                            {assignedBank.name} ({assignedBank.shortName})
-                                                        </span>
-                                                    ) : null;
-                                                })()}
-                                            </div>
+                                            <h3 className="text-[18px] font-bold text-slate-900 tracking-tight">Identity Modification</h3>
+                                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mt-1">Target: {editingUser.email}</p>
                                         </div>
                                     </div>
-                                </div>
-                                <button onClick={() => { setSelectedUserProfile(null); setUserCredentials(null); setUserLoans([]); }} className="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-all border border-transparent hover:border-slate-100">
-                                    <span className="material-symbols-outlined">close</span>
-                                </button>
-                            </div>
-                            <div className="flex gap-4 overflow-x-auto pb-2">
-                                <button
-                                    onClick={() => setUserProfileTab('credentials')}
-                                    className={`whitespace-nowrap pb-3 text-[11px] font-black uppercase tracking-widest border-b-2 flex items-center gap-2 transition-all cursor-pointer ${
-                                        userProfileTab === 'credentials'
-                                            ? 'border-indigo-600 text-indigo-600'
-                                            : 'border-transparent text-slate-400 hover:text-slate-600'
-                                    }`}
-                                >
-                                    <span className="material-symbols-outlined text-[14px]">badge</span>
-                                    Credentials
-                                </button>
-                                <button
-                                    onClick={() => setUserProfileTab('applications')}
-                                    className={`whitespace-nowrap pb-3 text-[11px] font-black uppercase tracking-widest border-b-2 flex items-center gap-2 transition-all cursor-pointer ${
-                                        userProfileTab === 'applications'
-                                            ? 'border-indigo-600 text-indigo-600'
-                                            : 'border-transparent text-slate-400 hover:text-slate-600'
-                                    }`}
-                                >
-                                    <span className="material-symbols-outlined text-[14px]">description</span>
-                                    Applications ({userLoans.length})
-                                </button>
-                                <button
-                                    onClick={() => setUserProfileTab('bank_compare')}
-                                    className={`whitespace-nowrap pb-3 text-[11px] font-black uppercase tracking-widest border-b-2 flex items-center gap-2 transition-all cursor-pointer ${
-                                        userProfileTab === 'bank_compare'
-                                            ? 'border-emerald-600 text-emerald-600'
-                                            : 'border-transparent text-slate-400 hover:text-emerald-600'
-                                    }`}
-                                >
-                                    <span className="material-symbols-outlined text-[14px]">account_balance</span>
-                                    Bank Profile & Compare
-                                </button>
-                            </div>
-                        </div>
 
-                        <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
-                            {userProfileLoading ? (
-                                <div className="flex flex-col items-center justify-center py-20">
-                                    <div className="w-12 h-12 border-3 border-slate-200 border-t-indigo-600 rounded-full animate-spin mb-4" />
-                                    <p className="text-[12px] font-bold text-slate-500">Loading user profile...</p>
-                                </div>
-                            ) : userProfileTab === 'bank_compare' ? (
-                                /* ─── Bank Profile vs Bank Partner Comparison View ─── */
-                                <div className="space-y-6">
-                                    {/* Partner Selector Header */}
-                                    <div className="p-5 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-100 rounded-2xl border border-emerald-200 shadow-sm">
-                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                    <form onSubmit={handleUpdateUser} className="space-y-6">
+                                        <div className="grid grid-cols-2 gap-4">
                                             <div>
-                                                <div className="flex items-center gap-2 text-emerald-800 font-extrabold text-[11px] uppercase tracking-wider">
-                                                    <span className="material-symbols-outlined text-[18px] text-emerald-600">compare_arrows</span>
-                                                    Bank Partner Comparison Engine
-                                                </div>
-                                                <p className="text-[12px] text-emerald-900 font-medium mt-0.5">
-                                                    Compare this user profile against active institutional lending partners.
-                                                </p>
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">First Name</label>
+                                                <input required type="text" value={editingUser.firstName} onChange={e => setEditingUser({ ...editingUser, firstName: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-400 transition-all" />
                                             </div>
-                                            <div className="flex items-center gap-2">
-                                                <div className="relative min-w-[200px]">
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Last Name</label>
+                                                <input required type="text" value={editingUser.lastName} onChange={e => setEditingUser({ ...editingUser, lastName: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-400 transition-all" />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Contact Phone Number</label>
+                                            <input type="tel" value={editingUser.phoneNumber || editingUser.mobile || ""} onChange={e => setEditingUser({ ...editingUser, phoneNumber: e.target.value, mobile: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-400 transition-all" placeholder="+91 XXXX-XXXXXX" />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Email Address</label>
+                                            <input required type="email" value={editingUser.email || ""} onChange={e => setEditingUser({ ...editingUser, email: e.target.value })} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all" placeholder="user@example.com" />
+                                        </div>
+                                        {(editingUser.role === 'staff' || editingUser.role === 'staff_admin') && (
+                                            <>
+                                                <div>
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">
+                                                        Assigned Office & Location
+                                                    </label>
                                                     <select
-                                                        value={comparedBankPartner?.shortName || ""}
-                                                        onChange={(e) => {
-                                                            const partner = bankPartners.find(b => b.shortName === e.target.value);
-                                                            setComparedBankPartner(partner || null);
+                                                        value={editingUser.officeId || ""}
+                                                        onChange={e => {
+                                                            const sel = offices.find(o => o.id === e.target.value);
+                                                            setEditingUser({
+                                                                ...editingUser,
+                                                                officeId: e.target.value,
+                                                                officeLocation: sel ? `${sel.name} - ${sel.city} (${sel.location})` : ""
+                                                            });
                                                         }}
-                                                        className="w-full px-3.5 py-2.5 bg-white border border-emerald-300 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 cursor-pointer shadow-xs"
+                                                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-400 transition-all cursor-pointer"
                                                     >
-                                                        {bankPartners.map((bp: any) => (
-                                                            <option key={bp.id || bp.shortName} value={bp.shortName}>
-                                                                {bp.name} ({bp.shortName.toUpperCase()})
+                                                        <option value="">-- Select Office Location --</option>
+                                                        {offices.map((off: any) => (
+                                                            <option key={off.id} value={off.id}>
+                                                                {off.name} · {off.city} ({off.location})
                                                             </option>
                                                         ))}
                                                     </select>
                                                 </div>
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                    <div>
+                                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">
+                                                            Assigned AWS SES Business Email
+                                                        </label>
+                                                        <input
+                                                            type="email"
+                                                            value={editingUser.mailboxEmail || ""}
+                                                            onChange={e => setEditingUser({ ...editingUser, mailboxEmail: e.target.value })}
+                                                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-mono font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-600/20 focus:border-violet-600 transition-all"
+                                                            placeholder="e.g. staff.name@vidyaloans.in"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">
+                                                            AWS S3 Mailbox Folder Prefix
+                                                        </label>
+                                                        <input
+                                                            type="text"
+                                                            value={editingUser.mailboxPrefix || ""}
+                                                            onChange={e => setEditingUser({ ...editingUser, mailboxPrefix: e.target.value })}
+                                                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-mono font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-600/20 focus:border-violet-600 transition-all"
+                                                            placeholder="e.g. staff/name/ or name/"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-2 pt-1">
+                                                    <input
+                                                        id="edit-modal-can-access-support"
+                                                        type="checkbox"
+                                                        checked={!!editingUser.canAccessSupport}
+                                                        onChange={e => setEditingUser({ ...editingUser, canAccessSupport: e.target.checked })}
+                                                        className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                                                    />
+                                                    <label htmlFor="edit-modal-can-access-support" className="text-xs font-semibold text-slate-700 cursor-pointer">
+                                                        Allow access to general support queue & unassigned inquiries
+                                                    </label>
+                                                </div>
+                                            </>
+                                        )}
+                                        <div className="pt-4 flex gap-4">
+                                            <button type="button" onClick={() => setEditingUser(null)} className="flex-1 px-6 py-3 bg-slate-50 text-slate-400 rounded-lg font-black uppercase tracking-widest text-[10px] hover:bg-slate-100 hover:text-slate-600 transition-all border border-slate-100">Cancel</button>
+                                            <button type="submit" disabled={updateLoading} className="flex-[2] bg-slate-900 text-white py-3 rounded-lg font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 shadow-lg shadow-slate-900/10 active:scale-95 transition-all">
+                                                {updateLoading ? "SYNCING..." : "Commit Changes"}
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ─── Send Email Modal ─────────────────────────────────────────── */}
+                    {emailModalUser && (
+                        <div className="fixed inset-0 z-[125] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+                            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity" onClick={() => setEmailModalUser(null)} />
+                            <div className="relative w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in duration-200 my-auto">
+                                {/* Header */}
+                                <div className="px-6 sm:px-8 pt-7 pb-5 bg-gradient-to-br from-indigo-50/70 via-slate-50 to-white border-b border-slate-100">
+                                    <div className="flex items-start justify-between">
+                                        <div className="flex items-center gap-3.5">
+                                            <div className="w-11 h-11 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-600/20">
+                                                <span className="material-symbols-outlined text-[22px]">outgoing_mail</span>
+                                            </div>
+                                            <div>
+                                                <h3 className="text-lg font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                                                    Send Email Message
+                                                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">Direct Dispatch</span>
+                                                </h3>
+                                                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                                                    Communicate directly with this account holder
+                                                </p>
                                             </div>
                                         </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setEmailModalUser(null)}
+                                            className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                                        >
+                                            <span className="material-symbols-outlined text-[18px]">close</span>
+                                        </button>
                                     </div>
 
-                                    {/* Side by Side Comparison Grid */}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                        {/* Left Box: User / Officer Profile */}
-                                        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 flex flex-col justify-between shadow-xs">
+                                    {/* Recipient summary card */}
+                                    <div className="mt-4 p-3 rounded-xl bg-white border border-slate-200/80 shadow-xs flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-9 h-9 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-xs">
+                                                {((emailModalUser.firstName?.[0] || '') + (emailModalUser.lastName?.[0] || 'U')).toUpperCase()}
+                                            </div>
                                             <div>
-                                                <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-200">
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-black text-xs">
-                                                            <span className="material-symbols-outlined text-[16px]">person</span>
-                                                        </div>
-                                                        <h4 className="text-xs font-black uppercase tracking-wider text-slate-800">User Identity Profile</h4>
-                                                    </div>
-                                                    <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${
-                                                        selectedUserProfile.role === 'bank' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-700'
-                                                    }`}>
-                                                        {selectedUserProfile.role?.toUpperCase() || 'USER'}
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xs font-bold text-slate-900">
+                                                        {emailModalUser.firstName} {emailModalUser.lastName}
+                                                    </span>
+                                                    <span className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
+                                                        {emailModalUser.role || 'user'}
                                                     </span>
                                                 </div>
-
-                                                <div className="space-y-3 text-[11px]">
-                                                    <div>
-                                                        <span className="text-slate-400 font-bold uppercase text-[9px] block">Full Name</span>
-                                                        <p className="font-bold text-slate-900 text-sm mt-0.5">{selectedUserProfile.firstName} {selectedUserProfile.lastName}</p>
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-slate-400 font-bold uppercase text-[9px] block">Email & Mobile</span>
-                                                        <p className="font-semibold text-slate-800">{selectedUserProfile.email}</p>
-                                                        <p className="text-slate-500 font-mono text-[10px]">{selectedUserProfile.mobile || selectedUserProfile.phone || '—'}</p>
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-slate-400 font-bold uppercase text-[9px] block">Current Assigned Bank</span>
-                                                        <div className="flex items-center gap-1.5 mt-0.5">
-                                                            <span className="material-symbols-outlined text-[15px] text-indigo-500">account_balance</span>
-                                                            <span className="font-black text-indigo-900 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded text-[10px]">
-                                                                {(() => {
-                                                                    const b = getAssignedBank(selectedUserProfile) || (userLoans?.[0] ? getAssignedBank(userLoans[0]) : null);
-                                                                    if (b) return `${b.name} (${b.shortName})`.toUpperCase();
-                                                                    const rawB = selectedUserProfile.bank || userLoans?.[0]?.bank || userLoans?.[0]?.partnerBank;
-                                                                    return rawB ? rawB.toUpperCase() : 'Default / Not Assigned';
-                                                                })()}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-slate-400 font-bold uppercase text-[9px] block">Active Applications In Buffer</span>
-                                                        <p className="font-black text-slate-900 text-sm mt-0.5">{userLoans.length} Application{userLoans.length === 1 ? '' : 's'}</p>
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-slate-400 font-bold uppercase text-[9px] block">System ID</span>
-                                                        <code className="bg-slate-200/70 px-1.5 py-0.5 rounded text-[9px] font-mono text-slate-700">
-                                                            {selectedUserProfile.id || 'N/A'}
-                                                        </code>
-                                                    </div>
+                                                <div className="text-[11px] text-slate-500 font-mono mt-0.5 flex items-center gap-1">
+                                                    <span className="material-symbols-outlined text-[12px] text-slate-400">mail</span>
+                                                    {emailModalUser.email}
                                                 </div>
                                             </div>
-
-                                            {comparedBankPartner && (
-                                                <div className="mt-5 pt-4 border-t border-slate-200">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleUpdateUserBank(selectedUserProfile.id, selectedUserProfile.email, comparedBankPartner.shortName)}
-                                                        disabled={updatingUserBank || selectedUserProfile.bank === comparedBankPartner.shortName}
-                                                        className={`w-full py-2.5 px-3 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                                                            selectedUserProfile.bank === comparedBankPartner.shortName
-                                                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-200 cursor-default'
-                                                                : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm'
-                                                        }`}
-                                                    >
-                                                        <span className="material-symbols-outlined text-[14px]">
-                                                            {selectedUserProfile.bank === comparedBankPartner.shortName ? 'check_circle' : 'link'}
-                                                        </span>
-                                                        {selectedUserProfile.bank === comparedBankPartner.shortName 
-                                                            ? 'Currently Assigned to This Bank' 
-                                                            : `Link User to ${comparedBankPartner.shortName.toUpperCase()}`}
-                                                    </button>
-                                                </div>
-                                            )}
                                         </div>
-
-                                        {/* Right Box: Bank Partner Master Parameters */}
-                                        <div className="bg-white border-2 border-emerald-200 rounded-2xl p-5 flex flex-col justify-between shadow-sm relative overflow-hidden">
-                                            <div className="absolute -top-6 -right-6 w-24 h-24 bg-emerald-50 rounded-full blur-xl pointer-events-none" />
-                                            
-                                            {comparedBankPartner ? (
-                                                <div>
-                                                    <div className="flex items-center justify-between pb-3 mb-4 border-b border-emerald-100">
-                                                        <div className="flex items-center gap-2.5">
-                                                            {comparedBankPartner.logoUrl ? (
-                                                                <img src={comparedBankPartner.logoUrl} alt="" className="w-8 h-8 rounded-lg object-contain bg-slate-50 border border-slate-200 p-0.5" />
-                                                            ) : (
-                                                                <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-black text-xs">
-                                                                    <span className="material-symbols-outlined text-[18px]">account_balance</span>
-                                                                </div>
-                                                            )}
-                                                            <div>
-                                                                <h4 className="text-xs font-black text-slate-900 leading-tight">{comparedBankPartner.name}</h4>
-                                                                <span className="text-[9px] font-bold text-emerald-700 uppercase tracking-widest">{comparedBankPartner.type || 'LENDING PARTNER'}</span>
-                                                            </div>
-                                                        </div>
-                                                        <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-emerald-600 text-white shadow-xs">
-                                                            {comparedBankPartner.shortName}
-                                                        </span>
-                                                    </div>
-
-                                                    <div className="space-y-3 text-[11px]">
-                                                        <div className="p-2.5 bg-emerald-50/70 rounded-xl border border-emerald-100">
-                                                            <span className="text-emerald-800 font-black uppercase text-[9px] block">Interest Rate (ROI)</span>
-                                                            <p className="text-emerald-950 font-black text-sm mt-0.5">
-                                                                {comparedBankPartner.interestRateMin || comparedBankPartner.minRoi || 8.5}% - {comparedBankPartner.interestRateMax || comparedBankPartner.maxRoi || 14.5}% <span className="text-[10px] font-semibold text-emerald-700">p.a.</span>
-                                                            </p>
-                                                        </div>
-
-                                                        <div className="grid grid-cols-2 gap-2">
-                                                            <div className="p-2 bg-slate-50 rounded-lg border border-slate-100">
-                                                                <span className="text-slate-400 font-bold uppercase text-[8px] block">Max Loan Limit</span>
-                                                                <p className="font-extrabold text-slate-900 text-xs mt-0.5">{comparedBankPartner.maxLoanAmount || '₹1.50 Cr'}</p>
-                                                            </div>
-                                                            <div className="p-2 bg-slate-50 rounded-lg border border-slate-100">
-                                                                <span className="text-slate-400 font-bold uppercase text-[8px] block">Collateral-Free</span>
-                                                                <p className="font-extrabold text-slate-900 text-xs mt-0.5">{comparedBankPartner.collateralFreeLimit || '₹50 Lakhs'}</p>
-                                                            </div>
-                                                        </div>
-
-                                                        <div className="grid grid-cols-2 gap-2">
-                                                            <div className="p-2 bg-slate-50 rounded-lg border border-slate-100">
-                                                                <span className="text-slate-400 font-bold uppercase text-[8px] block">Processing SLA</span>
-                                                                <p className="font-extrabold text-slate-900 text-xs mt-0.5">{comparedBankPartner.processingTime || '3-5 Days'}</p>
-                                                            </div>
-                                                            <div className="p-2 bg-slate-50 rounded-lg border border-slate-100">
-                                                                <span className="text-slate-400 font-bold uppercase text-[8px] block">Processing Fee</span>
-                                                                <p className="font-extrabold text-slate-900 text-xs mt-0.5">{comparedBankPartner.processingFee || '0.5% - 1%'}</p>
-                                                            </div>
-                                                        </div>
-
-                                                        {Array.isArray(comparedBankPartner.features) && comparedBankPartner.features.length > 0 && (
-                                                            <div>
-                                                                <span className="text-slate-400 font-bold uppercase text-[9px] block mb-1">Key Schemes & Highlights</span>
-                                                                <div className="flex flex-wrap gap-1">
-                                                                    {comparedBankPartner.features.slice(0, 4).map((f: string, idx: number) => (
-                                                                        <span key={idx} className="px-2 py-0.5 bg-emerald-50 text-emerald-800 rounded text-[9px] font-bold border border-emerald-100">
-                                                                            ✓ {f}
-                                                                        </span>
-                                                                    ))}
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <div className="text-center py-12">
-                                                    <span className="material-symbols-outlined text-3xl text-slate-300 block mb-2">account_balance</span>
-                                                    <p className="text-xs text-slate-400 font-bold">Select a Bank Partner above to compare</p>
-                                                </div>
-                                            )}
-
-                                            {comparedBankPartner?.website && (
-                                                <div className="mt-4 pt-3 border-t border-slate-100">
-                                                    <a
-                                                        href={comparedBankPartner.website}
-                                                        target="_blank"
-                                                        rel="noreferrer"
-                                                        className="text-[10px] font-bold text-emerald-700 hover:text-emerald-900 flex items-center justify-center gap-1"
-                                                    >
-                                                        <span>Visit Official {comparedBankPartner.name} Portal</span>
-                                                        <span className="material-symbols-outlined text-[12px]">arrow_forward</span>
-                                                    </a>
-                                                </div>
-                                            )}
-                                        </div>
+                                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                            Verified Target
+                                        </span>
                                     </div>
                                 </div>
-                            ) : userProfileTab === 'applications' ? (
-                                /* ─── Applications Tab ─── */
-                                <div className="space-y-6">
-                                    <div className="flex items-center gap-3 mb-4">
-                                        <span className="material-symbols-outlined text-emerald-600 text-[20px]">account_balance</span>
-                                        <h3 className="text-[13px] font-bold text-slate-900 uppercase tracking-wide">Loan Applications ({userLoans.length})</h3>
-                                    </div>
-                                    
-                                    {userLoans.length > 0 ? (
-                                        <div className="space-y-3">
-                                            {userLoans.map((loan: any, idx: number) => (
-                                                <div key={idx} className="p-4 border border-slate-100 rounded-lg hover:border-slate-200 hover:bg-slate-50/50 transition-all group">
-                                                    <div className="flex items-start justify-between mb-3">
-                                                        <div className="flex-1">
-                                                            <p className="text-[12px] font-bold text-slate-900">
-                                                                {loan.bank} - {loan.loanType?.toUpperCase()}
-                                                            </p>
-                                                            <p className="text-[10px] text-slate-500 mt-1">
-                                                                App ID: <code className="bg-slate-100 px-1.5 py-0.5 rounded text-[9px] font-mono">{loan.applicationNumber || loan.id?.substring(0, 8)}</code>
-                                                            </p>
-                                                        </div>
-                                                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider border ${
-                                                            loan.status === 'pending' ? 'bg-amber-50 text-amber-700 border-amber-100' :
-                                                            loan.status === 'processing' ? 'bg-blue-50 text-blue-700 border-blue-100' :
-                                                            loan.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
-                                                            loan.status === 'disbursed' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' :
-                                                            loan.status === 'rejected' ? 'bg-rose-50 text-rose-700 border-rose-100' :
-                                                            'bg-slate-50 text-slate-600 border-slate-100'
-                                                        }`}>
-                                                            {loan.status}
-                                                        </span>
-                                                    </div>
-                                                    <div className="grid grid-cols-2 gap-3">
-                                                        <div className="text-[10px]">
-                                                            <span className="text-slate-500 font-medium">Amount</span>
-                                                            <p className="text-[12px] font-bold text-slate-900 mt-0.5">{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(loan.amount || 0)}</p>
-                                                        </div>
-                                                        <div className="text-[10px]">
-                                                            <span className="text-slate-500 font-medium">Applied On</span>
-                                                            <p className="text-[12px] font-bold text-slate-900 mt-0.5">
-                                                                {(() => {
-                                                                    const rawDate = loan.appliedOn || loan.appliedDate || loan.submittedAt || loan.createdAt || loan.created_at || loan.lanEnteredAt;
-                                                                    if (!rawDate) return '—';
-                                                                    try {
-                                                                        const parsed = new Date(rawDate);
-                                                                        return isNaN(parsed.getTime()) ? '—' : format(parsed, 'dd MMM yyyy');
-                                                                    } catch {
-                                                                        return '—';
-                                                                    }
-                                                                })()}
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                    {loan.universityName && (
-                                                        <p className="text-[10px] text-slate-500 mt-3">
-                                                            <span className="font-medium">University:</span> {loan.universityName} {loan.country && `(${loan.country})`}
-                                                        </p>
-                                                    )}
-                                                    <button
-                                                        onClick={() => {
-                                                            setSelectedApp(loan);
-                                                            setSelectedUserProfile(null);
-                                                        }}
-                                                        className="mt-3 w-full px-3 py-2 bg-slate-900 text-white rounded text-[10px] font-bold uppercase tracking-wider hover:bg-slate-800 transition-colors flex items-center justify-center gap-1.5"
-                                                    >
-                                                        <span className="material-symbols-outlined text-[12px]">open_in_full</span>
-                                                        View Full Details
-                                                    </button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <div className="text-center py-12 bg-slate-50 rounded-lg border border-dashed border-slate-200">
-                                            <span className="material-symbols-outlined text-3xl text-slate-300 block mb-2">folder_off</span>
-                                            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">No loan applications</p>
-                                        </div>
-                                    )}
 
-                                    {/* Summary Statistics */}
-                                    <div className="space-y-6 pt-6 border-t border-slate-200">
-                                        <div className="flex items-center gap-3 mb-4">
-                                            <span className="material-symbols-outlined text-blue-600 text-[20px]">analytics</span>
-                                            <h3 className="text-[13px] font-bold text-slate-900 uppercase tracking-wide">Application Summary</h3>
+                                {/* Form Body */}
+                                <form onSubmit={handleSendEmail} className="p-6 sm:p-8 space-y-5">
+                                    {/* Quick Template Selector */}
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block flex items-center justify-between">
+                                            <span>Quick Preset Templates</span>
+                                            <span className="text-slate-400 font-normal">Click to auto-fill</span>
+                                        </label>
+                                        <div className="grid grid-cols-3 gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleSelectTemplate('status')}
+                                                className="text-left p-2.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-200 transition-all group"
+                                            >
+                                                <div className="text-[11px] font-bold text-slate-800 group-hover:text-indigo-700 flex items-center gap-1.5">
+                                                    <span className="material-symbols-outlined text-[14px] text-indigo-500">sync_alt</span>
+                                                    Status Update
+                                                </div>
+                                                <div className="text-[10px] text-slate-400 mt-0.5 truncate">Application review note</div>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleSelectTemplate('docs')}
+                                                className="text-left p-2.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-200 transition-all group"
+                                            >
+                                                <div className="text-[11px] font-bold text-slate-800 group-hover:text-indigo-700 flex items-center gap-1.5">
+                                                    <span className="material-symbols-outlined text-[14px] text-amber-500">upload_file</span>
+                                                    Request Docs
+                                                </div>
+                                                <div className="text-[10px] text-slate-400 mt-0.5 truncate">KYC / Missing files</div>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleSelectTemplate('welcome')}
+                                                className="text-left p-2.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-200 transition-all group"
+                                            >
+                                                <div className="text-[11px] font-bold text-slate-800 group-hover:text-indigo-700 flex items-center gap-1.5">
+                                                    <span className="material-symbols-outlined text-[14px] text-emerald-500">waving_hand</span>
+                                                    Welcome Note
+                                                </div>
+                                                <div className="text-[10px] text-slate-400 mt-0.5 truncate">Onboarding greeting</div>
+                                            </button>
                                         </div>
-                                        <div className="grid grid-cols-3 gap-3">
-                                            <div className="p-3 bg-blue-50 rounded-lg border border-blue-100 text-center">
-                                                <p className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">Total Loans</p>
-                                                <p className="text-[18px] font-black text-blue-700 mt-1">{userLoans.length}</p>
+                                    </div>
+
+                                    {/* Subject Line */}
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 block">
+                                            Email Subject <span className="text-rose-500">*</span>
+                                        </label>
+                                        <input
+                                            required
+                                            type="text"
+                                            value={emailSubject}
+                                            onChange={e => setEmailSubject(e.target.value)}
+                                            placeholder="Enter concise email subject..."
+                                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all"
+                                        />
+                                    </div>
+
+                                    {/* Body Message */}
+                                    <div>
+                                        <div className="flex items-center justify-between mb-1.5">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">
+                                                Message Body <span className="text-rose-500">*</span>
+                                            </label>
+                                            <span className="text-[10px] text-slate-400 font-mono">
+                                                {emailContent.length} chars
+                                            </span>
+                                        </div>
+                                        <textarea
+                                            required
+                                            rows={6}
+                                            value={emailContent}
+                                            onChange={e => setEmailContent(e.target.value)}
+                                            placeholder="Type your message here..."
+                                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all resize-y font-sans leading-relaxed"
+                                        />
+                                    </div>
+
+                                    {/* Action Buttons */}
+                                    <div className="pt-2 flex items-center gap-3 border-t border-slate-100">
+                                        <button
+                                            type="button"
+                                            onClick={() => setEmailModalUser(null)}
+                                            disabled={sendingEmail}
+                                            className="flex-1 px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg font-bold text-xs tracking-wider uppercase transition-colors"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            type="submit"
+                                            disabled={sendingEmail}
+                                            className="flex-[2] px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white rounded-lg font-bold text-xs tracking-wider uppercase transition-all shadow-md shadow-indigo-600/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                                        >
+                                            {sendingEmail ? (
+                                                <>
+                                                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                                                    Sending Email...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <span className="material-symbols-outlined text-[16px]">send</span>
+                                                    Send Email Message
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ─── Add Office Modal ──────────────────────────────────────── */}
+                    {showAddOfficeModal && (
+                        <div className="fixed inset-0 z-[130] flex items-center justify-center p-4">
+                            <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={() => setShowAddOfficeModal(false)} />
+                            <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden animate-fade-in flex flex-col max-h-[90vh] border border-slate-200">
+                                {/* Modal Header */}
+                                <div className="p-6 sm:p-8 pb-4 border-b border-slate-100 shrink-0 bg-slate-50/50">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center">
+                                                <span className="material-symbols-outlined text-[22px]">domain_add</span>
                                             </div>
-                                            <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-100 text-center">
-                                                <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Approved</p>
-                                                <p className="text-[18px] font-black text-emerald-700 mt-1">{userLoans.filter((l: any) => l.status === 'approved' || l.status === 'disbursed').length}</p>
-                                            </div>
-                                            <div className="p-3 bg-amber-50 rounded-lg border border-amber-100 text-center">
-                                                <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Pending</p>
-                                                <p className="text-[18px] font-black text-amber-700 mt-1">{userLoans.filter((l: any) => l.status === 'pending' || l.status === 'processing').length}</p>
+                                            <div>
+                                                <h3 className="text-xl font-bold text-slate-900 tracking-tight">Add Office & Location</h3>
+                                                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                                                    Define new branches, cities, and physical office locations for staff deployment
+                                                </p>
                                             </div>
                                         </div>
-                                        {userLoans.length > 0 && (
-                                            <div className="p-4 bg-slate-900 text-white rounded-lg">
-                                                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-300 mb-1">Total Loan Value Requested</p>
-                                                <p className="text-[24px] font-black text-white">{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(userLoans.reduce((sum: number, l: any) => sum + (l.amount || 0), 0))}</p>
+                                        <button
+                                            onClick={() => setShowAddOfficeModal(false)}
+                                            className="p-2 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                                        >
+                                            <span className="material-symbols-outlined text-[20px]">close</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Modal Body */}
+                                <div className="overflow-y-auto p-6 sm:p-8 space-y-6">
+                                    <form id="add-office-form" onSubmit={handleCreateOffice} className="space-y-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5 block">
+                                                    Office / Branch Name *
+                                                </label>
+                                                <input
+                                                    required
+                                                    type="text"
+                                                    value={newOfficeData.name}
+                                                    onChange={e => setNewOfficeData({ ...newOfficeData, name: e.target.value })}
+                                                    placeholder="e.g. VidyaLoans HQ / South Hub"
+                                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5 block">
+                                                    City *
+                                                </label>
+                                                <input
+                                                    required
+                                                    type="text"
+                                                    value={newOfficeData.city}
+                                                    onChange={e => setNewOfficeData({ ...newOfficeData, city: e.target.value })}
+                                                    placeholder="e.g. Hyderabad, Bengaluru, Mumbai"
+                                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5 block">
+                                                Location / Address Details *
+                                            </label>
+                                            <input
+                                                required
+                                                type="text"
+                                                value={newOfficeData.location}
+                                                onChange={e => setNewOfficeData({ ...newOfficeData, location: e.target.value })}
+                                                placeholder="e.g. Cyber Towers, Phase 2, HITEC City"
+                                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                                            />
+                                        </div>
+                                    </form>
+
+                                    {/* Existing Offices List */}
+                                    <div className="pt-4 border-t border-slate-100">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                                                <span className="material-symbols-outlined text-[16px] text-indigo-600">apartment</span>
+                                                Registered Offices ({offices.length})
+                                            </h4>
+                                            {officesLoading && (
+                                                <div className="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                                            )}
+                                        </div>
+
+                                        {offices.length === 0 ? (
+                                            <div className="p-6 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                                                <span className="material-symbols-outlined text-3xl text-slate-300 block mb-1">domain</span>
+                                                <p className="text-xs text-slate-500 font-medium">No offices registered yet. Fill out the form above to add the first office.</p>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                                                {offices.map((off: any) => (
+                                                    <div key={off.id} className="p-3 bg-slate-50 hover:bg-indigo-50/40 border border-slate-200 rounded-xl flex items-center justify-between transition-colors">
+                                                        <div className="flex items-start gap-2.5">
+                                                            <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-indigo-600 shrink-0 mt-0.5">
+                                                                <span className="material-symbols-outlined text-[16px]">location_on</span>
+                                                            </div>
+                                                            <div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <p className="text-xs font-bold text-slate-900">{off.name}</p>
+                                                                    <span className="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 text-[9px] font-bold">
+                                                                        {off.city}
+                                                                    </span>
+                                                                </div>
+                                                                <p className="text-[11px] text-slate-500 mt-0.5">{off.location}</p>
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleDeleteOffice(off.id, off.name)}
+                                                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                                            title="Delete office"
+                                                        >
+                                                            <span className="material-symbols-outlined text-[16px]">delete</span>
+                                                        </button>
+                                                    </div>
+                                                ))}
                                             </div>
                                         )}
                                     </div>
                                 </div>
-                            ) : (
-                                /* ─── Credentials Tab ─── */
-                                <div className="space-y-6">
-                                    <div className="flex items-center gap-3 mb-4">
-                                        <span className="material-symbols-outlined text-indigo-600 text-[20px]">security</span>
-                                        <h3 className="text-[13px] font-bold text-slate-900 uppercase tracking-wide">Personal Information</h3>
+
+                                {/* Modal Footer */}
+                                <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-3 shrink-0">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowAddOfficeModal(false)}
+                                        className="flex-1 px-6 py-3 bg-white text-slate-600 rounded-xl font-bold text-xs hover:bg-slate-100 border border-slate-200 transition-all cursor-pointer"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        form="add-office-form"
+                                        type="submit"
+                                        disabled={createOfficeLoading}
+                                        className="flex-[2] bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-indigo-600/20 active:scale-95 transition-all cursor-pointer"
+                                    >
+                                        {createOfficeLoading ? (
+                                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                        ) : (
+                                            <>
+                                                <span className="material-symbols-outlined text-[16px]">save</span>
+                                                Save Office
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ─── User Profile & Credentials Modal ─────────────────────────────────────────── */}
+                    {selectedUserProfile && (
+                        <div className="fixed inset-0 z-[110] flex justify-end">
+                            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px] animate-fade-in" onClick={() => { setSelectedUserProfile(null); setUserCredentials(null); setUserLoans([]); }} />
+                            <div className="relative w-full max-w-2xl bg-white shadow-2xl flex flex-col animate-slide-in-right border-l border-slate-200 overflow-hidden">
+                                <div className="sticky top-0 z-20 bg-white border-b border-slate-100 px-8 py-6">
+                                    <div className="flex items-center justify-between mb-6">
+                                        <div>
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-lg">
+                                                    <span className="material-symbols-outlined text-[24px]">person</span>
+                                                </div>
+                                                <div>
+                                                    <h2 className="text-[20px] font-bold text-slate-900 tracking-tight">{selectedUserProfile.firstName} {selectedUserProfile.lastName}</h2>
+                                                    <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                                                        <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">{selectedUserProfile.email}</p>
+                                                        {(() => {
+                                                            const assignedBank = getAssignedBank(selectedUserProfile) || (userLoans?.[0] ? getAssignedBank(userLoans[0]) : null);
+                                                            return assignedBank ? (
+                                                                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded text-[10px] font-bold shadow-2xs">
+                                                                    {assignedBank.logoUrl ? (
+                                                                        <img src={assignedBank.logoUrl} alt="" className="w-3.5 h-3.5 object-contain" />
+                                                                    ) : (
+                                                                        <span className="material-symbols-outlined text-[13px] text-emerald-600">account_balance</span>
+                                                                    )}
+                                                                    {assignedBank.name} ({assignedBank.shortName})
+                                                                </span>
+                                                            ) : null;
+                                                        })()}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <button onClick={() => { setSelectedUserProfile(null); setUserCredentials(null); setUserLoans([]); }} className="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-all border border-transparent hover:border-slate-100">
+                                            <span className="material-symbols-outlined">close</span>
+                                        </button>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-4 bg-indigo-50 p-6 rounded-lg border border-indigo-100">
-                                        <DetailRow label="Full Name" value={`${userCredentials?.firstName || selectedUserProfile.firstName || ''} ${userCredentials?.lastName || selectedUserProfile.lastName || ''}`.trim() || '—'} highlight />
-                                        <DetailRow label="Email" value={userCredentials?.email || selectedUserProfile.email || '—'} />
-                                        <DetailRow label="Phone" value={userCredentials?.mobile || userCredentials?.phoneNumber || selectedUserProfile?.mobile || selectedUserProfile?.phone || '—'} />
-                                        <DetailRow label="Role" value={(userCredentials?.role || selectedUserProfile?.role || 'USER').toUpperCase()} />
-                                        <DetailRow 
-                                            label="Assigned Bank" 
-                                            value={(() => {
-                                                const b = getAssignedBank(selectedUserProfile) || (userLoans?.[0] ? getAssignedBank(userLoans[0]) : null);
-                                                if (b) return `${b.name} (${b.shortName})`;
-                                                const bName = selectedUserProfile?.bank || userLoans?.[0]?.bank || userLoans?.[0]?.partnerBank;
-                                                return bName ? bName.toUpperCase() : '—';
-                                            })()} 
-                                            highlight={!!(selectedUserProfile?.bank || userLoans?.[0]?.bank)} 
-                                        />
-                                        <DetailRow 
-                                            label="Date of Birth" 
-                                            value={(() => {
-                                                const rawDob = userCredentials?.dob || userCredentials?.dateOfBirth || selectedUserProfile?.dateOfBirth || selectedUserProfile?.dob || userLoans?.[0]?.dateOfBirth || userLoans?.[0]?.dob;
-                                                if (!rawDob) return '—';
-                                                try {
-                                                    const parsed = new Date(rawDob);
-                                                    return isNaN(parsed.getTime()) ? String(rawDob) : format(parsed, 'dd MMM yyyy');
-                                                } catch {
-                                                    return String(rawDob);
-                                                }
-                                            })()} 
-                                        />
-                                        <DetailRow 
-                                            label="Gender" 
-                                            value={(() => {
-                                                const rawGender = userCredentials?.gender || selectedUserProfile?.gender || userLoans?.[0]?.gender;
-                                                if (!rawGender) return '—';
-                                                return rawGender.charAt(0).toUpperCase() + rawGender.slice(1).toLowerCase();
-                                            })()} 
-                                        />
-                                        {(() => {
-                                            const memSince = userCredentials?.createdAt || selectedUserProfile?.createdAt || userLoans?.[0]?.createdAt || userLoans?.[0]?.date;
-                                            if (!memSince) return null;
-                                            try {
-                                                const parsed = new Date(memSince);
-                                                return isNaN(parsed.getTime()) ? null : (
-                                                    <DetailRow label="Member Since" value={format(parsed, 'dd MMM yyyy')} />
-                                                );
-                                            } catch {
-                                                return null;
-                                            }
-                                        })()}
+                                    <div className="flex gap-4 overflow-x-auto pb-2">
+                                        <button
+                                            onClick={() => setUserProfileTab('credentials')}
+                                            className={`whitespace-nowrap pb-3 text-[11px] font-black uppercase tracking-widest border-b-2 flex items-center gap-2 transition-all cursor-pointer ${userProfileTab === 'credentials'
+                                                    ? 'border-indigo-600 text-indigo-600'
+                                                    : 'border-transparent text-slate-400 hover:text-slate-600'
+                                                }`}
+                                        >
+                                            <span className="material-symbols-outlined text-[14px]">badge</span>
+                                            Credentials
+                                        </button>
+                                        <button
+                                            onClick={() => setUserProfileTab('applications')}
+                                            className={`whitespace-nowrap pb-3 text-[11px] font-black uppercase tracking-widest border-b-2 flex items-center gap-2 transition-all cursor-pointer ${userProfileTab === 'applications'
+                                                    ? 'border-indigo-600 text-indigo-600'
+                                                    : 'border-transparent text-slate-400 hover:text-slate-600'
+                                                }`}
+                                        >
+                                            <span className="material-symbols-outlined text-[14px]">description</span>
+                                            Applications ({userLoans.length})
+                                        </button>
+                                        <button
+                                            onClick={() => setUserProfileTab('bank_compare')}
+                                            className={`whitespace-nowrap pb-3 text-[11px] font-black uppercase tracking-widest border-b-2 flex items-center gap-2 transition-all cursor-pointer ${userProfileTab === 'bank_compare'
+                                                    ? 'border-emerald-600 text-emerald-600'
+                                                    : 'border-transparent text-slate-400 hover:text-emerald-600'
+                                                }`}
+                                        >
+                                            <span className="material-symbols-outlined text-[14px]">account_balance</span>
+                                            Bank Profile & Compare
+                                        </button>
                                     </div>
                                 </div>
-                            )}
+
+                                <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
+                                    {userProfileLoading ? (
+                                        <div className="flex flex-col items-center justify-center py-20">
+                                            <div className="w-12 h-12 border-3 border-slate-200 border-t-indigo-600 rounded-full animate-spin mb-4" />
+                                            <p className="text-[12px] font-bold text-slate-500">Loading user profile...</p>
+                                        </div>
+                                    ) : userProfileTab === 'bank_compare' ? (
+                                        /* ─── Bank Profile vs Bank Partner Comparison View ─── */
+                                        <div className="space-y-6">
+                                            {/* Partner Selector Header */}
+                                            <div className="p-5 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-100 rounded-2xl border border-emerald-200 shadow-sm">
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                                    <div>
+                                                        <div className="flex items-center gap-2 text-emerald-800 font-extrabold text-[11px] uppercase tracking-wider">
+                                                            <span className="material-symbols-outlined text-[18px] text-emerald-600">compare_arrows</span>
+                                                            Bank Partner Comparison Engine
+                                                        </div>
+                                                        <p className="text-[12px] text-emerald-900 font-medium mt-0.5">
+                                                            Compare this user profile against active institutional lending partners.
+                                                        </p>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="relative min-w-[200px]">
+                                                            <select
+                                                                value={comparedBankPartner?.shortName || ""}
+                                                                onChange={(e) => {
+                                                                    const partner = bankPartners.find(b => b.shortName === e.target.value);
+                                                                    setComparedBankPartner(partner || null);
+                                                                }}
+                                                                className="w-full px-3.5 py-2.5 bg-white border border-emerald-300 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 cursor-pointer shadow-xs"
+                                                            >
+                                                                {bankPartners.map((bp: any) => (
+                                                                    <option key={bp.id || bp.shortName} value={bp.shortName}>
+                                                                        {bp.name} ({bp.shortName.toUpperCase()})
+                                                                    </option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Side by Side Comparison Grid */}
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                                {/* Left Box: User / Officer Profile */}
+                                                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 flex flex-col justify-between shadow-xs">
+                                                    <div>
+                                                        <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-200">
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-black text-xs">
+                                                                    <span className="material-symbols-outlined text-[16px]">person</span>
+                                                                </div>
+                                                                <h4 className="text-xs font-black uppercase tracking-wider text-slate-800">User Identity Profile</h4>
+                                                            </div>
+                                                            <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${selectedUserProfile.role === 'bank' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-700'
+                                                                }`}>
+                                                                {selectedUserProfile.role?.toUpperCase() || 'USER'}
+                                                            </span>
+                                                        </div>
+
+                                                        <div className="space-y-3 text-[11px]">
+                                                            <div>
+                                                                <span className="text-slate-400 font-bold uppercase text-[9px] block">Full Name</span>
+                                                                <p className="font-bold text-slate-900 text-sm mt-0.5">{selectedUserProfile.firstName} {selectedUserProfile.lastName}</p>
+                                                            </div>
+                                                            <div>
+                                                                <span className="text-slate-400 font-bold uppercase text-[9px] block">Email & Mobile</span>
+                                                                <p className="font-semibold text-slate-800">{selectedUserProfile.email}</p>
+                                                                <p className="text-slate-500 font-mono text-[10px]">{selectedUserProfile.mobile || selectedUserProfile.phone || '—'}</p>
+                                                            </div>
+                                                            <div>
+                                                                <span className="text-slate-400 font-bold uppercase text-[9px] block">Current Assigned Bank</span>
+                                                                <div className="flex items-center gap-1.5 mt-0.5">
+                                                                    <span className="material-symbols-outlined text-[15px] text-indigo-500">account_balance</span>
+                                                                    <span className="font-black text-indigo-900 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded text-[10px]">
+                                                                        {(() => {
+                                                                            const b = getAssignedBank(selectedUserProfile) || (userLoans?.[0] ? getAssignedBank(userLoans[0]) : null);
+                                                                            if (b) return `${b.name} (${b.shortName})`.toUpperCase();
+                                                                            const rawB = selectedUserProfile.bank || userLoans?.[0]?.bank || userLoans?.[0]?.partnerBank;
+                                                                            return rawB ? rawB.toUpperCase() : 'Default / Not Assigned';
+                                                                        })()}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                            <div>
+                                                                <span className="text-slate-400 font-bold uppercase text-[9px] block">Active Applications In Buffer</span>
+                                                                <p className="font-black text-slate-900 text-sm mt-0.5">{userLoans.length} Application{userLoans.length === 1 ? '' : 's'}</p>
+                                                            </div>
+                                                            <div>
+                                                                <span className="text-slate-400 font-bold uppercase text-[9px] block">System ID</span>
+                                                                <code className="bg-slate-200/70 px-1.5 py-0.5 rounded text-[9px] font-mono text-slate-700">
+                                                                    {selectedUserProfile.id || 'N/A'}
+                                                                </code>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {comparedBankPartner && (
+                                                        <div className="mt-5 pt-4 border-t border-slate-200">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleUpdateUserBank(selectedUserProfile.id, selectedUserProfile.email, comparedBankPartner.shortName)}
+                                                                disabled={updatingUserBank || selectedUserProfile.bank === comparedBankPartner.shortName}
+                                                                className={`w-full py-2.5 px-3 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${selectedUserProfile.bank === comparedBankPartner.shortName
+                                                                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-200 cursor-default'
+                                                                        : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm'
+                                                                    }`}
+                                                            >
+                                                                <span className="material-symbols-outlined text-[14px]">
+                                                                    {selectedUserProfile.bank === comparedBankPartner.shortName ? 'check_circle' : 'link'}
+                                                                </span>
+                                                                {selectedUserProfile.bank === comparedBankPartner.shortName
+                                                                    ? 'Currently Assigned to This Bank'
+                                                                    : `Link User to ${comparedBankPartner.shortName.toUpperCase()}`}
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* Right Box: Bank Partner Master Parameters */}
+                                                <div className="bg-white border-2 border-emerald-200 rounded-2xl p-5 flex flex-col justify-between shadow-sm relative overflow-hidden">
+                                                    <div className="absolute -top-6 -right-6 w-24 h-24 bg-emerald-50 rounded-full blur-xl pointer-events-none" />
+
+                                                    {comparedBankPartner ? (
+                                                        <div>
+                                                            <div className="flex items-center justify-between pb-3 mb-4 border-b border-emerald-100">
+                                                                <div className="flex items-center gap-2.5">
+                                                                    {comparedBankPartner.logoUrl ? (
+                                                                        <img src={comparedBankPartner.logoUrl} alt="" className="w-8 h-8 rounded-lg object-contain bg-slate-50 border border-slate-200 p-0.5" />
+                                                                    ) : (
+                                                                        <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-black text-xs">
+                                                                            <span className="material-symbols-outlined text-[18px]">account_balance</span>
+                                                                        </div>
+                                                                    )}
+                                                                    <div>
+                                                                        <h4 className="text-xs font-black text-slate-900 leading-tight">{comparedBankPartner.name}</h4>
+                                                                        <span className="text-[9px] font-bold text-emerald-700 uppercase tracking-widest">{comparedBankPartner.type || 'LENDING PARTNER'}</span>
+                                                                    </div>
+                                                                </div>
+                                                                <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-emerald-600 text-white shadow-xs">
+                                                                    {comparedBankPartner.shortName}
+                                                                </span>
+                                                            </div>
+
+                                                            <div className="space-y-3 text-[11px]">
+                                                                <div className="p-2.5 bg-emerald-50/70 rounded-xl border border-emerald-100">
+                                                                    <span className="text-emerald-800 font-black uppercase text-[9px] block">Interest Rate (ROI)</span>
+                                                                    <p className="text-emerald-950 font-black text-sm mt-0.5">
+                                                                        {comparedBankPartner.interestRateMin || comparedBankPartner.minRoi || 8.5}% - {comparedBankPartner.interestRateMax || comparedBankPartner.maxRoi || 14.5}% <span className="text-[10px] font-semibold text-emerald-700">p.a.</span>
+                                                                    </p>
+                                                                </div>
+
+                                                                <div className="grid grid-cols-2 gap-2">
+                                                                    <div className="p-2 bg-slate-50 rounded-lg border border-slate-100">
+                                                                        <span className="text-slate-400 font-bold uppercase text-[8px] block">Max Loan Limit</span>
+                                                                        <p className="font-extrabold text-slate-900 text-xs mt-0.5">{comparedBankPartner.maxLoanAmount || '₹1.50 Cr'}</p>
+                                                                    </div>
+                                                                    <div className="p-2 bg-slate-50 rounded-lg border border-slate-100">
+                                                                        <span className="text-slate-400 font-bold uppercase text-[8px] block">Collateral-Free</span>
+                                                                        <p className="font-extrabold text-slate-900 text-xs mt-0.5">{comparedBankPartner.collateralFreeLimit || '₹50 Lakhs'}</p>
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="grid grid-cols-2 gap-2">
+                                                                    <div className="p-2 bg-slate-50 rounded-lg border border-slate-100">
+                                                                        <span className="text-slate-400 font-bold uppercase text-[8px] block">Processing SLA</span>
+                                                                        <p className="font-extrabold text-slate-900 text-xs mt-0.5">{comparedBankPartner.processingTime || '3-5 Days'}</p>
+                                                                    </div>
+                                                                    <div className="p-2 bg-slate-50 rounded-lg border border-slate-100">
+                                                                        <span className="text-slate-400 font-bold uppercase text-[8px] block">Processing Fee</span>
+                                                                        <p className="font-extrabold text-slate-900 text-xs mt-0.5">{comparedBankPartner.processingFee || '0.5% - 1%'}</p>
+                                                                    </div>
+                                                                </div>
+
+                                                                {Array.isArray(comparedBankPartner.features) && comparedBankPartner.features.length > 0 && (
+                                                                    <div>
+                                                                        <span className="text-slate-400 font-bold uppercase text-[9px] block mb-1">Key Schemes & Highlights</span>
+                                                                        <div className="flex flex-wrap gap-1">
+                                                                            {comparedBankPartner.features.slice(0, 4).map((f: string, idx: number) => (
+                                                                                <span key={idx} className="px-2 py-0.5 bg-emerald-50 text-emerald-800 rounded text-[9px] font-bold border border-emerald-100">
+                                                                                    ✓ {f}
+                                                                                </span>
+                                                                            ))}
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="text-center py-12">
+                                                            <span className="material-symbols-outlined text-3xl text-slate-300 block mb-2">account_balance</span>
+                                                            <p className="text-xs text-slate-400 font-bold">Select a Bank Partner above to compare</p>
+                                                        </div>
+                                                    )}
+
+                                                    {comparedBankPartner?.website && (
+                                                        <div className="mt-4 pt-3 border-t border-slate-100">
+                                                            <a
+                                                                href={comparedBankPartner.website}
+                                                                target="_blank"
+                                                                rel="noreferrer"
+                                                                className="text-[10px] font-bold text-emerald-700 hover:text-emerald-900 flex items-center justify-center gap-1"
+                                                            >
+                                                                <span>Visit Official {comparedBankPartner.name} Portal</span>
+                                                                <span className="material-symbols-outlined text-[12px]">arrow_forward</span>
+                                                            </a>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ) : userProfileTab === 'applications' ? (
+                                        /* ─── Applications Tab ─── */
+                                        <div className="space-y-6">
+                                            <div className="flex items-center gap-3 mb-4">
+                                                <span className="material-symbols-outlined text-emerald-600 text-[20px]">account_balance</span>
+                                                <h3 className="text-[13px] font-bold text-slate-900 uppercase tracking-wide">Loan Applications ({userLoans.length})</h3>
+                                            </div>
+
+                                            {userLoans.length > 0 ? (
+                                                <div className="space-y-3">
+                                                    {userLoans.map((loan: any, idx: number) => (
+                                                        <div key={idx} className="p-4 border border-slate-100 rounded-lg hover:border-slate-200 hover:bg-slate-50/50 transition-all group">
+                                                            <div className="flex items-start justify-between mb-3">
+                                                                <div className="flex-1">
+                                                                    <p className="text-[12px] font-bold text-slate-900">
+                                                                        {loan.bank} - {loan.loanType?.toUpperCase()}
+                                                                    </p>
+                                                                    <p className="text-[10px] text-slate-500 mt-1">
+                                                                        App ID: <code className="bg-slate-100 px-1.5 py-0.5 rounded text-[9px] font-mono">{loan.applicationNumber || loan.id?.substring(0, 8)}</code>
+                                                                    </p>
+                                                                </div>
+                                                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider border ${loan.status === 'pending' ? 'bg-amber-50 text-amber-700 border-amber-100' :
+                                                                        loan.status === 'processing' ? 'bg-blue-50 text-blue-700 border-blue-100' :
+                                                                            loan.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
+                                                                                loan.status === 'disbursed' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' :
+                                                                                    loan.status === 'rejected' ? 'bg-rose-50 text-rose-700 border-rose-100' :
+                                                                                        'bg-slate-50 text-slate-600 border-slate-100'
+                                                                    }`}>
+                                                                    {loan.status}
+                                                                </span>
+                                                            </div>
+                                                            <div className="grid grid-cols-2 gap-3">
+                                                                <div className="text-[10px]">
+                                                                    <span className="text-slate-500 font-medium">Amount</span>
+                                                                    <p className="text-[12px] font-bold text-slate-900 mt-0.5">{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(loan.amount || 0)}</p>
+                                                                </div>
+                                                                <div className="text-[10px]">
+                                                                    <span className="text-slate-500 font-medium">Applied On</span>
+                                                                    <p className="text-[12px] font-bold text-slate-900 mt-0.5">
+                                                                        {(() => {
+                                                                            const rawDate = loan.appliedOn || loan.appliedDate || loan.submittedAt || loan.createdAt || loan.created_at || loan.lanEnteredAt;
+                                                                            if (!rawDate) return '—';
+                                                                            try {
+                                                                                const parsed = new Date(rawDate);
+                                                                                return isNaN(parsed.getTime()) ? '—' : format(parsed, 'dd MMM yyyy');
+                                                                            } catch {
+                                                                                return '—';
+                                                                            }
+                                                                        })()}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                            {loan.universityName && (
+                                                                <p className="text-[10px] text-slate-500 mt-3">
+                                                                    <span className="font-medium">University:</span> {loan.universityName} {loan.country && `(${loan.country})`}
+                                                                </p>
+                                                            )}
+                                                            <button
+                                                                onClick={() => {
+                                                                    setSelectedApp(loan);
+                                                                    setSelectedUserProfile(null);
+                                                                }}
+                                                                className="mt-3 w-full px-3 py-2 bg-slate-900 text-white rounded text-[10px] font-bold uppercase tracking-wider hover:bg-slate-800 transition-colors flex items-center justify-center gap-1.5"
+                                                            >
+                                                                <span className="material-symbols-outlined text-[12px]">open_in_full</span>
+                                                                View Full Details
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <div className="text-center py-12 bg-slate-50 rounded-lg border border-dashed border-slate-200">
+                                                    <span className="material-symbols-outlined text-3xl text-slate-300 block mb-2">folder_off</span>
+                                                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">No loan applications</p>
+                                                </div>
+                                            )}
+
+                                            {/* Summary Statistics */}
+                                            <div className="space-y-6 pt-6 border-t border-slate-200">
+                                                <div className="flex items-center gap-3 mb-4">
+                                                    <span className="material-symbols-outlined text-blue-600 text-[20px]">analytics</span>
+                                                    <h3 className="text-[13px] font-bold text-slate-900 uppercase tracking-wide">Application Summary</h3>
+                                                </div>
+                                                <div className="grid grid-cols-3 gap-3">
+                                                    <div className="p-3 bg-blue-50 rounded-lg border border-blue-100 text-center">
+                                                        <p className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">Total Loans</p>
+                                                        <p className="text-[18px] font-black text-blue-700 mt-1">{userLoans.length}</p>
+                                                    </div>
+                                                    <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-100 text-center">
+                                                        <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Approved</p>
+                                                        <p className="text-[18px] font-black text-emerald-700 mt-1">{userLoans.filter((l: any) => l.status === 'approved' || l.status === 'disbursed').length}</p>
+                                                    </div>
+                                                    <div className="p-3 bg-amber-50 rounded-lg border border-amber-100 text-center">
+                                                        <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Pending</p>
+                                                        <p className="text-[18px] font-black text-amber-700 mt-1">{userLoans.filter((l: any) => l.status === 'pending' || l.status === 'processing').length}</p>
+                                                    </div>
+                                                </div>
+                                                {userLoans.length > 0 && (
+                                                    <div className="p-4 bg-slate-900 text-white rounded-lg">
+                                                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-300 mb-1">Total Loan Value Requested</p>
+                                                        <p className="text-[24px] font-black text-white">{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(userLoans.reduce((sum: number, l: any) => sum + (l.amount || 0), 0))}</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        /* ─── Credentials Tab ─── */
+                                        <div className="space-y-6">
+                                            <div className="flex items-center gap-3 mb-4">
+                                                <span className="material-symbols-outlined text-indigo-600 text-[20px]">security</span>
+                                                <h3 className="text-[13px] font-bold text-slate-900 uppercase tracking-wide">Personal Information</h3>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-4 bg-indigo-50 p-6 rounded-lg border border-indigo-100">
+                                                <DetailRow label="Full Name" value={`${userCredentials?.firstName || selectedUserProfile.firstName || ''} ${userCredentials?.lastName || selectedUserProfile.lastName || ''}`.trim() || '—'} highlight />
+                                                <DetailRow label="Email" value={userCredentials?.email || selectedUserProfile.email || '—'} />
+                                                <DetailRow label="Phone" value={userCredentials?.mobile || userCredentials?.phoneNumber || selectedUserProfile?.mobile || selectedUserProfile?.phone || '—'} />
+                                                <DetailRow label="Role" value={(userCredentials?.role || selectedUserProfile?.role || 'USER').toUpperCase()} />
+                                                <DetailRow
+                                                    label="Assigned Bank"
+                                                    value={(() => {
+                                                        const b = getAssignedBank(selectedUserProfile) || (userLoans?.[0] ? getAssignedBank(userLoans[0]) : null);
+                                                        if (b) return `${b.name} (${b.shortName})`;
+                                                        const bName = selectedUserProfile?.bank || userLoans?.[0]?.bank || userLoans?.[0]?.partnerBank;
+                                                        return bName ? bName.toUpperCase() : '—';
+                                                    })()}
+                                                    highlight={!!(selectedUserProfile?.bank || userLoans?.[0]?.bank)}
+                                                />
+                                                <DetailRow
+                                                    label="Date of Birth"
+                                                    value={(() => {
+                                                        const rawDob = userCredentials?.dob || userCredentials?.dateOfBirth || selectedUserProfile?.dateOfBirth || selectedUserProfile?.dob || userLoans?.[0]?.dateOfBirth || userLoans?.[0]?.dob;
+                                                        if (!rawDob) return '—';
+                                                        try {
+                                                            const parsed = new Date(rawDob);
+                                                            return isNaN(parsed.getTime()) ? String(rawDob) : format(parsed, 'dd MMM yyyy');
+                                                        } catch {
+                                                            return String(rawDob);
+                                                        }
+                                                    })()}
+                                                />
+                                                <DetailRow
+                                                    label="Gender"
+                                                    value={(() => {
+                                                        const rawGender = userCredentials?.gender || selectedUserProfile?.gender || userLoans?.[0]?.gender;
+                                                        if (!rawGender) return '—';
+                                                        return rawGender.charAt(0).toUpperCase() + rawGender.slice(1).toLowerCase();
+                                                    })()}
+                                                />
+                                                {(() => {
+                                                    const memSince = userCredentials?.createdAt || selectedUserProfile?.createdAt || userLoans?.[0]?.createdAt || userLoans?.[0]?.date;
+                                                    if (!memSince) return null;
+                                                    try {
+                                                        const parsed = new Date(memSince);
+                                                        return isNaN(parsed.getTime()) ? null : (
+                                                            <DetailRow label="Member Since" value={format(parsed, 'dd MMM yyyy')} />
+                                                        );
+                                                    } catch {
+                                                        return null;
+                                                    }
+                                                })()}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                </div>
-            )}
+                    )}
                 </div>
 
             </main>
@@ -7054,7 +7026,7 @@ export default function AdminDashboardPage() {
                             {resignModal.loadingApps ? (
                                 <div className="space-y-2">
                                     <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Loading applications...</p>
-                                    {[1,2,3].map(i => (
+                                    {[1, 2, 3].map(i => (
                                         <div key={i} className="h-10 bg-slate-100 animate-pulse rounded-lg" />
                                     ))}
                                 </div>
@@ -7073,11 +7045,10 @@ export default function AdminDashboardPage() {
                                                 </div>
                                                 <div className="flex items-center gap-2 flex-shrink-0">
                                                     <span className="text-[9px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">{app.bank || 'No Bank'}</span>
-                                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
-                                                        (app.status || '').toLowerCase() === 'rejected' ? 'bg-rose-50 text-rose-700 border-rose-200' :
-                                                        (app.status || '').toLowerCase() === 'processing' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                                                        'bg-amber-50 text-amber-700 border-amber-200'
-                                                    }`}>{app.status || 'Draft'}</span>
+                                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${(app.status || '').toLowerCase() === 'rejected' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                                                            (app.status || '').toLowerCase() === 'processing' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                                                'bg-amber-50 text-amber-700 border-amber-200'
+                                                        }`}>{app.status || 'Draft'}</span>
                                                 </div>
                                             </div>
                                         ))}

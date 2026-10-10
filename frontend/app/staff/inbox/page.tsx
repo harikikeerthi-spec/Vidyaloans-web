@@ -276,6 +276,8 @@ function StaffInboxContent() {
     const urlStaffName = searchParams.get("name");
     const urlTab = searchParams.get("tab");
     const urlFilter = searchParams.get("filter");
+    const urlDraftId = searchParams.get("draftId");
+    const urlCompose = searchParams.get("compose");
 
     // Staff identity & assigned mailbox routing
     const staffMailbox = (user as any)?.mailboxEmail || (user?.email?.endsWith('@vidyaloans.in') ? user?.email : '') || user?.email || "support@vidyaloans.in";
@@ -668,6 +670,25 @@ function StaffInboxContent() {
         }
     }, [staffMailbox]);
 
+    // Load draft emails from database for current staff mailbox
+    const [loadingDrafts, setLoadingDrafts] = useState(false);
+    const fetchDraftEmails = useCallback(async () => {
+        try {
+            setLoadingDrafts(true);
+            const res: any = await mailApi.getDrafts({ mailboxEmail: staffMailbox });
+            if (res?.success && Array.isArray(res.data)) {
+                setDraftEmails(res.data);
+                try {
+                    localStorage.setItem("vidya_mail_drafts", JSON.stringify(res.data));
+                } catch { }
+            }
+        } catch (e) {
+            console.warn("Failed to fetch drafts from database", e);
+        } finally {
+            setLoadingDrafts(false);
+        }
+    }, [staffMailbox]);
+
     const handleCancelScheduledEmail = async (id: string, e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
         if (!confirm("Are you sure you want to cancel this scheduled email?")) return;
@@ -692,9 +713,60 @@ function StaffInboxContent() {
         fetchEmails();
         fetchScheduledEmails();
         fetchSentEmails();
+        fetchDraftEmails();
         const schedInterval = setInterval(fetchScheduledEmails, 30000);
         return () => clearInterval(schedInterval);
-    }, [fetchEmails, fetchScheduledEmails, fetchSentEmails]);
+    }, [fetchEmails, fetchScheduledEmails, fetchSentEmails, fetchDraftEmails]);
+
+    // Direct draft or compose query parameter handling
+    useEffect(() => {
+        if (urlDraftId) {
+            setActiveTab("drafts");
+            mailApi.getDraft(urlDraftId)
+                .then((res: any) => {
+                    const draft = res?.data || res;
+                    if (draft) {
+                        setComposeData({
+                            to: draft.to || "",
+                            cc: draft.cc || "",
+                            bcc: draft.bcc || "",
+                            subject: draft.subject || "",
+                            body: draft.body || draft.html || draft.text || "",
+                            replyTo: draft.replyTo || "",
+                        });
+                        setEditingDraftId(draft.id);
+                        setTimeout(() => {
+                            if (editorRef.current) {
+                                editorRef.current.innerHTML = draft.body || draft.html || draft.text || "";
+                            }
+                        }, 50);
+                        setIsComposeOpen(true);
+                    }
+                })
+                .catch(() => {
+                    const match = draftEmails.find((d) => d.id === urlDraftId);
+                    if (match) {
+                        setComposeData({
+                            to: match.to || "",
+                            cc: match.cc || "",
+                            bcc: match.bcc || "",
+                            subject: match.subject || "",
+                            body: match.body || match.html || match.text || "",
+                            replyTo: match.replyTo || "",
+                        });
+                        setEditingDraftId(match.id);
+                        setTimeout(() => {
+                            if (editorRef.current) {
+                                editorRef.current.innerHTML = match.body || match.html || match.text || "";
+                            }
+                        }, 50);
+                        setIsComposeOpen(true);
+                    }
+                });
+        } else if (urlCompose === "true") {
+            setIsComposeOpen(true);
+        }
+    }, [urlDraftId, urlCompose, draftEmails]);
 
     // Load email details when an email is selected
     const handleSelectEmail = useCallback(async (email: MailSummaryItem) => {
@@ -705,9 +777,14 @@ function StaffInboxContent() {
                 cc: draft.cc || "",
                 bcc: draft.bcc || "",
                 subject: draft.subject || "",
-                body: draft.body || "",
+                body: draft.body || draft.html || draft.text || "",
                 replyTo: draft.replyTo || "",
             });
+            setTimeout(() => {
+                if (editorRef.current) {
+                    editorRef.current.innerHTML = draft.body || draft.html || draft.text || "";
+                }
+            }, 50);
             setEditingDraftId(draft.id);
             setIsComposeOpen(true);
             return;
@@ -855,18 +932,22 @@ function StaffInboxContent() {
             return draftEmails.map((item) => ({
                 id: item.id,
                 key: `draft/${item.id}`,
-                from: "Draft",
+                from: item.senderEmail ? `Draft (${item.senderEmail})` : "Draft",
+                senderEmail: item.senderEmail || staffMailbox,
                 to: item.to || "(No recipient)",
                 subject: item.subject || "(Draft - No subject)",
-                date: item.updatedAt || new Date().toISOString(),
+                date: item.updatedAt || item.date || new Date().toISOString(),
                 size: 0,
                 read: true,
-                snippet: item.body || "(Empty draft body)",
+                snippet: item.snippet || item.body || item.text || "(Empty draft body)",
+                text: item.text,
+                html: item.html || item.body,
+                attachments: item.attachments || [],
                 isSpam: false,
                 spamScore: 0,
                 spamReasons: [] as string[],
                 isDraft: true,
-                rawDraft: item,
+                rawDraft: item.rawDraft || item,
             }));
         } else if (activeTab === "scheduled") {
             return scheduledEmails.map((item) => ({
@@ -1595,6 +1676,7 @@ function StaffInboxContent() {
                 priority: composePriority,
                 requestReadReceipt: composeReadReceipt,
                 scheduledAt: composeScheduledAt || undefined,
+                draftId: editingDraftId || undefined,
             };
 
             const res: any = await mailApi.sendMail(payload);
@@ -1631,6 +1713,7 @@ function StaffInboxContent() {
             setTimeout(() => setFeedbackToast(null), 4000);
 
             if (editingDraftId) {
+                mailApi.deleteDraft(editingDraftId).catch(() => {});
                 const updatedDrafts = draftEmails.filter((d) => d.id !== editingDraftId);
                 setDraftEmails(updatedDrafts);
                 try {
@@ -1659,49 +1742,89 @@ function StaffInboxContent() {
         }
     };
 
-    // Save Draft
-    const handleSaveDraft = () => {
-        if (!composeData.to && !composeData.subject && !composeData.body) {
+    // Save Draft in Database
+    const handleSaveDraft = async () => {
+        const currentBody = editorRef.current?.innerHTML || composeData.body || "";
+        if (!composeData.to && !composeData.subject && !currentBody) {
             setFeedbackToast({ type: "error", message: "Draft cannot be completely empty." });
             setTimeout(() => setFeedbackToast(null), 3000);
             return;
         }
 
-        const draftId = editingDraftId || `draft-${Date.now()}`;
-        const newDraft = {
-            id: draftId,
+        const draftPayload = {
+            id: editingDraftId || undefined,
+            senderEmail: staffMailbox || user?.mailboxEmail || user?.email || "support@vidyaloans.in",
+            senderName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : undefined,
             to: composeData.to,
             cc: composeData.cc,
             bcc: composeData.bcc,
             subject: composeData.subject || "(Untitled Draft)",
-            body: composeData.body,
+            body: currentBody,
             replyTo: composeData.replyTo,
-            updatedAt: new Date().toISOString(),
+            priority: composePriority,
+            requestReadReceipt: composeReadReceipt,
+            attachments: attachments.map((att) => ({
+                filename: att.filename,
+                contentType: att.contentType,
+                size: att.size,
+            })),
         };
 
-        const updatedDrafts = [newDraft, ...draftEmails.filter((d) => d.id !== draftId)];
-        setDraftEmails(updatedDrafts);
         try {
-            localStorage.setItem("vidya_mail_drafts", JSON.stringify(updatedDrafts));
-        } catch { }
+            const res: any = await mailApi.saveDraft(draftPayload);
+            if (res?.success && res.data) {
+                const saved = res.data;
+                const updatedDrafts = [saved, ...draftEmails.filter((d) => d.id !== saved.id)];
+                setDraftEmails(updatedDrafts);
+                try {
+                    localStorage.setItem("vidya_mail_drafts", JSON.stringify(updatedDrafts));
+                } catch { }
+                setFeedbackToast({
+                    type: "success",
+                    message: `Draft stored in database for ${saved.senderEmail || staffMailbox}!`,
+                });
+            } else {
+                const draftId = editingDraftId || `draft-${Date.now()}`;
+                const newDraft = { ...draftPayload, id: draftId, updatedAt: new Date().toISOString() };
+                const updatedDrafts = [newDraft, ...draftEmails.filter((d) => d.id !== draftId)];
+                setDraftEmails(updatedDrafts);
+                try {
+                    localStorage.setItem("vidya_mail_drafts", JSON.stringify(updatedDrafts));
+                } catch { }
+                setFeedbackToast({ type: "success", message: "Draft saved successfully!" });
+            }
+        } catch (err: any) {
+            console.error("Save draft error", err);
+            const draftId = editingDraftId || `draft-${Date.now()}`;
+            const newDraft = { ...draftPayload, id: draftId, updatedAt: new Date().toISOString() };
+            const updatedDrafts = [newDraft, ...draftEmails.filter((d) => d.id !== draftId)];
+            setDraftEmails(updatedDrafts);
+            try {
+                localStorage.setItem("vidya_mail_drafts", JSON.stringify(updatedDrafts));
+            } catch { }
+            setFeedbackToast({ type: "success", message: "Draft saved locally." });
+        }
 
-        setFeedbackToast({ type: "success", message: "Draft saved successfully!" });
         setTimeout(() => setFeedbackToast(null), 3000);
 
         setIsComposeOpen(false);
         setComposeData({ to: "", cc: "", bcc: "", subject: "", body: "", replyTo: "" });
+        if (editorRef.current) editorRef.current.innerHTML = "";
         setAttachments([]);
         setEditingDraftId(null);
     };
 
-    const handleDeleteDraft = (e: React.MouseEvent, draftId: string) => {
+    const handleDeleteDraft = async (e: React.MouseEvent, draftId: string) => {
         e.stopPropagation();
+        try {
+            await mailApi.deleteDraft(draftId).catch(() => {});
+        } catch {}
         const updatedDrafts = draftEmails.filter((d) => d.id !== draftId);
         setDraftEmails(updatedDrafts);
         try {
             localStorage.setItem("vidya_mail_drafts", JSON.stringify(updatedDrafts));
         } catch { }
-        setFeedbackToast({ type: "success", message: "Draft deleted." });
+        setFeedbackToast({ type: "success", message: "Draft deleted from database." });
         setTimeout(() => setFeedbackToast(null), 3000);
     };
 

@@ -451,7 +451,7 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
 
                     {/* Nav */}
                     <nav className="flex-1 px-2 py-4 space-y-0.5 overflow-y-auto custom-scrollbar">
-                        <div className={`px-3 mb-2 mt-1 text-[14px] font-semibold text-slate-500 uppercase tracking-widest leading-none whitespace-nowrap transition-all duration-300 ${sidebarOpen ? 'opacity-100' : 'opacity-0 group-hover/sidebar:opacity-100'}`}>Menu</div>
+
                         {navItems.map(item => (
                             <NavItem key={item.section} {...item} active={activeSection} expanded={sidebarOpen} />
                         ))}

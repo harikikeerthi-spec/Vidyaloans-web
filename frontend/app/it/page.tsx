@@ -119,9 +119,7 @@ export default function ITOverviewPage() {
             {/* Header banner */}
             <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-6 md:p-8 shadow-xl relative overflow-hidden font-sans">
                 <div className="relative z-10">
-                    <span className="px-3 py-1 bg-indigo-500/20 border border-indigo-400/30 rounded-full text-indigo-300 text-xs font-bold uppercase tracking-wider">
-                        IT Operations Hub
-                    </span>
+
                     <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight mt-2">
                         Welcome to IT Dashboard
                     </h1>
@@ -243,9 +241,8 @@ export default function ITOverviewPage() {
                                         </div>
 
                                         <div className="flex items-center gap-2 shrink-0">
-                                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                                                t.status === 'open' ? 'bg-blue-50 text-blue-600 border border-blue-200' : t.status === 'resolved' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-slate-100 text-slate-600'
-                                            }`}>
+                                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${t.status === 'open' ? 'bg-blue-50 text-blue-600 border border-blue-200' : t.status === 'resolved' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-slate-100 text-slate-600'
+                                                }`}>
                                                 {t.status || 'OPEN'}
                                             </span>
                                             <span className="material-symbols-outlined text-slate-400 group-hover:text-indigo-600 text-base">

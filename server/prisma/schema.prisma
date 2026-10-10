@@ -1905,3 +1905,27 @@ model SentEmail {
   @@index([sentAt])
   @@map("sent_emails")
 }
+
+model DraftEmail {
+  id                 String    @id @default(uuid())
+  userId             String?
+  senderEmail        String?
+  senderName         String?
+  to                 String[]  @default([])
+  cc                 String[]  @default([])
+  bcc                String[]  @default([])
+  subject            String?
+  text               String?
+  html               String?
+  replyTo            String?
+  attachments        Json?
+  priority           String?   @default("normal")
+  requestReadReceipt Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([senderEmail])
+  @@index([userId])
+  @@index([updatedAt])
+  @@map("draft_emails")
+}

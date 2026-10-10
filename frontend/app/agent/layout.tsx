@@ -61,62 +61,73 @@ function AgentLayoutInner({ children }: { children: React.ReactNode }) {
                 </div>
             )}
 
+            {/* Mobile backdrop overlay */}
+            {sidebarOpen && (
+                <div
+                    className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 lg:hidden"
+                    onClick={() => setSidebarOpen(false)}
+                />
+            )}
+
             {/* Sidebar Navigation — Admin Dashboard UI Style */}
-            <aside className={`fixed inset-y-0 left-0 z-50 transform transition-all duration-300 ease-in-out lg:relative lg:translate-x-0 lg:h-full bg-[#0f172a] text-slate-300 border-r border-slate-800 shadow-xl flex flex-col ${sidebarCollapsed ? "w-[68px]" : "w-[240px]"} ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+            <aside className={`fixed inset-y-0 left-0 z-50 bg-[#0f172a] text-slate-300 border-r border-slate-800 shadow-xl flex flex-col group/sidebar
+                transition-all duration-300 ease-in-out overflow-hidden
+                ${sidebarOpen
+                    ? "w-[240px] translate-x-0"
+                    : sidebarCollapsed
+                        ? "w-[68px] lg:translate-x-0 -translate-x-full hover:w-[240px]"
+                        : "w-[240px] lg:translate-x-0 -translate-x-full"
+                }`}>
                 <div className="flex flex-col h-full overflow-hidden relative">
-                    
+
                     {/* Brand Header Logo */}
-                    <div className="h-14 px-4 flex items-center border-b border-slate-800 flex-shrink-0 gap-2.5">
-                        <img
-                            src={siteSettings?.logoLightUrl || "/images/vidyaloans-logo-transparent.png"}
-                            alt={`${siteSettings?.siteName || "VidyaLoans"} Logo`}
-                            className="w-7 h-7 object-contain flex-shrink-0 cursor-pointer"
-                            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                        />
-                        {!sidebarCollapsed && (
-                            <span className="font-semibold text-[13px] text-white tracking-wide whitespace-nowrap flex-1">
+                    <div className="h-14 px-4 flex items-center border-b border-slate-800 flex-shrink-0 gap-2.5 justify-between">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                            <img
+                                src={siteSettings?.logoLightUrl || "/images/vidyaloans-logo-transparent.png"}
+                                alt={`${siteSettings?.siteName || "VidyaLoans"} Logo`}
+                                className="w-7 h-7 object-contain flex-shrink-0 cursor-pointer"
+                                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                            />
+                            <span className={`font-semibold text-[13px] text-white tracking-wide whitespace-nowrap transition-all duration-200 ${!sidebarCollapsed ? 'opacity-100' : 'opacity-0 w-0 group-hover/sidebar:opacity-100 group-hover/sidebar:w-auto'}`}>
                                 {siteSettings?.siteName || "VidyaLoans"}<span className="text-indigo-400"> Agent</span>
                             </span>
-                        )}
-                        {!sidebarCollapsed && (
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); setSidebarCollapsed(true); }} 
-                                className="hidden lg:flex w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white items-center justify-center transition-all"
-                                title="Collapse Sidebar"
-                            >
-                                <span className="material-symbols-outlined text-sm">chevron_left</span>
-                            </button>
-                        )}
+                        </div>
+
                     </div>
 
                     {/* Nav Items List */}
                     <nav className="flex-1 px-2 py-4 space-y-0.5 overflow-y-auto custom-scrollbar">
-                        {!sidebarCollapsed && <div className="px-3 mb-2 mt-1 text-[10px] font-semibold text-slate-500 uppercase tracking-widest leading-none">Main</div>}
-                        
+                        <div className={`px-3 mb-2 mt-1 text-[10px] font-semibold text-slate-500 uppercase tracking-widest leading-none transition-all duration-200 whitespace-nowrap truncate ${!sidebarCollapsed ? 'opacity-100' : 'opacity-0 w-0 group-hover/sidebar:opacity-100 group-hover/sidebar:w-auto'}`}>Main</div>
+
                         {navItems.map((item, idx) => {
                             const isActive = pathname.startsWith(`/agent/${item.section}`);
                             return (
                                 <React.Fragment key={item.section}>
-                                    {idx === 3 && !sidebarCollapsed && <div className="px-3 mb-2 mt-4 text-[10px] font-semibold text-slate-500 uppercase tracking-widest leading-none border-t border-slate-800 pt-3">Backoffice</div>}
-                                    {idx === 7 && !sidebarCollapsed && <div className="px-3 mb-2 mt-4 text-[10px] font-semibold text-slate-500 uppercase tracking-widest leading-none border-t border-slate-800 pt-3">Grow Network</div>}
-                                    {idx === 11 && !sidebarCollapsed && <div className="px-3 mb-2 mt-4 text-[10px] font-semibold text-slate-500 uppercase tracking-widest leading-none border-t border-slate-800 pt-3">Live Support</div>}
-                                    {idx === 13 && !sidebarCollapsed && <div className="px-3 mb-2 mt-4 text-[10px] font-semibold text-slate-500 uppercase tracking-widest leading-none border-t border-slate-800 pt-3">Smart Tools</div>}
-                                    
-                                    <Link 
-                                        href={`/agent/${item.section}`} 
+                                    {idx === 3 && <div className={`px-3 mb-2 mt-4 text-[10px] font-semibold text-slate-500 uppercase tracking-widest leading-none border-t border-slate-800 pt-3 transition-all duration-200 whitespace-nowrap truncate ${!sidebarCollapsed ? 'opacity-100' : 'opacity-0 w-0 group-hover/sidebar:opacity-100 group-hover/sidebar:w-auto'}`}>Backoffice</div>}
+                                    {idx === 7 && <div className={`px-3 mb-2 mt-4 text-[10px] font-semibold text-slate-500 uppercase tracking-widest leading-none border-t border-slate-800 pt-3 transition-all duration-200 whitespace-nowrap truncate ${!sidebarCollapsed ? 'opacity-100' : 'opacity-0 w-0 group-hover/sidebar:opacity-100 group-hover/sidebar:w-auto'}`}>Grow Network</div>}
+                                    {idx === 11 && <div className={`px-3 mb-2 mt-4 text-[10px] font-semibold text-slate-500 uppercase tracking-widest leading-none border-t border-slate-800 pt-3 transition-all duration-200 whitespace-nowrap truncate ${!sidebarCollapsed ? 'opacity-100' : 'opacity-0 w-0 group-hover/sidebar:opacity-100 group-hover/sidebar:w-auto'}`}>Live Support</div>}
+                                    {idx === 13 && <div className={`px-3 mb-2 mt-4 text-[10px] font-semibold text-slate-500 uppercase tracking-widest leading-none border-t border-slate-800 pt-3 transition-all duration-200 whitespace-nowrap truncate ${!sidebarCollapsed ? 'opacity-100' : 'opacity-0 w-0 group-hover/sidebar:opacity-100 group-hover/sidebar:w-auto'}`}>Smart Tools</div>}
+
+                                    <Link
+                                        href={`/agent/${item.section}`}
                                         onClick={() => setSidebarOpen(false)}
-                                        className={`w-full text-left px-3 py-1.5 rounded flex items-center gap-3 transition-colors text-xs font-medium ${isActive ? "bg-indigo-500/10 text-indigo-400 font-medium" : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"}`}
+                                        className={`w-full text-left px-3 py-1.5 rounded flex items-center gap-3 transition-colors text-xs font-medium relative ${isActive ? "bg-indigo-500/10 text-indigo-400 font-bold" : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"}`}
                                         title={item.label}
                                     >
-                                        <span className={`material-symbols-outlined text-[16px] flex-shrink-0 ${isActive ? "text-indigo-400" : "text-slate-500"}`}>{item.icon}</span>
-                                        {!sidebarCollapsed && <span className="flex-1 truncate">{item.label}</span>}
-                                        {!sidebarCollapsed && item.badge && item.badge > 0 && (
-                                            <span className={`px-1.5 py-0.5 rounded-sm text-[9px] font-medium ${isActive ? 'bg-indigo-500 text-white' : 'bg-slate-700 text-slate-300'}`}>
+                                        <div className="w-5 h-5 flex items-center justify-center flex-shrink-0 relative">
+                                            <span className={`material-symbols-outlined text-[17px] ${isActive ? "text-indigo-400" : "text-slate-400"}`}>{item.icon}</span>
+                                            {item.badge && item.badge > 0 && (
+                                                <span className={`absolute -top-1 -right-1 w-2 h-2 rounded-full ${isActive ? 'bg-indigo-400' : 'bg-indigo-500'} ${!sidebarCollapsed ? 'hidden' : 'inline-block group-hover/sidebar:hidden'}`} />
+                                            )}
+                                        </div>
+                                        <span className={`flex-1 transition-all duration-200 whitespace-nowrap truncate ${!sidebarCollapsed ? 'opacity-100' : 'opacity-0 w-0 group-hover/sidebar:opacity-100 group-hover/sidebar:w-auto'}`}>
+                                            {item.label}
+                                        </span>
+                                        {item.badge && item.badge > 0 && (
+                                            <span className={`px-1.5 py-0.5 rounded-sm text-[9px] font-medium transition-all duration-200 shrink-0 ${isActive ? 'bg-indigo-500 text-white' : 'bg-slate-700 text-slate-300'} ${!sidebarCollapsed ? 'inline-block' : 'hidden group-hover/sidebar:inline-block'}`}>
                                                 {item.badge}
                                             </span>
-                                        )}
-                                        {sidebarCollapsed && item.badge && item.badge > 0 && (
-                                            <div className="w-2 h-2 bg-indigo-500 rounded-full" />
                                         )}
                                     </Link>
                                 </React.Fragment>
@@ -132,40 +143,38 @@ function AgentLayoutInner({ children }: { children: React.ReactNode }) {
                                 alt="Avatar"
                                 className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 object-cover flex-shrink-0"
                             />
-                            {!sidebarCollapsed && (
-                                <div className="min-w-0 flex-1">
-                                    <p className="text-[12px] font-medium text-slate-200 truncate">{user?.firstName ? `${user.firstName} ${user.lastName || ''}` : 'Agent Partner'}</p>
-                                    <p className="text-[10px] text-slate-500 capitalize truncate">{agentProfile?.businessName || 'DSA Partner'}</p>
-                                </div>
-                            )}
+                            <div className={`min-w-0 flex-1 transition-all duration-200 whitespace-nowrap truncate ${!sidebarCollapsed ? 'opacity-100' : 'opacity-0 w-0 group-hover/sidebar:opacity-100 group-hover/sidebar:w-auto'}`}>
+                                <p className="text-[12px] font-medium text-slate-200 truncate">{user?.firstName ? `${user.firstName} ${user.lastName || ''}` : 'Agent Partner'}</p>
+                                <p className="text-[10px] text-slate-500 capitalize truncate">{agentProfile?.businessName || 'DSA Partner'}</p>
+                            </div>
                         </div>
                         <button
                             onClick={logout}
-                            className="w-full px-3 py-2 rounded bg-slate-800 hover:bg-rose-500/10 hover:text-rose-400 text-slate-300 border border-slate-700 hover:border-rose-500/30 transition-all text-[11px] font-semibold flex items-center justify-center gap-2"
+                            className={`w-full px-3 py-2 rounded bg-slate-800 hover:bg-rose-500/10 hover:text-rose-400 text-slate-300 border border-slate-700 hover:border-rose-500/30 transition-all text-[11px] font-semibold flex items-center justify-center gap-2 cursor-pointer`}
                             title="Terminate Session"
                         >
-                            <span className="material-symbols-outlined text-[16px]">logout</span>
-                            {!sidebarCollapsed && <span>Sign Out</span>}
+                            <span className="material-symbols-outlined text-[16px] flex-shrink-0">logout</span>
+                            <span className={`whitespace-nowrap transition-all duration-200 ${!sidebarCollapsed ? 'inline' : 'hidden group-hover/sidebar:inline'}`}>Sign Out</span>
                         </button>
                     </div>
                 </div>
             </aside>
 
             {/* Main Application Area */}
-            <main className="flex-1 p-6 lg:pl-3 min-w-0 flex flex-col h-full overflow-hidden">
+            <main className={`flex-1 p-6 min-w-0 flex flex-col h-full overflow-hidden transition-all duration-300 ${sidebarCollapsed ? "lg:pl-[84px]" : "lg:pl-[256px]"}`}>
                 <div className="flex-1 bg-white rounded-[3rem] border border-[#6605c7]/5 shadow-[0_20px_50px_rgb(102,5,199,0.06)] overflow-hidden flex flex-col relative">
-                    
+
                     {/* Header bar */}
                     <header className="h-28 px-12 flex justify-between items-center sticky top-0 z-40 bg-white/70 backdrop-blur-3xl border-b border-[#6605c7]/5 flex-shrink-0">
                         <div className="flex items-center gap-10">
-                            <button 
+                            <button
                                 onClick={() => {
                                     if (window.innerWidth >= 1024) {
                                         setSidebarCollapsed(!sidebarCollapsed);
                                     } else {
                                         setSidebarOpen(!sidebarOpen);
                                     }
-                                }} 
+                                }}
                                 className="p-4 text-[#6605c7] hover:bg-[#6605c7]/5 rounded-2xl transition-all"
                                 title={sidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
                             >
@@ -193,7 +202,7 @@ function AgentLayoutInner({ children }: { children: React.ReactNode }) {
                                 </Link>
                             </div>
                             <div className="relative">
-                                <button 
+                                <button
                                     onClick={() => setNotificationsOpen(!notificationsOpen)}
                                     className="relative w-12 h-12 flex items-center justify-center rounded-2xl bg-[#6605c7]/5 text-[#6605c7] hover:bg-[#6605c7]/10 transition-all border border-[#6605c7]/10"
                                 >
@@ -216,7 +225,7 @@ function AgentLayoutInner({ children }: { children: React.ReactNode }) {
                                                     [Mark All as Read]
                                                 </button>
                                             </div>
-                                            
+
                                             <div className="max-h-[60vh] overflow-y-auto bg-white">
                                                 <div className="p-5 hover:bg-gray-50/80 transition-colors border-b border-gray-50 flex gap-4 items-start cursor-pointer">
                                                     <div className="w-2 h-2 rounded-full bg-emerald-500 mt-1.5 flex-shrink-0" />
@@ -228,7 +237,7 @@ function AgentLayoutInner({ children }: { children: React.ReactNode }) {
                                                         <p className="text-[10px] text-gray-500 font-bold">Commission: ₹9,800</p>
                                                     </div>
                                                 </div>
-                                                
+
                                                 <div className="p-5 bg-rose-50/30 hover:bg-rose-50/50 transition-colors border-b border-gray-50 flex gap-4 items-start cursor-pointer">
                                                     <div className="w-2 h-2 rounded-full bg-rose-500 mt-1.5 flex-shrink-0" />
                                                     <div className="flex-1">
@@ -274,7 +283,7 @@ function AgentLayoutInner({ children }: { children: React.ReactNode }) {
                                                     </div>
                                                 </div>
                                             </div>
-                                            
+
                                             <div className="p-4 bg-gray-50/50 border-t border-gray-50 text-center">
                                                 <button onClick={() => setNotificationsOpen(false)} className="text-[10px] font-black text-gray-900 uppercase tracking-widest hover:text-[#6605c7] transition-colors">
                                                     [View All Notifications]

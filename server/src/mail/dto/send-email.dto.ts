@@ -16,4 +16,5 @@ export class SendEmailDto {
   priority?: 'high' | 'normal' | 'low';
   requestReadReceipt?: boolean;
   scheduledAt?: string | Date;
+  draftId?: string;
 }

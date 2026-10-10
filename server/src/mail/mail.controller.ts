@@ -13,6 +13,7 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { MailService } from './mail.service';
 import { SendEmailDto } from './dto/send-email.dto';
+import { SaveDraftDto } from './dto/save-draft.dto';
 import { UpdateEmailStateDto, BatchUpdateEmailStateDto } from './dto/update-email-state.dto';
 import { StaffGuard } from '../auth/staff.guard';
 
@@ -97,6 +98,42 @@ export class MailController {
     const targetEmail = mailboxEmail || senderEmail;
     const sent = await this.mailService.getSentEmails(targetEmail, req?.user, folder);
     return { success: true, data: sent, total: sent.length };
+  }
+
+  // ─── List Draft Emails for Mailbox / User ──────────────────────────────────
+  @Get(['mail/drafts', 'support/mail/drafts'])
+  @ApiOperation({ summary: 'List draft emails stored in database for respective mailbox' })
+  async getDrafts(
+    @Query('mailboxEmail') mailboxEmail?: string,
+    @Query('folder') folder?: string,
+    @Req() req?: any,
+  ) {
+    const drafts = await this.mailService.getDrafts(mailboxEmail, req?.user, folder);
+    return { success: true, data: drafts, total: drafts.length };
+  }
+
+  // ─── Get Single Draft Email ────────────────────────────────────────────────
+  @Get(['mail/drafts/:id', 'support/mail/drafts/:id'])
+  @ApiOperation({ summary: 'Get single draft email details by id' })
+  async getDraftById(@Param('id') id: string, @Req() req?: any) {
+    const draft = await this.mailService.getDraftById(id, req?.user);
+    return { success: true, data: draft };
+  }
+
+  // ─── Save / Update Draft Email in Database ──────────────────────────────────
+  @Post(['mail/drafts', 'support/mail/drafts'])
+  @ApiOperation({ summary: 'Save or update draft email in database with respective mailbox address' })
+  async saveDraft(@Body() dto: SaveDraftDto, @Req() req: any) {
+    const draft = await this.mailService.saveDraft(dto, req.user);
+    return { success: true, data: draft, message: 'Draft saved in database successfully' };
+  }
+
+  // ─── Delete Draft Email ────────────────────────────────────────────────────
+  @Delete(['mail/drafts/:id', 'support/mail/drafts/:id'])
+  @ApiOperation({ summary: 'Delete a draft email from database' })
+  async deleteDraft(@Param('id') id: string, @Req() req: any) {
+    const result = await this.mailService.deleteDraft(id, req.user);
+    return { success: true, data: result, message: 'Draft deleted successfully' };
   }
 
   // ─── Send Outgoing Email / Reply ────────────────────────────────────────────

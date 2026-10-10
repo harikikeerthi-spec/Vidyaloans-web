@@ -1,6 +1,7 @@
-import { Injectable, Logger, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException, ForbiddenException, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { randomUUID } from 'crypto';
 import {
   S3Client,
   ListObjectsV2Command,
@@ -12,6 +13,7 @@ import * as nodemailer from 'nodemailer';
 import { Readable } from 'stream';
 import { MailSummary, MailDetail, MailFolder, MailAttachment } from './interfaces/mail.interface';
 import { SendEmailDto } from './dto/send-email.dto';
+import { SaveDraftDto } from './dto/save-draft.dto';
 import { UpdateEmailStateDto } from './dto/update-email-state.dto';
 import { DISPOSABLE_DOMAINS } from '../site-settings/disposable-domains';
 import { PrismaService } from '../prisma/prisma.service';
@@ -21,7 +23,7 @@ const DISPOSABLE_SET = new Set(
 );
 
 @Injectable()
-export class MailService {
+export class MailService implements OnModuleInit {
   private readonly logger = new Logger(MailService.name);
   private readonly s3Client: S3Client;
   private readonly transporter: nodemailer.Transporter;
@@ -118,6 +120,41 @@ export class MailService {
     this.logger.log(
       `[MailService] Initialized. Region: ${region}, Bucket: ${this.bucketName}, Default Prefix: ${this.defaultPrefix}, SMTP Host: ${smtpHost}:${smtpPort}`,
     );
+  }
+
+  async onModuleInit() {
+    await this.ensureDraftEmailsTable();
+  }
+
+  async ensureDraftEmailsTable() {
+    try {
+      await this.prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "draft_emails" (
+          "id" TEXT PRIMARY KEY,
+          "userId" TEXT,
+          "senderEmail" TEXT,
+          "senderName" TEXT,
+          "to" TEXT[] DEFAULT ARRAY[]::TEXT[],
+          "cc" TEXT[] DEFAULT ARRAY[]::TEXT[],
+          "bcc" TEXT[] DEFAULT ARRAY[]::TEXT[],
+          "subject" TEXT,
+          "text" TEXT,
+          "html" TEXT,
+          "replyTo" TEXT,
+          "attachments" JSONB,
+          "priority" TEXT DEFAULT 'normal',
+          "requestReadReceipt" BOOLEAN DEFAULT false,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS "draft_emails_senderEmail_idx" ON "draft_emails"("senderEmail");
+        CREATE INDEX IF NOT EXISTS "draft_emails_userId_idx" ON "draft_emails"("userId");
+        CREATE INDEX IF NOT EXISTS "draft_emails_updatedAt_idx" ON "draft_emails"("updatedAt");
+      `);
+      this.logger.log('[MailService] Initialized "draft_emails" table in PostgreSQL database.');
+    } catch (err: any) {
+      this.logger.warn(`[MailService] Notice verifying draft_emails table: ${err.message}`);
+    }
   }
 
   /**
@@ -701,6 +738,49 @@ export class MailService {
       const spam = emails.filter((e) => e.isSpam && !e.trashed).length;
       const trash = emails.filter((e) => e.trashed).length;
 
+      // Dynamic Drafts Count from Database
+      let drafts = 0;
+      try {
+        await this.ensureDraftEmailsTable();
+        const mailbox = (currentUser?.mailboxEmail || (currentUser?.email?.endsWith('@vidyaloans.in') ? currentUser.email : null) || currentUser?.email || '').trim().toLowerCase();
+        const uid = userId || currentUser?.id || currentUser?.sub;
+        let draftRows: any[] = [];
+        if (mailbox || uid) {
+          draftRows = await this.prisma.$queryRawUnsafe<any[]>(
+            `SELECT COUNT(*)::int as count FROM "draft_emails"
+             WHERE (LOWER("senderEmail") = LOWER($1) OR ($2::TEXT IS NOT NULL AND "userId" = $2))`,
+            mailbox,
+            uid || null,
+          );
+        } else {
+          draftRows = await this.prisma.$queryRawUnsafe<any[]>(
+            `SELECT COUNT(*)::int as count FROM "draft_emails"`,
+          );
+        }
+        drafts = Number(draftRows?.[0]?.count || 0);
+      } catch (dErr: any) {
+        this.logger.warn(`[MailService.getMailStats] Notice querying drafts count: ${dErr.message}`);
+      }
+
+      // Dynamic Sent Count from Database
+      let sent = 0;
+      try {
+        const mailbox = (currentUser?.mailboxEmail || (currentUser?.email?.endsWith('@vidyaloans.in') ? currentUser.email : null) || currentUser?.email || '').trim().toLowerCase();
+        let sentRows: any[] = [];
+        if (mailbox) {
+          sentRows = await this.prisma.$queryRawUnsafe<any[]>(
+            `SELECT COUNT(*)::int as count FROM "sent_emails"
+             WHERE LOWER("senderEmail") = LOWER($1)`,
+            mailbox,
+          );
+        } else {
+          sentRows = await this.prisma.$queryRawUnsafe<any[]>(
+            `SELECT COUNT(*)::int as count FROM "sent_emails"`,
+          );
+        }
+        sent = Number(sentRows?.[0]?.count || 0);
+      } catch (sErr: any) {}
+
       const totalBytes = emails.reduce((acc, e) => acc + (e.size || 0), 0);
       const trashBytes = emails.filter((e) => e.trashed).reduce((acc, e) => acc + (e.size || 0), 0);
       const spamBytes = emails.filter((e) => e.isSpam && !e.trashed).reduce((acc, e) => acc + (e.size || 0), 0);
@@ -711,6 +791,8 @@ export class MailService {
         total: emails.length,
         unread,
         read,
+        sent,
+        drafts,
         starred,
         spam,
         trash,
@@ -1001,6 +1083,16 @@ export class MailService {
           `[MailService.sendEmail] Email queued in scheduled_emails table for ${targetTime.toISOString()} (Queue ID: ${scheduled.id})`,
         );
 
+        if (dto.draftId) {
+          try {
+            await this.prisma.$executeRawUnsafe(
+              `DELETE FROM "draft_emails" WHERE "id" = $1`,
+              dto.draftId,
+            );
+            this.logger.log(`[MailService.sendEmail] Cleared draft ${dto.draftId} from database on schedule`);
+          } catch {}
+        }
+
         return {
           success: true,
           scheduled: true,
@@ -1146,6 +1238,18 @@ export class MailService {
         this.logger.log(`[MailService.sendEmail] Stored sent email ${recordId} in database for mailbox "${cleanSender}"`);
       } catch (dbErr: any) {
         this.logger.warn(`[MailService.sendEmail] Non-fatal: could not store sent email in database: ${dbErr.message}`);
+      }
+
+      if (dto.draftId) {
+        try {
+          await this.prisma.$executeRawUnsafe(
+            `DELETE FROM "draft_emails" WHERE "id" = $1`,
+            dto.draftId,
+          );
+          this.logger.log(`[MailService.sendEmail] Cleared draft ${dto.draftId} from database on successful dispatch`);
+        } catch (delErr: any) {
+          this.logger.warn(`[MailService.sendEmail] Could not delete draft ${dto.draftId}: ${delErr.message}`);
+        }
       }
 
       return {
@@ -1380,6 +1484,244 @@ export class MailService {
       this.logger.error(`[MailService.getSentEmails] Failed to query sent_emails: ${err.message}`);
       return [];
     }
+  }
+
+  /**
+   * Save or update draft email in database with respective mailbox address
+   */
+  async saveDraft(dto: SaveDraftDto, currentUser?: any) {
+    await this.ensureDraftEmailsTable();
+    await this.ensureUserMailboxContext(currentUser);
+
+    const draftId = dto.id && dto.id.trim() ? dto.id.trim() : `draft-${Date.now()}-${randomUUID().slice(0, 8)}`;
+    const userId = currentUser?.id || currentUser?.sub || null;
+
+    let senderEmail = (dto.senderEmail || '').trim().toLowerCase();
+    if (!senderEmail) {
+      senderEmail = (
+        currentUser?.mailboxEmail ||
+        (currentUser?.email?.endsWith('@vidyaloans.in') ? currentUser.email : null) ||
+        currentUser?.email ||
+        'support@vidyaloans.in'
+      ).trim().toLowerCase();
+    }
+
+    const senderName =
+      dto.senderName ||
+      `${currentUser?.firstName || ''} ${currentUser?.lastName || ''}`.trim() ||
+      currentUser?.name ||
+      'VidyaLoans Staff';
+
+    const toArray = dto.to
+      ? Array.isArray(dto.to)
+        ? dto.to.map((t) => t.trim()).filter(Boolean)
+        : dto.to.split(',').map((t) => t.trim()).filter(Boolean)
+      : [];
+    const ccArray = dto.cc
+      ? Array.isArray(dto.cc)
+        ? dto.cc.map((c) => c.trim()).filter(Boolean)
+        : dto.cc.split(',').map((c) => c.trim()).filter(Boolean)
+      : [];
+    const bccArray = dto.bcc
+      ? Array.isArray(dto.bcc)
+        ? dto.bcc.map((b) => b.trim()).filter(Boolean)
+        : dto.bcc.split(',').map((b) => b.trim()).filter(Boolean)
+      : [];
+
+    const bodyContent = dto.body || dto.html || dto.text || '';
+    const text = dto.text || (bodyContent ? bodyContent.replace(/<[^>]+>/g, '').trim() : '');
+    const html = dto.html || (bodyContent ? bodyContent : (text ? `<div style="font-family: sans-serif; white-space: pre-wrap;">${text}</div>` : ''));
+
+    const attachmentsJson =
+      dto.attachments && Array.isArray(dto.attachments) && dto.attachments.length > 0
+        ? JSON.stringify(
+            dto.attachments.map((att) => ({
+              filename: att.filename,
+              contentType: att.contentType,
+              size: att.size || att.content?.length,
+            })),
+          )
+        : null;
+
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `INSERT INTO "draft_emails" (
+        "id", "userId", "senderEmail", "senderName", "to", "cc", "bcc", "subject", "text", "html", "replyTo", "attachments", "priority", "requestReadReceipt", "createdAt", "updatedAt"
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, $14, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      )
+      ON CONFLICT ("id") DO UPDATE SET
+        "senderEmail" = EXCLUDED."senderEmail",
+        "senderName" = EXCLUDED."senderName",
+        "to" = EXCLUDED."to",
+        "cc" = EXCLUDED."cc",
+        "bcc" = EXCLUDED."bcc",
+        "subject" = EXCLUDED."subject",
+        "text" = EXCLUDED."text",
+        "html" = EXCLUDED."html",
+        "replyTo" = EXCLUDED."replyTo",
+        "attachments" = EXCLUDED."attachments",
+        "priority" = EXCLUDED."priority",
+        "requestReadReceipt" = EXCLUDED."requestReadReceipt",
+        "updatedAt" = CURRENT_TIMESTAMP
+      RETURNING *`,
+      draftId,
+      userId,
+      senderEmail,
+      senderName,
+      toArray,
+      ccArray,
+      bccArray,
+      dto.subject || '(Untitled Draft)',
+      text,
+      html,
+      dto.replyTo || null,
+      attachmentsJson,
+      dto.priority || 'normal',
+      Boolean(dto.requestReadReceipt),
+    );
+
+    const saved = rows[0];
+    this.logger.log(
+      `[MailService.saveDraft] Saved dynamic draft "${saved.id}" with sender "${senderEmail}" and recipient "${toArray.join(', ')}" in database`,
+    );
+
+    return this.mapDraftRow(saved);
+  }
+
+  /**
+   * Get draft emails stored in database for respective mailbox / user
+   */
+  async getDrafts(mailboxEmail?: string, currentUser?: any, folder?: string) {
+    await this.ensureDraftEmailsTable();
+    await this.ensureUserMailboxContext(currentUser);
+
+    let cleanTarget = (mailboxEmail || '').trim().toLowerCase();
+    if (!cleanTarget && folder) {
+      const cleanFolder = folder.replace(/\/$/, '').toLowerCase();
+      if (cleanFolder.includes('@')) {
+        cleanTarget = cleanFolder;
+      } else if (cleanFolder === 'support') {
+        cleanTarget = 'support@vidyaloans.in';
+      }
+    }
+
+    if (!cleanTarget) {
+      cleanTarget = (
+        currentUser?.mailboxEmail ||
+        (currentUser?.email?.endsWith('@vidyaloans.in') ? currentUser.email : null) ||
+        currentUser?.email ||
+        'support@vidyaloans.in'
+      ).trim().toLowerCase();
+    }
+
+    const userId = currentUser?.id || currentUser?.sub || null;
+    const userRole = (currentUser?.role || '').toLowerCase();
+    const isAdmin = ['admin', 'super_admin'].includes(userRole);
+
+    let rows: any[] = [];
+    try {
+      if (cleanTarget) {
+        rows = await this.prisma.$queryRawUnsafe<any[]>(
+          `SELECT * FROM "draft_emails"
+           WHERE LOWER("senderEmail") = LOWER($1) OR ($2::TEXT IS NOT NULL AND "userId" = $2)
+           ORDER BY "updatedAt" DESC
+           LIMIT 100`,
+          cleanTarget,
+          userId,
+        );
+      } else if (isAdmin) {
+        rows = await this.prisma.$queryRawUnsafe<any[]>(
+          `SELECT * FROM "draft_emails"
+           ORDER BY "updatedAt" DESC
+           LIMIT 100`,
+        );
+      }
+    } catch (err: any) {
+      this.logger.error(`[MailService.getDrafts] Failed to query draft_emails: ${err.message}`);
+      return [];
+    }
+
+    return rows.map((r) => this.mapDraftRow(r));
+  }
+
+  /**
+   * Get single draft by id
+   */
+  async getDraftById(id: string, currentUser?: any) {
+    await this.ensureDraftEmailsTable();
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT * FROM "draft_emails" WHERE "id" = $1 LIMIT 1`,
+      id,
+    );
+    if (!rows || rows.length === 0) {
+      throw new NotFoundException(`Draft email '${id}' not found`);
+    }
+    return this.mapDraftRow(rows[0]);
+  }
+
+  /**
+   * Delete draft email by id from database
+   */
+  async deleteDraft(id: string, currentUser?: any) {
+    await this.ensureDraftEmailsTable();
+    await this.prisma.$executeRawUnsafe(
+      `DELETE FROM "draft_emails" WHERE "id" = $1`,
+      id,
+    );
+    this.logger.log(`[MailService.deleteDraft] Deleted draft ${id} from database`);
+    return { success: true, id };
+  }
+
+  private mapDraftRow(r: any) {
+    const toStr = Array.isArray(r.to) ? r.to.join(', ') : (r.to || '');
+    const ccStr = Array.isArray(r.cc) ? r.cc.join(', ') : (r.cc || '');
+    const bccStr = Array.isArray(r.bcc) ? r.bcc.join(', ') : (r.bcc || '');
+    const body = r.html || r.text || '';
+    const snippet = r.text
+      ? r.text.substring(0, 160)
+      : (r.html ? r.html.replace(/<[^>]+>/g, '').substring(0, 160) : '(Empty draft body)');
+
+    return {
+      id: r.id,
+      key: `draft/${r.id}`,
+      from: 'Draft',
+      senderEmail: r.senderEmail,
+      senderName: r.senderName,
+      to: toStr,
+      toArray: r.to || [],
+      cc: ccStr,
+      ccArray: r.cc || [],
+      bcc: bccStr,
+      bccArray: r.bcc || [],
+      subject: r.subject || '(Untitled Draft)',
+      body,
+      text: r.text || '',
+      html: r.html || '',
+      snippet,
+      replyTo: r.replyTo || '',
+      priority: r.priority || 'normal',
+      requestReadReceipt: Boolean(r.requestReadReceipt),
+      attachments: r.attachments
+        ? (typeof r.attachments === 'string' ? JSON.parse(r.attachments) : r.attachments)
+        : [],
+      updatedAt: r.updatedAt ? new Date(r.updatedAt).toISOString() : new Date().toISOString(),
+      date: r.updatedAt ? new Date(r.updatedAt).toISOString() : new Date().toISOString(),
+      createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : new Date().toISOString(),
+      isDraft: true,
+      rawDraft: {
+        id: r.id,
+        to: toStr,
+        cc: ccStr,
+        bcc: bccStr,
+        subject: r.subject || '',
+        body,
+        replyTo: r.replyTo || '',
+        senderEmail: r.senderEmail,
+        priority: r.priority || 'normal',
+        requestReadReceipt: Boolean(r.requestReadReceipt),
+        updatedAt: r.updatedAt ? new Date(r.updatedAt).toISOString() : new Date().toISOString(),
+      },
+    };
   }
 }
 
