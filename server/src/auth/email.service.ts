@@ -81,13 +81,15 @@ export class EmailService {
     const timestamp = new Date().toLocaleTimeString();
     const portalLabel = portalOrTitle ? ` for ${portalOrTitle}` : '';
 
-    // Include OTP directly in the email subject as requested and shown in candidate portals
-    const subject = `[${otp}] Confirm your identity${portalLabel} - VidyaLoans`;
+    // Include OTP in the subject using standard phrasing that triggers Gmail OTP parser and iOS/Android autofill
+    const subject = `${otp} is your VidyaLoans verification code${portalLabel}`;
 
-    // Plain text version with exact phrasing that triggers Gmail's "Code requested" auto-detection
-    const text = `Confirm your identity using this code: ${otp}.
+    // Plain text version with standard phrasing recognized by email client AI and autofill
+    const text = `Your one-time password (OTP) is: ${otp}
 
-The code expires in 2 minutes.
+Verification code: ${otp}
+
+This code will expire in 2 minutes.
 
 Do not share this code with anyone.`;
 
@@ -101,36 +103,86 @@ Do not share this code with anyone.`;
         'X-Priority': '3',
       },
       html: `
-        <div style="font-family: Arial, Helvetica, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1e293b; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px;">
-          <div style="background: linear-gradient(135deg, #6605c7 0%, #8b5cf6 100%); padding: 24px; border-radius: 8px; text-align: center; margin-bottom: 24px;">
-            <h1 style="color: white; margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.02em;">VidyaLoans</h1>
-          </div>
-          
-          <div style="padding: 0 8px; line-height: 1.6; font-size: 15px;">
-            <h2 style="color: #0f172a; margin-top: 0; font-size: 18px; font-weight: 600;">Confirm your identity</h2>
-            <p style="color: #334155; margin-bottom: 16px;">
-              We need you to confirm your identity to proceed with your authentication and application access.
-            </p>
-            
-            <p style="color: #0f172a; font-size: 16px; margin: 20px 0; font-weight: 500;">
-              Confirm your identity using this code: <strong style="font-size: 22px; color: #6605c7; letter-spacing: 2px;">${otp}</strong>.
-            </p>
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>${otp} is your VidyaLoans verification code</title>
+          <!-- Schema.org JSON-LD Email Markup for Gmail Smart Summary Card -->
+          <script type="application/ld+json">
+          {
+            "@context": "https://schema.org",
+            "@type": "EmailMessage",
+            "description": "Your one-time password (OTP) is: ${otp}. Verification code: ${otp}"
+          }
+          </script>
+        </head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px;">
 
-            <div style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 20px; text-align: center; margin: 24px 0;">
-              <div style="font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px; color: #64748b; font-weight: 600; margin-bottom: 8px;">Code requested</div>
-              <div style="font-size: 34px; font-weight: 700; letter-spacing: 8px; color: #6605c7; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;">${otp}</div>
-            </div>
-
-            <p style="color: #64748b; font-size: 14px; margin-top: 16px;">
-              The code expires in 2 minutes.
-            </p>
-            
-            <div style="border-top: 1px solid #e2e8f0; margin-top: 28px; padding-top: 16px; font-size: 12px; color: #94a3b8;">
-              <p style="margin: 0;">This is an automated notification. Do not share this code with anyone.</p>
-              <p style="margin: 4px 0 0 0;">If you did not initiate this request, you can safely ignore this email.</p>
-            </div>
+          <!-- ================================================= -->
+          <!-- 1. HIDDEN PREHEADER TEXT (Shows in inbox preview)  -->
+          <!-- ================================================= -->
+          <div style="display: none; font-size: 1px; color: #f4f4f7; line-height: 1px; max-height: 0px; max-width: 0px; opacity: 0; overflow: hidden; mso-hide: all;">
+            Your one-time password (OTP) is: ${otp}. Verification code: ${otp}. Valid for 2 minutes.
+            &nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;
           </div>
-        </div>
+
+          <!-- ================================================= -->
+          <!-- 2. MAIN EMAIL BODY                                -->
+          <!-- ================================================= -->
+          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; padding: 20px 0;">
+            <tr>
+              <td align="center">
+                <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 580px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+                  
+                  <!-- Header / Brand -->
+                  <tr>
+                    <td style="background: linear-gradient(135deg, #6605c7 0%, #8b5cf6 100%); padding: 26px 32px; text-align: center;">
+                      <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.02em;">VidyaLoans</h1>
+                    </td>
+                  </tr>
+
+                  <!-- Content Area -->
+                  <tr>
+                    <td style="padding: 36px 32px 32px 32px;">
+                      <h2 style="color: #0f172a; margin: 0 0 16px 0; font-size: 20px; font-weight: 600;">Confirm your identity</h2>
+                      
+                      <p style="color: #334155; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+                        We received a request to verify your identity. Use the verification code below to proceed with your access:
+                      </p>
+
+                      <p style="color: #0f172a; font-size: 16px; margin: 0 0 24px 0; font-weight: 500;">
+                        Your one-time password (OTP) is: <strong style="color: #6605c7; font-size: 20px; letter-spacing: 2px;">${otp}</strong>
+                      </p>
+
+                      <!-- Highlighted OTP Display Card -->
+                      <div style="text-align: center; margin: 28px 0;">
+                        <div style="display: inline-block; background-color: #f5f3ff; border: 1.5px dashed #7c3aed; border-radius: 10px; padding: 20px 36px; text-align: center;">
+                          <div style="font-size: 12px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: #6d28d9; margin-bottom: 6px;">Verification Code</div>
+                          <div style="font-size: 36px; font-weight: 800; letter-spacing: 8px; color: #5b21b6; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace; line-height: 1.2;">
+                            ${otp}
+                          </div>
+                        </div>
+                      </div>
+
+                      <p style="color: #64748b; font-size: 14px; line-height: 1.5; margin: 0 0 24px 0; text-align: center;">
+                        This code will expire in <strong>2 minutes</strong>. If you did not initiate this request, you can safely ignore this email.
+                      </p>
+
+                      <div style="border-top: 1px solid #e2e8f0; margin-top: 28px; padding-top: 18px; font-size: 12px; color: #94a3b8; text-align: center; line-height: 1.5;">
+                        <p style="margin: 0;">This is an automated notification from VidyaLoans. Do not share this code with anyone.</p>
+                      </div>
+                    </td>
+                  </tr>
+
+                </table>
+              </td>
+            </tr>
+          </table>
+
+        </body>
+        </html>
       `,
     };
 

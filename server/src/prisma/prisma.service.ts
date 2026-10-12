@@ -31,8 +31,8 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
             rejectUnauthorized: false,
             servername: hostname, // Provide TLS SNI to prevent intermediate TLS handshake aborts
           },
-      max: 10,
-      idleTimeoutMillis: 8000, // Recycle idle sockets before Supabase pooler terminates them remotely
+      max: process.env.PG_MAX_POOL ? parseInt(process.env.PG_MAX_POOL) : 5, // Keep at 5 to avoid exceeding remote Supabase pooler connection/TLS handshake limits
+      idleTimeoutMillis: 15000, // Recycle idle sockets
       connectionTimeoutMillis: 20000,
       keepAlive: true,
       keepAliveInitialDelayMillis: 10000,

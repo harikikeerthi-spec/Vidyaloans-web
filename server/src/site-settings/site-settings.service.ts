@@ -182,9 +182,11 @@ export class SiteSettingsService {
   async getSettings() {
     try {
       if ((this.prisma as any).siteSetting) {
-        const settings = await (this.prisma as any).siteSetting.findUnique({
-          where: { id: 'default' },
-        });
+        const settings = await this.prisma.withRetry<any>(() =>
+          (this.prisma as any).siteSetting.findUnique({
+            where: { id: 'default' },
+          }),
+        );
 
         if (settings) {
           memorySettingsStore = {
@@ -205,12 +207,14 @@ export class SiteSettingsService {
         }
 
         // If not found in DB, seed default entry
-        const created = await (this.prisma as any).siteSetting.create({
-          data: {
-            id: 'default',
-            ...filterPrismaSiteSettingFields(DEFAULT_SETTINGS),
-          },
-        });
+        const created = await this.prisma.withRetry<any>(() =>
+          (this.prisma as any).siteSetting.create({
+            data: {
+              id: 'default',
+              ...filterPrismaSiteSettingFields(DEFAULT_SETTINGS),
+            },
+          }),
+        );
         memorySettingsStore = { ...DEFAULT_SETTINGS, ...created };
         this.persistToFile(memorySettingsStore);
         return memorySettingsStore;

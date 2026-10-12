@@ -1270,14 +1270,16 @@ export class MailService implements OnModuleInit {
   async processScheduledEmails() {
     try {
       const now = new Date();
-      const dueEmails = await this.prisma.scheduledEmail.findMany({
-        where: {
-          status: 'PENDING',
-          scheduledAt: { lte: now },
-        },
-        take: 25,
-        orderBy: { scheduledAt: 'asc' },
-      });
+      const dueEmails = await this.prisma.withRetry(() =>
+        this.prisma.scheduledEmail.findMany({
+          where: {
+            status: 'PENDING',
+            scheduledAt: { lte: now },
+          },
+          take: 25,
+          orderBy: { scheduledAt: 'asc' },
+        }),
+      );
 
       if (!dueEmails.length) return;
 
@@ -1303,26 +1305,30 @@ export class MailService implements OnModuleInit {
             { id: email.userId },
           );
 
-          await this.prisma.scheduledEmail.update({
-            where: { id: email.id },
-            data: {
-              status: 'SENT',
-              sentAt: new Date(),
-              messageId: res.messageId,
-            },
-          });
+          await this.prisma.withRetry(() =>
+            this.prisma.scheduledEmail.update({
+              where: { id: email.id },
+              data: {
+                status: 'SENT',
+                sentAt: new Date(),
+                messageId: res.messageId,
+              },
+            }),
+          );
 
           this.logger.log(
             `[ScheduledEmail Worker] Successfully dispatched scheduled email ${email.id} to ${JSON.stringify(email.to)} (MessageID: ${res.messageId})`,
           );
         } catch (err: any) {
-          await this.prisma.scheduledEmail.update({
-            where: { id: email.id },
-            data: {
-              status: 'FAILED',
-              failedReason: err.message || 'SES dispatch error',
-            },
-          });
+          await this.prisma.withRetry(() =>
+            this.prisma.scheduledEmail.update({
+              where: { id: email.id },
+              data: {
+                status: 'FAILED',
+                failedReason: err.message || 'SES dispatch error',
+              },
+            }),
+          );
           this.logger.error(
             `[ScheduledEmail Worker] Failed to dispatch scheduled email ${email.id}: ${err.message}`,
           );
@@ -1334,7 +1340,9 @@ export class MailService implements OnModuleInit {
         errMsg.includes('Connection terminated') ||
         errMsg.includes('connection closed') ||
         errMsg.includes('closed the connection') ||
-        errMsg.includes('Connection terminated unexpectedly')
+        errMsg.includes('Connection terminated unexpectedly') ||
+        errMsg.includes('socket disconnected') ||
+        errMsg.includes('TLS connection')
       ) {
         this.logger.warn(`[ScheduledEmail Worker] Database connection warming up / temporarily unreachable. Will retry on next tick.`);
       } else {
