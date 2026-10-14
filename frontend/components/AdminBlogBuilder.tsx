@@ -4,10 +4,39 @@ import { useState, useEffect, useRef, DragEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { adminApi } from "@/lib/api";
+import { adminApi, blogApi } from "@/lib/api";
 import { cleanHtmlContent, RichTextBlock } from "./DynamicBlogEditor";
 
-type BlockType = "heading" | "container" | "split_content" | "text" | "image" | "video" | "button" | "list" | "quote" | "code" | "divider" | "spacer" | "tags";
+type BlockType = "heading" | "container" | "split_content" | "registration_form" | "text" | "image" | "video" | "button" | "list" | "quote" | "code" | "divider" | "spacer" | "tags";
+
+export interface FormFieldConfig {
+    id: string;
+    label: string;
+    name: string;
+    type: "text" | "tel" | "email" | "number" | "select";
+    placeholder?: string;
+    required?: boolean;
+    colSpan?: "full" | "half";
+    options?: string[];
+}
+
+export interface FormConfig {
+    formTitle?: string;
+    formSubtitle?: string;
+    formButtonText?: string;
+    targetUrl?: string;
+    badgeText?: string;
+    footerNote?: string;
+    fields: FormFieldConfig[];
+}
+
+export const DEFAULT_FORM_FIELDS: FormFieldConfig[] = [
+    { id: "f_name", label: "Student Full Name", name: "name", type: "text", placeholder: "Enter student full name", required: true, colSpan: "full" },
+    { id: "f_phone", label: "Mobile / WhatsApp Number", name: "phone", type: "tel", placeholder: "+91 98765 43210", required: true, colSpan: "half" },
+    { id: "f_email", label: "Email Address", name: "email", type: "email", placeholder: "student@example.com", required: false, colSpan: "half" },
+    { id: "f_country", label: "Target Country", name: "country", type: "select", options: ["USA", "United Kingdom", "Canada", "Australia", "Germany", "Ireland", "India"], required: true, colSpan: "half" },
+    { id: "f_amount", label: "Loan Amount Required", name: "amount", type: "select", options: ["₹10L - ₹25L", "₹25L - ₹50L", "₹50L - ₹75L", "₹75 Lakhs+"], required: true, colSpan: "half" },
+];
 
 interface SplitConfig {
     layoutType: "image_text" | "text_text" | "text_image" | "content_form" | "form_content";
@@ -33,6 +62,7 @@ interface SplitConfig {
     formTitle?: string;
     formSubtitle?: string;
     formButtonText?: string;
+    formFields?: FormFieldConfig[];
 }
 
 interface Block {
@@ -40,6 +70,7 @@ interface Block {
     type: BlockType;
     content: string;
     splitConfig?: SplitConfig;
+    formConfig?: FormConfig;
     style?: {
         fontSize?: string;
         fontFamily?: string;
@@ -61,8 +92,9 @@ interface Block {
 
 const ELEMENT_TYPES: { type: BlockType; label: string; icon: string; color: string; desc: string; defaultLayout?: SplitConfig["layoutType"] }[] = [
     { type: "heading", label: "Heading", icon: "title", color: "blue", desc: "Drag to add title" },
+    { type: "registration_form", label: "Separate Register Form", icon: "how_to_reg", color: "emerald", desc: "Standalone customizable student inquiry/lead form" },
     { type: "split_content", label: "Split 2-Column", icon: "view_column", color: "indigo", desc: "Left/right matter or image & text" },
-    { type: "split_content", label: "Content + Register Form", icon: "how_to_reg", color: "purple", desc: "One side content, one side form", defaultLayout: "content_form" },
+    { type: "split_content", label: "Content + Register Form", icon: "contact_mail", color: "purple", desc: "One side content, one side form", defaultLayout: "content_form" },
     { type: "container", label: "Container", icon: "view_agenda", color: "purple", desc: "Drag to add container" },
     { type: "text", label: "Text & Live Editor", icon: "text_fields", color: "green", desc: "Drag to add rich text" },
     { type: "image", label: "Image (Crop & Fit)", icon: "crop", color: "orange", desc: "Crop, aspect ratio & sizing" },
@@ -78,6 +110,7 @@ const ELEMENT_TYPES: { type: BlockType; label: string; icon: string; color: stri
 
 const COLOR_MAP: Record<string, string> = {
     blue: "bg-blue-100 text-blue-600",
+    emerald: "bg-emerald-100 text-emerald-600",
     purple: "bg-purple-100 text-purple-600",
     green: "bg-green-100 text-green-600",
     orange: "bg-orange-100 text-orange-600",
@@ -100,21 +133,26 @@ interface AdminBlogBuilderProps {
     onBack?: () => void;
     onPublished?: () => void;
     backHref?: string;
+    initialBlog?: any;
 }
 
-export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/admin" }: AdminBlogBuilderProps) {
+export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/blogs", initialBlog }: AdminBlogBuilderProps) {
     const { user } = useAuth();
     const router = useRouter();
 
     // Blog settings
-    const [title, setTitle] = useState("");
-    const [slug, setSlug] = useState("");
-    const [category, setCategory] = useState("Education");
-    const [author, setAuthor] = useState(user?.firstName ? `${user.firstName} ${user.lastName || ""}`.trim() : "");
-    const [tags, setTags] = useState("");
-    const [excerpt, setExcerpt] = useState("");
-    const [isFeatured, setIsFeatured] = useState(false);
-    const [isPublished, setIsPublished] = useState(true);
+    const [title, setTitle] = useState(initialBlog?.title || "");
+    const [slug, setSlug] = useState(initialBlog?.slug || "");
+    const [category, setCategory] = useState(initialBlog?.category || "Education");
+    const [author, setAuthor] = useState(initialBlog?.authorName || (user?.firstName ? `${user.firstName} ${user.lastName || ""}`.trim() : ""));
+    const [tags, setTags] = useState(
+        Array.isArray(initialBlog?.tags)
+            ? initialBlog.tags.map((t: any) => (typeof t === "string" ? t : t?.name || "")).filter(Boolean).join(", ")
+            : (initialBlog?.tags || "")
+    );
+    const [excerpt, setExcerpt] = useState(initialBlog?.excerpt || "");
+    const [isFeatured, setIsFeatured] = useState(initialBlog?.isFeatured ?? false);
+    const [isPublished, setIsPublished] = useState(initialBlog?.isPublished ?? true);
     const [enableComments, setEnableComments] = useState(true);
 
     // Editor state
@@ -132,14 +170,63 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
     const [showModal, setShowModal] = useState(false);
     const editorRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
+    // Populate from initialBlog when it changes
+    useEffect(() => {
+        if (!initialBlog) return;
+        if (initialBlog.title) setTitle(initialBlog.title);
+        if (initialBlog.slug) setSlug(initialBlog.slug);
+        if (initialBlog.category) setCategory(initialBlog.category);
+        if (initialBlog.authorName) setAuthor(initialBlog.authorName);
+        if (initialBlog.excerpt) setExcerpt(initialBlog.excerpt);
+        if (initialBlog.isFeatured !== undefined) setIsFeatured(initialBlog.isFeatured);
+        if (initialBlog.isPublished !== undefined) setIsPublished(initialBlog.isPublished);
+        if (initialBlog.tags) {
+            setTags(
+                Array.isArray(initialBlog.tags)
+                    ? initialBlog.tags.map((t: any) => (typeof t === "string" ? t : t?.name || "")).filter(Boolean).join(", ")
+                    : initialBlog.tags
+            );
+        }
+        if (initialBlog.content && blocks.length === 0) {
+            try {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(initialBlog.content, "text/html");
+                const parsedBlocks: Block[] = [];
+                Array.from(doc.body.children).forEach((el, idx) => {
+                    const tag = el.tagName.toLowerCase();
+                    const bId = `blk_${Date.now()}_${idx}`;
+                    if (tag.startsWith("h")) {
+                        parsedBlocks.push({ id: bId, type: "heading", content: el.textContent || "" });
+                    } else if (tag === "img") {
+                        parsedBlocks.push({ id: bId, type: "image", content: el.getAttribute("src") || "" });
+                    } else if (el.querySelector("img")) {
+                        const img = el.querySelector("img");
+                        parsedBlocks.push({ id: bId, type: "image", content: img?.getAttribute("src") || "" });
+                    } else if (tag === "hr") {
+                        parsedBlocks.push({ id: bId, type: "divider", content: "" });
+                    } else {
+                        parsedBlocks.push({ id: bId, type: "text", content: el.innerHTML || el.textContent || "" });
+                    }
+                });
+                if (parsedBlocks.length > 0) {
+                    setBlocks(parsedBlocks);
+                }
+            } catch (e) {
+                setBlocks([{ id: "init_1", type: "text", content: initialBlog.content }]);
+            }
+        }
+    }, [initialBlog]);
+
     // Generate slug from title
     useEffect(() => {
-        const generated = title
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, "-")
-            .replace(/(^-|-$)/g, "");
-        setSlug(generated);
-    }, [title]);
+        if (!initialBlog?.slug) {
+            const generated = title
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, "-")
+                .replace(/(^-|-$)/g, "");
+            setSlug(generated);
+        }
+    }, [title, initialBlog?.slug]);
 
     // Set current date
     const currentDate = new Date().toLocaleDateString("en-US", {
@@ -485,6 +572,7 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
             heading: "New Heading",
             container: "",
             split_content: "",
+            registration_form: "",
             text: "Enter your text here...",
             image: "https://images.unsplash.com/photo-1523240795612-9a054b0db644?q=80&w=1200",
             video: "https://www.youtube.com/embed/dQw4w9WgXcQ",
@@ -526,6 +614,17 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
             formTitle: "Instant Loan Inquiry & Registration",
             formSubtitle: "Enter your details to check eligibility and get a callback from our loan expert.",
             formButtonText: "Register & Check Eligibility",
+            formFields: DEFAULT_FORM_FIELDS.map((f) => ({ ...f, id: "f_" + Math.random().toString(36).substr(2, 6) })),
+        };
+
+        const defaultFormConfig: FormConfig = {
+            formTitle: "Instant Loan Inquiry & Registration",
+            formSubtitle: "Fill details for instant loan eligibility assessment & expert callback within 15 minutes.",
+            formButtonText: "Register & Check Eligibility",
+            targetUrl: "/apply-loan",
+            badgeText: "Instant Assessment",
+            footerNote: "🔒 100% Free Service • No CIBIL Impact • Doorstep Support",
+            fields: DEFAULT_FORM_FIELDS.map((f) => ({ ...f, id: "f_" + Math.random().toString(36).substr(2, 6) })),
         };
 
         return {
@@ -533,6 +632,7 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
             type,
             content: defaults[type],
             splitConfig: (type === "split_content" || type === "container") ? defaultSplitConfig : undefined,
+            formConfig: type === "registration_form" ? defaultFormConfig : undefined,
             style: type === "image" ? {
                 aspectRatio: "16/9",
                 maxHeight: "380px",
@@ -573,6 +673,438 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
                     },
                 };
             })
+        );
+        setSaveStatus("Unsaved");
+    };
+
+    const updateFormConfig = (blockId: string, updates: Partial<FormConfig>) => {
+        setBlocks((prev) =>
+            prev.map((b) => {
+                if (b.id !== blockId) return b;
+                return {
+                    ...b,
+                    formConfig: {
+                        ...(b.formConfig || {
+                            formTitle: "Instant Loan Inquiry & Registration",
+                            formSubtitle: "Fill details for instant loan eligibility assessment & expert callback.",
+                            formButtonText: "Register & Check Eligibility",
+                            targetUrl: "/apply-loan",
+                            badgeText: "Instant Assessment",
+                            footerNote: "🔒 100% Free Service • No CIBIL Impact • Doorstep Support",
+                            fields: [...DEFAULT_FORM_FIELDS],
+                        }),
+                        ...updates,
+                    },
+                };
+            })
+        );
+        setSaveStatus("Unsaved");
+    };
+
+    const addFormField = (blockId: string, preset?: Partial<FormFieldConfig>, isSplit = false) => {
+        const newField: FormFieldConfig = {
+            id: "f_" + Date.now().toString(36) + Math.random().toString(36).substr(2, 4),
+            label: preset?.label || "New Field",
+            name: preset?.name || "field_" + Date.now().toString(36),
+            type: preset?.type || "text",
+            placeholder: preset?.placeholder || "Enter details...",
+            required: preset?.required ?? false,
+            colSpan: preset?.colSpan || "half",
+            options: preset?.options,
+        };
+
+        if (isSplit) {
+            setBlocks((prev) =>
+                prev.map((b) => {
+                    if (b.id !== blockId) return b;
+                    const existing = b.splitConfig?.formFields || DEFAULT_FORM_FIELDS;
+                    return {
+                        ...b,
+                        splitConfig: {
+                            ...(b.splitConfig || { layoutType: "content_form" }),
+                            formFields: [...existing, newField],
+                        },
+                    };
+                })
+            );
+        } else {
+            setBlocks((prev) =>
+                prev.map((b) => {
+                    if (b.id !== blockId) return b;
+                    const existing = b.formConfig?.fields || DEFAULT_FORM_FIELDS;
+                    return {
+                        ...b,
+                        formConfig: {
+                            ...(b.formConfig || {
+                                formTitle: "Instant Loan Inquiry & Registration",
+                                formSubtitle: "Fill details for instant loan eligibility assessment & expert callback.",
+                                formButtonText: "Register & Check Eligibility",
+                                targetUrl: "/apply-loan",
+                                badgeText: "Instant Assessment",
+                                footerNote: "🔒 100% Free Service • No CIBIL Impact • Doorstep Support",
+                                fields: DEFAULT_FORM_FIELDS,
+                            }),
+                            fields: [...existing, newField],
+                        },
+                    };
+                })
+            );
+        }
+        setSaveStatus("Unsaved");
+    };
+
+    const updateFormField = (blockId: string, fieldId: string, updates: Partial<FormFieldConfig>, isSplit = false) => {
+        if (isSplit) {
+            setBlocks((prev) =>
+                prev.map((b) => {
+                    if (b.id !== blockId) return b;
+                    const fields = (b.splitConfig?.formFields || DEFAULT_FORM_FIELDS).map((f) =>
+                        f.id === fieldId ? { ...f, ...updates } : f
+                    );
+                    return {
+                        ...b,
+                        splitConfig: {
+                            ...(b.splitConfig || { layoutType: "content_form" }),
+                            formFields: fields,
+                        },
+                    };
+                })
+            );
+        } else {
+            setBlocks((prev) =>
+                prev.map((b) => {
+                    if (b.id !== blockId) return b;
+                    const fields = (b.formConfig?.fields || DEFAULT_FORM_FIELDS).map((f) =>
+                        f.id === fieldId ? { ...f, ...updates } : f
+                    );
+                    return {
+                        ...b,
+                        formConfig: {
+                            ...(b.formConfig || {
+                                formTitle: "Instant Loan Inquiry & Registration",
+                                formSubtitle: "Fill details for instant loan eligibility assessment & expert callback.",
+                                formButtonText: "Register & Check Eligibility",
+                                targetUrl: "/apply-loan",
+                                badgeText: "Instant Assessment",
+                                footerNote: "🔒 100% Free Service • No CIBIL Impact • Doorstep Support",
+                                fields: DEFAULT_FORM_FIELDS,
+                            }),
+                            fields,
+                        },
+                    };
+                })
+            );
+        }
+        setSaveStatus("Unsaved");
+    };
+
+    const removeFormField = (blockId: string, fieldId: string, isSplit = false) => {
+        if (isSplit) {
+            setBlocks((prev) =>
+                prev.map((b) => {
+                    if (b.id !== blockId) return b;
+                    const fields = (b.splitConfig?.formFields || DEFAULT_FORM_FIELDS).filter((f) => f.id !== fieldId);
+                    return {
+                        ...b,
+                        splitConfig: {
+                            ...(b.splitConfig || { layoutType: "content_form" }),
+                            formFields: fields,
+                        },
+                    };
+                })
+            );
+        } else {
+            setBlocks((prev) =>
+                prev.map((b) => {
+                    if (b.id !== blockId) return b;
+                    const fields = (b.formConfig?.fields || DEFAULT_FORM_FIELDS).filter((f) => f.id !== fieldId);
+                    return {
+                        ...b,
+                        formConfig: {
+                            ...(b.formConfig || {
+                                formTitle: "Instant Loan Inquiry & Registration",
+                                formSubtitle: "Fill details for instant loan eligibility assessment & expert callback.",
+                                formButtonText: "Register & Check Eligibility",
+                                targetUrl: "/apply-loan",
+                                badgeText: "Instant Assessment",
+                                footerNote: "🔒 100% Free Service • No CIBIL Impact • Doorstep Support",
+                                fields: DEFAULT_FORM_FIELDS,
+                            }),
+                            fields,
+                        },
+                    };
+                })
+            );
+        }
+        setSaveStatus("Unsaved");
+    };
+
+    const renderFormFieldsManager = (
+        blockId: string,
+        fields: FormFieldConfig[],
+        isSplit = false,
+        onFieldsChange?: (newFields: FormFieldConfig[]) => void
+    ) => {
+        const handleAdd = (preset?: Partial<FormFieldConfig>) => {
+            const newField: FormFieldConfig = {
+                id: "f_" + Date.now().toString(36) + Math.random().toString(36).substr(2, 4),
+                label: preset?.label || "New Field",
+                name: preset?.name || "field_" + Date.now().toString(36),
+                type: preset?.type || "text",
+                placeholder: preset?.placeholder || "Enter details...",
+                required: preset?.required ?? false,
+                colSpan: preset?.colSpan || "half",
+                options: preset?.options,
+            };
+            if (onFieldsChange) {
+                onFieldsChange([...fields, newField]);
+            } else {
+                addFormField(blockId, preset, isSplit);
+            }
+        };
+
+        const handleUpdate = (fieldId: string, updates: Partial<FormFieldConfig>) => {
+            if (onFieldsChange) {
+                onFieldsChange(fields.map((f) => (f.id === fieldId ? { ...f, ...updates } : f)));
+            } else {
+                updateFormField(blockId, fieldId, updates, isSplit);
+            }
+        };
+
+        const handleRemove = (fieldId: string) => {
+            if (onFieldsChange) {
+                onFieldsChange(fields.filter((f) => f.id !== fieldId));
+            } else {
+                removeFormField(blockId, fieldId, isSplit);
+            }
+        };
+
+        const handleMove = (index: number, direction: "up" | "down") => {
+            const targetIdx = direction === "up" ? index - 1 : index + 1;
+            if (targetIdx < 0 || targetIdx >= fields.length) return;
+            const newFields = [...fields];
+            const [moved] = newFields.splice(index, 1);
+            newFields.splice(targetIdx, 0, moved);
+            if (onFieldsChange) {
+                onFieldsChange(newFields);
+            } else if (isSplit) {
+                updateSplitConfig(blockId, { formFields: newFields });
+            } else {
+                updateFormConfig(blockId, { fields: newFields });
+            }
+        };
+
+        return (
+            <div className="mt-4 p-4 bg-slate-50/90 rounded-2xl border border-slate-200/90 shadow-2xs space-y-3.5">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                        <h5 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                            <span className="material-symbols-outlined text-[16px] text-indigo-600">view_column</span>
+                            Form Columns / Fields ({fields.length})
+                        </h5>
+                        <p className="text-[11px] text-slate-500">Add, edit, reorder columns & configure grid width (1 or 2 per row)</p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => handleAdd({ label: "New Column", name: `field_${Date.now().toString(36)}`, type: "text", colSpan: "half", placeholder: "Enter details..." })}
+                        className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer"
+                    >
+                        <span className="material-symbols-outlined text-[14px]">add</span>
+                        + Add Column
+                    </button>
+                </div>
+
+                {/* Quick Preset Buttons */}
+                <div className="pt-2 border-t border-slate-200/70">
+                    <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Quick Presets (+ 1-Click Column):</div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                        <button
+                            type="button"
+                            onClick={() => handleAdd({ label: "Full Name", name: "name", type: "text", placeholder: "Student Full Name", required: true, colSpan: "full" })}
+                            className="px-2.5 py-1 bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg text-[10px] font-bold transition cursor-pointer shadow-2xs"
+                        >
+                            + Full Name
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => handleAdd({ label: "Mobile / WhatsApp", name: "phone", type: "tel", placeholder: "+91 98765 43210", required: true, colSpan: "half" })}
+                            className="px-2.5 py-1 bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg text-[10px] font-bold transition cursor-pointer shadow-2xs"
+                        >
+                            + Phone / WA
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => handleAdd({ label: "Email Address", name: "email", type: "email", placeholder: "student@example.com", required: false, colSpan: "half" })}
+                            className="px-2.5 py-1 bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg text-[10px] font-bold transition cursor-pointer shadow-2xs"
+                        >
+                            + Email
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => handleAdd({ label: "Target Country", name: "country", type: "select", options: ["USA", "United Kingdom", "Canada", "Australia", "Germany", "Ireland", "India"], required: true, colSpan: "half" })}
+                            className="px-2.5 py-1 bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg text-[10px] font-bold transition cursor-pointer shadow-2xs"
+                        >
+                            + Target Country
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => handleAdd({ label: "Loan Amount Required", name: "amount", type: "select", options: ["₹10L - ₹25L", "₹25L - ₹50L", "₹50L - ₹75L", "₹75 Lakhs+"], required: true, colSpan: "half" })}
+                            className="px-2.5 py-1 bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg text-[10px] font-bold transition cursor-pointer shadow-2xs"
+                        >
+                            + Loan Amount
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => handleAdd({ label: "Degree / Course Target", name: "course", type: "select", options: ["MS in Computer Science", "MBA / Management", "Data Science & AI", "Engineering", "Health & Medicine", "Other PG"], colSpan: "half", required: false })}
+                            className="px-2.5 py-1 bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg text-[10px] font-bold transition cursor-pointer shadow-2xs"
+                        >
+                            + Degree / Course
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => handleAdd({ label: "Current City / State", name: "city", type: "text", placeholder: "e.g. Hyderabad, Telangana", colSpan: "half", required: false })}
+                            className="px-2.5 py-1 bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg text-[10px] font-bold transition cursor-pointer shadow-2xs"
+                        >
+                            + City
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => handleAdd({ label: "Target Intake", name: "intake", type: "select", options: ["Fall 2026", "Spring 2027", "Fall 2027", "Immediate"], colSpan: "half", required: false })}
+                            className="px-2.5 py-1 bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg text-[10px] font-bold transition cursor-pointer shadow-2xs"
+                        >
+                            + Intake Season
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => handleAdd({ label: "Standardized Exam Score", name: "exam_score", type: "text", placeholder: "e.g. IELTS 7.5 / GRE 320", colSpan: "half", required: false })}
+                            className="px-2.5 py-1 bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg text-[10px] font-bold transition cursor-pointer shadow-2xs"
+                        >
+                            + Test Score
+                        </button>
+                    </div>
+                </div>
+
+                {/* List of Form Columns */}
+                <div className="space-y-2.5 mt-2">
+                    {fields.map((field, idx) => (
+                        <div key={field.id || idx} className="p-3 bg-white rounded-xl border border-slate-200 shadow-2xs space-y-2 transition-all hover:border-slate-300">
+                            <div className="flex items-center gap-2 justify-between flex-wrap">
+                                <div className="flex items-center gap-2 flex-1 min-w-[180px]">
+                                    <div className="flex items-center gap-0.5">
+                                        <button
+                                            type="button"
+                                            disabled={idx === 0}
+                                            onClick={() => handleMove(idx, "up")}
+                                            className="p-0.5 text-slate-400 hover:text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                                            title="Move Up"
+                                        >
+                                            <span className="material-symbols-outlined text-[14px]">arrow_upward</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            disabled={idx === fields.length - 1}
+                                            onClick={() => handleMove(idx, "down")}
+                                            className="p-0.5 text-slate-400 hover:text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                                            title="Move Down"
+                                        >
+                                            <span className="material-symbols-outlined text-[14px]">arrow_downward</span>
+                                        </button>
+                                    </div>
+                                    <span className="w-5 h-5 rounded-full bg-indigo-50 text-indigo-700 text-[10px] font-black flex items-center justify-center shrink-0">
+                                        {idx + 1}
+                                    </span>
+                                    <input
+                                        type="text"
+                                        value={field.label}
+                                        onChange={(e) => handleUpdate(field.id, { label: e.target.value })}
+                                        placeholder="Column Label (e.g. Full Name)"
+                                        className="font-bold text-xs text-slate-800 border-b border-dashed border-slate-300 hover:border-indigo-400 focus:border-indigo-600 focus:outline-none px-1 py-0.5 flex-1"
+                                    />
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <label className="flex items-center gap-1 text-[11px] text-slate-600 font-bold cursor-pointer select-none">
+                                        <input
+                                            type="checkbox"
+                                            checked={field.required ?? false}
+                                            onChange={(e) => handleUpdate(field.id, { required: e.target.checked })}
+                                            className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 text-xs"
+                                        />
+                                        Required
+                                    </label>
+                                    {fields.length > 1 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => handleRemove(field.id)}
+                                            className="p-1 text-slate-400 hover:text-rose-600 rounded transition cursor-pointer"
+                                            title="Delete Column"
+                                        >
+                                            <span className="material-symbols-outlined text-[16px]">delete</span>
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Column Configuration Properties */}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1.5 border-t border-slate-100">
+                                <div>
+                                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Input Type</label>
+                                    <select
+                                        value={field.type}
+                                        onChange={(e) => handleUpdate(field.id, { type: e.target.value as any })}
+                                        className="w-full text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-indigo-500"
+                                    >
+                                        <option value="text">Text Input</option>
+                                        <option value="tel">Phone / WhatsApp</option>
+                                        <option value="email">Email Address</option>
+                                        <option value="number">Numeric</option>
+                                        <option value="select">Dropdown Menu</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Width / Column Span</label>
+                                    <select
+                                        value={field.colSpan || "half"}
+                                        onChange={(e) => handleUpdate(field.id, { colSpan: e.target.value as any })}
+                                        className="w-full text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-indigo-500"
+                                    >
+                                        <option value="half">Half (50% / 2-Columns Row)</option>
+                                        <option value="full">Full (100% / 1-Column Row)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Placeholder</label>
+                                    <input
+                                        type="text"
+                                        value={field.placeholder || ""}
+                                        onChange={(e) => handleUpdate(field.id, { placeholder: e.target.value })}
+                                        placeholder="e.g. Enter details..."
+                                        className="w-full text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-indigo-500"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Options if select */}
+                            {field.type === "select" && (
+                                <div className="pt-1.5 border-t border-slate-100">
+                                    <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
+                                        Dropdown Options (comma separated)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={(field.options || []).join(", ")}
+                                        onChange={(e) => {
+                                            const opts = e.target.value.split(",").map((s) => s.trim()).filter(Boolean);
+                                            handleUpdate(field.id, { options: opts });
+                                        }}
+                                        placeholder="Option 1, Option 2, Option 3..."
+                                        className="w-full text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-indigo-500"
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            </div>
         );
     };
 
@@ -786,53 +1318,69 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
                                     ${btnText ? `<div class="pt-1"><a href="${btnUrl || '/apply-loan'}" class="inline-block px-5 py-2.5 !bg-indigo-600 hover:!bg-indigo-700 !text-white rounded-xl text-xs font-bold shadow-md transition-colors" style="background-color: #4f46e5 !important; color: #ffffff !important; display: inline-block;">${btnText} &rarr;</a></div>` : ''}
                                 </div>`;
 
-                            const renderForm = (formTitle?: string, formSubtitle?: string, formBtn?: string) => `
-                                <div class="bg-white p-6 md:p-8 rounded-2xl border border-indigo-100 shadow-xl shadow-indigo-100/50">
+                            const generateFormHtml = (formCfg: {
+                                formTitle?: string;
+                                formSubtitle?: string;
+                                formButtonText?: string;
+                                targetUrl?: string;
+                                badgeText?: string;
+                                footerNote?: string;
+                                fields?: FormFieldConfig[];
+                            }, isStandalone = false) => {
+                                const fields = formCfg.fields && formCfg.fields.length > 0 ? formCfg.fields : DEFAULT_FORM_FIELDS;
+                                const formTitle = formCfg.formTitle || "Instant Loan Inquiry & Registration";
+                                const formSubtitle = formCfg.formSubtitle || "Fill details for instant loan eligibility assessment & expert callback.";
+                                const formBtn = formCfg.formButtonText || "Register & Check Eligibility";
+                                const targetUrl = formCfg.targetUrl || "/apply-loan";
+                                const badge = formCfg.badgeText || "Instant Assessment";
+                                const footer = formCfg.footerNote || "🔒 100% Free Service • No CIBIL Impact • Doorstep Support";
+
+                                const fieldsHtml = fields.map((f) => {
+                                    const colClass = f.colSpan === "full" ? "md:col-span-2" : "md:col-span-1";
+                                    const reqAttr = f.required ? "required" : "";
+                                    const reqStar = f.required ? '<span class="text-rose-500 ml-0.5">*</span>' : "";
+                                    const fieldName = f.name || f.label.toLowerCase().replace(/[^a-z0-9]/g, "_");
+
+                                    if (f.type === "select") {
+                                        const opts = (f.options && f.options.length > 0 ? f.options : ["Option 1", "Option 2"])
+                                            .map((opt) => `<option value="${opt}">${opt}</option>`)
+                                            .join("");
+                                        return `
+                                        <div class="${colClass}">
+                                            <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">${f.label}${reqStar}</label>
+                                            <select name="${fieldName}" ${reqAttr} class="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:border-indigo-600 focus:bg-white">
+                                                ${opts}
+                                            </select>
+                                        </div>`;
+                                    }
+
+                                    return `
+                                    <div class="${colClass}">
+                                        <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">${f.label}${reqStar}</label>
+                                        <input type="${f.type}" name="${fieldName}" ${reqAttr} placeholder="${f.placeholder || ''}" class="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:border-indigo-600 focus:bg-white" />
+                                    </div>`;
+                                }).join("");
+
+                                return `
+                                <div class="bg-white p-6 md:p-8 rounded-2xl border border-indigo-100 shadow-xl shadow-indigo-100/50 ${isStandalone ? 'max-w-2xl mx-auto my-8' : ''}">
                                     <div class="mb-4">
-                                        <span class="inline-block px-2.5 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase tracking-wider rounded-md mb-2">Instant Assessment</span>
-                                        <h3 class="text-xl font-extrabold text-slate-900 mb-1">${formTitle || "Quick Loan Inquiry & Registration"}</h3>
-                                        <p class="text-slate-500 text-xs">${formSubtitle || "Fill details for instant loan eligibility assessment & expert callback."}</p>
+                                        <span class="inline-block px-2.5 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase tracking-wider rounded-md mb-2">${badge}</span>
+                                        <h3 class="text-xl font-extrabold text-slate-900 mb-1">${formTitle}</h3>
+                                        <p class="text-slate-500 text-xs">${formSubtitle}</p>
                                     </div>
-                                    <form action="/apply-loan" method="GET" class="space-y-3">
-                                        <input type="hidden" name="source" value="blog_register_split" />
-                                        <div>
-                                            <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Full Name</label>
-                                            <input type="text" name="name" required placeholder="Enter student full name" class="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:border-indigo-600 focus:bg-white" />
-                                        </div>
-                                        <div>
-                                            <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Mobile / WhatsApp Number</label>
-                                            <input type="tel" name="phone" required placeholder="+91 98765 43210" class="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:border-indigo-600 focus:bg-white" />
-                                        </div>
-                                        <div class="grid grid-cols-2 gap-2">
-                                            <div>
-                                                <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Target Country</label>
-                                                <select name="country" class="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:border-indigo-600 focus:bg-white">
-                                                    <option value="USA">USA</option>
-                                                    <option value="UK">United Kingdom</option>
-                                                    <option value="Canada">Canada</option>
-                                                    <option value="Australia">Australia</option>
-                                                    <option value="Germany">Germany</option>
-                                                    <option value="Ireland">Ireland</option>
-                                                    <option value="India">India</option>
-                                                </select>
-                                            </div>
-                                            <div>
-                                                <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Loan Required</label>
-                                                <select name="amount" class="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:border-indigo-600 focus:bg-white">
-                                                    <option value="15L">₹10L - ₹25L</option>
-                                                    <option value="35L">₹25L - ₹50L</option>
-                                                    <option value="60L">₹50L - ₹75L</option>
-                                                    <option value="75L+">₹75 Lakhs+</option>
-                                                </select>
-                                            </div>
+                                    <form action="${targetUrl}" method="GET" class="space-y-3">
+                                        <input type="hidden" name="source" value="${isStandalone ? 'blog_register_standalone' : 'blog_register_split'}" />
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            ${fieldsHtml}
                                         </div>
                                         <button type="submit" class="w-full mt-2 py-3 px-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold text-xs rounded-xl shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-1.5 cursor-pointer">
-                                            <span>${formBtn || "Register & Check Eligibility"}</span>
+                                            <span>${formBtn}</span>
                                             <span>&rarr;</span>
                                         </button>
-                                        <p class="text-[10px] text-center text-slate-400 mt-2">🔒 100% Free Service • No CIBIL Impact • Doorstep Support</p>
+                                        <p class="text-[10px] text-center text-slate-400 mt-2">${footer}</p>
                                     </form>
                                 </div>`;
+                            };
 
                             let leftHtml = "";
                             let rightHtml = "";
@@ -844,9 +1392,25 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
                                 rightHtml = renderImg(config.rightImageUrl, config.rightImageCaption);
                             } else if (layout === "content_form") {
                                 leftHtml = renderTxt(config.leftTitle, config.leftContent, config.leftItems, config.buttonText, config.buttonUrl);
-                                rightHtml = renderForm(config.formTitle, config.formSubtitle, config.formButtonText);
+                                rightHtml = generateFormHtml({
+                                    formTitle: config.formTitle,
+                                    formSubtitle: config.formSubtitle,
+                                    formButtonText: config.formButtonText,
+                                    targetUrl: config.buttonUrl || "/apply-loan",
+                                    badgeText: "Instant Assessment",
+                                    footerNote: "🔒 100% Free Service • No CIBIL Impact • Doorstep Support",
+                                    fields: config.formFields && config.formFields.length > 0 ? config.formFields : DEFAULT_FORM_FIELDS,
+                                }, false);
                             } else if (layout === "form_content") {
-                                leftHtml = renderForm(config.formTitle, config.formSubtitle, config.formButtonText);
+                                leftHtml = generateFormHtml({
+                                    formTitle: config.formTitle,
+                                    formSubtitle: config.formSubtitle,
+                                    formButtonText: config.formButtonText,
+                                    targetUrl: config.buttonUrl || "/apply-loan",
+                                    badgeText: "Instant Assessment",
+                                    footerNote: "🔒 100% Free Service • No CIBIL Impact • Doorstep Support",
+                                    fields: config.formFields && config.formFields.length > 0 ? config.formFields : DEFAULT_FORM_FIELDS,
+                                }, false);
                                 rightHtml = renderTxt(config.rightTitle, config.rightContent, config.rightItems, config.buttonText, config.buttonUrl);
                             } else {
                                 leftHtml = renderTxt(config.leftTitle, config.leftContent, config.leftItems);
@@ -854,6 +1418,64 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
                             }
 
                             return `<div class="blog-split-container not-prose my-8 p-6 md:p-8 bg-slate-50/70 rounded-3xl border border-slate-200/80"><div class="grid grid-cols-1 md:grid-cols-12 gap-8 items-center"><div class="${leftSpan}">${leftHtml}</div><div class="${rightSpan}">${rightHtml}</div></div></div>`;
+                        }
+                        case "registration_form": {
+                            const fConfig = b.formConfig || {
+                                formTitle: "Instant Loan Inquiry & Registration",
+                                formSubtitle: "Fill details for instant loan eligibility assessment & expert callback.",
+                                formButtonText: "Register & Check Eligibility",
+                                targetUrl: "/apply-loan",
+                                badgeText: "Instant Assessment",
+                                footerNote: "🔒 100% Free Service • No CIBIL Impact • Doorstep Support",
+                                fields: DEFAULT_FORM_FIELDS,
+                            };
+                            const fields = fConfig.fields && fConfig.fields.length > 0 ? fConfig.fields : DEFAULT_FORM_FIELDS;
+                            const fieldsHtml = fields.map((f) => {
+                                const colClass = f.colSpan === "full" ? "md:col-span-2" : "md:col-span-1";
+                                const reqAttr = f.required ? "required" : "";
+                                const reqStar = f.required ? '<span class="text-rose-500 ml-0.5">*</span>' : "";
+                                const fieldName = f.name || f.label.toLowerCase().replace(/[^a-z0-9]/g, "_");
+
+                                if (f.type === "select") {
+                                    const opts = (f.options && f.options.length > 0 ? f.options : ["Option 1", "Option 2"])
+                                        .map((opt) => `<option value="${opt}">${opt}</option>`)
+                                        .join("");
+                                    return `
+                                    <div class="${colClass}">
+                                        <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">${f.label}${reqStar}</label>
+                                        <select name="${fieldName}" ${reqAttr} class="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:border-indigo-600 focus:bg-white">
+                                            ${opts}
+                                        </select>
+                                    </div>`;
+                                }
+
+                                return `
+                                <div class="${colClass}">
+                                    <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">${f.label}${reqStar}</label>
+                                    <input type="${f.type}" name="${fieldName}" ${reqAttr} placeholder="${f.placeholder || ''}" class="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:border-indigo-600 focus:bg-white" />
+                                </div>`;
+                            }).join("");
+
+                            return `<div class="blog-form-standalone not-prose my-10 max-w-2xl mx-auto">
+                                <div class="bg-white p-6 md:p-8 rounded-2xl border border-indigo-100 shadow-xl shadow-indigo-100/50">
+                                    <div class="mb-4">
+                                        <span class="inline-block px-2.5 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase tracking-wider rounded-md mb-2">${fConfig.badgeText || "Instant Assessment"}</span>
+                                        <h3 class="text-xl font-extrabold text-slate-900 mb-1">${fConfig.formTitle || "Instant Loan Inquiry & Registration"}</h3>
+                                        <p class="text-slate-500 text-xs">${fConfig.formSubtitle || "Fill details for instant loan eligibility assessment & expert callback."}</p>
+                                    </div>
+                                    <form action="${fConfig.targetUrl || '/apply-loan'}" method="GET" class="space-y-3">
+                                        <input type="hidden" name="source" value="blog_register_standalone" />
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            ${fieldsHtml}
+                                        </div>
+                                        <button type="submit" class="w-full mt-2 py-3 px-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold text-xs rounded-xl shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+                                            <span>${fConfig.formButtonText || "Register & Check Eligibility"}</span>
+                                            <span>&rarr;</span>
+                                        </button>
+                                        <p class="text-[10px] text-center text-slate-400 mt-2">${fConfig.footerNote || "🔒 100% Free Service • No CIBIL Impact • Doorstep Support"}</p>
+                                    </form>
+                                </div>
+                            </div>`;
                         }
                         case "tags": {
                             const tagList = (b.content || "").split(",").map((t) => t.trim()).filter(Boolean);
@@ -876,19 +1498,31 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
                 isFeatured,
                 featuredImage: blocks.find((b) => b.type === "image")?.content || "",
                 excerpt: excerpt || blocks.find((b) => b.type === "text")?.content?.substring(0, 150) + "...",
-                tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
+                tags: typeof tags === "string" ? tags.split(",").map((t: string) => t.trim()).filter(Boolean) : [],
             };
 
-            const res: any = await adminApi.createBlog(blogData);
-            if (res.success) {
-                alert("Blog published successfully!");
+            const isEditing = Boolean(initialBlog && (initialBlog.id || initialBlog._id));
+            const editId = initialBlog?.id || initialBlog?._id;
+            let res: any;
+            if (isEditing) {
+                res = await blogApi.update(editId, blogData).catch(async () => {
+                    return await adminApi.createBlog(blogData);
+                });
+            } else {
+                res = await blogApi.create(blogData).catch(async () => {
+                    return await adminApi.createBlog(blogData);
+                });
+            }
+
+            if (res?.success || res?.data || res?._id || res?.id) {
+                alert(isEditing ? "Blog updated successfully!" : "Blog published successfully!");
                 if (onPublished) {
                     onPublished();
                 } else {
                     router.push(backHref);
                 }
             } else {
-                alert(res.message || "Failed to publish blog");
+                alert(res?.message || "Failed to publish blog");
             }
         } catch (e) {
             console.error(e);
@@ -1369,91 +2003,99 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
                 else if (ratio === "60_40") { leftColSpan = "w-full md:w-7/12"; rightColSpan = "w-full md:w-5/12"; }
                 else if (ratio === "33_67") { leftColSpan = "w-full md:w-4/12"; rightColSpan = "w-full md:w-8/12"; }
 
-                const renderEditableForm = () => (
-                    <div className="bg-white p-5 rounded-2xl border-2 border-indigo-200 shadow-md space-y-3.5">
-                        <div className="flex items-center justify-between border-b border-indigo-50 pb-2">
-                            <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase tracking-wider rounded">
-                                📋 Registration Form Card
-                            </span>
-                            <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
-                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                                Lead Capture
-                            </span>
-                        </div>
+                const renderEditableForm = () => {
+                    const splitFormFields = config.formFields && config.formFields.length > 0 ? config.formFields : DEFAULT_FORM_FIELDS;
+                    return (
+                        <div className="bg-white p-5 rounded-2xl border-2 border-indigo-200 shadow-md space-y-3.5">
+                            <div className="flex items-center justify-between border-b border-indigo-50 pb-2">
+                                <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase tracking-wider rounded">
+                                    📋 Registration Form Card (Split Layout)
+                                </span>
+                                <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
+                                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                    Lead Capture ({splitFormFields.length} columns)
+                                </span>
+                            </div>
 
-                        <div className="space-y-2">
-                            <div>
-                                <label className="text-[10px] font-bold uppercase text-slate-500">Form Title</label>
-                                <input
-                                    type="text"
-                                    value={config.formTitle || "Instant Loan Inquiry & Registration"}
-                                    onChange={(e) => updateSplitConfig(block.id, { formTitle: e.target.value })}
-                                    className="w-full font-extrabold text-sm text-slate-900 border border-slate-200 rounded-lg px-2.5 py-1.5 focus:border-indigo-500 focus:outline-none"
-                                />
-                            </div>
-                            <div>
-                                <label className="text-[10px] font-bold uppercase text-slate-500">Form Subtitle</label>
-                                <input
-                                    type="text"
-                                    value={config.formSubtitle || "Enter contact details to check eligibility & receive callback within 15 minutes."}
-                                    onChange={(e) => updateSplitConfig(block.id, { formSubtitle: e.target.value })}
-                                    className="w-full text-xs text-slate-600 border border-slate-200 rounded-lg px-2.5 py-1.5 focus:border-indigo-500 focus:outline-none"
-                                />
-                            </div>
-                        </div>
-
-                        {/* Simulated Live Form Fields */}
-                        <div className="space-y-2 p-3 bg-slate-50/80 rounded-xl border border-slate-100">
-                            <div>
-                                <label className="text-[10px] font-bold uppercase text-slate-600">Student Full Name</label>
-                                <input
-                                    type="text"
-                                    disabled
-                                    placeholder="e.g. Rahul Sharma"
-                                    className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-400 cursor-not-allowed"
-                                />
-                            </div>
-                            <div>
-                                <label className="text-[10px] font-bold uppercase text-slate-600">Mobile / WhatsApp Number</label>
-                                <input
-                                    type="text"
-                                    disabled
-                                    placeholder="+91 98765 43210"
-                                    className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-400 cursor-not-allowed"
-                                />
-                            </div>
-                            <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-2">
                                 <div>
-                                    <label className="text-[10px] font-bold uppercase text-slate-600">Target Country</label>
-                                    <select disabled className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-400 cursor-not-allowed">
-                                        <option>USA / UK / Canada</option>
-                                    </select>
+                                    <label className="text-[10px] font-bold uppercase text-slate-500">Form Title</label>
+                                    <input
+                                        type="text"
+                                        value={config.formTitle || "Instant Loan Inquiry & Registration"}
+                                        onChange={(e) => updateSplitConfig(block.id, { formTitle: e.target.value })}
+                                        className="w-full font-extrabold text-sm text-slate-900 border border-slate-200 rounded-lg px-2.5 py-1.5 focus:border-indigo-500 focus:outline-none"
+                                    />
                                 </div>
                                 <div>
-                                    <label className="text-[10px] font-bold uppercase text-slate-600">Loan Amount</label>
-                                    <select disabled className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-400 cursor-not-allowed">
-                                        <option>₹10L - ₹75L+</option>
-                                    </select>
+                                    <label className="text-[10px] font-bold uppercase text-slate-500">Form Subtitle</label>
+                                    <input
+                                        type="text"
+                                        value={config.formSubtitle || "Enter contact details to check eligibility & receive callback within 15 minutes."}
+                                        onChange={(e) => updateSplitConfig(block.id, { formSubtitle: e.target.value })}
+                                        className="w-full text-xs text-slate-600 border border-slate-200 rounded-lg px-2.5 py-1.5 focus:border-indigo-500 focus:outline-none"
+                                    />
                                 </div>
                             </div>
-                        </div>
 
-                        <div>
-                            <label className="text-[10px] font-bold uppercase text-slate-500">CTA Button Label</label>
-                            <input
-                                type="text"
-                                value={config.formButtonText || "Register & Check Eligibility"}
-                                onChange={(e) => updateSplitConfig(block.id, { formButtonText: e.target.value })}
-                                className="w-full text-xs font-bold text-indigo-700 bg-indigo-50/50 border border-indigo-200 rounded-lg px-2.5 py-1.5 focus:border-indigo-500 focus:outline-none"
-                            />
-                        </div>
+                            {/* Simulated Live Form Fields arranged in columns */}
+                            <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-100">
+                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center justify-between">
+                                    <span>Form Preview (Reader View)</span>
+                                    <span>{splitFormFields.length} Fields Configured</span>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                    {splitFormFields.map((f) => (
+                                        <div
+                                            key={f.id}
+                                            className={f.colSpan === "full" ? "col-span-1 md:col-span-2" : "col-span-1"}
+                                        >
+                                            <label className="text-[10px] font-bold uppercase text-slate-600 flex items-center gap-1 mb-0.5">
+                                                <span>{f.label}</span>
+                                                {f.required && <span className="text-rose-500">*</span>}
+                                            </label>
+                                            {f.type === "select" ? (
+                                                <select
+                                                    disabled
+                                                    className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-400 cursor-not-allowed"
+                                                >
+                                                    {(f.options && f.options.length > 0 ? f.options : ["Select Option"]).map((opt, i) => (
+                                                        <option key={i}>{opt}</option>
+                                                    ))}
+                                                </select>
+                                            ) : (
+                                                <input
+                                                    type={f.type}
+                                                    disabled
+                                                    placeholder={f.placeholder || `Enter ${f.label}`}
+                                                    className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-400 cursor-not-allowed"
+                                                />
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
 
-                        <div className="w-full mt-2 py-2.5 px-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5">
-                            <span>{config.formButtonText || "Register & Check Eligibility"}</span>
-                            <span>&rarr;</span>
+                            <div>
+                                <label className="text-[10px] font-bold uppercase text-slate-500">CTA Button Label</label>
+                                <input
+                                    type="text"
+                                    value={config.formButtonText || "Register & Check Eligibility"}
+                                    onChange={(e) => updateSplitConfig(block.id, { formButtonText: e.target.value })}
+                                    className="w-full text-xs font-bold text-indigo-700 bg-indigo-50/50 border border-indigo-200 rounded-lg px-2.5 py-1.5 focus:border-indigo-500 focus:outline-none"
+                                />
+                            </div>
+
+                            <div className="w-full mt-2 py-2.5 px-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5">
+                                <span>{config.formButtonText || "Register & Check Eligibility"}</span>
+                                <span>&rarr;</span>
+                            </div>
+
+                            {/* Column Configuration Manager */}
+                            {renderFormFieldsManager(block.id, splitFormFields, true)}
                         </div>
-                    </div>
-                );
+                    );
+                };
 
                 const renderEditableContent = (side: "left" | "right") => {
                     const isLeft = side === "left";
@@ -1700,6 +2342,141 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
                                 {layout === "content_form" && renderEditableForm()}
                                 {(layout === "image_text" || layout === "form_content" || layout === "text_text") && renderEditableContent("right")}
                             </div>
+                        </div>
+                    </div>
+                );
+            }
+            case "registration_form": {
+                const fConfig = block.formConfig || {
+                    formTitle: "Instant Loan Inquiry & Registration",
+                    formSubtitle: "Fill details for instant loan eligibility assessment & expert callback.",
+                    formButtonText: "Register & Check Eligibility",
+                    targetUrl: "/apply-loan",
+                    badgeText: "Instant Assessment",
+                    footerNote: "🔒 100% Free Service • No CIBIL Impact • Doorstep Support",
+                    fields: DEFAULT_FORM_FIELDS,
+                };
+                const fields = fConfig.fields && fConfig.fields.length > 0 ? fConfig.fields : DEFAULT_FORM_FIELDS;
+
+                return (
+                    <div className="w-full max-w-2xl mx-auto bg-white rounded-2xl border-2 border-emerald-400 shadow-md overflow-hidden transition-all">
+                        {/* Header Banner */}
+                        <div className="p-5 sm:p-6 bg-gradient-to-br from-emerald-600 via-teal-600 to-indigo-700 text-white relative">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/20 backdrop-blur-xs text-white text-[11px] font-black uppercase tracking-wider rounded-full border border-white/20">
+                                    <span className="material-symbols-outlined text-[13px]">how_to_reg</span>
+                                    <input
+                                        type="text"
+                                        value={fConfig.badgeText || "Instant Assessment"}
+                                        onChange={(e) => updateFormConfig(block.id, { badgeText: e.target.value })}
+                                        className="bg-transparent text-white font-black text-[11px] focus:outline-none w-32 border-b border-transparent hover:border-white/40"
+                                        placeholder="Badge label"
+                                    />
+                                </span>
+                                <span className="text-[11px] text-emerald-100 font-bold flex items-center gap-1.5 bg-black/20 px-2.5 py-0.5 rounded-full">
+                                    <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />
+                                    Standalone Form ({fields.length} columns)
+                                </span>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <input
+                                    type="text"
+                                    value={fConfig.formTitle || "Instant Loan Inquiry & Registration"}
+                                    onChange={(e) => updateFormConfig(block.id, { formTitle: e.target.value })}
+                                    placeholder="Registration Form Title..."
+                                    className="w-full font-black text-xl sm:text-2xl text-white bg-transparent border-b border-white/20 pb-1 focus:border-white focus:outline-none placeholder:text-white/60"
+                                />
+                                <input
+                                    type="text"
+                                    value={fConfig.formSubtitle || "Enter your contact details to check eligibility & receive a callback within 15 minutes."}
+                                    onChange={(e) => updateFormConfig(block.id, { formSubtitle: e.target.value })}
+                                    placeholder="Subtitle or guidance note..."
+                                    className="w-full text-xs sm:text-sm text-emerald-50 bg-transparent border-b border-white/10 pb-1 focus:border-white focus:outline-none placeholder:text-white/50"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Live Form Preview */}
+                        <div className="p-5 sm:p-6 space-y-4">
+                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                                <span>Live Responsive Column Layout</span>
+                                <span>{fields.length} Columns</span>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                                {fields.map((f) => (
+                                    <div
+                                        key={f.id}
+                                        className={f.colSpan === "full" ? "col-span-1 md:col-span-2" : "col-span-1"}
+                                    >
+                                        <label className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1 mb-1">
+                                            <span>{f.label}</span>
+                                            {f.required && <span className="text-rose-500">*</span>}
+                                        </label>
+                                        {f.type === "select" ? (
+                                            <select
+                                                disabled
+                                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 cursor-not-allowed"
+                                            >
+                                                {(f.options && f.options.length > 0 ? f.options : ["Select Option"]).map((opt, i) => (
+                                                    <option key={i}>{opt}</option>
+                                                ))}
+                                            </select>
+                                        ) : (
+                                            <input
+                                                type={f.type}
+                                                disabled
+                                                placeholder={f.placeholder || `Enter ${f.label}`}
+                                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 cursor-not-allowed"
+                                            />
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Submit Button & Redirect Settings */}
+                            <div className="space-y-2.5 pt-2 border-t border-slate-100">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="text-[10px] font-bold uppercase text-slate-500">CTA Button Text</label>
+                                        <input
+                                            type="text"
+                                            value={fConfig.formButtonText || "Register & Check Eligibility"}
+                                            onChange={(e) => updateFormConfig(block.id, { formButtonText: e.target.value })}
+                                            className="w-full text-xs font-bold text-emerald-800 bg-emerald-50/60 border border-emerald-200 rounded-lg px-2.5 py-1.5 focus:border-emerald-500 focus:outline-none"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-bold uppercase text-slate-500">Redirect URL on Submit</label>
+                                        <input
+                                            type="text"
+                                            value={fConfig.targetUrl || "/apply-loan"}
+                                            onChange={(e) => updateFormConfig(block.id, { targetUrl: e.target.value })}
+                                            placeholder="/apply-loan"
+                                            className="w-full text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 focus:border-indigo-500 focus:outline-none"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="w-full py-3 px-4 bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-700 text-white font-extrabold text-sm rounded-xl shadow-md flex items-center justify-center gap-2">
+                                    <span>{fConfig.formButtonText || "Register & Check Eligibility"}</span>
+                                    <span>&rarr;</span>
+                                </div>
+
+                                <div className="pt-1">
+                                    <label className="text-[10px] font-bold uppercase text-slate-400">Footer Trust Note</label>
+                                    <input
+                                        type="text"
+                                        value={fConfig.footerNote || "🔒 100% Free Service • No CIBIL Impact • Doorstep Support"}
+                                        onChange={(e) => updateFormConfig(block.id, { footerNote: e.target.value })}
+                                        className="w-full text-[11px] text-center text-slate-500 bg-transparent border-b border-slate-200 focus:outline-none focus:border-slate-400 py-0.5"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Form Columns Configuration Manager */}
+                            {renderFormFieldsManager(block.id, fields, false)}
                         </div>
                     </div>
                 );
@@ -2258,7 +3035,153 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/adm
                                                     className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-indigo-700"
                                                 />
                                             </div>
+
+                                            {/* Columns Manager for Split Form */}
+                                            {renderFormFieldsManager(
+                                                editingBlock.id,
+                                                editingBlock.splitConfig?.formFields || DEFAULT_FORM_FIELDS,
+                                                true,
+                                                (newFields) => {
+                                                    setEditingBlock({
+                                                        ...editingBlock,
+                                                        splitConfig: {
+                                                            ...(editingBlock.splitConfig || { layoutType: "content_form" }),
+                                                            formFields: newFields,
+                                                        },
+                                                    });
+                                                }
+                                            )}
                                         </div>
+                                    )}
+                                </div>
+                            ) : editingBlock.type === "registration_form" ? (
+                                <div className="space-y-4">
+                                    <div className="p-4 bg-emerald-50/50 rounded-xl border border-emerald-100 space-y-3">
+                                        <span className="text-[10px] font-black uppercase text-emerald-700 block">Separate Registration Form Settings</span>
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-700 mb-1 block">Badge Text</label>
+                                            <input
+                                                type="text"
+                                                value={editingBlock.formConfig?.badgeText || "Instant Assessment"}
+                                                onChange={(e) => setEditingBlock({
+                                                    ...editingBlock,
+                                                    formConfig: {
+                                                        ...(editingBlock.formConfig || {
+                                                            formTitle: "Instant Loan Inquiry & Registration",
+                                                            fields: DEFAULT_FORM_FIELDS,
+                                                        }),
+                                                        badgeText: e.target.value,
+                                                    },
+                                                })}
+                                                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-700 mb-1 block">Form Heading</label>
+                                            <input
+                                                type="text"
+                                                value={editingBlock.formConfig?.formTitle || "Instant Loan Inquiry & Registration"}
+                                                onChange={(e) => setEditingBlock({
+                                                    ...editingBlock,
+                                                    formConfig: {
+                                                        ...(editingBlock.formConfig || {
+                                                            fields: DEFAULT_FORM_FIELDS,
+                                                        }),
+                                                        formTitle: e.target.value,
+                                                    },
+                                                })}
+                                                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-700 mb-1 block">Form Subtitle</label>
+                                            <input
+                                                type="text"
+                                                value={editingBlock.formConfig?.formSubtitle || "Enter your contact details to check eligibility & receive a callback within 15 minutes."}
+                                                onChange={(e) => setEditingBlock({
+                                                    ...editingBlock,
+                                                    formConfig: {
+                                                        ...(editingBlock.formConfig || {
+                                                            fields: DEFAULT_FORM_FIELDS,
+                                                        }),
+                                                        formSubtitle: e.target.value,
+                                                    },
+                                                })}
+                                                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs"
+                                            />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <div>
+                                                <label className="text-xs font-bold text-slate-700 mb-1 block">Submit Button Label</label>
+                                                <input
+                                                    type="text"
+                                                    value={editingBlock.formConfig?.formButtonText || "Register & Check Eligibility"}
+                                                    onChange={(e) => setEditingBlock({
+                                                        ...editingBlock,
+                                                        formConfig: {
+                                                            ...(editingBlock.formConfig || {
+                                                                fields: DEFAULT_FORM_FIELDS,
+                                                            }),
+                                                            formButtonText: e.target.value,
+                                                        },
+                                                    })}
+                                                    className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-emerald-700"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-bold text-slate-700 mb-1 block">Redirect URL</label>
+                                                <input
+                                                    type="text"
+                                                    value={editingBlock.formConfig?.targetUrl || "/apply-loan"}
+                                                    onChange={(e) => setEditingBlock({
+                                                        ...editingBlock,
+                                                        formConfig: {
+                                                            ...(editingBlock.formConfig || {
+                                                                fields: DEFAULT_FORM_FIELDS,
+                                                            }),
+                                                            targetUrl: e.target.value,
+                                                        },
+                                                    })}
+                                                    placeholder="/apply-loan"
+                                                    className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-700 mb-1 block">Footer Trust Note</label>
+                                            <input
+                                                type="text"
+                                                value={editingBlock.formConfig?.footerNote || "🔒 100% Free Service • No CIBIL Impact • Doorstep Support"}
+                                                onChange={(e) => setEditingBlock({
+                                                    ...editingBlock,
+                                                    formConfig: {
+                                                        ...(editingBlock.formConfig || {
+                                                            fields: DEFAULT_FORM_FIELDS,
+                                                        }),
+                                                        footerNote: e.target.value,
+                                                    },
+                                                })}
+                                                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Columns Manager for Standalone Registration Form */}
+                                    {renderFormFieldsManager(
+                                        editingBlock.id,
+                                        editingBlock.formConfig?.fields || DEFAULT_FORM_FIELDS,
+                                        false,
+                                        (newFields) => {
+                                            setEditingBlock({
+                                                ...editingBlock,
+                                                formConfig: {
+                                                    ...(editingBlock.formConfig || {
+                                                        formTitle: "Instant Loan Inquiry & Registration",
+                                                    }),
+                                                    fields: newFields,
+                                                },
+                                            });
+                                        }
                                     )}
                                 </div>
                             ) : editingBlock.type === "video" ? (

@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { blogApi } from "@/lib/api";
 import Link from "next/link";
 import DynamicBlogEditor from "@/components/DynamicBlogEditor";
+import AdminBlogBuilder from "@/components/AdminBlogBuilder";
 
 type BlockType =
   | "heading"
@@ -3257,16 +3258,16 @@ export default function ITBlogsPage() {
           )}
         </div>
       ) : (
-        <DynamicBlogEditor
+        <AdminBlogBuilder
           initialBlog={editingBlog}
-          currentUser={user}
+          backHref="/it/blogs"
           onBack={() => {
             setIsCreating(false);
             setEditingBlog(null);
             setEditingBlogId(null);
             router.replace("/it/blogs");
           }}
-          onSaved={() => {
+          onPublished={() => {
             setIsCreating(false);
             setEditingBlog(null);
             setEditingBlogId(null);

@@ -2149,9 +2149,6 @@ export default function AdminDashboardPage() {
                                     <button onClick={() => setShowCreateUserModal(true)} className="px-3 py-1.5 rounded bg-white border border-slate-200 text-slate-700 font-medium text-[11px] hover:bg-slate-50 hover:text-slate-900 transition-all flex items-center gap-1.5 shadow-sm">
                                         <span className="material-symbols-outlined text-[16px]">person_add</span> User Node
                                     </button>
-                                    <Link href="/admin/blogs/create" className="px-3 py-1.5 bg-indigo-600 text-white rounded text-[11px] font-medium hover:bg-indigo-700 transition-colors shadow-sm flex items-center gap-1.5">
-                                        <span className="material-symbols-outlined text-[16px]">add</span> Post
-                                    </Link>
                                 </div>
                             </div>
 
@@ -2236,11 +2233,11 @@ export default function AdminDashboardPage() {
                                         <h3 className="text-xs font-semibold text-slate-900 mb-3 ml-1">Direct Commands</h3>
                                         <div className="grid grid-cols-2 gap-3">
                                             {[
-                                                { href: '/admin/blogs/create', label: 'Write Post', icon: 'post_add' },
+                                                { section: 'staff', label: 'Staff Hub', icon: 'badge' },
                                                 { section: 'users', label: 'Users', icon: 'people' },
                                                 { section: 'applications', label: 'Review Apps', icon: 'receipt_long' },
                                                 { section: 'system', label: 'Settings', icon: 'settings' },
-                                            ].map((action, i) => (
+                                            ].map((action: { href?: string; section?: string; label: string; icon: string }, i) => (
                                                 action.href ? (
                                                     <Link key={i} href={action.href} className="p-3 rounded border border-slate-100 bg-slate-50 hover:bg-slate-100 hover:border-slate-200 transition-colors flex flex-col gap-2 items-start justify-center group">
                                                         <span className={`material-symbols-outlined text-[18px] text-indigo-500`}>{action.icon}</span>
@@ -3545,6 +3542,20 @@ export default function AdminDashboardPage() {
                                             <button
                                                 key={staff.id}
                                                 onClick={() => setFilterStaff(isActive ? 'all' : staff.id)}
+                                                onDoubleClick={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    const staffId = staff.id || staff.linkedUserId;
+                                                    if (staffId) {
+                                                        setFilterStaff(staff.id);
+                                                        if (e.ctrlKey || e.metaKey) {
+                                                            window.open(`/admin/user-details/${staffId}`, '_blank');
+                                                        } else {
+                                                            router.push(`/admin/user-details/${staffId}`);
+                                                        }
+                                                    }
+                                                }}
+                                                title={`${staffName} (${assignedCount} assigned) · Click to filter applications · Double-click to view staff profile`}
                                                 className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-all shrink-0 cursor-pointer border ${isActive
                                                         ? 'bg-indigo-50 text-indigo-900 border-indigo-300 ring-2 ring-indigo-500/20 font-semibold'
                                                         : 'bg-white text-slate-700 border-slate-200/80 hover:border-slate-300 hover:bg-slate-50'
@@ -3555,7 +3566,7 @@ export default function AdminDashboardPage() {
                                                     alt=""
                                                     className="w-5 h-5 rounded-full bg-slate-100 shrink-0"
                                                 />
-                                                <span className="truncate max-w-[120px]" title={staffName}>{staffName}</span>
+                                                <span className="truncate max-w-[120px]">{staffName}</span>
                                                 <span className={`font-bold text-[11px] px-1.5 py-0.2 rounded ${isActive ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'
                                                     }`}>
                                                     {assignedCount}
@@ -3983,14 +3994,27 @@ export default function AdminDashboardPage() {
                                                                         </button>
                                                                     </div>
                                                                 ) : (
-                                                                    <div className="flex items-center gap-1.5 group/staff">
+                                                                    <div
+                                                                        className={`flex items-center gap-1.5 group/staff ${matchedStaff ? 'cursor-pointer' : ''}`}
+                                                                        onDoubleClick={(e) => {
+                                                                            const sId = matchedStaff?.id || matchedStaff?.linkedUserId;
+                                                                            if (sId) {
+                                                                                if (e.ctrlKey || e.metaKey) {
+                                                                                    window.open(`/admin/user-details/${sId}`, '_blank');
+                                                                                } else {
+                                                                                    router.push(`/admin/user-details/${sId}`);
+                                                                                }
+                                                                            }
+                                                                        }}
+                                                                        title={matchedStaff ? `${staffDisplayName} · Double-click to view staff profile` : staffDisplayName}
+                                                                    >
                                                                         <img
                                                                             src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${matchedStaff?.email || staffDisplayName}`}
                                                                             alt=""
                                                                             className="w-5 h-5 rounded-full bg-slate-100 shrink-0"
                                                                         />
                                                                         <span className={`text-xs font-medium truncate max-w-[110px] ${isUnassigned ? 'text-rose-600 font-semibold' : 'text-slate-800'
-                                                                            }`} title={staffDisplayName}>
+                                                                            }`}>
                                                                             {staffDisplayName}
                                                                         </span>
                                                                         {isSanctionLocked ? (
@@ -4171,9 +4195,6 @@ export default function AdminDashboardPage() {
                                         <button onClick={() => setFilterBlogTime('month')} className={`px-3 py-1.5 border-l border-slate-200 text-[9px] font-semibold uppercase tracking-wider transition-colors ${filterBlogTime === 'month' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>Monthly</button>
                                         <button onClick={() => setFilterBlogTime('year')} className={`px-3 py-1.5 border-l border-slate-200 text-[9px] font-semibold uppercase tracking-wider transition-colors ${filterBlogTime === 'year' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>Yearly</button>
                                     </div>
-                                    <button onClick={() => window.location.href = '/admin/blogs/create'} className="px-3 py-1.5 bg-slate-900 text-white rounded font-semibold text-[10px] hover:bg-slate-800 transition-colors flex items-center gap-1.5 shadow-sm">
-                                        <span className="material-symbols-outlined text-[14px]">add</span>New Post
-                                    </button>
                                     <button onClick={() => loadData()} className="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-slate-900 transition-all bg-white border border-slate-200 rounded-lg shadow-sm">
                                         <span className="material-symbols-outlined text-[20px]">refresh</span>
                                     </button>

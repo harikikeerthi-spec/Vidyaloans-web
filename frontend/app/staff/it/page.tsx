@@ -638,57 +638,22 @@ export default function ITDashboardPage() {
                 </div>
             )}
 
-            {/* TAB 3: Admin Blog Builder (from /admin/blogs/create) */}
-            {/* TAB 3: Admin Blog Builder (from /admin/blogs/create) */}
+            {/* TAB 3: IT Blog Builder */}
             {activeTab === "create_blog" && (
                 <div className="animate-in fade-in duration-200">
                     <AdminBlogBuilder
-                        onBack={() => setActiveTab("blogs")}
+                        initialBlog={blogs.find(b => (b.id || b._id) === editingBlogId)}
+                        backHref="/staff/it"
+                        onBack={() => {
+                            setEditingBlogId(null);
+                            setActiveTab("blogs");
+                        }}
                         onPublished={() => {
+                            setEditingBlogId(null);
                             setActiveTab("blogs");
                             loadBlogs();
                         }}
                     />
-                </div>
-            )}
-
-
-            {/* Block Edit Modal */}
-            {showEditModal && editingBlock && (
-                <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-[200] p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-100">
-                        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-                            <h4 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-                                Edit {editingBlock.type} Block
-                            </h4>
-                            <button onClick={() => setShowEditModal(false)} className="text-slate-400 hover:text-slate-600">
-                                <span className="material-symbols-outlined text-[18px]">close</span>
-                            </button>
-                        </div>
-                        <div className="p-5 space-y-4">
-                            <div>
-                                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Block Content</label>
-                                <textarea
-                                    value={editingBlock.content}
-                                    onChange={e => setEditingBlock({ ...editingBlock, content: e.target.value })}
-                                    rows={4}
-                                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                                />
-                            </div>
-                        </div>
-                        <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
-                            <button onClick={() => setShowEditModal(false)} className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700">Cancel</button>
-                            <button
-                                onClick={() => {
-                                    setBlocks(prev => prev.map(b => b.id === editingBlock.id ? editingBlock : b));
-                                    setShowEditModal(false);
-                                }}
-                                className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold shadow-sm"
-                            >
-                                Save Changes
-                            </button>
-                        </div>
-                    </div>
                 </div>
             )}
         </div>
