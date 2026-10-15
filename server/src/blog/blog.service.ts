@@ -1,6 +1,8 @@
 // @ts-nocheck
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { EmailService } from '../auth/email.service';
 import { randomUUID } from 'crypto';
 
 @Injectable()
@@ -9,7 +11,243 @@ export class BlogService {
     return this.supabase.getClient();
   }
 
-  constructor(private supabase: SupabaseService) {}
+  constructor(
+    private supabase: SupabaseService,
+    private prisma: PrismaService,
+    private emailService: EmailService,
+  ) {}
+
+  async createBlogInquiry(data: {
+    name?: string;
+    fullName?: string;
+    phone?: string;
+    mobile?: string;
+    phoneNumber?: string;
+    email?: string;
+    country?: string;
+    targetCountry?: string;
+    amount?: string;
+    loanAmount?: string;
+    university?: string;
+    targetCourse?: string;
+    blogTitle?: string;
+    blogSlug?: string;
+    source?: string;
+    details?: Record<string, any>;
+    [key: string]: any;
+  }) {
+    const rawData = data || {};
+    const leadName = (rawData.name || rawData.fullName || rawData['student_full_name'] || rawData['student_name'] || '').trim();
+    const leadMobile = (rawData.phone || rawData.mobile || rawData.phoneNumber || rawData['mobile_number'] || '').trim();
+
+    if (!leadName || !leadMobile) {
+      throw new BadRequestException('Student name and mobile/phone number are required');
+    }
+
+    const leadEmail = (rawData.email || '').trim() || `blog-lead-${Date.now()}@vidyaloans.com`;
+    const leadCountry = rawData.country || rawData.targetCountry || rawData['target_country'] || rawData.university || 'Study Abroad';
+    const leadAmount = rawData.amount || rawData.loanAmount || rawData['loan_amount'] || rawData['loan_amount_required'] || rawData.targetCourse || 'Not Specified';
+    const recordId = randomUUID();
+
+    const parts = [leadCountry];
+    if (leadAmount && leadAmount !== 'Not Specified') parts.push(`[${leadAmount}]`);
+    if (rawData.targetCourse) parts.push(`[Course: ${rawData.targetCourse}]`);
+    if (rawData.blogTitle) parts.push(`(Blog: ${rawData.blogTitle})`);
+    const universityDescriptor = parts.filter(Boolean).join(' ');
+
+    const inquiryRecord = {
+      id: recordId,
+      name: leadName,
+      email: leadEmail,
+      mobile: leadMobile,
+      universityName: universityDescriptor.substring(0, 255),
+      type: 'blog_registration',
+      status: 'pending',
+    };
+
+    let savedResult: any = null;
+
+    // 1. Persist in UniversityInquiry table via Prisma
+    try {
+      savedResult = await this.prisma.universityInquiry.create({
+        data: inquiryRecord,
+      });
+    } catch (prismaErr) {
+      console.warn('Prisma UniversityInquiry write failed, falling back to Supabase:', prismaErr);
+      try {
+        const { data: sbInq } = await this.db.from('UniversityInquiry').insert({
+          ...inquiryRecord,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }).select().maybeSingle();
+        savedResult = sbInq || inquiryRecord;
+      } catch (sbErr) {
+        savedResult = inquiryRecord;
+      }
+    }
+
+    // 2. Also register in CallbackRequest for CRM follow-up queues
+    try {
+      await this.prisma.callbackRequest.create({
+        data: {
+          id: randomUUID(),
+          name: leadName,
+          email: leadEmail,
+          mobile: leadMobile,
+          universityName: universityDescriptor.substring(0, 255),
+          status: 'pending',
+        },
+      });
+    } catch (cbErr) {
+      try {
+        await this.db.from('CallbackRequest').insert({
+          id: randomUUID(),
+          name: leadName,
+          email: leadEmail,
+          mobile: leadMobile,
+          universityName: universityDescriptor.substring(0, 255),
+          status: 'pending',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+      } catch (e) {}
+    }
+
+    // 3. Send notifications asynchronously (non-blocking)
+    try {
+      this.sendBlogInquiryNotifications({
+        name: leadName,
+        phone: leadMobile,
+        email: data.email ? leadEmail : null,
+        country: leadCountry,
+        amount: leadAmount,
+        blogTitle: data.blogTitle || 'Education Loan Guide',
+        details: data.details,
+      }).catch((mailErr) => {
+        console.error('Failed to dispatch blog lead emails:', mailErr);
+      });
+    } catch (e) {
+      // ignore async email failure
+    }
+
+    return {
+      success: true,
+      message: 'Your registration has been submitted successfully! Our education loan advisor will contact you within 15 minutes.',
+      data: {
+        id: recordId,
+        name: leadName,
+        status: 'pending',
+      },
+    };
+  }
+
+  private async sendBlogInquiryNotifications(info: {
+    name: string;
+    phone: string;
+    email?: string | null;
+    country: string;
+    amount: string;
+    blogTitle: string;
+    details?: any;
+  }) {
+    if (!this.emailService) return;
+
+    const adminEmail = process.env.ADMIN_EMAIL || 'support@vidyaloans.com';
+    const adminHtml = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
+        <div style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); padding: 24px; text-align: center; color: #ffffff;">
+          <h2 style="margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0.025em;">⚡ New Blog Lead Registration</h2>
+          <p style="margin: 6px 0 0; font-size: 13px; color: #e0e7ff;">Captured from VidyaLoans Knowledge Base</p>
+        </div>
+        <div style="padding: 24px;">
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 18px; margin-bottom: 20px;">
+            <p style="margin: 6px 0; font-size: 14px;"><strong>Student Name:</strong> ${info.name}</p>
+            <p style="margin: 6px 0; font-size: 14px;"><strong>Phone / WhatsApp:</strong> <a href="tel:${info.phone}" style="color: #4f46e5; text-decoration: none; font-weight: 700;">${info.phone}</a></p>
+            ${info.email ? `<p style="margin: 6px 0; font-size: 14px;"><strong>Email:</strong> ${info.email}</p>` : ''}
+            <p style="margin: 6px 0; font-size: 14px;"><strong>Target Country / Program:</strong> ${info.country}</p>
+            <p style="margin: 6px 0; font-size: 14px;"><strong>Required Loan Amount:</strong> ${info.amount}</p>
+            <p style="margin: 6px 0; font-size: 14px;"><strong>Source Article:</strong> ${info.blogTitle}</p>
+          </div>
+          <p style="font-size: 12px; color: #64748b; text-align: center; margin: 0;">VidyaLoans CRM • Instant Lead Notification</p>
+        </div>
+      </div>
+    `;
+
+    try {
+      await this.emailService.sendMail(
+        adminEmail,
+        `⚡ NEW LEAD: ${info.name} (${info.country} - ${info.amount})`,
+        adminHtml,
+      );
+    } catch (err) {
+      console.warn('Could not send admin lead email:', err);
+    }
+
+    if (info.email && info.email.includes('@') && !info.email.startsWith('blog-lead-')) {
+      const studentHtml = `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
+          <div style="background: linear-gradient(135deg, #6605c7 0%, #7c3aed 100%); padding: 32px 24px; text-align: center; color: #ffffff;">
+            <h1 style="margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.02em;">VidyaLoans</h1>
+            <p style="margin: 8px 0 0; font-size: 13px; color: #ede9fe; font-weight: 500;">Registration Confirmed • Dedicated Loan Advisory</p>
+          </div>
+          <div style="padding: 28px 24px;">
+            <h2 style="color: #1a1626; font-size: 18px; margin-top: 0; font-weight: 700;">Hi ${info.name},</h2>
+            <p style="color: #334155; font-size: 14px; line-height: 1.6; margin-bottom: 16px;">
+              Thank you for registering your education loan consultation request with VidyaLoans.
+            </p>
+            
+            <div style="background: #faf8fd; border: 1px solid #ede9fe; border-radius: 12px; padding: 18px; margin: 20px 0;">
+              <h3 style="margin: 0 0 12px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: #6605c7; font-weight: 700;">Your Registered Details</h3>
+              <table style="width: 100%; font-size: 13px; color: #334155; border-collapse: collapse;">
+                <tr>
+                  <td style="padding: 5px 0; color: #64748b; font-weight: 600; width: 40%;">Full Name:</td>
+                  <td style="padding: 5px 0; font-weight: 700; color: #1a1626;">${info.name}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 5px 0; color: #64748b; font-weight: 600;">Phone / WhatsApp:</td>
+                  <td style="padding: 5px 0; font-weight: 700; color: #1a1626;">${info.phone}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 5px 0; color: #64748b; font-weight: 600;">Target Country:</td>
+                  <td style="padding: 5px 0; font-weight: 700; color: #1a1626;">${info.country}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 5px 0; color: #64748b; font-weight: 600;">Required Loan Amount:</td>
+                  <td style="padding: 5px 0; font-weight: 700; color: #6605c7;">${info.amount}</td>
+                </tr>
+                ${info.details?.location ? `<tr><td style="padding: 5px 0; color: #64748b; font-weight: 600;">Location:</td><td style="padding: 5px 0; font-weight: 700; color: #1a1626;">${info.details.location}</td></tr>` : ''}
+              </table>
+            </div>
+
+            <p style="color: #334155; font-size: 14px; line-height: 1.6;">
+              A certified VidyaLoans Education Loan Specialist is reviewing pre-approved options for you across 15+ partner banks (SBI, HDFC Credila, Axis Bank, ICICI Bank, Avanse, Auxilo, and international lenders). We will contact you at <strong>${info.phone}</strong> within <strong>15 minutes</strong>.
+            </p>
+            
+            <div style="background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 10px; padding: 14px 16px; margin: 24px 0 20px;">
+              <p style="margin: 0; font-size: 12px; color: #5b21b6; font-weight: 600; line-height: 1.5;">
+                🔒 100% Free Doorstep Support • Zero CIBIL Impact • Best Interest Rate Guarantee
+              </p>
+            </div>
+            
+            <p style="color: #64748b; font-size: 13px; margin: 20px 0 0; line-height: 1.5;">
+              Warm regards,<br />
+              <strong style="color: #1a1626;">Team VidyaLoans</strong><br />
+              <span style="font-size: 12px; color: #94a3b8;">Overseas Education Financing Platform</span>
+            </p>
+          </div>
+        </div>
+      `;
+      try {
+        await this.emailService.sendMail(
+          info.email,
+          `Loan Assessment & Counselling Registration Confirmed - VidyaLoans`,
+          studentHtml,
+        );
+      } catch (e) {
+        console.warn('Could not send user confirmation email:', e);
+      }
+    }
+  }
 
   private normalizeTagName(tag: string) {
     return (tag || '').trim().replace(/^#/, '').toLowerCase();
@@ -536,6 +774,80 @@ export class BlogService {
               <div class="grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8 ${alignClass}">
                 <div class="${leftSpan} w-full">${leftColHtml}</div>
                 <div class="${rightSpan} w-full">${rightColHtml}</div>
+              </div>
+            </div>`;
+          }
+          case 'registration_form': {
+            const fConfig = block.formConfig || {
+              formTitle: 'Instant Loan Inquiry & Registration',
+              formSubtitle: 'Fill details for instant loan eligibility assessment & expert callback within 15 minutes.',
+              formButtonText: 'Register & Check Eligibility',
+              badgeText: 'Instant Assessment',
+              footerNote: '🔒 100% Free Service • No CIBIL Impact • Doorstep Support',
+              fields: [
+                { id: "f_name", label: "Student Full Name", name: "name", type: "text", placeholder: "Enter student full name", required: true, colSpan: "full" },
+                { id: "f_phone", label: "Mobile / WhatsApp Number", name: "phone", type: "tel", placeholder: "+91 98765 43210", required: true, colSpan: "half" },
+                { id: "f_email", label: "Email Address", name: "email", type: "email", placeholder: "student@example.com", required: false, colSpan: "half" },
+                { id: "f_country", label: "Target Country", name: "country", type: "select", options: ["USA", "United Kingdom", "Canada", "Australia", "Germany", "Ireland", "India"], required: true, colSpan: "half" },
+                { id: "f_amount", label: "Loan Amount Required", name: "amount", type: "select", options: ["₹10L - ₹25L", "₹25L - ₹50L", "₹50L - ₹75L", "₹75 Lakhs+"], required: true, colSpan: "half" },
+              ],
+            };
+            const fields = fConfig.fields && fConfig.fields.length > 0 ? fConfig.fields : [];
+            const fieldsHtml = fields.map((f: any) => {
+              const colClass = f.colSpan === 'full' ? 'md:col-span-2' : 'md:col-span-1';
+              const reqAttr = f.required ? 'required' : '';
+              const reqStar = f.required ? '<span class="text-rose-500 ml-0.5">*</span>' : '';
+              const fieldName = f.name || f.label.toLowerCase().replace(/[^a-z0-9]/g, '_');
+              if (f.type === 'select') {
+                const opts = (f.options && f.options.length > 0 ? f.options : ['Option 1', 'Option 2'])
+                  .map((opt: string) => `<option value="${opt}">${opt}</option>`)
+                  .join('');
+                return `<div class="${colClass}">
+                  <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">${f.label}${reqStar}</label>
+                  <select name="${fieldName}" ${reqAttr} class="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:border-indigo-600 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all">${opts}</select>
+                </div>`;
+              }
+              return `<div class="${colClass}">
+                <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">${f.label}${reqStar}</label>
+                <input type="${f.type}" name="${fieldName}" ${reqAttr} placeholder="${f.placeholder || ''}" class="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all" />
+              </div>`;
+            }).join('');
+
+            return `<div class="blog-inquiry-widget not-prose bg-white p-6 md:p-8 rounded-3xl border border-indigo-100 shadow-xl shadow-indigo-100/50 relative overflow-hidden transition-all max-w-2xl mx-auto my-10"${styleAttr}>
+              <div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-indigo-600"></div>
+              <div class="mb-5">
+                <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase tracking-wider rounded-full mb-2.5 border border-indigo-100">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  ${fConfig.badgeText || 'Instant Assessment'}
+                </span>
+                <h3 class="text-xl md:text-2xl font-extrabold text-slate-900 mb-1.5 tracking-tight">${fConfig.formTitle || 'Instant Loan Inquiry & Registration'}</h3>
+                <p class="text-slate-500 text-xs leading-relaxed">${fConfig.formSubtitle || 'Fill details for instant loan eligibility assessment & expert callback within 15 minutes.'}</p>
+              </div>
+              <div class="blog-form-error hidden mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold"></div>
+              <form action="/api/blogs/inquiry" method="POST" class="blog-inquiry-form space-y-3.5" onsubmit="return window.handleBlogLeadSubmit ? window.handleBlogLeadSubmit(this, event) : true;">
+                <input type="hidden" name="source" value="blog_register_standalone" />
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">${fieldsHtml}</div>
+                <button type="submit" class="btn-submit-inquiry w-full mt-3 py-3.5 px-5 bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-700 hover:from-emerald-700 hover:to-indigo-800 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-emerald-600/25 active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer">
+                  <span class="btn-text font-bold">${fConfig.formButtonText || 'Register & Check Eligibility'}</span>
+                  <span class="btn-arrow font-bold">&rarr;</span>
+                </button>
+                <p class="text-[11px] text-center text-slate-400 mt-2.5 flex items-center justify-center gap-1.5">${fConfig.footerNote || '🔒 100% Free Service • No CIBIL Impact • Doorstep Support'}</p>
+              </form>
+              <div class="blog-form-success hidden text-center py-8 px-6 bg-gradient-to-br from-emerald-50/90 to-teal-50/90 rounded-2xl border border-emerald-200/90 shadow-sm animate-fade-in">
+                <div class="w-14 h-14 bg-gradient-to-tr from-emerald-500 to-teal-500 text-white rounded-full flex items-center justify-center mx-auto mb-3.5 shadow-lg shadow-emerald-500/25 text-xl font-black">✓</div>
+                <span class="inline-block px-3 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase tracking-wider rounded-full mb-2">Registration Confirmed</span>
+                <h4 class="text-xl font-extrabold text-slate-900 mb-1.5">Inquiry Registered Successfully!</h4>
+                <p class="text-slate-600 text-xs leading-relaxed max-w-md mx-auto mb-4">
+                  Thank you, <span class="lead-submitted-name font-bold text-slate-900">Student</span>! Your loan consultation request has been stored in our system. A certified VidyaLoans advisor will contact you within <strong class="text-emerald-700 font-bold">15 minutes</strong>.
+                </p>
+                <div class="inline-flex items-center gap-2 px-3.5 py-1.5 bg-white/90 rounded-lg border border-emerald-200 text-[11px] font-semibold text-emerald-700 shadow-2xs mb-4">
+                  <span>🔒 100% Free Service • No CIBIL Impact • Doorstep Support</span>
+                </div>
+                <div>
+                  <button type="button" class="btn-reset-inquiry px-4 py-2 text-xs font-bold text-emerald-800 hover:text-emerald-950 bg-emerald-100 hover:bg-emerald-200/80 rounded-xl transition-all cursor-pointer">
+                    + Submit Another Inquiry
+                  </button>
+                </div>
               </div>
             </div>`;
           }

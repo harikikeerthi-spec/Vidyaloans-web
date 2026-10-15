@@ -67,6 +67,11 @@ export class EmailService {
     };
   }
 
+  private getLogoUrl(): string {
+    const frontendUrl = (process.env.FRONTEND_URL || 'https://www.vidyaloans.in').replace(/\/$/, '');
+    return `${frontendUrl}/images/vidyaloans-logo-transparent.png`;
+  }
+
   private stripHtml(html: string): string {
     if (!html) return '';
     return html
@@ -138,8 +143,17 @@ Do not share this code with anyone.`;
                   
                   <!-- Header / Brand -->
                   <tr>
-                    <td style="background: linear-gradient(135deg, #6605c7 0%, #8b5cf6 100%); padding: 26px 32px; text-align: center;">
-                      <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.02em;">VidyaLoans</h1>
+                    <td style="background: linear-gradient(135deg, #6605c7 0%, #8b5cf6 100%); padding: 22px 32px; text-align: center;">
+                      <table border="0" cellpadding="0" cellspacing="0" style="margin: 0 auto;">
+                        <tr>
+                          <td style="vertical-align: middle; padding-right: 12px;">
+                            <img src="${this.getLogoUrl()}" alt="VidyaLoans Logo" width="40" height="40" style="display: block; border-radius: 8px; background: rgba(255,255,255,0.15); padding: 3px;" />
+                          </td>
+                          <td style="vertical-align: middle;">
+                            <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.02em;">VidyaLoans</h1>
+                          </td>
+                        </tr>
+                      </table>
                     </td>
                   </tr>
 
@@ -213,8 +227,17 @@ Do not share this code with anyone.`;
 
     const htmlContent = `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 12px;">
-          <div style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); padding: 30px; border-radius: 10px; text-align: center; margin-bottom: 24px;">
-            <h1 style="color: white; margin: 0; font-size: 24px;">Vidya Loan</h1>
+          <div style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); padding: 24px; border-radius: 10px; text-align: center; margin-bottom: 24px;">
+            <table border="0" cellpadding="0" cellspacing="0" style="margin: 0 auto;">
+              <tr>
+                <td style="vertical-align: middle; padding-right: 12px;">
+                  <img src="${this.getLogoUrl()}" alt="VidyaLoans Logo" width="40" height="40" style="display: block; border-radius: 8px; background: rgba(255,255,255,0.2); padding: 3px;" />
+                </td>
+                <td style="vertical-align: middle;">
+                  <h1 style="color: white; margin: 0; font-size: 24px;">Vidya Loan</h1>
+                </td>
+              </tr>
+            </table>
           </div>
           
           <div style="padding: 0 10px;">
@@ -288,7 +311,7 @@ Do not share this code with anyone.`;
     }
 
     try {
-      if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+      if (this.hasCredentials()) {
         await this.transporter.sendMail(mailOptions);
         console.log(`Email sent successfully to ${to}`);
       } else {
@@ -360,10 +383,13 @@ Do not share this code with anyone.`;
                 <table class="container" border="0" cellpadding="0" cellspacing="0" width="600" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); overflow: hidden;">
                     
                     <tr>
-                        <td style="background-color: #1e3a8a; padding: 32px 40px; text-align: left;">
-                            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                        <td style="background-color: #1e3a8a; padding: 28px 40px; text-align: left;">
+                            <table border="0" cellpadding="0" cellspacing="0">
                                 <tr>
-                                    <td>
+                                    <td style="vertical-align: middle; padding-right: 14px;">
+                                        <img src="${this.getLogoUrl()}" alt="VidyaLoans Logo" width="46" height="46" style="display: block; border-radius: 8px; background: rgba(255,255,255,0.15); padding: 3px;" />
+                                    </td>
+                                    <td style="vertical-align: middle;">
                                         <h1 style="color: #ffffff; margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.5px;">VidyaLoan</h1>
                                         <p style="color: #93c5fd; margin: 4px 0 0 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Education Loan Platform</p>
                                     </td>
@@ -565,7 +591,7 @@ Do not share this code with anyone.`;
                 <tr>
                   <!-- Left side Logo -->
                   <td width="60" align="left" style="vertical-align: middle;">
-                    <div style="width:48px;height:48px;border-radius:12px;background:rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;color:#ffffff;font-size:20px;font-weight:bold;">VL</div>
+                    <img src="${this.getLogoUrl()}" alt="VidyaLoan" width="48" height="48" style="display:block;border:none;border-radius:12px;background:rgba(255,255,255,0.15);padding:4px;" />
                   </td>
                   <!-- Middle Text -->
                   <td align="center" style="vertical-align: middle; padding-right: 60px;">
@@ -845,8 +871,17 @@ Do not share this code with anyone.`;
               <table border="0" cellpadding="0" cellspacing="0" width="100%">
                 <tr>
                   <td>
-                    <span style="color: #38bdf8; font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; display: block; margin-bottom: 4px;">VidyaLoan</span>
-                    <h1 style="color: #ffffff; margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.5px;">Application Received</h1>
+                    <table border="0" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="vertical-align: middle; padding-right: 12px;">
+                          <img src="${this.getLogoUrl()}" alt="VidyaLoan Logo" width="42" height="42" style="display: block; border-radius: 8px; background: rgba(255,255,255,0.12); padding: 3px;" />
+                        </td>
+                        <td style="vertical-align: middle;">
+                          <span style="color: #38bdf8; font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; display: block; margin-bottom: 2px;">VidyaLoan</span>
+                          <h1 style="color: #ffffff; margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.5px;">Application Received</h1>
+                        </td>
+                      </tr>
+                    </table>
                   </td>
                   <td align="right" valign="middle">
                     <span style="background-color: rgba(56, 189, 248, 0.15); color: #38bdf8; font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 20px; border: 1px solid rgba(56, 189, 248, 0.3);">#${appNum}</span>
@@ -1053,8 +1088,17 @@ Do not share this code with anyone.`;
               <table border="0" cellpadding="0" cellspacing="0" width="100%">
                 <tr>
                   <td>
-                    <span style="color: #38bdf8; font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; display: block; margin-bottom: 4px;">VidyaLoans</span>
-                    <h1 style="color: #ffffff; margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.5px;">Documents Verified</h1>
+                    <table border="0" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="vertical-align: middle; padding-right: 12px;">
+                          <img src="${this.getLogoUrl()}" alt="VidyaLoans Logo" width="42" height="42" style="display: block; border-radius: 8px; background: rgba(255,255,255,0.12); padding: 3px;" />
+                        </td>
+                        <td style="vertical-align: middle;">
+                          <span style="color: #38bdf8; font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; display: block; margin-bottom: 2px;">VidyaLoans</span>
+                          <h1 style="color: #ffffff; margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.5px;">Documents Verified</h1>
+                        </td>
+                      </tr>
+                    </table>
                   </td>
                   ${appNum ? `<td align="right" valign="middle"><span style="background-color: rgba(56, 189, 248, 0.15); color: #38bdf8; font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 20px; border: 1px solid rgba(56, 189, 248, 0.3);">${appNum}</span></td>` : ''}
                 </tr>
@@ -1168,8 +1212,17 @@ Do not share this code with anyone.`;
                             <table border="0" cellpadding="0" cellspacing="0" width="100%">
                                 <tr>
                                     <td>
-                                        <span style="color: #c7d2fe; font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; display: block; margin-bottom: 6px;">VidyaLoan Engine</span>
-                                        <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">Application Progress Active</h1>
+                                        <table border="0" cellpadding="0" cellspacing="0">
+                                            <tr>
+                                                <td style="vertical-align: middle; padding-right: 12px;">
+                                                    <img src="${this.getLogoUrl()}" alt="VidyaLoan Logo" width="44" height="44" style="display: block; border-radius: 8px; background: rgba(255,255,255,0.15); padding: 3px;" />
+                                                </td>
+                                                <td style="vertical-align: middle;">
+                                                    <span style="color: #c7d2fe; font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; display: block; margin-bottom: 3px;">VidyaLoan Engine</span>
+                                                    <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">Application Progress Active</h1>
+                                                </td>
+                                            </tr>
+                                        </table>
                                     </td>
                                     <td align="right" valign="middle">
                                         <div style="background-color: rgba(255, 255, 255, 0.15); color: #ffffff; font-size: 13px; font-weight: 600; padding: 6px 14px; border-radius: 6px; backdrop-filter: blur(4px);">
@@ -1475,8 +1528,17 @@ Do not share this code with anyone.`;
 
   <div class="email-container" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);">
     <!-- Header -->
-    <div class="header" style="background-color: #0d47a1; color: #ffffff; padding: 24px; text-align: center;">
-      <h1 style="margin: 0; font-size: 20px; font-weight: 600;">🎓 VidyaLoan</h1>
+    <div class="header" style="background-color: #0d47a1; color: #ffffff; padding: 20px 24px; text-align: center;">
+      <table border="0" cellpadding="0" cellspacing="0" style="margin: 0 auto;">
+        <tr>
+          <td style="vertical-align: middle; padding-right: 12px;">
+            <img src="${this.getLogoUrl()}" alt="VidyaLoan Logo" width="36" height="36" style="display: block; border-radius: 6px; background: rgba(255,255,255,0.15); padding: 3px;" />
+          </td>
+          <td style="vertical-align: middle;">
+            <h1 style="margin: 0; font-size: 20px; font-weight: 600; color: #ffffff;">VidyaLoan</h1>
+          </td>
+        </tr>
+      </table>
     </div>
 
     <!-- Content Body -->
@@ -1606,7 +1668,7 @@ Do not share this code with anyone.`;
       const rawTests = application.tests || application.user?.tests;
       if (typeof rawTests === 'string') parsedTests = JSON.parse(rawTests);
       else if (rawTests && typeof rawTests === 'object') parsedTests = rawTests;
-    } catch (_) {}
+    } catch (_) { }
 
     const entranceName = (application.entranceTest || application.user?.entranceTest || (parsedTests.gre ? 'GRE' : parsedTests.gmat ? 'GMAT' : parsedTests.sat ? 'SAT' : ''));
     const entranceScore = application.entranceScore || application.user?.entranceScore || (parsedTests.gre || parsedTests.gmat || parsedTests.sat || '');
@@ -1694,9 +1756,12 @@ Do not share this code with anyone.`;
     <!-- Top Header Banner -->
     <div style="background:linear-gradient(135deg,#1e1b4b 0%,#312e81 40%,#4338ca 100%);padding:32px 36px;color:#ffffff;text-align:left;">
       <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.15);padding-bottom:18px;margin-bottom:18px;">
-        <div>
-          <h1 style="margin:0;font-size:22px;font-weight:900;letter-spacing:-0.5px;color:#ffffff;">VidyaLoan</h1>
-          <p style="margin:4px 0 0;font-size:11px;opacity:0.85;text-transform:uppercase;letter-spacing:1.2px;color:#c7d2fe;">Partner Underwriting Desk · ${bankName}</p>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <img src="${this.getLogoUrl()}" alt="VidyaLoan" width="44" height="44" style="display:block;border:none;border-radius:10px;background:rgba(255,255,255,0.15);padding:3px;" />
+          <div>
+            <h1 style="margin:0;font-size:22px;font-weight:900;letter-spacing:-0.5px;color:#ffffff;">VidyaLoan</h1>
+            <p style="margin:4px 0 0;font-size:11px;opacity:0.85;text-transform:uppercase;letter-spacing:1.2px;color:#c7d2fe;">Partner Underwriting Desk · ${bankName}</p>
+          </div>
         </div>
         <div style="background:rgba(255,255,255,0.12);padding:6px 14px;border-radius:20px;border:1px solid rgba(255,255,255,0.2);text-align:right;">
           <span style="font-size:11px;font-weight:800;color:#38bdf8;text-transform:uppercase;letter-spacing:0.5px;">File Action: New Credit Dossier</span>
@@ -1996,7 +2061,8 @@ Do not share this code with anyone.`;
 
     <!-- Header -->
     <div style="background:linear-gradient(135deg,#4f46e5 0%,#7c3aed 100%);padding:32px 36px;color:#fff;">
-      <div style="display:flex;align-items:center;gap:12px;">
+      <div style="display:flex;align-items:center;gap:14px;">
+        <img src="${this.getLogoUrl()}" alt="VidyaLoan Logo" width="46" height="46" style="display:block;border:none;border-radius:10px;background:rgba(255,255,255,0.15);padding:3px;" />
         <div>
           <h1 style="margin:0;font-size:22px;font-weight:800;letter-spacing:-0.5px;">VidyaLoan</h1>
           <p style="margin:4px 0 0;font-size:11px;opacity:0.85;text-transform:uppercase;letter-spacing:1.2px;">Bank Partner Portal · Application Package</p>
@@ -2206,8 +2272,17 @@ Do not share this code with anyone.`;
                 <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
                     
                     <tr>
-                        <td align="center" style="padding: 40px 40px 20px 40px;">
-                            <span style="font-size: 13px; font-weight: 700; letter-spacing: 2px; color: #6605c7; text-transform: uppercase;">VIDYALOAN</span>
+                        <td align="center" style="padding: 36px 40px 16px 40px;">
+                            <table border="0" cellpadding="0" cellspacing="0" style="margin: 0 auto;">
+                                <tr>
+                                    <td style="vertical-align: middle; padding-right: 10px;">
+                                        <img src="${this.getLogoUrl()}" alt="VidyaLoan Logo" width="36" height="36" style="display: block; border-radius: 8px;" />
+                                    </td>
+                                    <td style="vertical-align: middle;">
+                                        <span style="font-size: 15px; font-weight: 800; letter-spacing: 2px; color: #6605c7; text-transform: uppercase;">VIDYALOAN</span>
+                                    </td>
+                                </tr>
+                            </table>
                         </td>
                     </tr>
 
@@ -2451,8 +2526,17 @@ Do not share this code with anyone.`;
 
   <div class="email-container" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);">
     <!-- Header -->
-    <div class="header" style="background-color: #0d47a1; color: #ffffff; padding: 24px; text-align: center;">
-      <h1 style="margin: 0; font-size: 20px; font-weight: 600;">🎓 VidyaLoan</h1>
+    <div class="header" style="background-color: #0d47a1; color: #ffffff; padding: 20px 24px; text-align: center;">
+      <table border="0" cellpadding="0" cellspacing="0" style="margin: 0 auto;">
+        <tr>
+          <td style="vertical-align: middle; padding-right: 12px;">
+            <img src="${this.getLogoUrl()}" alt="VidyaLoan Logo" width="36" height="36" style="display: block; border-radius: 6px; background: rgba(255,255,255,0.15); padding: 3px;" />
+          </td>
+          <td style="vertical-align: middle;">
+            <h1 style="margin: 0; font-size: 20px; font-weight: 600; color: #ffffff;">VidyaLoan</h1>
+          </td>
+        </tr>
+      </table>
     </div>
 
     <!-- Content Body -->
@@ -2571,9 +2655,16 @@ Do not share this code with anyone.`;
               border-radius: 20px 20px 0 0;
               padding: 36px 40px 28px;
               border-bottom: 1px solid rgba(225,29,72,0.3);
-              text-align: center;
-            ">
-              <span style="font-size: 24px; font-weight: 800; color: #ffffff; letter-spacing: 2px;">VIDYALOAN</span>
+              <table border="0" cellpadding="0" cellspacing="0" style="margin: 0 auto;">
+                <tr>
+                  <td style="vertical-align: middle; padding-right: 12px;">
+                    <img src="${this.getLogoUrl()}" alt="VidyaLoan Logo" width="44" height="44" style="display: block; border-radius: 10px; background: rgba(255,255,255,0.15); padding: 3px;" />
+                  </td>
+                  <td style="vertical-align: middle;">
+                    <span style="font-size: 24px; font-weight: 800; color: #ffffff; letter-spacing: 2px;">VIDYALOAN</span>
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
 
@@ -2981,8 +3072,17 @@ Do not share this code with anyone.`;
       text: `Hello ${studentName},\n\nYour uploaded document "${formattedDocName}" has been rejected by our verification team.\n\nReason for Rejection:\n${rejectionReason || 'Document quality or format does not meet requirements.'}\n\nPlease log in to your dashboard to re-upload a clear and valid copy.\n\nBest regards,\nVidyaLoan Verification Team`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">
-          <div style="background: linear-gradient(135deg, #6605c7 0%, #4338ca 100%); padding: 25px; border-radius: 12px 12px 0 0; text-align: center;">
-            <h1 style="color: white; margin: 0; font-size: 24px;">VidyaLoan Document Verification</h1>
+          <div style="background: linear-gradient(135deg, #6605c7 0%, #4338ca 100%); padding: 22px; border-radius: 12px 12px 0 0; text-align: center;">
+            <table border="0" cellpadding="0" cellspacing="0" style="margin: 0 auto;">
+              <tr>
+                <td style="vertical-align: middle; padding-right: 12px;">
+                  <img src="${this.getLogoUrl()}" alt="VidyaLoan Logo" width="38" height="38" style="display: block; border-radius: 8px; background: rgba(255,255,255,0.18); padding: 3px;" />
+                </td>
+                <td style="vertical-align: middle;">
+                  <h1 style="color: white; margin: 0; font-size: 22px;">VidyaLoan Document Verification</h1>
+                </td>
+              </tr>
+            </table>
           </div>
           <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
             <div style="display: inline-block; background: #ffe4e6; color: #e11d48; padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 12px; text-transform: uppercase; margin-bottom: 15px;">
@@ -3464,7 +3564,10 @@ Do not share this code with anyone.`;
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #1e293b; background-color: #f8fafc;">
           <div style="background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.04); border: 1px solid #e2e8f0;">
             <!-- Header -->
-            <div style="background: linear-gradient(135deg, #059669 0%, #10b981 50%, #047857 100%); padding: 32px 25px; text-align: center;">
+            <div style="background: linear-gradient(135deg, #059669 0%, #10b981 50%, #047857 100%); padding: 30px 25px; text-align: center;">
+              <div style="margin-bottom: 12px;">
+                <img src="${this.getLogoUrl()}" alt="VidyaLoans Logo" width="50" height="50" style="display:inline-block;vertical-align:middle;border-radius:12px;background:rgba(255,255,255,0.2);padding:4px;" />
+              </div>
               <span style="display: inline-block; background: rgba(255, 255, 255, 0.2); border: 1px solid rgba(255, 255, 255, 0.35); color: #ffffff; padding: 5px 14px; border-radius: 20px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 12px;">
                 Official Verification Update
               </span>

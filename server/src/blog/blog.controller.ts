@@ -69,6 +69,30 @@ export class BlogController {
     // ==================== PUBLIC ENDPOINTS ====================
 
     /**
+     * Submit blog inquiry / registration lead (Public)
+     * POST /blogs/inquiry
+     */
+    @Post('inquiry')
+    async submitBlogInquiry(
+        @Body()
+        body: {
+            name: string;
+            phone?: string;
+            mobile?: string;
+            email?: string;
+            country?: string;
+            amount?: string;
+            university?: string;
+            blogTitle?: string;
+            blogSlug?: string;
+            source?: string;
+            details?: Record<string, any>;
+        },
+    ) {
+        return this.blogService.createBlogInquiry(body);
+    }
+
+    /**
      * Get all published blogs with pagination
      * GET /blogs
      * @query category - Filter by category (optional)

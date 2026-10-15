@@ -441,6 +441,7 @@ export default function Navbar() {
             {mobileOpen && (
                 <div className="lg:hidden bg-white border-b border-gray-200 px-4 pt-3 pb-6 flex flex-col gap-2">
                     <MobileLink href="/" label="Home" onClick={() => setMobileOpen(false)} />
+                    <MobileLink href="/registration" label="Free Counselling Form" onClick={() => setMobileOpen(false)} />
                     <MobileLink href="/emi" label="EMI Calculator" onClick={() => setMobileOpen(false)} />
                     <MobileLink href="/compare-loans" label="Compare Loans" onClick={() => setMobileOpen(false)} />
                     <MobileLink href="/community" label="Community" onClick={() => setMobileOpen(false)} />
@@ -489,8 +490,8 @@ function ProfileDropItem({ href, icon, label, iconClass, comingSoon }: {
             href={comingSoon ? "#" : href}
             onClick={(e) => { if (comingSoon) e.preventDefault(); }}
             className={`flex items-center justify-between px-4 py-2.5 text-[13px] transition-colors ${comingSoon
-                    ? "text-gray-400 bg-gray-50/50 cursor-not-allowed select-none"
-                    : "text-gray-700 hover:bg-gray-50"
+                ? "text-gray-400 bg-gray-50/50 cursor-not-allowed select-none"
+                : "text-gray-700 hover:bg-gray-50"
                 }`}
             title={comingSoon ? "Locked — Feature Coming Soon" : undefined}
         >

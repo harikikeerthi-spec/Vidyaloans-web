@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { BlogPost } from "@/types";
 import BlogShareBar from "@/components/BlogShareBar";
+import BlogRegistrationHandler from "@/components/BlogRegistrationHandler";
 
 interface Props {
   params: Promise<{
@@ -226,6 +227,7 @@ export default async function BlogPostPage({ params }: Props) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdBreadcrumb) }}
       />
+      <BlogRegistrationHandler />
 
       <article className="pt-24 pb-32 bg-white">
         {/* Breadcrumb Navigation & Hero Header */}

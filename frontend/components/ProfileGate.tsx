@@ -65,7 +65,11 @@ export default function ProfileGate({ children }: { children: React.ReactNode })
         !hasAllDetails &&
         pathname !== "/user-details";
 
-    if (isLoading || (mounted && isRedirecting)) {
+    if (!mounted) {
+        return <>{children}</>;
+    }
+
+    if (mounted && isRedirecting) {
         return (
             <div className="h-screen w-screen fixed inset-0 z-[9999] flex items-center justify-center bg-white">
                 <div className="text-center">

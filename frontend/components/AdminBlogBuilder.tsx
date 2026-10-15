@@ -165,6 +165,71 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
     const [activeHighlightPicker, setActiveHighlightPicker] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
 
+    // Interactive Lead Testing states for Registration Forms
+    const [testFormValues, setTestFormValues] = useState<Record<string, Record<string, string>>>({});
+    const [testFormSubmitting, setTestFormSubmitting] = useState<Record<string, boolean>>({});
+    const [testFormSuccess, setTestFormSuccess] = useState<Record<string, { name: string; phone: string } | null>>({});
+    const [testFormError, setTestFormError] = useState<Record<string, string | null>>({});
+
+    const handleTestLeadSubmit = async (blockId: string, fields: FormFieldConfig[], fConfig: any) => {
+        const values = testFormValues[blockId] || {};
+        const nameField = fields.find((f) => f.name === "name" || f.type === "text")?.name || "name";
+        const phoneField = fields.find((f) => f.name === "phone" || f.type === "tel")?.name || "phone";
+        const emailField = fields.find((f) => f.name === "email" || f.type === "email")?.name || "email";
+        const countryField = fields.find((f) => f.name === "country")?.name || "country";
+        const amountField = fields.find((f) => f.name === "amount")?.name || "amount";
+
+        const nameVal = values[nameField] || values["name"] || "";
+        const phoneVal = values[phoneField] || values["phone"] || values["mobile"] || "";
+        const emailVal = values[emailField] || values["email"] || "";
+        const countryVal = values[countryField] || values["country"] || "USA";
+        const amountVal = values[amountField] || values["amount"] || "₹25L - ₹50L";
+
+        if (!nameVal.trim()) {
+            setTestFormError((prev) => ({ ...prev, [blockId]: "Please enter student name to test submit." }));
+            return;
+        }
+        if (!phoneVal.trim() || phoneVal.replace(/\D/g, "").length < 8) {
+            setTestFormError((prev) => ({ ...prev, [blockId]: "Please enter a valid mobile number (min 8 digits)." }));
+            return;
+        }
+
+        setTestFormSubmitting((prev) => ({ ...prev, [blockId]: true }));
+        setTestFormError((prev) => ({ ...prev, [blockId]: null }));
+
+        try {
+            const payload = {
+                name: nameVal.trim(),
+                phone: phoneVal.trim(),
+                mobile: phoneVal.trim(),
+                email: emailVal.trim() || undefined,
+                country: countryVal,
+                amount: amountVal,
+                blogTitle: title || "Blog Lead Registration",
+                blogSlug: slug || "blog-inquiry",
+                source: "blog_register_standalone",
+                details: values,
+            };
+
+            const res = await fetch("/api/blogs/inquiry", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
+
+            const json = await res.json().catch(() => null);
+            if (!res.ok && !json?.success) {
+                throw new Error(json?.message || "Failed to submit lead");
+            }
+
+            setTestFormSuccess((prev) => ({ ...prev, [blockId]: { name: nameVal.trim(), phone: phoneVal.trim() } }));
+        } catch (err: any) {
+            setTestFormError((prev) => ({ ...prev, [blockId]: err.message || "Failed to record inquiry in DB." }));
+        } finally {
+            setTestFormSubmitting((prev) => ({ ...prev, [blockId]: false }));
+        }
+    };
+
     // Modal state
     const [editingBlock, setEditingBlock] = useState<Block | null>(null);
     const [showModal, setShowModal] = useState(false);
@@ -188,6 +253,18 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
             );
         }
         if (initialBlog.content && blocks.length === 0) {
+            // First check if structured blocks JSON was embedded
+            const jsonMatch = initialBlog.content.match(/<!--BLOCKS_JSON_START-->([\s\S]*?)<!--BLOCKS_JSON_END-->/);
+            if (jsonMatch) {
+                try {
+                    const parsed = JSON.parse(jsonMatch[1]);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        setBlocks(parsed);
+                        return;
+                    }
+                } catch (e) {}
+            }
+
             try {
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(initialBlog.content, "text/html");
@@ -621,7 +698,7 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
             formTitle: "Instant Loan Inquiry & Registration",
             formSubtitle: "Fill details for instant loan eligibility assessment & expert callback within 15 minutes.",
             formButtonText: "Register & Check Eligibility",
-            targetUrl: "/apply-loan",
+            targetUrl: "/registration",
             badgeText: "Instant Assessment",
             footerNote: "🔒 100% Free Service • No CIBIL Impact • Doorstep Support",
             fields: DEFAULT_FORM_FIELDS.map((f) => ({ ...f, id: "f_" + Math.random().toString(36).substr(2, 6) })),
@@ -1262,6 +1339,101 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
 
         setLoading(true);
         try {
+            const generateFormHtml = (formCfg: {
+                formTitle?: string;
+                formSubtitle?: string;
+                formButtonText?: string;
+                targetUrl?: string;
+                badgeText?: string;
+                footerNote?: string;
+                fields?: FormFieldConfig[];
+            }, isStandalone = false) => {
+                const fields = formCfg.fields && formCfg.fields.length > 0 ? formCfg.fields : DEFAULT_FORM_FIELDS;
+                const formTitle = formCfg.formTitle || "Instant Loan Inquiry & Registration";
+                const formSubtitle = formCfg.formSubtitle || "Fill details for instant loan eligibility assessment & expert callback within 15 minutes.";
+                const formBtn = formCfg.formButtonText || "Register & Check Eligibility";
+                const badge = formCfg.badgeText || "Instant Assessment";
+                const footer = formCfg.footerNote || "🔒 100% Free Service • No CIBIL Impact • Doorstep Support";
+
+                const fieldsHtml = fields.map((f) => {
+                    const colClass = f.colSpan === "full" ? "md:col-span-2" : "md:col-span-1";
+                    const reqAttr = f.required ? "required" : "";
+                    const reqStar = f.required ? '<span class="text-rose-500 ml-0.5">*</span>' : "";
+                    const fieldName = f.name || f.label.toLowerCase().replace(/[^a-z0-9]/g, "_");
+
+                    if (f.type === "select") {
+                        const opts = (f.options && f.options.length > 0 ? f.options : ["Option 1", "Option 2"])
+                            .map((opt) => `<option value="${opt}">${opt}</option>`)
+                            .join("");
+                        return `
+                        <div class="${colClass}">
+                            <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">${f.label}${reqStar}</label>
+                            <select name="${fieldName}" ${reqAttr} class="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:border-indigo-600 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all">
+                                ${opts}
+                            </select>
+                        </div>`;
+                    }
+
+                    return `
+                    <div class="${colClass}">
+                        <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">${f.label}${reqStar}</label>
+                        <input type="${f.type}" name="${fieldName}" ${reqAttr} placeholder="${f.placeholder || ''}" class="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all" />
+                    </div>`;
+                }).join("");
+
+                return `
+                <div class="blog-inquiry-widget not-prose bg-white p-6 md:p-8 rounded-3xl border border-indigo-100 shadow-xl shadow-indigo-100/50 relative overflow-hidden transition-all ${isStandalone ? 'max-w-2xl mx-auto my-10' : ''}">
+                    <div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-indigo-600"></div>
+                    <div class="mb-5">
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase tracking-wider rounded-full mb-2.5 border border-indigo-100">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                            ${badge}
+                        </span>
+                        <h3 class="text-xl md:text-2xl font-extrabold text-slate-900 mb-1.5 tracking-tight">${formTitle}</h3>
+                        <p class="text-slate-500 text-xs leading-relaxed">${formSubtitle}</p>
+                    </div>
+
+                    <div class="blog-form-error hidden mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold"></div>
+
+                    <form action="/api/blogs/inquiry" method="POST" class="blog-inquiry-form space-y-3.5" onsubmit="return window.handleBlogLeadSubmit ? window.handleBlogLeadSubmit(this, event) : true;">
+                        <input type="hidden" name="source" value="${isStandalone ? 'blog_register_standalone' : 'blog_register_split'}" />
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                            ${fieldsHtml}
+                        </div>
+                        <button type="submit" class="btn-submit-inquiry w-full mt-3 py-3.5 px-5 bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-700 hover:from-emerald-700 hover:to-indigo-800 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-emerald-600/25 active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer">
+                            <span class="btn-text font-bold">${formBtn}</span>
+                            <span class="btn-arrow font-bold">&rarr;</span>
+                        </button>
+                        <div class="mt-2.5 text-center">
+                            <a href="/registration?source=blog" class="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 hover:underline">
+                                <span>Prefer step-by-step form? Open full registration page</span>
+                                <span>&rarr;</span>
+                            </a>
+                        </div>
+                        <p class="text-[11px] text-center text-slate-400 mt-2 flex items-center justify-center gap-1.5">${footer}</p>
+                    </form>
+
+                    <div class="blog-form-success hidden text-center py-8 px-6 bg-gradient-to-br from-emerald-50/90 to-teal-50/90 rounded-2xl border border-emerald-200/90 shadow-sm animate-fade-in">
+                        <div class="w-14 h-14 bg-gradient-to-tr from-emerald-500 to-teal-500 text-white rounded-full flex items-center justify-center mx-auto mb-3.5 shadow-lg shadow-emerald-500/25 text-xl font-black">
+                            ✓
+                        </div>
+                        <span class="inline-block px-3 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase tracking-wider rounded-full mb-2">Registration Confirmed</span>
+                        <h4 class="text-xl font-extrabold text-slate-900 mb-1.5">Inquiry Registered Successfully!</h4>
+                        <p class="text-slate-600 text-xs leading-relaxed max-w-md mx-auto mb-4">
+                            Thank you, <span class="lead-submitted-name font-bold text-slate-900">Student</span>! Your loan consultation request has been stored in our system. A certified VidyaLoans advisor will contact you within <strong class="text-emerald-700 font-bold">15 minutes</strong>.
+                        </p>
+                        <div class="inline-flex items-center gap-2 px-3.5 py-1.5 bg-white/90 rounded-lg border border-emerald-200 text-[11px] font-semibold text-emerald-700 shadow-2xs mb-4">
+                            <span>🔒 100% Free Service • No CIBIL Impact • Doorstep Support</span>
+                        </div>
+                        <div>
+                            <button type="button" class="btn-reset-inquiry px-4 py-2 text-xs font-bold text-emerald-800 hover:text-emerald-950 bg-emerald-100 hover:bg-emerald-200/80 rounded-xl transition-all cursor-pointer">
+                                + Submit Another Inquiry
+                            </button>
+                        </div>
+                    </div>
+                </div>`;
+            };
+
             const htmlContent = blocks
                 .map((b) => {
                     switch (b.type) {
@@ -1318,70 +1490,6 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                     ${btnText ? `<div class="pt-1"><a href="${btnUrl || '/apply-loan'}" class="inline-block px-5 py-2.5 !bg-indigo-600 hover:!bg-indigo-700 !text-white rounded-xl text-xs font-bold shadow-md transition-colors" style="background-color: #4f46e5 !important; color: #ffffff !important; display: inline-block;">${btnText} &rarr;</a></div>` : ''}
                                 </div>`;
 
-                            const generateFormHtml = (formCfg: {
-                                formTitle?: string;
-                                formSubtitle?: string;
-                                formButtonText?: string;
-                                targetUrl?: string;
-                                badgeText?: string;
-                                footerNote?: string;
-                                fields?: FormFieldConfig[];
-                            }, isStandalone = false) => {
-                                const fields = formCfg.fields && formCfg.fields.length > 0 ? formCfg.fields : DEFAULT_FORM_FIELDS;
-                                const formTitle = formCfg.formTitle || "Instant Loan Inquiry & Registration";
-                                const formSubtitle = formCfg.formSubtitle || "Fill details for instant loan eligibility assessment & expert callback.";
-                                const formBtn = formCfg.formButtonText || "Register & Check Eligibility";
-                                const targetUrl = formCfg.targetUrl || "/apply-loan";
-                                const badge = formCfg.badgeText || "Instant Assessment";
-                                const footer = formCfg.footerNote || "🔒 100% Free Service • No CIBIL Impact • Doorstep Support";
-
-                                const fieldsHtml = fields.map((f) => {
-                                    const colClass = f.colSpan === "full" ? "md:col-span-2" : "md:col-span-1";
-                                    const reqAttr = f.required ? "required" : "";
-                                    const reqStar = f.required ? '<span class="text-rose-500 ml-0.5">*</span>' : "";
-                                    const fieldName = f.name || f.label.toLowerCase().replace(/[^a-z0-9]/g, "_");
-
-                                    if (f.type === "select") {
-                                        const opts = (f.options && f.options.length > 0 ? f.options : ["Option 1", "Option 2"])
-                                            .map((opt) => `<option value="${opt}">${opt}</option>`)
-                                            .join("");
-                                        return `
-                                        <div class="${colClass}">
-                                            <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">${f.label}${reqStar}</label>
-                                            <select name="${fieldName}" ${reqAttr} class="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:border-indigo-600 focus:bg-white">
-                                                ${opts}
-                                            </select>
-                                        </div>`;
-                                    }
-
-                                    return `
-                                    <div class="${colClass}">
-                                        <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">${f.label}${reqStar}</label>
-                                        <input type="${f.type}" name="${fieldName}" ${reqAttr} placeholder="${f.placeholder || ''}" class="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:border-indigo-600 focus:bg-white" />
-                                    </div>`;
-                                }).join("");
-
-                                return `
-                                <div class="bg-white p-6 md:p-8 rounded-2xl border border-indigo-100 shadow-xl shadow-indigo-100/50 ${isStandalone ? 'max-w-2xl mx-auto my-8' : ''}">
-                                    <div class="mb-4">
-                                        <span class="inline-block px-2.5 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase tracking-wider rounded-md mb-2">${badge}</span>
-                                        <h3 class="text-xl font-extrabold text-slate-900 mb-1">${formTitle}</h3>
-                                        <p class="text-slate-500 text-xs">${formSubtitle}</p>
-                                    </div>
-                                    <form action="${targetUrl}" method="GET" class="space-y-3">
-                                        <input type="hidden" name="source" value="${isStandalone ? 'blog_register_standalone' : 'blog_register_split'}" />
-                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                            ${fieldsHtml}
-                                        </div>
-                                        <button type="submit" class="w-full mt-2 py-3 px-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold text-xs rounded-xl shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-1.5 cursor-pointer">
-                                            <span>${formBtn}</span>
-                                            <span>&rarr;</span>
-                                        </button>
-                                        <p class="text-[10px] text-center text-slate-400 mt-2">${footer}</p>
-                                    </form>
-                                </div>`;
-                            };
-
                             let leftHtml = "";
                             let rightHtml = "";
                             if (layout === "image_text") {
@@ -1422,60 +1530,14 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                         case "registration_form": {
                             const fConfig = b.formConfig || {
                                 formTitle: "Instant Loan Inquiry & Registration",
-                                formSubtitle: "Fill details for instant loan eligibility assessment & expert callback.",
+                                formSubtitle: "Fill details for instant loan eligibility assessment & expert callback within 15 minutes.",
                                 formButtonText: "Register & Check Eligibility",
                                 targetUrl: "/apply-loan",
                                 badgeText: "Instant Assessment",
                                 footerNote: "🔒 100% Free Service • No CIBIL Impact • Doorstep Support",
                                 fields: DEFAULT_FORM_FIELDS,
                             };
-                            const fields = fConfig.fields && fConfig.fields.length > 0 ? fConfig.fields : DEFAULT_FORM_FIELDS;
-                            const fieldsHtml = fields.map((f) => {
-                                const colClass = f.colSpan === "full" ? "md:col-span-2" : "md:col-span-1";
-                                const reqAttr = f.required ? "required" : "";
-                                const reqStar = f.required ? '<span class="text-rose-500 ml-0.5">*</span>' : "";
-                                const fieldName = f.name || f.label.toLowerCase().replace(/[^a-z0-9]/g, "_");
-
-                                if (f.type === "select") {
-                                    const opts = (f.options && f.options.length > 0 ? f.options : ["Option 1", "Option 2"])
-                                        .map((opt) => `<option value="${opt}">${opt}</option>`)
-                                        .join("");
-                                    return `
-                                    <div class="${colClass}">
-                                        <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">${f.label}${reqStar}</label>
-                                        <select name="${fieldName}" ${reqAttr} class="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:border-indigo-600 focus:bg-white">
-                                            ${opts}
-                                        </select>
-                                    </div>`;
-                                }
-
-                                return `
-                                <div class="${colClass}">
-                                    <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">${f.label}${reqStar}</label>
-                                    <input type="${f.type}" name="${fieldName}" ${reqAttr} placeholder="${f.placeholder || ''}" class="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:border-indigo-600 focus:bg-white" />
-                                </div>`;
-                            }).join("");
-
-                            return `<div class="blog-form-standalone not-prose my-10 max-w-2xl mx-auto">
-                                <div class="bg-white p-6 md:p-8 rounded-2xl border border-indigo-100 shadow-xl shadow-indigo-100/50">
-                                    <div class="mb-4">
-                                        <span class="inline-block px-2.5 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase tracking-wider rounded-md mb-2">${fConfig.badgeText || "Instant Assessment"}</span>
-                                        <h3 class="text-xl font-extrabold text-slate-900 mb-1">${fConfig.formTitle || "Instant Loan Inquiry & Registration"}</h3>
-                                        <p class="text-slate-500 text-xs">${fConfig.formSubtitle || "Fill details for instant loan eligibility assessment & expert callback."}</p>
-                                    </div>
-                                    <form action="${fConfig.targetUrl || '/apply-loan'}" method="GET" class="space-y-3">
-                                        <input type="hidden" name="source" value="blog_register_standalone" />
-                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                            ${fieldsHtml}
-                                        </div>
-                                        <button type="submit" class="w-full mt-2 py-3 px-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold text-xs rounded-xl shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-1.5 cursor-pointer">
-                                            <span>${fConfig.formButtonText || "Register & Check Eligibility"}</span>
-                                            <span>&rarr;</span>
-                                        </button>
-                                        <p class="text-[10px] text-center text-slate-400 mt-2">${fConfig.footerNote || "🔒 100% Free Service • No CIBIL Impact • Doorstep Support"}</p>
-                                    </form>
-                                </div>
-                            </div>`;
+                            return generateFormHtml(fConfig, true);
                         }
                         case "tags": {
                             const tagList = (b.content || "").split(",").map((t) => t.trim()).filter(Boolean);
@@ -1493,7 +1555,7 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                 slug: slug || title.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
                 category,
                 authorName: author,
-                content: htmlContent,
+                content: `${htmlContent}\n<!--BLOCKS_JSON_START-->${JSON.stringify(blocks)}<!--BLOCKS_JSON_END-->`,
                 isPublished,
                 isFeatured,
                 featuredImage: blocks.find((b) => b.type === "image")?.content || "",
@@ -2007,14 +2069,26 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                     const splitFormFields = config.formFields && config.formFields.length > 0 ? config.formFields : DEFAULT_FORM_FIELDS;
                     return (
                         <div className="bg-white p-5 rounded-2xl border-2 border-indigo-200 shadow-md space-y-3.5">
-                            <div className="flex items-center justify-between border-b border-indigo-50 pb-2">
+                            <div className="flex items-center justify-between border-b border-indigo-50 pb-2 flex-wrap gap-2">
                                 <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase tracking-wider rounded">
                                     📋 Registration Form Card (Split Layout)
                                 </span>
-                                <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
-                                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                                    Lead Capture ({splitFormFields.length} columns)
-                                </span>
+                                <div className="flex items-center gap-2">
+                                    <Link
+                                        href="/registration"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-0.5 underline"
+                                        title="Preview separate standalone registration page"
+                                    >
+                                        <span className="material-symbols-outlined text-[12px]">open_in_new</span>
+                                        Separate Page
+                                    </Link>
+                                    <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
+                                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                        Lead Capture ({splitFormFields.length} cols)
+                                    </span>
+                                </div>
                             </div>
 
                             <div className="space-y-2">
@@ -2351,7 +2425,7 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                     formTitle: "Instant Loan Inquiry & Registration",
                     formSubtitle: "Fill details for instant loan eligibility assessment & expert callback.",
                     formButtonText: "Register & Check Eligibility",
-                    targetUrl: "/apply-loan",
+                    targetUrl: "/registration",
                     badgeText: "Instant Assessment",
                     footerNote: "🔒 100% Free Service • No CIBIL Impact • Doorstep Support",
                     fields: DEFAULT_FORM_FIELDS,
@@ -2397,83 +2471,187 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                             </div>
                         </div>
 
-                        {/* Live Form Preview */}
+                        {/* Live Form Preview & Test Mode */}
                         <div className="p-5 sm:p-6 space-y-4">
-                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                                <span>Live Responsive Column Layout</span>
-                                <span>{fields.length} Columns</span>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                                {fields.map((f) => (
-                                    <div
-                                        key={f.id}
-                                        className={f.colSpan === "full" ? "col-span-1 md:col-span-2" : "col-span-1"}
+                            {/* DB Lead Mode Status Callout */}
+                            <div className="p-3 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl flex items-center justify-between gap-3 shadow-2xs">
+                                <div className="flex items-center gap-2.5">
+                                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                                    <div>
+                                        <p className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
+                                            <span>Direct In-Page Database Capture</span>
+                                            <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-800 text-[9px] font-black uppercase rounded">No Redirect</span>
+                                        </p>
+                                        <p className="text-[11px] text-emerald-700">Submissions are saved directly to UniversityInquiry & CRM. Readers stay on this blog page.</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                    <Link
+                                        href="/registration"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-2xs transition-all cursor-pointer"
+                                        title="Open separate full-page registration form in a new tab"
                                     >
-                                        <label className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1 mb-1">
-                                            <span>{f.label}</span>
-                                            {f.required && <span className="text-rose-500">*</span>}
-                                        </label>
-                                        {f.type === "select" ? (
-                                            <select
-                                                disabled
-                                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 cursor-not-allowed"
+                                        <span className="material-symbols-outlined text-[13px]">open_in_new</span>
+                                        View Page
+                                    </Link>
+                                    <span className="text-[11px] font-bold text-slate-500 bg-white px-2 py-1 rounded-lg border border-slate-200">
+                                        {fields.length} Cols
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Success Card when Test Submit is triggered */}
+                            {testFormSuccess[block.id] ? (
+                                <div className="text-center py-7 px-6 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl border-2 border-emerald-300 shadow-sm animate-fade-in space-y-3">
+                                    <div className="w-12 h-12 bg-gradient-to-tr from-emerald-500 to-teal-500 text-white rounded-full flex items-center justify-center mx-auto shadow-md text-xl font-black">
+                                        ✓
+                                    </div>
+                                    <span className="inline-block px-3 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase tracking-wider rounded-full">
+                                        Direct DB Write Verified
+                                    </span>
+                                    <h4 className="text-lg font-extrabold text-slate-900">
+                                        Inquiry Stored in Database!
+                                    </h4>
+                                    <p className="text-slate-600 text-xs leading-relaxed max-w-md mx-auto">
+                                        Test submission for <strong className="text-slate-900">{testFormSuccess[block.id]?.name}</strong> ({testFormSuccess[block.id]?.phone}) was saved directly to the database without redirecting to another page.
+                                    </p>
+                                    <div className="pt-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setTestFormSuccess((prev) => ({ ...prev, [block.id]: null }))}
+                                            className="px-4 py-2 text-xs font-bold text-emerald-800 bg-white border border-emerald-300 hover:bg-emerald-100 rounded-xl transition-all cursor-pointer shadow-2xs"
+                                        >
+                                            ← Reset & Test Again
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <>
+                                    {/* Error Banner */}
+                                    {testFormError[block.id] && (
+                                        <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs font-semibold flex items-center justify-between">
+                                            <span>{testFormError[block.id]}</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => setTestFormError((prev) => ({ ...prev, [block.id]: null }))}
+                                                className="text-rose-400 hover:text-rose-700 font-bold ml-2"
                                             >
-                                                {(f.options && f.options.length > 0 ? f.options : ["Select Option"]).map((opt, i) => (
-                                                    <option key={i}>{opt}</option>
-                                                ))}
-                                            </select>
-                                        ) : (
+                                                ✕
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {/* Live Columns Form Inputs */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                                        {fields.map((f) => {
+                                            const fieldKey = f.name || f.id;
+                                            const val = testFormValues[block.id]?.[fieldKey] || "";
+                                            return (
+                                                <div
+                                                    key={f.id}
+                                                    className={f.colSpan === "full" ? "col-span-1 md:col-span-2" : "col-span-1"}
+                                                >
+                                                    <label className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1 mb-1">
+                                                        <span>{f.label}</span>
+                                                        {f.required && <span className="text-rose-500">*</span>}
+                                                    </label>
+                                                    {f.type === "select" ? (
+                                                        <select
+                                                            value={val || (f.options?.[0] || "")}
+                                                            onChange={(e) =>
+                                                                setTestFormValues((prev) => ({
+                                                                    ...prev,
+                                                                    [block.id]: {
+                                                                        ...(prev[block.id] || {}),
+                                                                        [fieldKey]: e.target.value,
+                                                                    },
+                                                                }))
+                                                            }
+                                                            className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-indigo-600 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all cursor-pointer"
+                                                        >
+                                                            {(f.options && f.options.length > 0 ? f.options : ["Select Option"]).map((opt, i) => (
+                                                                <option key={i} value={opt}>
+                                                                    {opt}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    ) : (
+                                                        <input
+                                                            type={f.type}
+                                                            value={val}
+                                                            onChange={(e) =>
+                                                                setTestFormValues((prev) => ({
+                                                                    ...prev,
+                                                                    [block.id]: {
+                                                                        ...(prev[block.id] || {}),
+                                                                        [fieldKey]: e.target.value,
+                                                                    },
+                                                                }))
+                                                            }
+                                                            placeholder={f.placeholder || `Enter ${f.label}`}
+                                                            className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all"
+                                                        />
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+
+                                    {/* CTA Button Settings & Test Submission Button */}
+                                    <div className="space-y-3 pt-2 border-t border-slate-100">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="text-[10px] font-bold uppercase text-slate-500">CTA Button Text</label>
+                                                <input
+                                                    type="text"
+                                                    value={fConfig.formButtonText || "Register & Check Eligibility"}
+                                                    onChange={(e) => updateFormConfig(block.id, { formButtonText: e.target.value })}
+                                                    className="w-full text-xs font-bold text-emerald-800 bg-emerald-50/60 border border-emerald-200 rounded-lg px-2.5 py-1.5 focus:border-emerald-500 focus:outline-none"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-bold uppercase text-slate-500">Submission Mode</label>
+                                                <div className="w-full text-xs font-bold text-emerald-800 bg-emerald-50/60 border border-emerald-200 rounded-lg px-2.5 py-1.5 flex items-center justify-between">
+                                                    <span>Direct DB Record (No Redirect)</span>
+                                                    <span className="material-symbols-outlined text-[15px] text-emerald-600">check_circle</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            disabled={testFormSubmitting[block.id]}
+                                            onClick={() => handleTestLeadSubmit(block.id, fields, fConfig)}
+                                            className="w-full py-3.5 px-4 bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-700 hover:from-emerald-700 hover:to-indigo-800 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-md hover:shadow-lg active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-75"
+                                        >
+                                            {testFormSubmitting[block.id] ? (
+                                                <>
+                                                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                                    <span>Submitting Lead to Database...</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <span>{fConfig.formButtonText || "Register & Check Eligibility"}</span>
+                                                    <span>&rarr;</span>
+                                                    <span className="text-[10px] font-normal opacity-80">(Click to Test DB Write)</span>
+                                                </>
+                                            )}
+                                        </button>
+
+                                        <div className="pt-1">
+                                            <label className="text-[10px] font-bold uppercase text-slate-400">Footer Trust Note</label>
                                             <input
-                                                type={f.type}
-                                                disabled
-                                                placeholder={f.placeholder || `Enter ${f.label}`}
-                                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 cursor-not-allowed"
+                                                type="text"
+                                                value={fConfig.footerNote || "🔒 100% Free Service • No CIBIL Impact • Doorstep Support"}
+                                                onChange={(e) => updateFormConfig(block.id, { footerNote: e.target.value })}
+                                                className="w-full text-[11px] text-center text-slate-500 bg-transparent border-b border-slate-200 focus:outline-none focus:border-slate-400 py-0.5"
                                             />
-                                        )}
+                                        </div>
                                     </div>
-                                ))}
-                            </div>
-
-                            {/* Submit Button & Redirect Settings */}
-                            <div className="space-y-2.5 pt-2 border-t border-slate-100">
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="text-[10px] font-bold uppercase text-slate-500">CTA Button Text</label>
-                                        <input
-                                            type="text"
-                                            value={fConfig.formButtonText || "Register & Check Eligibility"}
-                                            onChange={(e) => updateFormConfig(block.id, { formButtonText: e.target.value })}
-                                            className="w-full text-xs font-bold text-emerald-800 bg-emerald-50/60 border border-emerald-200 rounded-lg px-2.5 py-1.5 focus:border-emerald-500 focus:outline-none"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="text-[10px] font-bold uppercase text-slate-500">Redirect URL on Submit</label>
-                                        <input
-                                            type="text"
-                                            value={fConfig.targetUrl || "/apply-loan"}
-                                            onChange={(e) => updateFormConfig(block.id, { targetUrl: e.target.value })}
-                                            placeholder="/apply-loan"
-                                            className="w-full text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 focus:border-indigo-500 focus:outline-none"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="w-full py-3 px-4 bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-700 text-white font-extrabold text-sm rounded-xl shadow-md flex items-center justify-center gap-2">
-                                    <span>{fConfig.formButtonText || "Register & Check Eligibility"}</span>
-                                    <span>&rarr;</span>
-                                </div>
-
-                                <div className="pt-1">
-                                    <label className="text-[10px] font-bold uppercase text-slate-400">Footer Trust Note</label>
-                                    <input
-                                        type="text"
-                                        value={fConfig.footerNote || "🔒 100% Free Service • No CIBIL Impact • Doorstep Support"}
-                                        onChange={(e) => updateFormConfig(block.id, { footerNote: e.target.value })}
-                                        className="w-full text-[11px] text-center text-slate-500 bg-transparent border-b border-slate-200 focus:outline-none focus:border-slate-400 py-0.5"
-                                    />
-                                </div>
-                            </div>
+                                </>
+                            )}
 
                             {/* Form Columns Configuration Manager */}
                             {renderFormFieldsManager(block.id, fields, false)}
