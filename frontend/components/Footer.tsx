@@ -10,7 +10,7 @@ export default function Footer() {
     const siteName = settings?.siteName || "VidyaLoans";
     const logoUrl = settings?.logoLightUrl || "/images/vidyaloans-logo-transparent.png";
     const tagline = settings?.tagline || "Empowering students with transparent, flexible, and accessible education financing solutions worldwide.";
-    const supportEmail = settings?.supportEmail || "support@vidyaloans.com";
+    const supportEmail = settings?.supportEmail || "support@vidyaloans.in";
     const phone = settings?.phone || "+91 8143797779";
     const copyrightText = settings?.copyrightText || `© ${new Date().getFullYear()} ${siteName} Inc. All rights reserved.`;
 

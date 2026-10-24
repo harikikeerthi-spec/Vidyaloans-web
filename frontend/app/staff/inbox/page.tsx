@@ -124,146 +124,8 @@ interface S3Folder {
     count?: number;
 }
 
-// ── HIGH-FIDELITY SAMPLE EMAILS (MATCHING SCREENSHOT REFERENCE) ──
-const SAMPLE_EMAILS: MailDetailItem[] = [
-    {
-        id: "sample-disbursal-aug",
-        key: "support/sample-disbursal-aug",
-        from: "Anshul Mohan",
-        to: "vamsikrishna@bmkconsultants.in",
-        subject: "DISBURSAL DATA \\\\ AUG",
-        date: new Date().toISOString(),
-        size: 94208,
-        read: false,
-        snippet: "Please provide the sign & stamp",
-        hasAttachments: true,
-        attachmentsCount: 2,
-        attachments: [
-            {
-                filename: "BMK AUG26.pdf",
-                contentType: "application/pdf",
-                size: 94208,
-                content: "",
-            },
-            {
-                filename: "Avanse_Partner_Stamp.png",
-                contentType: "image/png",
-                size: 42100,
-                content: "",
-            }
-        ],
-        text: "Dear Sir,\n\nPlease provide the sign & stamp\n\nThanks & Regards\n\nAnshul Mohan\nRelationship Manager\nStudent Lending - Channels\n\nAVANSE Financial Services LTD.",
-        html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1e293b;line-height:1.6;padding:4px;"><p style="font-size:14px;margin-top:0;">Dear Sir,</p><p style="font-size:14px;margin:20px 0;">Please provide the sign &amp; stamp</p><div style="margin-top:36px;display:flex;align-items:flex-start;gap:20px;"><div style="width:140px;height:115px;background:#FFE3E3;border:1.5px dashed #FA5252;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:10px;box-sizing:border-box;"><div style="width:30px;height:30px;border-radius:50%;background:#E03131;color:white;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:13px;margin-bottom:4px;">A</div><span style="font-size:11px;font-weight:800;color:#C92A2A;text-transform:uppercase;letter-spacing:0.5px;">AVANSE</span><span style="font-size:9px;color:#E03131;font-weight:700;margin-top:2px;">Authorized Stamp</span><span style="font-size:8px;color:#868E96;margin-top:3px;">DISBURSAL UNIT</span></div><div style="border-left:3px solid #E03131;padding-left:16px;"><p style="margin:0;font-weight:700;color:#C92A2A;font-size:13px;">Thanks &amp; Regards</p><p style="margin:4px 0 0 0;font-weight:800;color:#C92A2A;font-size:15px;">Anshul Mohan</p><p style="margin:2px 0 0 0;font-style:italic;color:#C92A2A;font-size:12px;">Relationship Manager</p><p style="margin:2px 0 0 0;font-style:italic;color:#C92A2A;font-size:12px;">Student Lending - Channels</p><p style="margin:14px 0 0 0;font-weight:900;color:#1864AB;font-size:14px;letter-spacing:-0.2px;">AVANSE Financial Services LTD.</p></div></div></div>`,
-        authResults: {
-            spf: "pass",
-            dkim: "pass",
-            dmarc: "pass"
-        }
-    },
-    {
-        id: "sample-univ-hub",
-        key: "support/sample-univ-hub",
-        from: "University HUB",
-        to: "support@vidyaloans.in",
-        subject: "Fall 2 Admissions Open | Dual Degree Programs",
-        date: new Date(Date.now() - 17 * 60 * 1000).toISOString(),
-        size: 128000,
-        read: false,
-        snippet: "Explore our dual degree master's programs with pre-approved NBFC funding.",
-        hasAttachments: true,
-        attachmentsCount: 1,
-        attachments: [
-            {
-                filename: "Fall2_Admissions_Guide.pdf",
-                contentType: "application/pdf",
-                size: 128000,
-                content: "",
-            }
-        ],
-        text: "Fall 2 Admissions are now officially open for UK, Ireland and EU university programs. Pre-sanctioned credit lines are available for verified students.",
-        html: `<div style="font-family:sans-serif;color:#1e293b;line-height:1.6;"><h2 style="color:#4F46E5;">Fall 2 Admissions Open | Dual Degree Programs</h2><p>Applications are now open for dual master degrees across UK and EU campuses with guaranteed education loan support from VidyaLoans partner NBFCs.</p></div>`
-    },
-    {
-        id: "sample-digilocker",
-        key: "support/sample-digilocker",
-        from: "DigiLocker",
-        to: "support@vidyaloans.in",
-        subject: "Mandatory Declaration of Purpose Form Verified",
-        date: new Date(Date.now() - 144 * 60 * 1000).toISOString(),
-        size: 46000,
-        read: true,
-        snippet: "The student identity verification packet has been approved and cryptographically countersigned.",
-        hasAttachments: true,
-        attachmentsCount: 1,
-        attachments: [
-            {
-                filename: "Declaration_Slip.pdf",
-                contentType: "application/pdf",
-                size: 46000,
-                content: "",
-            }
-        ],
-        text: "The student identity verification packet has been approved and cryptographically countersigned by the government DigiLocker portal."
-    },
-    {
-        id: "sample-hostinger",
-        key: "support/sample-hostinger",
-        from: "Hostinger",
-        to: "support@vidyaloans.in",
-        subject: "Action Required: Update Your Payment Method",
-        date: new Date(Date.now() - 146 * 60 * 1000).toISOString(),
-        size: 16000,
-        read: true,
-        snippet: "Notice: Please confirm primary card credentials for upcoming cloud DNS domain renewals.",
-        hasAttachments: true,
-        attachmentsCount: 1,
-        attachments: [
-            {
-                filename: "Invoice_Hostinger.pdf",
-                contentType: "application/pdf",
-                size: 16000,
-                content: "",
-            }
-        ],
-        text: "Action Required: Update Your Payment Method for upcoming service renewals."
-    },
-    {
-        id: "sample-duolingo",
-        key: "support/sample-duolingo",
-        from: "Duolingo English Test",
-        to: "support@vidyaloans.in",
-        subject: "New GPN feature now live: Exchange score reports with banks",
-        date: new Date(Date.now() - 181 * 60 * 1000).toISOString(),
-        size: 22000,
-        read: true,
-        snippet: "Candidates can now share official English certification tokens directly with participating education loan partners.",
-        hasAttachments: false,
-        attachments: [],
-        text: "Duolingo English Test announces instant credential verification for university student lending."
-    },
-    {
-        id: "sample-crizac",
-        key: "support/sample-crizac",
-        from: "Crizac Limited",
-        to: "support@vidyaloans.in",
-        subject: "New Comment Added - 1500488/ Student Loan Dossier",
-        date: new Date(Date.now() - 238 * 60 * 1000).toISOString(),
-        size: 92000,
-        read: true,
-        snippet: "Case manager update: revised I-20 financial declaration received and forwarded to NBFC credit committee.",
-        hasAttachments: true,
-        attachmentsCount: 1,
-        attachments: [
-            {
-                filename: "Dossier_Update_1500488.pdf",
-                contentType: "application/pdf",
-                size: 92000,
-                content: "",
-            }
-        ],
-        text: "New Comment Added - 1500488/ Student Loan Dossier: Case manager update: revised I-20 financial declaration received."
-    }
-];
+
+
 
 function StaffInboxContent() {
     const router = useRouter();
@@ -290,6 +152,10 @@ function StaffInboxContent() {
         if ((user as any)?.mailboxEmail) {
             const slug = (user as any).mailboxEmail.split("@")[0].toLowerCase().replace(/[^a-z0-9_-]/g, "");
             return `${slug}/`;
+        }
+        if (user?.role === "staff" && user?.email) {
+            const slug = user.email.split("@")[0].toLowerCase().replace(/[^a-z0-9_-]/g, "");
+            return `staff/${slug}/`;
         }
         if (urlStaffEmail) {
             const slug = urlStaffEmail.split("@")[0].toLowerCase().replace(/[^a-z0-9_-]/g, "");
@@ -346,13 +212,42 @@ function StaffInboxContent() {
     const [showSignaturesModal, setShowSignaturesModal] = useState(false);
     const [showMailRulesModal, setShowMailRulesModal] = useState(false);
     const [showConditionalFormattingModal, setShowConditionalFormattingModal] = useState(false);
-    const [savedSignature, setSavedSignature] = useState<string>(
-        `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; color: #334155; margin-top: 14px; border-left: 3px solid #4F46E5; padding-left: 12px; line-height: 1.5;">` +
-        `<p style="margin: 0; font-weight: 700; color: #0f172a; font-size: 13px;">VidyaLoans Support Team</p>` +
-        `<p style="margin: 2px 0 0; color: #4F46E5; font-weight: 600; font-size: 12px;">Relationship Manager &bull; Student Lending Desk</p>` +
-        `<p style="margin: 4px 0 0; color: #64748b; font-size: 11px;">Direct: +91 8000 123 456 | Web: <a href="https://vidyaloans.in" style="color: #4F46E5; text-decoration: none;">vidyaloans.in</a></p>` +
-        `</div>`
-    );
+    const defaultSignature = useMemo(() => {
+        const staffName = user?.firstName ? `${user.firstName} ${user.lastName || ""}`.trim() : "VidyaLoans Support Team";
+        const emailAddr = staffMailbox || user?.email || "support@vidyaloans.in";
+        const staffMobile = (user as any)?.mobile || "+91 8000 123 456";
+        return (
+            `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; color: #334155; margin-top: 14px; border-left: 3px solid #4F46E5; padding-left: 12px; line-height: 1.5;">` +
+            `<p style="margin: 0; font-weight: 700; color: #0f172a; font-size: 13px;">${staffName}</p>` +
+            `<p style="margin: 2px 0 0; color: #4F46E5; font-weight: 600; font-size: 12px;">Relationship Manager &bull; Student Lending Desk</p>` +
+            `<p style="margin: 4px 0 0; color: #64748b; font-size: 11px;">Direct: ${staffMobile} | Email: <a href="mailto:${emailAddr}" style="color: #4F46E5; text-decoration: none;">${emailAddr}</a> | Web: <a href="https://vidyaloans.in" style="color: #4F46E5; text-decoration: none;">vidyaloans.in</a></p>` +
+            `</div>`
+        );
+    }, [user, staffMailbox]);
+
+    const [savedSignature, setSavedSignature] = useState<string>("");
+
+    useEffect(() => {
+        try {
+            const savedSig = localStorage.getItem("vidya_mail_saved_signature");
+            if (savedSig) {
+                setSavedSignature(savedSig);
+            } else {
+                setSavedSignature(defaultSignature);
+            }
+        } catch {
+            setSavedSignature(defaultSignature);
+        }
+    }, [defaultSignature]);
+
+    const selectedEmailIdRef = useRef<string | null>(null);
+    useEffect(() => {
+        selectedEmailIdRef.current = selectedEmailId;
+    }, [selectedEmailId]);
+
+    // High performance in-memory cache for full parsed email bodies
+    const emailDetailCache = useRef<Map<string, MailDetailItem>>(new Map());
+
     const editorRef = useRef<HTMLDivElement>(null);
     const [selectedFont, setSelectedFont] = useState("sans-serif");
     const [selectedFontSize, setSelectedFontSize] = useState("3");
@@ -587,18 +482,15 @@ function StaffInboxContent() {
 
         try {
             const res: any = await mailApi.getInbox({ folder: selectedFolder });
-            let items: MailSummaryItem[] = res?.success && Array.isArray(res.data) ? res.data : Array.isArray(res) ? res : [];
-
-            // If folder is empty in dev/demo mode, provide the high-fidelity sample emails
-            if (items.length === 0 && (selectedFolder === "support/" || !selectedFolder)) {
-                items = SAMPLE_EMAILS.map((s) => ({ ...s }));
-            }
+            const items: MailSummaryItem[] = res?.success && Array.isArray(res.data) ? res.data : Array.isArray(res) ? res : [];
 
             setEmails(items);
 
             // Select the first email automatically on desktop if none selected
-            if (!selectedEmailId && items.length > 0 && typeof window !== "undefined" && window.innerWidth >= 1024) {
+            if (!selectedEmailIdRef.current && items.length > 0 && typeof window !== "undefined" && window.innerWidth >= 1024) {
                 handleSelectEmail(items[0]);
+            } else if (items.length === 0 && !selectedEmailIdRef.current) {
+                setActiveEmailDetail(null);
             }
 
             setReadIds((prev) => {
@@ -625,16 +517,13 @@ function StaffInboxContent() {
                 return next;
             });
         } catch (err) {
-            console.error("Failed to load inbox emails, using sample fallback:", err);
-            setEmails(SAMPLE_EMAILS.map((s) => ({ ...s })));
-            if (!selectedEmailId && typeof window !== "undefined" && window.innerWidth >= 1024) {
-                handleSelectEmail(SAMPLE_EMAILS[0]);
-            }
+            console.error("Failed to load inbox emails:", err);
+            setEmails([]);
         } finally {
             setLoading(false);
             setRefreshing(false);
         }
-    }, [selectedFolder, selectedEmailId]);
+    }, [selectedFolder]);
 
     // Load scheduled emails from AWS SES delayed queue
     const fetchScheduledEmails = useCallback(async () => {
@@ -815,22 +704,8 @@ function StaffInboxContent() {
         }
 
         setSelectedEmailId(email.id);
-        setLoadingDetail(true);
         setActiveAttachmentMenu(null);
         setRemoteResourcesBlocked(true);
-
-        const sampleMatch = SAMPLE_EMAILS.find((s) => s.id === email.id);
-        if (sampleMatch) {
-            setActiveEmailDetail(sampleMatch);
-            setReadIds((prev) => {
-                const next = new Set(prev);
-                next.add(email.id);
-                return next;
-            });
-            setEmails((prev) => prev.map((e) => (e.id === email.id ? { ...e, read: true } : e)));
-            setLoadingDetail(false);
-            return;
-        }
 
         if (email.id.startsWith('sent-') || email.id.startsWith('sent_') || (email as any).isSent) {
             setActiveEmailDetail({
@@ -843,6 +718,7 @@ function StaffInboxContent() {
             return;
         }
 
+        // Mark as read in state and storage
         setReadIds((prev) => {
             const next = new Set(prev);
             next.add(email.id);
@@ -854,22 +730,40 @@ function StaffInboxContent() {
         setEmails((prev) => prev.map((e) => (e.id === email.id ? { ...e, read: true } : e)));
         mailApi.updateState(email.id, { isRead: true }).catch(() => { });
 
+        // Check memory cache first - if already loaded previously, render with 0ms delay!
+        if (emailDetailCache.current.has(email.id)) {
+            const cached = emailDetailCache.current.get(email.id)!;
+            setActiveEmailDetail(cached);
+            setLoadingDetail(false);
+            return;
+        }
+
+        // 0ms Optimistic detail: render available summary & snippet immediately so details pane never lags!
+        const optimisticDetail: MailDetailItem = {
+            ...email,
+            attachments: (email as any).attachments || [],
+            text: (email as any).text || email.snippet || '',
+            html: (email as any).html || (email.snippet ? `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; white-space: pre-wrap; line-height: 1.6; color: #334155; padding: 4px 0;">${email.snippet}</div>` : undefined),
+        };
+        setActiveEmailDetail(optimisticDetail);
+        setLoadingDetail(true);
+
         try {
             const res: any = await mailApi.getMail(email.id);
-            if (res?.success && res.data) {
-                setActiveEmailDetail(res.data);
-            } else {
-                setActiveEmailDetail(res);
+            const fullDetail: MailDetailItem = res?.success && res.data ? res.data : (res?.data || res);
+            if (fullDetail && (fullDetail.id || fullDetail.subject)) {
+                emailDetailCache.current.set(email.id, fullDetail);
+                if (selectedEmailIdRef.current === email.id) {
+                    setActiveEmailDetail(fullDetail);
+                }
             }
         } catch (err: any) {
-            console.error("Failed to load email details", err);
-            setActiveEmailDetail({
-                ...email,
-                attachments: [],
-                text: email.snippet || "Could not retrieve full email body.",
-            });
+            console.warn("Could not retrieve full MIME body from S3, retaining summary details:", err?.message || err);
+            emailDetailCache.current.set(email.id, optimisticDetail);
         } finally {
-            setLoadingDetail(false);
+            if (selectedEmailIdRef.current === email.id) {
+                setLoadingDetail(false);
+            }
         }
     }, []);
 
@@ -994,6 +888,25 @@ function StaffInboxContent() {
 
         return list;
     }, [emails, activeTab, starredIds, trashedIds, archiveIds, sentEmails, draftEmails, scheduledEmails, showOnlyUnread, filterType, readIds, searchQuery, isEmailSpam, sortOrder]);
+
+    // Automatically select the first email on desktop when switching tabs or when filtered emails update
+    useEffect(() => {
+        if (activeTab === "drafts") {
+            // Drafts are edited via compose modal on explicit click
+            return;
+        }
+        if (typeof window !== "undefined" && window.innerWidth >= 1024) {
+            if (filteredEmails.length > 0) {
+                const currentStillInList = filteredEmails.some((e) => e.id === selectedEmailIdRef.current);
+                if (!currentStillInList) {
+                    handleSelectEmail(filteredEmails[0]);
+                }
+            } else {
+                setSelectedEmailId(null);
+                setActiveEmailDetail(null);
+            }
+        }
+    }, [activeTab, filteredEmails, handleSelectEmail]);
 
 
 
@@ -1532,16 +1445,8 @@ function StaffInboxContent() {
     // Attachment downloads & previews
     const handleDownloadAttachment = (att: { filename: string; content?: string; contentType?: string }) => {
         if (!att.content) {
-            const dummyContent = `Document: ${att.filename}\nDownloaded securely from VidyaLoans Staff Mailbox.`;
-            const blob = new Blob([dummyContent], { type: att.contentType || "application/pdf" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = att.filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+            setFeedbackToast({ type: "error", message: `Attachment content for "${att.filename}" is not available.` });
+            setTimeout(() => setFeedbackToast(null), 3000);
             return;
         }
         try {
@@ -2159,8 +2064,6 @@ function StaffInboxContent() {
                                     key={tab.id}
                                     onClick={() => {
                                         setActiveTab(tab.id as any);
-                                        setSelectedEmailId(null);
-                                        setActiveEmailDetail(null);
                                     }}
                                     className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
                                         isActive

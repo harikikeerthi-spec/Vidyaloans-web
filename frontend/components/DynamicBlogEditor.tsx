@@ -1308,8 +1308,14 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
               lvl === 1
                 ? "text-3xl md:text-4xl font-black mt-10 mb-4"
                 : lvl === 2
-                  ? "text-2xl md:text-3xl font-black mt-8 mb-3"
-                  : "text-xl md:text-2xl font-bold mt-6 mb-2";
+                  ? "text-2xl md:text-3xl font-extrabold mt-8 mb-3"
+                  : lvl === 3
+                    ? "text-xl md:text-2xl font-bold mt-6 mb-2"
+                    : lvl === 4
+                      ? "text-lg md:text-xl font-bold mt-5 mb-2"
+                      : lvl === 5
+                        ? "text-base md:text-lg font-semibold mt-4 mb-2"
+                        : "text-sm font-bold uppercase tracking-wider mt-4 mb-2 text-slate-600";
             return `<h${lvl} id="${hId}" class="${sizeClass} text-slate-900 tracking-tight">${block.content || ""}</h${lvl}>`;
           }
           case "text": {
@@ -1481,6 +1487,10 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
             return `<figure class="my-8"><img src="${block.content || CURATED_COVERS[0].url}" alt="Article Illustration" class="w-full rounded-3xl shadow-lg object-cover max-h-[500px]" />${block.caption ? `<figcaption class="text-xs text-center text-slate-500 font-medium mt-2">${block.caption}</figcaption>` : ""}</figure>`;
           }
           case "video": {
+            const isDirect = (block.content || "").startsWith("data:video") || /\.(mp4|webm|ogg|mov|m4v)(\?.*)?$/i.test(block.content || "");
+            if (isDirect) {
+              return `<div class="my-8 aspect-video rounded-3xl overflow-hidden shadow-lg border border-slate-200 bg-black"><video controls playsinline class="w-full h-full object-contain" src="${block.content || ""}">Your browser does not support HTML5 video.</video></div>`;
+            }
             return `<div class="my-8 aspect-video rounded-3xl overflow-hidden shadow-lg border border-slate-200 bg-slate-950"><iframe src="${block.content || ""}" class="w-full h-full" frameborder="0" allowfullscreen></iframe></div>`;
           }
           case "button": {
@@ -3118,7 +3128,7 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
                             {/* Heading Level Pills if Heading */}
                             {block.type === "heading" && (
                               <div className="flex items-center bg-slate-100 p-0.5 rounded-lg mr-2">
-                                {([1, 2, 3] as const).map((lvl) => (
+                                {([1, 2, 3, 4, 5, 6] as const).map((lvl) => (
                                   <button
                                     key={lvl}
                                     type="button"
@@ -3238,12 +3248,19 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
                             value={block.content}
                             onChange={(e) => updateBlock(block.id, { content: e.target.value })}
                             placeholder="Enter Headline..."
-                            className={`w-full font-black text-slate-900 border-0 focus:ring-0 focus:outline-none bg-transparent ${block.level === 1
-                                ? "text-2xl md:text-3xl"
+                            className={`w-full font-black text-slate-900 border-0 focus:ring-0 focus:outline-none bg-transparent ${
+                              block.level === 1
+                                ? "text-2xl md:text-3xl font-black"
                                 : block.level === 2
-                                  ? "text-xl md:text-2xl"
-                                  : "text-lg md:text-xl"
-                              }`}
+                                  ? "text-xl md:text-2xl font-extrabold"
+                                  : block.level === 3
+                                    ? "text-lg md:text-xl font-bold"
+                                    : block.level === 4
+                                      ? "text-base md:text-lg font-bold"
+                                      : block.level === 5
+                                        ? "text-sm md:text-base font-semibold"
+                                        : "text-xs md:text-sm font-bold uppercase tracking-wider text-slate-600"
+                            }`}
                           />
                         )}
 
@@ -4675,20 +4692,59 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
                         {/* 9. IMAGE */}
                         {block.type === "image" && (
                           <div className="space-y-2">
-                            <input
-                              type="text"
-                              value={block.content}
-                              onChange={(e) => updateBlock(block.id, { content: e.target.value })}
-                              placeholder="Image URL..."
-                              className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono"
-                            />
+                            <div className="flex items-center gap-2">
+                              <label className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold cursor-pointer transition-colors flex items-center gap-1 shrink-0">
+                                <span className="material-symbols-outlined text-[15px]">upload</span>
+                                <span>Upload File</span>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (!file) return;
+                                    const reader = new FileReader();
+                                    reader.onload = (ev) => {
+                                      updateBlock(block.id, { content: ev.target?.result as string, title: file.name });
+                                    };
+                                    reader.readAsDataURL(file);
+                                  }}
+                                />
+                              </label>
+                              <input
+                                type="text"
+                                value={block.content?.startsWith("data:image") ? "(Uploaded image file)" : block.content}
+                                onChange={(e) => updateBlock(block.id, { content: e.target.value })}
+                                placeholder="Or paste image URL (https://...)..."
+                                className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono"
+                              />
+                            </div>
                             {block.content && (
-                              <div className="aspect-[21/9] bg-slate-100 rounded-xl overflow-hidden max-h-[300px]">
+                              <div
+                                onDragOver={(e) => e.preventDefault()}
+                                onDrop={(e) => {
+                                  e.preventDefault();
+                                  const file = e.dataTransfer.files?.[0];
+                                  if (file && file.type.startsWith("image/")) {
+                                    const reader = new FileReader();
+                                    reader.onload = (ev) => {
+                                      updateBlock(block.id, { content: ev.target?.result as string, title: file.name });
+                                    };
+                                    reader.readAsDataURL(file);
+                                  }
+                                }}
+                                className="aspect-[21/9] bg-slate-100 rounded-xl overflow-hidden max-h-[300px] border border-slate-200 relative group"
+                              >
                                 <img
                                   src={block.content}
                                   alt="Preview"
                                   className="w-full h-full object-cover"
                                 />
+                                {block.title && block.content?.startsWith("data:image") && (
+                                  <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/70 backdrop-blur rounded text-[10px] text-white font-mono">
+                                    📁 {block.title}
+                                  </div>
+                                )}
                               </div>
                             )}
                             <input
@@ -4702,27 +4758,88 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
                         )}
 
                         {/* 10. VIDEO */}
-                        {block.type === "video" && (
-                          <div className="space-y-2">
-                            <input
-                              type="text"
-                              value={block.content}
-                              onChange={(e) => updateBlock(block.id, { content: e.target.value })}
-                              placeholder="YouTube or Vimeo URL (e.g. https://www.youtube.com/embed/...)..."
-                              className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono"
-                            />
-                            {block.content && (
-                              <div className="aspect-video bg-slate-900 rounded-xl overflow-hidden max-h-[320px]">
-                                <iframe
-                                  src={block.content}
-                                  className="w-full h-full"
-                                  frameBorder="0"
-                                  allowFullScreen
+                        {block.type === "video" && (() => {
+                          const isDirect = (block.content || "").startsWith("data:video") || /\.(mp4|webm|ogg|mov|m4v)(\?.*)?$/i.test(block.content || "");
+                          return (
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                <label className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold cursor-pointer transition-colors flex items-center gap-1 shrink-0">
+                                  <span className="material-symbols-outlined text-[15px]">video_file</span>
+                                  <span>Upload Video</span>
+                                  <input
+                                    type="file"
+                                    accept="video/mp4,video/webm,video/ogg,video/quicktime,video/*"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0];
+                                      if (!file) return;
+                                      const reader = new FileReader();
+                                      reader.onload = (ev) => {
+                                        updateBlock(block.id, { content: ev.target?.result as string, title: file.name });
+                                      };
+                                      reader.readAsDataURL(file);
+                                    }}
+                                  />
+                                </label>
+                                <input
+                                  type="text"
+                                  value={block.content?.startsWith("data:video") ? "(Uploaded video file)" : block.content}
+                                  onChange={(e) => updateBlock(block.id, { content: e.target.value })}
+                                  placeholder="Or paste YouTube, Vimeo, or MP4 URL..."
+                                  className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono"
                                 />
                               </div>
-                            )}
-                          </div>
-                        )}
+                              {block.content && (
+                                <div
+                                  onDragOver={(e) => e.preventDefault()}
+                                  onDrop={(e) => {
+                                    e.preventDefault();
+                                    const file = e.dataTransfer.files?.[0];
+                                    if (file && (file.type.startsWith("video/") || /\.(mp4|webm|ogg|mov)$/i.test(file.name))) {
+                                      const reader = new FileReader();
+                                      reader.onload = (ev) => {
+                                        updateBlock(block.id, { content: ev.target?.result as string, title: file.name });
+                                      };
+                                      reader.readAsDataURL(file);
+                                    }
+                                  }}
+                                  className="aspect-video bg-slate-900 rounded-xl overflow-hidden max-h-[320px] relative"
+                                >
+                                  {isDirect ? (
+                                    <video
+                                      controls
+                                      playsInline
+                                      className="w-full h-full object-contain"
+                                      src={block.content}
+                                      key={block.content}
+                                    >
+                                      Your browser does not support HTML5 video.
+                                    </video>
+                                  ) : (
+                                    <iframe
+                                      src={block.content}
+                                      className="w-full h-full"
+                                      frameBorder="0"
+                                      allowFullScreen
+                                    />
+                                  )}
+                                  {block.title && block.content?.startsWith("data:video") && (
+                                    <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/70 backdrop-blur rounded text-[10px] text-white font-mono">
+                                      📁 {block.title}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                              <input
+                                type="text"
+                                value={block.caption || ""}
+                                onChange={(e) => updateBlock(block.id, { caption: e.target.value })}
+                                placeholder="Video caption / attribution..."
+                                className="w-full px-3 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                              />
+                            </div>
+                          );
+                        })()}
 
                         {/* 11. BUTTON CTA */}
                         {block.type === "button" && (

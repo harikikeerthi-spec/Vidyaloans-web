@@ -218,10 +218,11 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
                 setPendingCount(Number(statusStats.pending || 0) + Number(statusStats.processing || 0));
             }
 
-            if (Array.isArray(conversationsRes) && activeSection !== "chat_customer") {
+            const isChatActive = typeof window !== "undefined" && window.location.pathname.includes("/staff/chat-customer");
+            if (Array.isArray(conversationsRes) && !isChatActive) {
                 const totalUnread = conversationsRes.reduce((sum: number, c: any) => sum + (c.unreadCount || 0), 0);
                 setUnreadChatCount(totalUnread);
-            } else if (activeSection === "chat_customer") {
+            } else if (isChatActive) {
                 setUnreadChatCount(0);
             }
 
@@ -284,7 +285,7 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
         } catch (err) {
             console.error("Failed to load badge stats:", err);
         }
-    }, [token, activeSection, user?.email, user?.id, user?.role]);
+    }, [token, user?.email, user?.id, user?.role]);
 
     // Poll badge counts periodically
     useEffect(() => {

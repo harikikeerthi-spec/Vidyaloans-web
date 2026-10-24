@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect, useRef, DragEvent } from "react";
+import { useState, useEffect, useRef, DragEvent, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { adminApi, blogApi } from "@/lib/api";
-import { cleanHtmlContent, RichTextBlock } from "./DynamicBlogEditor";
+import { cleanHtmlContent, RichTextBlock, TEXT_COLORS, FONT_SIZES, FONT_FAMILIES } from "./DynamicBlogEditor";
 
 type BlockType = "heading" | "container" | "split_content" | "registration_form" | "text" | "image" | "video" | "button" | "list" | "quote" | "code" | "divider" | "spacer" | "tags";
 
@@ -69,8 +69,24 @@ interface Block {
     id: string;
     type: BlockType;
     content: string;
+    level?: 1 | 2 | 3 | 4 | 5 | 6;
+    // List specific
+    listType?: "unordered" | "ordered";
+    // Button specific (Dynamic Button)
+    buttonText?: string;
+    buttonUrl?: string;
+    buttonNewTab?: boolean;
+    buttonVariant?: "gradient" | "emerald" | "dark" | "outline" | "amber" | "rose";
+    buttonSize?: "sm" | "md" | "lg";
+    buttonAlign?: "left" | "center" | "right" | "full";
+    buttonIcon?: string;
     splitConfig?: SplitConfig;
     formConfig?: FormConfig;
+    // Media specific (Image / Video)
+    mediaMode?: "url" | "upload";
+    fileName?: string;
+    fileSize?: string;
+    caption?: string;
     style?: {
         fontSize?: string;
         fontFamily?: string;
@@ -78,7 +94,7 @@ interface Block {
         lineHeight?: string;
         color?: string;
         backgroundColor?: string;
-        textAlign?: "left" | "center" | "right";
+        textAlign?: "left" | "center" | "right" | "justify";
         padding?: string;
         borderRadius?: string;
         border?: string;
@@ -90,8 +106,56 @@ interface Block {
     };
 }
 
-const ELEMENT_TYPES: { type: BlockType; label: string; icon: string; color: string; desc: string; defaultLayout?: SplitConfig["layoutType"] }[] = [
-    { type: "heading", label: "Heading", icon: "title", color: "blue", desc: "Drag to add title" },
+export const isDirectVideoSource = (src?: string): boolean => {
+    if (!src) return false;
+    if (src.startsWith("data:video") || src.startsWith("blob:")) return true;
+    return /\.(mp4|webm|ogg|mov|m4v)(\?.*)?$/i.test(src);
+};
+
+export const formatVideoEmbedUrl = (raw: string): string => {
+    if (!raw) return "";
+    const trimmed = raw.trim();
+    const ytMatch = trimmed.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]+)/);
+    if (ytMatch && ytMatch[1]) {
+        return `https://www.youtube.com/embed/${ytMatch[1]}`;
+    }
+    const vimeoMatch = trimmed.match(/vimeo\.com\/(?:channels\/(?:\w+\/)?|groups\/(?:[^\/]*)\/videos\/|album\/(?:\d+)\/video\/|)(\d+)/);
+    if (vimeoMatch && vimeoMatch[1]) {
+        return `https://player.vimeo.com/video/${vimeoMatch[1]}`;
+    }
+    return trimmed;
+};
+
+export const formatMediaFileSize = (bytes?: number): string => {
+    if (!bytes || bytes === 0) return "";
+    const k = 1024;
+    const sizes = ["Bytes", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+};
+
+export interface HeadingLevelInfo {
+    level: 1 | 2 | 3 | 4 | 5 | 6;
+    tag: "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
+    name: string;
+    sublabel: string;
+    desc: string;
+    sizeLabel: string;
+    sampleClass: string;
+    badgeBg: string;
+}
+
+export const HEADING_LEVELS: HeadingLevelInfo[] = [
+    { level: 1, tag: "h1", name: "Heading 1 (H1)", sublabel: "Page & Main Title", desc: "Top-level headline for main article subject", sizeLabel: "36px", sampleClass: "text-base font-black text-slate-900", badgeBg: "bg-blue-600 text-white" },
+    { level: 2, tag: "h2", name: "Heading 2 (H2)", sublabel: "Major Section Heading", desc: "Key section breakdown and topics", sizeLabel: "30px", sampleClass: "text-sm font-extrabold text-slate-900", badgeBg: "bg-indigo-600 text-white" },
+    { level: 3, tag: "h3", name: "Heading 3 (H3)", sublabel: "Subsection Heading", desc: "Sub-points inside an H2 topic", sizeLabel: "24px", sampleClass: "text-xs font-bold text-slate-800", badgeBg: "bg-violet-600 text-white" },
+    { level: 4, tag: "h4", name: "Heading 4 (H4)", sublabel: "Minor Subheading", desc: "Specific sub-topics and feature titles", sizeLabel: "20px", sampleClass: "text-xs font-bold text-slate-700", badgeBg: "bg-purple-600 text-white" },
+    { level: 5, tag: "h5", name: "Heading 5 (H5)", sublabel: "Small Section Title", desc: "Component or list group headlines", sizeLabel: "16px", sampleClass: "text-[11px] font-semibold text-slate-700", badgeBg: "bg-pink-600 text-white" },
+    { level: 6, tag: "h6", name: "Heading 6 (H6)", sublabel: "Micro / Label Headline", desc: "Small uppercase category tag / headline", sizeLabel: "14px", sampleClass: "text-[10px] font-bold text-slate-600 uppercase tracking-wider", badgeBg: "bg-slate-700 text-white" },
+];
+
+const ELEMENT_TYPES: { type: BlockType; label: string; icon: string; color: string; desc: string; defaultLayout?: SplitConfig["layoutType"]; defaultListType?: "unordered" | "ordered" }[] = [
+    { type: "heading", label: "Heading (H1 - H6)", icon: "title", color: "blue", desc: "Add H1, H2, H3, H4, H5, or H6" },
     { type: "registration_form", label: "Separate Register Form", icon: "how_to_reg", color: "emerald", desc: "Standalone customizable student inquiry/lead form" },
     { type: "split_content", label: "Split 2-Column", icon: "view_column", color: "indigo", desc: "Left/right matter or image & text" },
     { type: "split_content", label: "Content + Register Form", icon: "contact_mail", color: "purple", desc: "One side content, one side form", defaultLayout: "content_form" },
@@ -99,8 +163,9 @@ const ELEMENT_TYPES: { type: BlockType; label: string; icon: string; color: stri
     { type: "text", label: "Text & Live Editor", icon: "text_fields", color: "green", desc: "Drag to add rich text" },
     { type: "image", label: "Image (Crop & Fit)", icon: "crop", color: "orange", desc: "Crop, aspect ratio & sizing" },
     { type: "video", label: "Video", icon: "videocam", color: "red", desc: "Drag to add video" },
-    { type: "button", label: "Button", icon: "smart_button", color: "indigo", desc: "Drag to add CTA" },
-    { type: "list", label: "List", icon: "format_list_bulleted", color: "teal", desc: "Drag to add bullets" },
+    { type: "button", label: "Dynamic Button / CTA", icon: "smart_button", color: "indigo", desc: "Custom URL, colors, alignment & size" },
+    { type: "list", label: "Bullet List (Unordered)", icon: "format_list_bulleted", color: "teal", desc: "Bullet point list (•)", defaultListType: "unordered" },
+    { type: "list", label: "Numbered List (Ordered)", icon: "format_list_numbered", color: "cyan", desc: "Numbered sequence (1, 2, 3)", defaultListType: "ordered" },
     { type: "quote", label: "Quote", icon: "format_quote", color: "yellow", desc: "Drag to add quote" },
     { type: "code", label: "Code Block", icon: "code", color: "gray", desc: "Drag to add code" },
     { type: "divider", label: "Divider", icon: "horizontal_rule", color: "pink", desc: "Drag to add divider" },
@@ -155,14 +220,32 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
     const [isPublished, setIsPublished] = useState(initialBlog?.isPublished ?? true);
     const [enableComments, setEnableComments] = useState(true);
 
+    // SEO & SERP optimization states
+    const [metaTitle, setMetaTitle] = useState(initialBlog?.metaTitle || "");
+    const [metaDescription, setMetaDescription] = useState(initialBlog?.metaDescription || "");
+    const [focusKeyword, setFocusKeyword] = useState(initialBlog?.focusKeyword || "");
+    const [canonicalUrl, setCanonicalUrl] = useState(initialBlog?.canonicalUrl || "");
+    const [noIndex, setNoIndex] = useState(Boolean(initialBlog?.noIndex));
+    const [faqSchema, setFaqSchema] = useState<Array<{ id: string; question: string; answer: string }>>([]);
+    const [sidebarTab, setSidebarTab] = useState<"content" | "seo">("content");
+    const [serpDevice, setSerpDevice] = useState<"desktop" | "mobile">("desktop");
+    const [seoTabMode, setSeoTabMode] = useState<"serp" | "social" | "checklist" | "faq">("serp");
+
     // Editor state
     const [blocks, setBlocks] = useState<Block[]>([]);
     const [draggedType, setDraggedType] = useState<BlockType | null>(null);
     const [draggedLayout, setDraggedLayout] = useState<SplitConfig["layoutType"] | undefined>(undefined);
+    const [draggedLevel, setDraggedLevel] = useState<1 | 2 | 3 | 4 | 5 | 6 | undefined>(undefined);
+    const [draggedListType, setDraggedListType] = useState<"unordered" | "ordered" | undefined>(undefined);
+    const [isHeadingsExpanded, setIsHeadingsExpanded] = useState<boolean>(true);
     const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
     const [draggingBlockId, setDraggingBlockId] = useState<string | null>(null);
     const [saveStatus, setSaveStatus] = useState("Saved");
     const [activeHighlightPicker, setActiveHighlightPicker] = useState<string | null>(null);
+    const [activeColorPicker, setActiveColorPicker] = useState<string | null>(null);
+    const [activeFontSizePicker, setActiveFontSizePicker] = useState<string | null>(null);
+    const [activeFontFamilyPicker, setActiveFontFamilyPicker] = useState<string | null>(null);
+    const savedRangeRef = useRef<Range | null>(null);
     const [loading, setLoading] = useState(false);
 
     // Interactive Lead Testing states for Registration Forms
@@ -252,6 +335,29 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                     : initialBlog.tags
             );
         }
+        if (initialBlog.metaTitle) setMetaTitle(initialBlog.metaTitle);
+        if (initialBlog.metaDescription) setMetaDescription(initialBlog.metaDescription);
+        if (initialBlog.focusKeyword) setFocusKeyword(initialBlog.focusKeyword);
+        if (initialBlog.canonicalUrl) setCanonicalUrl(initialBlog.canonicalUrl);
+        if (typeof initialBlog.noIndex === "boolean") setNoIndex(initialBlog.noIndex);
+        if (Array.isArray(initialBlog.faqSchema)) setFaqSchema(initialBlog.faqSchema);
+
+        if (initialBlog.content) {
+            // Check if SEO JSON is embedded
+            const seoMatch = initialBlog.content.match(/<!--SEO_JSON_START-->([\s\S]*?)<!--SEO_JSON_END-->/);
+            if (seoMatch && seoMatch[1]) {
+                try {
+                    const parsedSeo = JSON.parse(seoMatch[1]);
+                    if (parsedSeo.metaTitle) setMetaTitle(parsedSeo.metaTitle);
+                    if (parsedSeo.metaDescription) setMetaDescription(parsedSeo.metaDescription);
+                    if (parsedSeo.focusKeyword) setFocusKeyword(parsedSeo.focusKeyword);
+                    if (parsedSeo.canonicalUrl) setCanonicalUrl(parsedSeo.canonicalUrl);
+                    if (typeof parsedSeo.noIndex === "boolean") setNoIndex(parsedSeo.noIndex);
+                    if (Array.isArray(parsedSeo.faqSchema)) setFaqSchema(parsedSeo.faqSchema);
+                } catch (_) {}
+            }
+        }
+
         if (initialBlog.content && blocks.length === 0) {
             // First check if structured blocks JSON was embedded
             const jsonMatch = initialBlog.content.match(/<!--BLOCKS_JSON_START-->([\s\S]*?)<!--BLOCKS_JSON_END-->/);
@@ -272,8 +378,9 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                 Array.from(doc.body.children).forEach((el, idx) => {
                     const tag = el.tagName.toLowerCase();
                     const bId = `blk_${Date.now()}_${idx}`;
-                    if (tag.startsWith("h")) {
-                        parsedBlocks.push({ id: bId, type: "heading", content: el.textContent || "" });
+                    if (tag.startsWith("h") && /^h[1-6]$/.test(tag)) {
+                        const lvl = parseInt(tag.charAt(1), 10) as 1 | 2 | 3 | 4 | 5 | 6;
+                        parsedBlocks.push({ id: bId, type: "heading", level: lvl, content: el.textContent || "" });
                     } else if (tag === "img") {
                         parsedBlocks.push({ id: bId, type: "image", content: el.getAttribute("src") || "" });
                     } else if (el.querySelector("img")) {
@@ -281,6 +388,35 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                         parsedBlocks.push({ id: bId, type: "image", content: img?.getAttribute("src") || "" });
                     } else if (tag === "hr") {
                         parsedBlocks.push({ id: bId, type: "divider", content: "" });
+                    } else if (tag === "ul" || tag === "ol") {
+                        const listType = tag === "ol" ? "ordered" : "unordered";
+                        const items = Array.from(el.querySelectorAll("li")).map((li) => li.textContent?.trim() || "").filter(Boolean);
+                        parsedBlocks.push({
+                            id: bId,
+                            type: "list",
+                            listType,
+                            content: items.map((it, i) => listType === "ordered" ? `${i + 1}. ${it}` : `• ${it}`).join("\n"),
+                        });
+                    } else if (tag === "a" || el.querySelector("a.blog-btn") || el.classList.contains("blog-button-wrapper")) {
+                        const a = tag === "a" ? (el as HTMLAnchorElement) : (el.querySelector("a") as HTMLAnchorElement);
+                        const btnText = a?.textContent?.replace(/→|&rarr;/, "").trim() || "Click Here";
+                        parsedBlocks.push({
+                            id: bId,
+                            type: "button",
+                            content: btnText,
+                            buttonText: btnText,
+                            buttonUrl: a?.getAttribute("href") || "#",
+                            buttonNewTab: a?.getAttribute("target") === "_blank",
+                            buttonVariant: "gradient",
+                            buttonSize: "md",
+                            buttonAlign: "center",
+                        });
+                    } else if (tag === "iframe" || el.querySelector("iframe")) {
+                        const ifr = tag === "iframe" ? (el as HTMLIFrameElement) : (el.querySelector("iframe") as HTMLIFrameElement);
+                        parsedBlocks.push({ id: bId, type: "video", content: ifr?.getAttribute("src") || "" });
+                    } else if (tag === "video" || el.querySelector("video")) {
+                        const vid = tag === "video" ? (el as HTMLVideoElement) : (el.querySelector("video") as HTMLVideoElement);
+                        parsedBlocks.push({ id: bId, type: "video", content: vid?.getAttribute("src") || "" });
                     } else {
                         parsedBlocks.push({ id: bId, type: "text", content: el.innerHTML || el.textContent || "" });
                     }
@@ -305,6 +441,366 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
         }
     }, [title, initialBlog?.slug]);
 
+    // Real-Time SEO Analyzer Engine
+    const seoAnalysis = useMemo(() => {
+        const effectiveTitle = (metaTitle.trim() || title.trim());
+        const effectiveDesc = (metaDescription.trim() || excerpt.trim());
+        const kw = focusKeyword.trim().toLowerCase();
+        const effectiveSlug = (slug.trim() || title.toLowerCase().replace(/[^a-z0-9]+/g, "-")).toLowerCase();
+
+        // Extract full plain text from blocks
+        let bodyText = "";
+        let hasH2 = false;
+        let imageCount = 0;
+
+        blocks.forEach((b) => {
+            if (b.type === "heading") {
+                hasH2 = true;
+                bodyText += " " + (b.content || "");
+            } else if (b.type === "image") {
+                imageCount++;
+            } else if (b.type === "split_content" && b.splitConfig) {
+                bodyText += ` ${b.splitConfig.leftTitle || ""} ${b.splitConfig.leftContent || ""} ${b.splitConfig.rightTitle || ""} ${b.splitConfig.rightContent || ""}`;
+                if (b.splitConfig.leftImageUrl) imageCount++;
+                if (b.splitConfig.rightImageUrl) imageCount++;
+            } else {
+                bodyText += " " + (b.content || "").replace(/<[^>]*>/g, " ");
+            }
+        });
+
+        const words = bodyText.trim().split(/\s+/).filter(Boolean);
+        const wordCount = words.length;
+        const readingTime = Math.max(1, Math.ceil(wordCount / 200));
+
+        const bodyLower = bodyText.toLowerCase();
+        const kwCount = kw ? (bodyLower.match(new RegExp(kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi")) || []).length : 0;
+        const kwDensity = wordCount > 0 && kwCount > 0 ? ((kwCount / wordCount) * 100).toFixed(1) : "0";
+
+        const checks: Array<{
+            id: string;
+            label: string;
+            status: "pass" | "warn" | "fail";
+            message: string;
+            weight: number;
+        }> = [];
+
+        // 1. Meta Title Length
+        if (effectiveTitle.length >= 40 && effectiveTitle.length <= 65) {
+            checks.push({
+                id: "title-length",
+                label: "Meta Title Length",
+                status: "pass",
+                message: `Optimal length (${effectiveTitle.length}/65 chars). Shows cleanly in Google SERP.`,
+                weight: 15,
+            });
+        } else if (effectiveTitle.length > 65) {
+            checks.push({
+                id: "title-length",
+                label: "Meta Title Length",
+                status: "warn",
+                message: `Too long (${effectiveTitle.length} chars). Google truncates titles over 65 chars.`,
+                weight: 8,
+            });
+        } else if (effectiveTitle.length > 0) {
+            checks.push({
+                id: "title-length",
+                label: "Meta Title Length",
+                status: "warn",
+                message: `Too short (${effectiveTitle.length} chars). Aim for 40-65 chars for higher CTR.`,
+                weight: 7,
+            });
+        } else {
+            checks.push({
+                id: "title-length",
+                label: "Meta Title Length",
+                status: "fail",
+                message: "No title or meta title specified.",
+                weight: 0,
+            });
+        }
+
+        // 2. Meta Description Length
+        if (effectiveDesc.length >= 120 && effectiveDesc.length <= 160) {
+            checks.push({
+                id: "desc-length",
+                label: "Meta Description",
+                status: "pass",
+                message: `Optimal length (${effectiveDesc.length}/160 chars). Great snippet display.`,
+                weight: 15,
+            });
+        } else if (effectiveDesc.length > 160) {
+            checks.push({
+                id: "desc-length",
+                label: "Meta Description",
+                status: "warn",
+                message: `Too long (${effectiveDesc.length} chars). Truncated on search results.`,
+                weight: 8,
+            });
+        } else if (effectiveDesc.length > 0) {
+            checks.push({
+                id: "desc-length",
+                label: "Meta Description",
+                status: "warn",
+                message: `Too short (${effectiveDesc.length} chars). Aim for 120-160 chars.`,
+                weight: 7,
+            });
+        } else {
+            checks.push({
+                id: "desc-length",
+                label: "Meta Description",
+                status: "fail",
+                message: "No meta description provided.",
+                weight: 0,
+            });
+        }
+
+        // 3. Focus Keyword Defined
+        if (kw) {
+            checks.push({
+                id: "kw-defined",
+                label: "Focus Keyword",
+                status: "pass",
+                message: `Focus keyword: "${focusKeyword}"`,
+                weight: 10,
+            });
+
+            // 4. Keyword in Title
+            if (effectiveTitle.toLowerCase().includes(kw)) {
+                checks.push({
+                    id: "kw-title",
+                    label: "Keyword in Title",
+                    status: "pass",
+                    message: "Focus keyword appears in title.",
+                    weight: 10,
+                });
+            } else {
+                checks.push({
+                    id: "kw-title",
+                    label: "Keyword in Title",
+                    status: "warn",
+                    message: "Focus keyword is missing from the title.",
+                    weight: 0,
+                });
+            }
+
+            // 5. Keyword in Meta Description
+            if (effectiveDesc.toLowerCase().includes(kw)) {
+                checks.push({
+                    id: "kw-desc",
+                    label: "Keyword in Description",
+                    status: "pass",
+                    message: "Focus keyword is in the meta description snippet.",
+                    weight: 10,
+                });
+            } else {
+                checks.push({
+                    id: "kw-desc",
+                    label: "Keyword in Description",
+                    status: "warn",
+                    message: "Focus keyword is missing from meta description.",
+                    weight: 0,
+                });
+            }
+
+            // 6. Keyword in Slug
+            const kwSlug = kw.replace(/[^a-z0-9]+/g, "-");
+            if (effectiveSlug.includes(kwSlug)) {
+                checks.push({
+                    id: "kw-slug",
+                    label: "Keyword in URL Slug",
+                    status: "pass",
+                    message: "URL slug contains target keyword.",
+                    weight: 10,
+                });
+            } else {
+                checks.push({
+                    id: "kw-slug",
+                    label: "Keyword in URL Slug",
+                    status: "warn",
+                    message: "URL slug does not include the keyword.",
+                    weight: 0,
+                });
+            }
+
+            // 7. Keyword in Content & Density
+            if (kwCount >= 2) {
+                checks.push({
+                    id: "kw-density",
+                    label: "Keyword Density",
+                    status: "pass",
+                    message: `Found ${kwCount} times (${kwDensity}% density). Good relevance.`,
+                    weight: 10,
+                });
+            } else if (kwCount === 1) {
+                checks.push({
+                    id: "kw-density",
+                    label: "Keyword Density",
+                    status: "warn",
+                    message: `Found only 1 time in body text. Aim for 2-4 mentions.`,
+                    weight: 5,
+                });
+            } else {
+                checks.push({
+                    id: "kw-density",
+                    label: "Keyword Density",
+                    status: "fail",
+                    message: "Target keyword was not found in the body text.",
+                    weight: 0,
+                });
+            }
+        } else {
+            checks.push({
+                id: "kw-defined",
+                label: "Focus Keyword",
+                status: "warn",
+                message: "No focus keyword set. Add one to target specific search terms.",
+                weight: 0,
+            });
+        }
+
+        // 8. Headings (H2)
+        if (hasH2) {
+            checks.push({
+                id: "heading-h2",
+                label: "Subheadings Structure",
+                status: "pass",
+                message: "Has section headings to break up content.",
+                weight: 10,
+            });
+        } else {
+            checks.push({
+                id: "heading-h2",
+                label: "Subheadings Structure",
+                status: "warn",
+                message: "Add at least one Heading element for scannability.",
+                weight: 0,
+            });
+        }
+
+        // 9. Article Content Length
+        if (wordCount >= 300) {
+            checks.push({
+                id: "word-count",
+                label: "Content Length",
+                status: "pass",
+                message: `Solid depth: ${wordCount} words (~${readingTime} min read).`,
+                weight: 10,
+            });
+        } else if (wordCount >= 100) {
+            checks.push({
+                id: "word-count",
+                label: "Content Length",
+                status: "warn",
+                message: `Short article (${wordCount} words). Aim for 300+ words for better rankings.`,
+                weight: 5,
+            });
+        } else {
+            checks.push({
+                id: "word-count",
+                label: "Content Length",
+                status: "fail",
+                message: `Thin content (${wordCount} words). Add more informative paragraphs.`,
+                weight: 0,
+            });
+        }
+
+        // 10. Featured Visual
+        const hasCover = Boolean(blocks.some((b) => b.type === "image") || initialBlog?.coverImage || initialBlog?.featuredImage);
+        if (hasCover) {
+            checks.push({
+                id: "visual-asset",
+                label: "Visual Assets / Image",
+                status: "pass",
+                message: "Post contains visual images for OpenGraph & search previews.",
+                weight: 10,
+            });
+        } else {
+            checks.push({
+                id: "visual-asset",
+                label: "Visual Assets / Image",
+                status: "warn",
+                message: "No image found. Add an Image block for better social share appearance.",
+                weight: 0,
+            });
+        }
+
+        const totalWeight = checks.reduce((acc, c) => acc + (c.weight > 0 ? c.weight : 0), 0);
+        const maxScore = 110;
+        const normalizedScore = Math.min(100, Math.round((totalWeight / maxScore) * 100));
+
+        const passes = checks.filter((c) => c.status === "pass").length;
+        const warns = checks.filter((c) => c.status === "warn").length;
+        const fails = checks.filter((c) => c.status === "fail").length;
+
+        return {
+            score: normalizedScore,
+            effectiveTitle,
+            effectiveDesc,
+            wordCount,
+            readingTime,
+            kwCount,
+            kwDensity,
+            checks,
+            passes,
+            warns,
+            fails,
+        };
+    }, [metaTitle, title, metaDescription, excerpt, focusKeyword, slug, blocks, initialBlog]);
+
+    // SEO Helper Actions
+    const addFaqItem = () => {
+        setFaqSchema((prev) => [
+            ...prev,
+            { id: "faq_" + Date.now(), question: "", answer: "" },
+        ]);
+        setSaveStatus("Unsaved");
+    };
+
+    const updateFaqItem = (id: string, updates: Partial<{ question: string; answer: string }>) => {
+        setFaqSchema((prev) =>
+            prev.map((item) => (item.id === id ? { ...item, ...updates } : item))
+        );
+        setSaveStatus("Unsaved");
+    };
+
+    const removeFaqItem = (id: string) => {
+        setFaqSchema((prev) => prev.filter((item) => item.id !== id));
+        setSaveStatus("Unsaved");
+    };
+
+    const autoFillMetaTitle = () => {
+        if (title.trim()) {
+            setMetaTitle(title.trim().slice(0, 60));
+            setSaveStatus("Unsaved");
+        }
+    };
+
+    const autoFillMetaDesc = () => {
+        if (excerpt.trim()) {
+            setMetaDescription(excerpt.trim().slice(0, 155));
+            setSaveStatus("Unsaved");
+            return;
+        }
+        const textBlock = blocks.find((b) => b.type === "text" && b.content);
+        if (textBlock) {
+            const clean = textBlock.content.replace(/<[^>]*>/g, " ").trim();
+            setMetaDescription(clean.slice(0, 155));
+            setSaveStatus("Unsaved");
+        }
+    };
+
+    const autoGenerateCleanSlug = () => {
+        const sourceText = focusKeyword.trim() || title.trim();
+        if (sourceText) {
+            const clean = sourceText
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, "-")
+                .replace(/(^-|-$)/g, "");
+            setSlug(clean);
+            setSaveStatus("Unsaved");
+        }
+    };
+
     // Set current date
     const currentDate = new Date().toLocaleDateString("en-US", {
         month: "long",
@@ -321,9 +817,122 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
         { name: "Orange", bg: "#fed7aa", text: "#9a3412", border: "#fdba74" },
     ];
 
-    const applyHighlight = (blockId: string, bg: string = "#fef08a", _textColor?: string) => {
-        const el = editorRefs.current[blockId] || document.getElementById(`editor-${blockId}`);
+    // Selection helpers for inline formatting & text controls
+    const saveSelection = useCallback(() => {
+        if (typeof window !== "undefined" && window.getSelection) {
+            const sel = window.getSelection();
+            if (sel && sel.rangeCount > 0) {
+                try {
+                    savedRangeRef.current = sel.getRangeAt(0).cloneRange();
+                } catch (_) { }
+            }
+        }
+    }, []);
+
+    const restoreSelection = useCallback((blockId?: string) => {
+        if (blockId && editorRefs.current[blockId]) {
+            editorRefs.current[blockId]?.focus();
+        }
+        if (savedRangeRef.current && typeof window !== "undefined" && window.getSelection) {
+            const sel = window.getSelection();
+            if (sel) {
+                try {
+                    sel.removeAllRanges();
+                    sel.addRange(savedRangeRef.current);
+                } catch (_) { }
+            }
+        }
+    }, []);
+
+    // Inline formatting command helper
+    const applyInlineFormat = (cmd: string, val: string = "", blockId?: string) => {
+        if (blockId) {
+            restoreSelection(blockId);
+        }
+        try {
+            document.execCommand(cmd, false, val);
+        } catch (_) { }
+        if (blockId && editorRefs.current[blockId]) {
+            const newHtml = editorRefs.current[blockId]?.innerHTML || "";
+            updateBlock(blockId, newHtml);
+        }
+        saveSelection();
+    };
+
+    // Real-time Font size helper
+    const applyFontSize = (blockId: string, sizePx: string) => {
+        const el = editorRefs.current[blockId];
+        if (!el) return;
+        el.focus();
+        restoreSelection(blockId);
         const sel = window.getSelection();
+        if (sel && !sel.isCollapsed && sel.rangeCount > 0) {
+            try {
+                document.execCommand("fontSize", false, "7");
+                const fontTags = el.querySelectorAll('font[size="7"]');
+                fontTags.forEach((font) => {
+                    const span = document.createElement("span");
+                    span.style.fontSize = sizePx;
+                    span.innerHTML = font.innerHTML;
+                    font.parentNode?.replaceChild(span, font);
+                });
+            } catch (_) { }
+            updateBlock(blockId, el.innerHTML);
+        } else {
+            updateBlockStyle(blockId, { fontSize: sizePx });
+        }
+        saveSelection();
+        setActiveFontSizePicker(null);
+    };
+
+    // Real-time Font family helper
+    const applyFontFamily = (blockId: string, fontFamily: string) => {
+        const el = editorRefs.current[blockId];
+        if (!el) return;
+        el.focus();
+        restoreSelection(blockId);
+        const sel = window.getSelection();
+        if (sel && !sel.isCollapsed && sel.rangeCount > 0) {
+            try {
+                document.execCommand("fontName", false, fontFamily);
+            } catch (_) { }
+            updateBlock(blockId, el.innerHTML);
+        } else {
+            updateBlockStyle(blockId, { fontFamily });
+        }
+        saveSelection();
+        setActiveFontFamilyPicker(null);
+    };
+
+    // Real-time Text color helper
+    const applyTextColor = (blockId: string, colorHex: string) => {
+        const el = editorRefs.current[blockId];
+        if (!el) return;
+        el.focus();
+        restoreSelection(blockId);
+        try {
+            document.execCommand("foreColor", false, colorHex);
+        } catch (_) { }
+        updateBlock(blockId, el.innerHTML);
+        saveSelection();
+        setActiveColorPicker(null);
+    };
+
+    // Real-time Reliable Highlight with preserved selection
+    const applyHighlight = (blockId: string, bg: string = "#fef08a", textColor: string = "#854d0e") => {
+        const el = editorRefs.current[blockId] || document.getElementById(`editor-${blockId}`);
+        if (!el) return;
+        el.focus();
+        restoreSelection(blockId);
+        let sel = window.getSelection();
+
+        if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
+            if (savedRangeRef.current && !savedRangeRef.current.collapsed) {
+                restoreSelection(blockId);
+                sel = window.getSelection();
+            }
+        }
+
         if (sel && !sel.isCollapsed && sel.rangeCount > 0) {
             const range = sel.getRangeAt(0);
             const containerEl = el || (range.commonAncestorContainer as HTMLElement)?.closest?.('[contenteditable="true"]') as HTMLElement | null;
@@ -336,7 +945,7 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
             // 1. Remove background from any existing highlight elements intersecting or inside range
             if (containerEl) {
                 const innerHighlights = Array.from(
-                    containerEl.querySelectorAll('mark, [data-highlight="true"], span[style*="background"]')
+                    containerEl.querySelectorAll('mark, [data-highlight="true"], span[style*="background"], font[style*="background"]')
                 ) as HTMLElement[];
                 innerHighlights.forEach((hl) => {
                     if (hl !== containerEl && (sel.containsNode(hl, true) || range.intersectsNode(hl))) {
@@ -354,7 +963,7 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                 });
             }
 
-            // 2. Check if selection is already inside an existing highlight container
+            // 2. Check if selection is inside an existing highlight container
             let container: Node | null = range.commonAncestorContainer;
             if (container.nodeType === Node.TEXT_NODE) {
                 container = container.parentNode;
@@ -363,18 +972,16 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
             if (existing && containerEl?.contains(existing) && existing.textContent?.trim() === range.toString().trim()) {
                 existing.style.backgroundColor = bg;
                 existing.style.background = bg;
+                existing.style.color = textColor;
                 existing.setAttribute("data-highlight", "true");
-                if (existing.tagName === "MARK") {
-                    const span = document.createElement("span");
-                    span.setAttribute("data-highlight", "true");
-                    span.style.backgroundColor = bg;
-                    span.innerHTML = existing.innerHTML;
-                    existing.parentNode?.replaceChild(span, existing);
-                }
             } else {
                 const span = document.createElement("span");
                 span.setAttribute("data-highlight", "true");
                 span.style.backgroundColor = bg;
+                span.style.color = textColor;
+                span.style.padding = "2px 5px";
+                span.style.borderRadius = "4px";
+                span.style.fontWeight = "600";
 
                 try {
                     range.surroundContents(span);
@@ -388,52 +995,30 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
             }
 
             if (containerEl) {
-                // Convert any legacy marks
-                const marks = Array.from(containerEl.querySelectorAll("mark"));
-                marks.forEach((m) => {
-                    const s = document.createElement("span");
-                    s.setAttribute("data-highlight", "true");
-                    s.style.backgroundColor = m.style.backgroundColor || bg;
-                    s.innerHTML = m.innerHTML;
-                    m.parentNode?.replaceChild(s, m);
-                });
                 updateBlock(blockId, containerEl.innerHTML);
             }
+            saveSelection();
         }
         setActiveHighlightPicker(null);
     };
 
+    // Real-time Unhighlight: removes highlights from selection, caret word, or entire block
     const removeHighlight = (blockId: string) => {
         const el = editorRefs.current[blockId] || document.getElementById(`editor-${blockId}`);
-        const sel = window.getSelection();
+        if (!el) return;
+        el.focus();
+        restoreSelection(blockId);
+        let sel = window.getSelection();
 
         const cleanHighlightNode = (node: HTMLElement) => {
             node.style.backgroundColor = "";
             node.style.background = "";
+            node.style.color = "";
+            node.style.padding = "";
+            node.style.borderRadius = "";
+            node.style.fontWeight = "";
             node.removeAttribute("data-highlight");
             node.removeAttribute("data-color");
-
-            const c = node.style.color?.toLowerCase().trim();
-            if (
-                c === "#854d0e" || c === "rgb(133, 77, 14)" ||
-                c === "#14532d" || c === "rgb(20, 83, 45)" ||
-                c === "#0369a1" || c === "rgb(3, 105, 161)" ||
-                c === "#9d174d" || c === "rgb(157, 23, 77)" ||
-                c === "#6b21a8" || c === "rgb(107, 33, 168)" ||
-                c === "#9a3412" || c === "rgb(154, 52, 18)"
-            ) {
-                node.style.color = "";
-            }
-
-            if (node.style.padding === "2px 5px" || node.style.padding === "2px 6px") {
-                node.style.padding = "";
-            }
-            if (node.style.borderRadius === "4px") {
-                node.style.borderRadius = "";
-            }
-            if (node.style.fontWeight === "600") {
-                node.style.fontWeight = "";
-            }
 
             if (node.tagName === "MARK") {
                 const parent = node.parentNode;
@@ -450,101 +1035,104 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                 const remainingStyle = node.getAttribute("style")?.trim();
                 if (!remainingStyle || remainingStyle === "" || remainingStyle === ";") {
                     node.removeAttribute("style");
-                    const parent = node.parentNode;
-                    if (parent) {
-                        while (node.firstChild) {
-                            parent.insertBefore(node.firstChild, node);
+                    if (!node.getAttribute("class") && !node.getAttribute("id")) {
+                        const parent = node.parentNode;
+                        if (parent) {
+                            while (node.firstChild) {
+                                parent.insertBefore(node.firstChild, node);
+                            }
+                            parent.removeChild(node);
                         }
-                        parent.removeChild(node);
                     }
                 }
             }
         };
+
+        try {
+            document.execCommand("hiliteColor", false, "transparent");
+        } catch (_) { }
 
         if (sel && sel.rangeCount > 0) {
             const range = sel.getRangeAt(0);
             const containerEl = el || (range.commonAncestorContainer as HTMLElement)?.closest?.('[contenteditable="true"]') as HTMLElement | null;
 
             if (containerEl) {
-                const ancestorNodes = [range.commonAncestorContainer, range.startContainer, range.endContainer];
-                ancestorNodes.forEach((startNode) => {
-                    let curr: Node | null = startNode;
-                    if (curr.nodeType === Node.TEXT_NODE) {
-                        curr = curr.parentNode;
-                    }
-                    while (curr && curr !== containerEl && containerEl.contains(curr)) {
-                        const parentEl = curr as HTMLElement;
-                        if (
-                            parentEl.tagName === "MARK" ||
-                            parentEl.getAttribute("data-highlight") === "true" ||
-                            parentEl.style.backgroundColor ||
-                            parentEl.style.background
-                        ) {
-                            const fullText = parentEl.textContent || "";
-                            const selText = range.toString();
-                            if (selText.trim() === fullText.trim() || selText.length >= fullText.length) {
-                                cleanHighlightNode(parentEl);
-                            } else if (selText.length > 0 && fullText.includes(selText)) {
-                                const bg = parentEl.style.backgroundColor || parentEl.style.background;
-                                const idx = fullText.indexOf(selText);
-                                if (idx !== -1) {
-                                    const beforeText = fullText.substring(0, idx);
-                                    const afterText = fullText.substring(idx + selText.length);
-                                    const frag = document.createDocumentFragment();
+                // 1. If cursor/range is inside an ancestor highlight element, clean it
+                let curr: Node | null = range.commonAncestorContainer;
+                if (curr.nodeType === Node.TEXT_NODE) {
+                    curr = curr.parentNode;
+                }
+                while (curr && curr !== containerEl && containerEl.contains(curr)) {
+                    const parentEl = curr as HTMLElement;
+                    if (
+                        parentEl.tagName === "MARK" ||
+                        parentEl.getAttribute("data-highlight") === "true" ||
+                        parentEl.style.backgroundColor ||
+                        parentEl.style.background
+                    ) {
+                        const fullText = parentEl.textContent || "";
+                        const selText = range.toString();
+                        if (!selText || selText.trim() === fullText.trim() || selText.length >= fullText.length) {
+                            cleanHighlightNode(parentEl);
+                        } else if (selText.length > 0 && fullText.includes(selText)) {
+                            const bg = parentEl.style.backgroundColor || parentEl.style.background;
+                            const idx = fullText.indexOf(selText);
+                            if (idx !== -1) {
+                                const beforeText = fullText.substring(0, idx);
+                                const afterText = fullText.substring(idx + selText.length);
+                                const frag = document.createDocumentFragment();
 
-                                    if (beforeText) {
-                                        const bSpan = parentEl.cloneNode(false) as HTMLElement;
-                                        bSpan.textContent = beforeText;
-                                        bSpan.style.backgroundColor = bg;
-                                        bSpan.setAttribute("data-highlight", "true");
-                                        frag.appendChild(bSpan);
-                                    }
-
-                                    const mSpan = parentEl.cloneNode(false) as HTMLElement;
-                                    mSpan.textContent = selText;
-                                    mSpan.style.backgroundColor = "";
-                                    mSpan.style.background = "";
-                                    mSpan.removeAttribute("data-highlight");
-                                    cleanHighlightNode(mSpan);
-                                    frag.appendChild(mSpan);
-
-                                    if (afterText) {
-                                        const aSpan = parentEl.cloneNode(false) as HTMLElement;
-                                        aSpan.textContent = afterText;
-                                        aSpan.style.backgroundColor = bg;
-                                        aSpan.setAttribute("data-highlight", "true");
-                                        frag.appendChild(aSpan);
-                                    }
-
-                                    parentEl.parentNode?.replaceChild(frag, parentEl);
-                                    break;
-                                } else {
-                                    cleanHighlightNode(parentEl);
+                                if (beforeText) {
+                                    const bSpan = parentEl.cloneNode(false) as HTMLElement;
+                                    bSpan.textContent = beforeText;
+                                    bSpan.style.backgroundColor = bg;
+                                    bSpan.setAttribute("data-highlight", "true");
+                                    frag.appendChild(bSpan);
                                 }
+
+                                const mSpan = parentEl.cloneNode(false) as HTMLElement;
+                                mSpan.textContent = selText;
+                                cleanHighlightNode(mSpan);
+                                frag.appendChild(mSpan);
+
+                                if (afterText) {
+                                    const aSpan = parentEl.cloneNode(false) as HTMLElement;
+                                    aSpan.textContent = afterText;
+                                    aSpan.style.backgroundColor = bg;
+                                    aSpan.setAttribute("data-highlight", "true");
+                                    frag.appendChild(aSpan);
+                                }
+
+                                parentEl.parentNode?.replaceChild(frag, parentEl);
+                                break;
                             } else {
                                 cleanHighlightNode(parentEl);
                             }
+                        } else {
+                            cleanHighlightNode(parentEl);
                         }
-                        curr = curr.parentNode;
                     }
-                });
+                    curr = curr.parentNode;
+                }
 
+                // 2. Clean intersecting highlights
                 const allHighlights = Array.from(
-                    containerEl.querySelectorAll('mark, [data-highlight="true"], span[style*="background"]')
+                    containerEl.querySelectorAll('mark, [data-highlight="true"], span[style*="background"], font[style*="background"]')
                 ) as HTMLElement[];
 
                 allHighlights.forEach((candidate) => {
                     if (candidate !== containerEl) {
                         if (
-                            sel.isCollapsed ||
-                            sel.containsNode(candidate, true) ||
-                            (range.intersectsNode && range.intersectsNode(candidate))
+                            sel.isCollapsed
+                                ? candidate.contains(range.commonAncestorContainer)
+                                : sel.containsNode(candidate, true) || (range.intersectsNode && range.intersectsNode(candidate))
                         ) {
                             cleanHighlightNode(candidate);
                         }
                     }
                 });
 
+                // 3. Clean any remaining marks
                 const anyMarks = Array.from(containerEl.querySelectorAll("mark"));
                 anyMarks.forEach((m) => {
                     const parent = m.parentNode;
@@ -558,7 +1146,14 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
 
                 containerEl.normalize();
                 updateBlock(blockId, containerEl.innerHTML);
+                saveSelection();
             }
+        } else {
+            const allHighlights = Array.from(
+                el.querySelectorAll('mark, [data-highlight="true"], span[style*="background"], font[style*="background"]')
+            ) as HTMLElement[];
+            allHighlights.forEach(cleanHighlightNode);
+            updateBlock(blockId, el.innerHTML);
         }
         setActiveHighlightPicker(null);
     };
@@ -644,17 +1239,34 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
     };
 
     // Create new block
-    const createBlock = (type: BlockType, defaultLayout?: SplitConfig["layoutType"]): Block => {
+    const createBlock = (
+        type: BlockType,
+        defaultLayout?: SplitConfig["layoutType"],
+        level?: 1 | 2 | 3 | 4 | 5 | 6,
+        defaultListType?: "unordered" | "ordered"
+    ): Block => {
+        const headingLevel = level || 2;
+        const listType = defaultListType || "unordered";
+        const headingDefaults: Record<number, string> = {
+            1: "H1 Main Headline",
+            2: "H2 Section Heading",
+            3: "H3 Subsection Heading",
+            4: "H4 Minor Heading",
+            5: "H5 Small Heading",
+            6: "H6 Micro Heading",
+        };
         const defaults: Record<BlockType, string> = {
-            heading: "New Heading",
+            heading: headingDefaults[headingLevel] || "New Heading",
             container: "",
             split_content: "",
             registration_form: "",
             text: "Enter your text here...",
             image: "https://images.unsplash.com/photo-1523240795612-9a054b0db644?q=80&w=1200",
             video: "https://www.youtube.com/embed/dQw4w9WgXcQ",
-            button: "Click Here",
-            list: "• Item 1\n• Item 2\n• Item 3",
+            button: "Explore Loan Options",
+            list: listType === "ordered"
+                ? "1. Calculate required study loan amount\n2. Compare 15+ partner bank interest rates\n3. Get instant pre-visa sanction in 48 hours"
+                : "• 100% Comprehensive funding for tuition & living costs\n• Collateral-free education loans up to ₹75 Lakhs\n• Pre-visa approval with door-step specialist support",
             quote: "Enter an inspiring quote here...",
             code: "// Your code here\nconsole.log('Hello World');",
             divider: "",
@@ -707,6 +1319,14 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
         return {
             id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
             type,
+            level: type === "heading" ? headingLevel : undefined,
+            listType: type === "list" ? listType : undefined,
+            buttonText: type === "button" ? "Explore Loan Options" : undefined,
+            buttonUrl: type === "button" ? "/apply-loan" : undefined,
+            buttonNewTab: type === "button" ? true : undefined,
+            buttonVariant: type === "button" ? "gradient" : undefined,
+            buttonSize: type === "button" ? "md" : undefined,
+            buttonAlign: type === "button" ? "center" : undefined,
             content: defaults[type],
             splitConfig: (type === "split_content" || type === "container") ? defaultSplitConfig : undefined,
             formConfig: type === "registration_form" ? defaultFormConfig : undefined,
@@ -727,9 +1347,42 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
         setSaveStatus("Unsaved");
     };
 
-    const handleAddElement = (type: BlockType, defaultLayout?: SplitConfig["layoutType"]) => {
-        const newBlock = createBlock(type, defaultLayout);
+    const handleAddElement = (
+        type: BlockType,
+        defaultLayout?: SplitConfig["layoutType"],
+        level?: 1 | 2 | 3 | 4 | 5 | 6,
+        defaultListType?: "unordered" | "ordered"
+    ) => {
+        const newBlock = createBlock(type, defaultLayout, level, defaultListType);
         setBlocks((prev) => [...prev, newBlock]);
+        setSaveStatus("Unsaved");
+    };
+
+    const updateBlockLevel = (blockId: string, level: 1 | 2 | 3 | 4 | 5 | 6) => {
+        setBlocks((prev) =>
+            prev.map((b) => (b.id === blockId ? { ...b, level } : b))
+        );
+        setSaveStatus("Unsaved");
+    };
+
+    const updateBlockListType = (blockId: string, listType: "unordered" | "ordered") => {
+        setBlocks((prev) =>
+            prev.map((b) => {
+                if (b.id !== blockId) return b;
+                const rawLines = (b.content || "").split("\n").map((l) => l.replace(/^(\s*•|\s*-|\s*\d+[\.\)])\s*/, "").trim());
+                const formatted = listType === "ordered"
+                    ? rawLines.map((l, i) => `${i + 1}. ${l}`).join("\n")
+                    : rawLines.map((l) => `• ${l}`).join("\n");
+                return { ...b, listType, content: formatted };
+            })
+        );
+        setSaveStatus("Unsaved");
+    };
+
+    const updateBlockButton = (blockId: string, updates: Partial<Block>) => {
+        setBlocks((prev) =>
+            prev.map((b) => (b.id === blockId ? { ...b, ...updates } : b))
+        );
         setSaveStatus("Unsaved");
     };
 
@@ -1186,15 +1839,25 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
     };
 
     // Drag handlers for sidebar elements
-    const handleDragStart = (e: DragEvent, type: BlockType, defaultLayout?: SplitConfig["layoutType"]) => {
+    const handleDragStart = (
+        e: DragEvent,
+        type: BlockType,
+        defaultLayout?: SplitConfig["layoutType"],
+        level?: 1 | 2 | 3 | 4 | 5 | 6,
+        defaultListType?: "unordered" | "ordered"
+    ) => {
         setDraggedType(type);
         setDraggedLayout(defaultLayout);
+        setDraggedLevel(level);
+        setDraggedListType(defaultListType);
         e.dataTransfer.effectAllowed = "copy";
     };
 
     const handleDragEnd = () => {
         setDraggedType(null);
         setDraggedLayout(undefined);
+        setDraggedLevel(undefined);
+        setDraggedListType(undefined);
         setDragOverIndex(null);
     };
 
@@ -1222,7 +1885,7 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
 
         if (draggedType) {
             // Adding new element from sidebar
-            const newBlock = createBlock(draggedType, draggedLayout);
+            const newBlock = createBlock(draggedType, draggedLayout, draggedLevel, draggedListType);
             const newBlocks = [...blocks];
             newBlocks.splice(dropIndex, 0, newBlock);
             setBlocks(newBlocks);
@@ -1242,30 +1905,134 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
 
         setDraggedType(null);
         setDraggedLayout(undefined);
+        setDraggedLevel(undefined);
+        setDraggedListType(undefined);
         setDraggingBlockId(null);
         setDragOverIndex(null);
     };
 
     // Block operations
     const updateBlock = (id: string, content: string) => {
-        setBlocks(blocks.map((b) => (b.id === id ? { ...b, content } : b)));
+        setBlocks((prev) => prev.map((b) => (b.id === id ? { ...b, content } : b)));
         setSaveStatus("Unsaved");
     };
 
+    const updateBlockProperties = (id: string, updates: Partial<Block>) => {
+        setBlocks((prev) => prev.map((b) => (b.id === id ? { ...b, ...updates } : b)));
+        setSaveStatus("Unsaved");
+    };
+
+    const handleImageFileUpload = (blockId: string, file?: File | null) => {
+        if (!file) return;
+        if (!file.type.startsWith("image/")) {
+            alert("Please select a valid image file (PNG, JPG, WEBP, GIF, SVG).");
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const dataUrl = e.target?.result as string;
+            setBlocks((prev) =>
+                prev.map((b) =>
+                    b.id === blockId
+                        ? {
+                              ...b,
+                              content: dataUrl,
+                              fileName: file.name,
+                              fileSize: formatMediaFileSize(file.size),
+                              mediaMode: "upload",
+                          }
+                        : b
+                )
+            );
+            setSaveStatus("Unsaved");
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const handleVideoFileUpload = (blockId: string, file?: File | null) => {
+        if (!file) return;
+        if (!file.type.startsWith("video/") && !/\.(mp4|webm|ogg|mov|m4v)$/i.test(file.name)) {
+            alert("Please select a valid video file (.mp4, .webm, .ogg, .mov).");
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const dataUrl = e.target?.result as string;
+            setBlocks((prev) =>
+                prev.map((b) =>
+                    b.id === blockId
+                        ? {
+                              ...b,
+                              content: dataUrl,
+                              fileName: file.name,
+                              fileSize: formatMediaFileSize(file.size),
+                              mediaMode: "upload",
+                          }
+                        : b
+                )
+            );
+            setSaveStatus("Unsaved");
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const handleModalImageFileUpload = (file?: File | null) => {
+        if (!file || !editingBlock) return;
+        if (!file.type.startsWith("image/")) {
+            alert("Please select a valid image file (PNG, JPG, WEBP, GIF, SVG).");
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const dataUrl = e.target?.result as string;
+            setEditingBlock({
+                ...editingBlock,
+                content: dataUrl,
+                fileName: file.name,
+                fileSize: formatMediaFileSize(file.size),
+                mediaMode: "upload",
+            });
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const handleModalVideoFileUpload = (file?: File | null) => {
+        if (!file || !editingBlock) return;
+        if (!file.type.startsWith("video/") && !/\.(mp4|webm|ogg|mov|m4v)$/i.test(file.name)) {
+            alert("Please select a valid video file (.mp4, .webm, .ogg, .mov).");
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const dataUrl = e.target?.result as string;
+            setEditingBlock({
+                ...editingBlock,
+                content: dataUrl,
+                fileName: file.name,
+                fileSize: formatMediaFileSize(file.size),
+                mediaMode: "upload",
+            });
+        };
+        reader.readAsDataURL(file);
+    };
+
     const removeBlock = (id: string) => {
-        setBlocks(blocks.filter((b) => b.id !== id));
+        setBlocks((prev) => prev.filter((b) => b.id !== id));
         setSaveStatus("Unsaved");
     };
 
     const duplicateBlock = (id: string) => {
-        const index = blocks.findIndex((b) => b.id === id);
-        if (index !== -1) {
-            const newBlock = { ...blocks[index], id: Date.now().toString() };
-            const newBlocks = [...blocks];
-            newBlocks.splice(index + 1, 0, newBlock);
-            setBlocks(newBlocks);
-            setSaveStatus("Unsaved");
-        }
+        setBlocks((prev) => {
+            const index = prev.findIndex((b) => b.id === id);
+            if (index !== -1) {
+                const newBlock = { ...prev[index], id: Date.now().toString() };
+                const newBlocks = [...prev];
+                newBlocks.splice(index + 1, 0, newBlock);
+                return newBlocks;
+            }
+            return prev;
+        });
+        setSaveStatus("Unsaved");
     };
 
     const openEditModal = (block: Block) => {
@@ -1437,8 +2204,19 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
             const htmlContent = blocks
                 .map((b) => {
                     switch (b.type) {
-                        case "heading":
-                            return `<h2 class="text-3xl font-bold mt-8 mb-4">${b.content}</h2>`;
+                        case "heading": {
+                            const lvl = (b.level || 2) as 1 | 2 | 3 | 4 | 5 | 6;
+                            const levelStyles: Record<number, string> = {
+                                1: "text-4xl font-black mt-8 mb-4 tracking-tight text-slate-900",
+                                2: "text-3xl font-extrabold mt-8 mb-4 tracking-tight text-slate-900",
+                                3: "text-2xl font-bold mt-6 mb-3 tracking-tight text-slate-800",
+                                4: "text-xl font-bold mt-5 mb-2 text-slate-800",
+                                5: "text-lg font-semibold mt-4 mb-2 text-slate-700",
+                                6: "text-base font-semibold mt-4 mb-2 uppercase tracking-wider text-slate-600",
+                            };
+                            const cls = levelStyles[lvl] || levelStyles[2];
+                            return `<h${lvl} class="${cls}">${b.content}</h${lvl}>`;
+                        }
                         case "text":
                             return `<p class="text-lg leading-relaxed text-gray-700 mb-4">${b.content}</p>`;
                         case "image": {
@@ -1448,15 +2226,60 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                             const fit = st.objectFit || "cover";
                             const pos = st.objectPosition || "center";
                             const rad = st.borderRadius || "16px";
-                            return `<div class="my-8 overflow-hidden shadow-lg border border-slate-200/80" style="border-radius: ${rad};"><img src="${b.content}" class="w-full block" style="object-fit: ${fit}; object-position: ${pos}; ${maxH} ${aspect}" alt="Blog Image" /></div>`;
+                            const captionHtml = b.caption ? `<figcaption class="text-xs text-center text-slate-500 font-medium mt-2">${b.caption}</figcaption>` : "";
+                            return `<figure class="my-8"><div class="overflow-hidden shadow-lg border border-slate-200/80" style="border-radius: ${rad};"><img src="${b.content}" class="w-full block" style="object-fit: ${fit}; object-position: ${pos}; ${maxH} ${aspect}" alt="${b.fileName || 'Blog Image'}" /></div>${captionHtml}</figure>`;
                         }
-                        case "video":
-                            return `<div class="my-8 aspect-video"><iframe src="${b.content}" class="w-full h-full rounded-2xl" frameborder="0" allowfullscreen></iframe></div>`;
-                        case "button":
-                            return `<div class="my-6"><a href="#" class="inline-block px-8 py-3 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 transition-colors">${b.content}</a></div>`;
-                        case "list":
-                            const items = b.content.split("\n").map((item) => `<li>${item.replace(/^[•\-]\s*/, "")}</li>`).join("");
-                            return `<ul class="list-disc list-inside my-4 space-y-2 text-gray-700">${items}</ul>`;
+                        case "video": {
+                            const isDirect = isDirectVideoSource(b.content);
+                            const captionHtml = b.caption ? `<figcaption class="text-xs text-center text-slate-500 font-medium mt-2">${b.caption}</figcaption>` : "";
+                            if (isDirect) {
+                                return `<figure class="my-8"><div class="aspect-video rounded-2xl overflow-hidden shadow-lg border border-slate-200 bg-black"><video controls playsinline class="w-full h-full object-contain" src="${b.content}">Your browser does not support the video tag.</video></div>${captionHtml}</figure>`;
+                            }
+                            const formattedUrl = formatVideoEmbedUrl(b.content || "");
+                            return `<figure class="my-8"><div class="aspect-video rounded-2xl overflow-hidden shadow-lg border border-slate-200 bg-black"><iframe src="${formattedUrl}" class="w-full h-full" frameborder="0" allowfullscreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"></iframe></div>${captionHtml}</figure>`;
+                        }
+                        case "button": {
+                            const text = b.buttonText || b.content || "Explore Loan Options";
+                            const url = b.buttonUrl || "/apply-loan";
+                            const isNewTab = b.buttonNewTab !== false;
+                            const align = b.buttonAlign || "center";
+                            const variant = b.buttonVariant || "gradient";
+                            const size = b.buttonSize || "md";
+
+                            const variantStyles: Record<string, string> = {
+                                gradient: "background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: #ffffff; box-shadow: 0 10px 25px -5px rgba(79, 70, 229, 0.4);",
+                                emerald: "background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: #ffffff; box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.4);",
+                                dark: "background: #0f172a; color: #ffffff; box-shadow: 0 10px 20px -5px rgba(15, 23, 42, 0.3);",
+                                outline: "background: transparent; color: #4f46e5; border: 2px solid #4f46e5;",
+                                amber: "background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%); color: #ffffff; box-shadow: 0 10px 25px -5px rgba(245, 158, 11, 0.4);",
+                                rose: "background: linear-gradient(135deg, #e11d48 0%, #f43f5e 100%); color: #ffffff; box-shadow: 0 10px 25px -5px rgba(244, 63, 94, 0.4);",
+                            };
+
+                            const sizeStyles: Record<string, string> = {
+                                sm: "padding: 8px 20px; font-size: 13px; border-radius: 10px;",
+                                md: "padding: 12px 28px; font-size: 15px; border-radius: 14px;",
+                                lg: "padding: 16px 36px; font-size: 17px; border-radius: 16px;",
+                            };
+
+                            const alignClass = align === "left" ? "text-left" : align === "right" ? "text-right" : align === "full" ? "text-center w-full" : "text-center";
+                            const btnDisplay = align === "full" ? "display: flex; width: 100%; justify-content: center;" : "display: inline-flex;";
+
+                            return `<div class="my-6 not-prose blog-button-wrapper ${alignClass}"><a href="${url}" target="${isNewTab ? "_blank" : "_self"}" ${isNewTab ? 'rel="noopener noreferrer"' : ""} class="blog-btn" style="${btnDisplay} align-items: center; gap: 8px; font-weight: 700; text-decoration: none; transition: all 0.2s ease; ${variantStyles[variant] || variantStyles.gradient} ${sizeStyles[size] || sizeStyles.md}">${text} &rarr;</a></div>`;
+                        }
+                        case "list": {
+                            const isOrdered = b.listType === "ordered";
+                            const tag = isOrdered ? "ol" : "ul";
+                            const listClass = isOrdered
+                                ? "list-decimal list-outside ml-6 space-y-2 text-slate-700"
+                                : "list-disc list-outside ml-6 space-y-2 text-slate-700";
+                            const items = (b.content || "")
+                                .split("\n")
+                                .map((item) => item.replace(/^(\s*•|\s*-|\s*\d+[\.\)])\s*/, "").trim())
+                                .filter(Boolean)
+                                .map((item) => `<li class="py-0.5 leading-relaxed">${item}</li>`)
+                                .join("");
+                            return `<${tag} class="${listClass} my-4">${items}</${tag}>`;
+                        }
                         case "quote":
                             return `<blockquote class="border-l-4 border-purple-500 pl-6 py-4 text-xl text-gray-600 my-8 bg-purple-50 rounded-r-xl">"${b.content}"</blockquote>`;
                         case "code":
@@ -1550,17 +2373,32 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                 })
                 .join("");
 
+            const seoData = {
+                metaTitle: metaTitle.trim() || title.trim(),
+                metaDescription: metaDescription.trim() || excerpt.trim(),
+                focusKeyword: focusKeyword.trim(),
+                canonicalUrl: canonicalUrl.trim(),
+                noIndex,
+                faqSchema: faqSchema.filter((f) => f.question?.trim() && f.answer?.trim()),
+            };
+
             const blogData = {
                 title,
                 slug: slug || title.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
                 category,
                 authorName: author,
-                content: `${htmlContent}\n<!--BLOCKS_JSON_START-->${JSON.stringify(blocks)}<!--BLOCKS_JSON_END-->`,
+                content: `${htmlContent}\n<!--BLOCKS_JSON_START-->${JSON.stringify(blocks)}<!--BLOCKS_JSON_END-->\n<!--SEO_JSON_START-->${JSON.stringify(seoData)}<!--SEO_JSON_END-->`,
                 isPublished,
                 isFeatured,
-                featuredImage: blocks.find((b) => b.type === "image")?.content || "",
-                excerpt: excerpt || blocks.find((b) => b.type === "text")?.content?.substring(0, 150) + "...",
+                featuredImage: blocks.find((b) => b.type === "image")?.content || initialBlog?.coverImage || initialBlog?.featuredImage || "",
+                excerpt: excerpt || metaDescription || blocks.find((b) => b.type === "text")?.content?.substring(0, 150) + "...",
                 tags: typeof tags === "string" ? tags.split(",").map((t: string) => t.trim()).filter(Boolean) : [],
+                metaTitle: metaTitle.trim() || title.trim(),
+                metaDescription: metaDescription.trim() || excerpt.trim(),
+                focusKeyword: focusKeyword.trim() || undefined,
+                canonicalUrl: canonicalUrl.trim() || undefined,
+                noIndex,
+                faqSchema: seoData.faqSchema,
             };
 
             const isEditing = Boolean(initialBlog && (initialBlog.id || initialBlog._id));
@@ -1597,108 +2435,316 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
     // Render block content for canvas
     const renderBlockContent = (block: Block) => {
         switch (block.type) {
-            case "heading":
+            case "heading": {
+                const lvl = (block.level || 2) as 1 | 2 | 3 | 4 | 5 | 6;
+                const Tag = `h${lvl}` as any;
+                const headingStyles: Record<number, string> = {
+                    1: "text-3xl md:text-4xl font-black text-slate-900 tracking-tight leading-tight",
+                    2: "text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight leading-snug",
+                    3: "text-xl md:text-2xl font-bold text-slate-800 leading-snug",
+                    4: "text-lg md:text-xl font-bold text-slate-800",
+                    5: "text-base md:text-lg font-semibold text-slate-700",
+                    6: "text-sm font-bold text-slate-600 uppercase tracking-wider",
+                };
+                const headingLevelNames: Record<number, string> = {
+                    1: "H1 Main Headline",
+                    2: "H2 Section Heading",
+                    3: "H3 Subsection",
+                    4: "H4 Minor Heading",
+                    5: "H5 Small Heading",
+                    6: "H6 Micro Heading",
+                };
+
                 return (
-                    <h2
-                        contentEditable
-                        suppressContentEditableWarning
-                        onPaste={(e) => {
-                            e.preventDefault();
-                            const text = e.clipboardData.getData("text/plain");
-                            document.execCommand("insertText", false, text);
-                            updateBlock(block.id, e.currentTarget.textContent || "");
-                        }}
-                        onBlur={(e) => updateBlock(block.id, e.currentTarget.textContent || "")}
-                        className="text-3xl font-bold outline-none"
-                    >
-                        {block.content}
-                    </h2>
+                    <div className="space-y-2 group/heading">
+                        {/* Heading Level Selector Toolbar */}
+                        <div className="flex items-center justify-between gap-2 flex-wrap pb-1.5 border-b border-slate-200 text-xs">
+                            <div className="flex items-center gap-1.5">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-bold text-[11px] border border-blue-200/80 shadow-2xs">
+                                    <span className="material-symbols-outlined text-[13px]">title</span>
+                                    {headingLevelNames[lvl]}
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-semibold hidden sm:inline">| Switch Level:</span>
+                                <div className="inline-flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                                    {([1, 2, 3, 4, 5, 6] as const).map((l) => (
+                                        <button
+                                            key={l}
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                updateBlockLevel(block.id, l);
+                                            }}
+                                            title={`Switch to H${l} Heading`}
+                                            className={`px-2 py-0.5 rounded text-[11px] font-black cursor-pointer transition-all ${
+                                                lvl === l
+                                                    ? "bg-indigo-600 text-white shadow-xs scale-105"
+                                                    : "text-slate-600 hover:text-slate-900 hover:bg-white"
+                                            }`}
+                                        >
+                                            H{l}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <span className="text-[10px] font-mono text-slate-400">&lt;h{lvl}&gt; tag</span>
+                        </div>
+
+                        <Tag
+                            contentEditable
+                            suppressContentEditableWarning
+                            onPaste={(e: any) => {
+                                e.preventDefault();
+                                const text = e.clipboardData.getData("text/plain");
+                                document.execCommand("insertText", false, text);
+                                updateBlock(block.id, e.currentTarget.textContent || "");
+                            }}
+                            onBlur={(e: any) => updateBlock(block.id, e.currentTarget.textContent || "")}
+                            className={`${headingStyles[lvl] || headingStyles[2]} outline-none focus:ring-2 focus:ring-indigo-200 rounded px-1 transition-all`}
+                        >
+                            {block.content}
+                        </Tag>
+                    </div>
                 );
-            case "text":
+            }
+            case "text": {
+                const rawText = (block.content || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+                const blockWordCount = rawText ? rawText.split(/\s+/).length : 0;
+                const blockCharCount = rawText.length;
+                const blockReadTime = Math.max(1, Math.ceil(blockWordCount / 200));
+
                 return (
                     <div className="space-y-2 group/textblock">
-                        {/* Interactive WYSIWYG & Dynamic Formatting Toolbar */}
-                        <div className="flex items-center justify-between gap-2 flex-wrap bg-slate-100 p-1.5 rounded-xl border border-slate-200">
-                            <div className="flex items-center gap-1">
+                        {/* Real-Time Live Text Editor Header & WYSIWYG Toolbar */}
+                        <div className="bg-slate-100/90 p-2 rounded-xl border border-slate-200 space-y-2 shadow-2xs">
+                            {/* Top Row: Real-time Block Metrics & Style Presets */}
+                            <div className="flex items-center justify-between gap-2 flex-wrap pb-1.5 border-b border-slate-200 text-xs">
+                                <div className="flex items-center gap-2">
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-semibold text-[11px] border border-indigo-200/80 shadow-2xs">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                        <span>📝 {blockWordCount} words</span>
+                                        <span className="text-indigo-300">•</span>
+                                        <span>{blockCharCount} chars</span>
+                                        <span className="text-indigo-300">•</span>
+                                        <span>~{blockReadTime} min read</span>
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-1 text-[11px]">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Preset:</span>
+                                    <button
+                                        type="button"
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => applyTextPreset(block.id, "body")}
+                                        className="px-2 py-0.5 rounded font-medium bg-white text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 border border-slate-200 cursor-pointer transition-colors shadow-2xs"
+                                    >
+                                        Body
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => applyTextPreset(block.id, "lead")}
+                                        className="px-2 py-0.5 rounded font-bold bg-white text-indigo-700 hover:bg-indigo-50 border border-indigo-200 cursor-pointer transition-colors shadow-2xs"
+                                    >
+                                        Lead
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => applyTextPreset(block.id, "editorial")}
+                                        className="px-2 py-0.5 rounded font-serif italic bg-white text-slate-800 hover:bg-amber-50 border border-slate-200 cursor-pointer transition-colors shadow-2xs"
+                                    >
+                                        Editorial
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => applyTextPreset(block.id, "tip")}
+                                        className="px-2 py-0.5 rounded font-bold bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 cursor-pointer transition-colors shadow-2xs"
+                                    >
+                                        Deal Tip
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => applyTextPreset(block.id, "card")}
+                                        className="px-2 py-0.5 rounded font-bold bg-slate-100 text-slate-700 hover:bg-white border border-slate-300 cursor-pointer transition-colors shadow-2xs"
+                                    >
+                                        Card
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Bottom Row: Full Formatting Controls */}
+                            <div className="flex items-center gap-1.5 flex-wrap text-xs">
+                                {/* Font Family Selector */}
+                                <div className="relative inline-flex items-center">
+                                    <button
+                                        type="button"
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => {
+                                            saveSelection();
+                                            setActiveFontFamilyPicker(activeFontFamilyPicker === block.id ? null : block.id);
+                                            setActiveFontSizePicker(null);
+                                            setActiveHighlightPicker(null);
+                                            setActiveColorPicker(null);
+                                        }}
+                                        className="px-2 py-1 rounded-lg bg-white border border-slate-200 hover:border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-1 cursor-pointer shadow-2xs"
+                                        title="Font Family"
+                                    >
+                                        <span>Font</span>
+                                        <span className="text-[10px] text-slate-400">▾</span>
+                                    </button>
+                                    {activeFontFamilyPicker === block.id && (
+                                        <div
+                                            onMouseDown={(e) => e.preventDefault()}
+                                            className="absolute left-0 top-full mt-1 bg-white p-1.5 rounded-xl shadow-xl border border-slate-200 flex flex-col gap-1 z-30 min-w-[160px]"
+                                        >
+                                            <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-2 py-0.5">Font Family</div>
+                                            {FONT_FAMILIES.map((f) => (
+                                                <button
+                                                    key={f.value}
+                                                    type="button"
+                                                    onMouseDown={(e) => e.preventDefault()}
+                                                    onClick={() => applyFontFamily(block.id, f.value)}
+                                                    className="px-2.5 py-1 text-left text-xs font-medium text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg cursor-pointer transition-colors"
+                                                    style={{ fontFamily: f.value }}
+                                                >
+                                                    {f.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Font Size Selector */}
+                                <div className="relative inline-flex items-center">
+                                    <button
+                                        type="button"
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => {
+                                            saveSelection();
+                                            setActiveFontSizePicker(activeFontSizePicker === block.id ? null : block.id);
+                                            setActiveFontFamilyPicker(null);
+                                            setActiveHighlightPicker(null);
+                                            setActiveColorPicker(null);
+                                        }}
+                                        className="px-2 py-1 rounded-lg bg-white border border-slate-200 hover:border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-1 cursor-pointer shadow-2xs"
+                                        title="Font Size"
+                                    >
+                                        <span>Size</span>
+                                        <span className="text-[10px] text-slate-400">▾</span>
+                                    </button>
+                                    {activeFontSizePicker === block.id && (
+                                        <div
+                                            onMouseDown={(e) => e.preventDefault()}
+                                            className="absolute left-0 top-full mt-1 bg-white p-1.5 rounded-xl shadow-xl border border-slate-200 flex flex-col gap-1 z-30 min-w-[140px]"
+                                        >
+                                            <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-2 py-0.5">Font Size</div>
+                                            {FONT_SIZES.map((s) => (
+                                                <button
+                                                    key={s.value}
+                                                    type="button"
+                                                    onMouseDown={(e) => e.preventDefault()}
+                                                    onClick={() => applyFontSize(block.id, s.value)}
+                                                    className="px-2.5 py-1 text-left text-xs font-medium text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg cursor-pointer transition-colors"
+                                                >
+                                                    {s.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="w-[1px] h-5 bg-slate-200 mx-0.5" />
+
+                                {/* Inline Text Styling: Bold, Italic, Underline, Strikethrough */}
                                 <button
                                     type="button"
-                                    onMouseDown={(e) => {
-                                        e.preventDefault();
-                                        document.execCommand("bold");
-                                    }}
-                                    className="px-2 py-0.5 text-xs font-black text-slate-700 hover:bg-white rounded cursor-pointer"
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={() => applyInlineFormat("bold", "", block.id)}
+                                    className="w-7 h-7 rounded-lg hover:bg-white text-slate-700 font-black text-xs flex items-center justify-center transition-colors cursor-pointer border border-transparent hover:border-slate-200 shadow-2xs"
                                     title="Bold (Ctrl+B)"
                                 >
                                     B
                                 </button>
                                 <button
                                     type="button"
-                                    onMouseDown={(e) => {
-                                        e.preventDefault();
-                                        document.execCommand("italic");
-                                    }}
-                                    className="px-2 py-0.5 text-xs italic font-serif text-slate-700 hover:bg-white rounded cursor-pointer"
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={() => applyInlineFormat("italic", "", block.id)}
+                                    className="w-7 h-7 rounded-lg hover:bg-white text-slate-700 italic font-serif text-xs flex items-center justify-center transition-colors cursor-pointer border border-transparent hover:border-slate-200 shadow-2xs"
                                     title="Italic (Ctrl+I)"
                                 >
                                     I
                                 </button>
                                 <button
                                     type="button"
-                                    onMouseDown={(e) => {
-                                        e.preventDefault();
-                                        document.execCommand("underline");
-                                    }}
-                                    className="px-2 py-0.5 text-xs underline font-semibold text-slate-700 hover:bg-white rounded cursor-pointer"
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={() => applyInlineFormat("underline", "", block.id)}
+                                    className="w-7 h-7 rounded-lg hover:bg-white text-slate-700 underline text-xs font-semibold flex items-center justify-center transition-colors cursor-pointer border border-transparent hover:border-slate-200 shadow-2xs"
                                     title="Underline (Ctrl+U)"
                                 >
                                     U
                                 </button>
+                                <button
+                                    type="button"
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={() => applyInlineFormat("strikeThrough", "", block.id)}
+                                    className="w-7 h-7 rounded-lg hover:bg-white text-slate-700 line-through text-xs font-medium flex items-center justify-center transition-colors cursor-pointer border border-transparent hover:border-slate-200 shadow-2xs"
+                                    title="Strikethrough"
+                                >
+                                    S
+                                </button>
 
-                                {/* Auto-closing Highlight Picker */}
+                                <div className="w-[1px] h-5 bg-slate-200 mx-0.5" />
+
+                                {/* Highlight Dropdown + Quick Highlight Button */}
                                 <div className="relative inline-flex items-center">
                                     <button
                                         type="button"
                                         onMouseDown={(e) => e.preventDefault()}
                                         onClick={() => applyHighlight(block.id, "#fef08a", "#854d0e")}
-                                        className="px-2 py-0.5 text-xs font-black text-amber-900 bg-amber-200 hover:bg-amber-300 rounded-l cursor-pointer shadow-2xs border-r border-amber-300/80"
-                                        title="Quick Yellow Highlight (or toggle off)"
+                                        className="px-2.5 py-1 text-xs font-black text-amber-900 bg-amber-200 hover:bg-amber-300 rounded-l-lg cursor-pointer shadow-2xs border-r border-amber-300/80 flex items-center gap-1 transition-colors"
+                                        title="Quick Yellow Highlight (select text first)"
                                     >
-                                        Highlight
+                                        <span>Highlight</span>
                                     </button>
                                     <button
                                         type="button"
                                         onMouseDown={(e) => e.preventDefault()}
-                                        onClick={() =>
-                                            setActiveHighlightPicker(activeHighlightPicker === block.id ? null : block.id)
-                                        }
-                                        className="px-1 py-0.5 text-xs text-amber-900 bg-amber-200 hover:bg-amber-300 rounded-r cursor-pointer"
-                                        title="Choose Highlight Color or Remove"
+                                        onClick={() => {
+                                            saveSelection();
+                                            setActiveHighlightPicker(activeHighlightPicker === block.id ? null : block.id);
+                                            setActiveColorPicker(null);
+                                            setActiveFontSizePicker(null);
+                                            setActiveFontFamilyPicker(null);
+                                        }}
+                                        className="px-1.5 py-1 text-xs text-amber-900 bg-amber-200 hover:bg-amber-300 rounded-r-lg cursor-pointer transition-colors"
+                                        title="Choose Highlight Color"
                                     >
                                         ▾
                                     </button>
                                     {activeHighlightPicker === block.id && (
                                         <div
                                             onMouseDown={(e) => e.preventDefault()}
-                                            className="absolute top-full left-0 mt-1 z-30 bg-white p-2 rounded-xl shadow-xl border border-slate-200 flex flex-col gap-1.5 min-w-[200px]"
+                                            className="absolute top-full left-0 mt-1 z-30 bg-white p-2.5 rounded-xl shadow-xl border border-slate-200 flex flex-col gap-2 min-w-[210px]"
                                         >
                                             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1 flex items-center justify-between">
-                                                <span>Highlight Colors</span>
+                                                <span>Highlight Palette</span>
                                                 <button
                                                     type="button"
                                                     onClick={() => setActiveHighlightPicker(null)}
-                                                    className="text-slate-400 hover:text-slate-700 cursor-pointer"
+                                                    className="text-slate-400 hover:text-slate-700 cursor-pointer font-bold"
                                                 >
                                                     ×
                                                 </button>
                                             </div>
-                                            <div className="grid grid-cols-3 gap-1">
+                                            <div className="grid grid-cols-3 gap-1.5">
                                                 {HIGHLIGHT_SWATCHES.map((swatch) => (
                                                     <button
                                                         key={swatch.name}
                                                         type="button"
                                                         onMouseDown={(e) => e.preventDefault()}
                                                         onClick={() => applyHighlight(block.id, swatch.bg, swatch.text)}
-                                                        className="px-2 py-1 text-[11px] font-bold rounded-lg cursor-pointer text-center"
+                                                        className="px-2 py-1.5 text-[11px] font-bold rounded-lg cursor-pointer text-center hover:scale-105 transition-transform"
                                                         style={{
                                                             backgroundColor: swatch.bg,
                                                             color: swatch.text,
@@ -1709,91 +2755,198 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                                     </button>
                                                 ))}
                                             </div>
-                                            <div className="border-t border-slate-100 pt-1">
+                                            <div className="border-t border-slate-100 pt-1.5">
                                                 <button
                                                     type="button"
                                                     onMouseDown={(e) => e.preventDefault()}
                                                     onClick={() => removeHighlight(block.id)}
-                                                    className="w-full px-2 py-1 text-[11px] font-bold text-slate-700 hover:bg-rose-50 hover:text-rose-700 rounded-lg cursor-pointer flex items-center justify-center gap-1"
+                                                    className="w-full px-2.5 py-1.5 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-lg cursor-pointer flex items-center justify-center gap-1.5 transition-colors border border-rose-200/80"
                                                 >
-                                                    Remove Highlight
+                                                    <span>✕ Remove Highlight</span>
                                                 </button>
                                             </div>
                                         </div>
                                     )}
                                 </div>
 
+                                {/* Dedicated Instant Unhighlight Button */}
                                 <button
                                     type="button"
-                                    onMouseDown={(e) => {
-                                        e.preventDefault();
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={() => removeHighlight(block.id)}
+                                    className="px-2.5 py-1 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-lg cursor-pointer border border-rose-200 hover:border-rose-300 shadow-2xs flex items-center gap-1 transition-colors"
+                                    title="Unhighlight: Remove highlight from selected text or cursor position"
+                                >
+                                    <span>✕ Unhighlight</span>
+                                </button>
+
+                                <div className="w-[1px] h-5 bg-slate-200 mx-0.5" />
+
+                                {/* Text Color Picker */}
+                                <div className="relative inline-flex items-center">
+                                    <button
+                                        type="button"
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => {
+                                            saveSelection();
+                                            setActiveColorPicker(activeColorPicker === block.id ? null : block.id);
+                                            setActiveHighlightPicker(null);
+                                            setActiveFontSizePicker(null);
+                                            setActiveFontFamilyPicker(null);
+                                        }}
+                                        className="px-2 py-1 rounded-lg bg-white border border-slate-200 hover:border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                                        title="Text Color"
+                                    >
+                                        <span>Color</span>
+                                        <span
+                                            className="w-3 h-3 rounded-full border border-slate-300 inline-block shadow-2xs"
+                                            style={{ backgroundColor: block.style?.color || "#1e293b" }}
+                                        />
+                                        <span className="text-[10px] text-slate-400">▾</span>
+                                    </button>
+                                    {activeColorPicker === block.id && (
+                                        <div
+                                            onMouseDown={(e) => e.preventDefault()}
+                                            className="absolute left-0 top-full mt-1 bg-white p-2.5 rounded-xl shadow-xl border border-slate-200 flex flex-col gap-2 z-30 min-w-[170px]"
+                                        >
+                                            <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1">Text Color</div>
+                                            <div className="grid grid-cols-4 gap-1.5">
+                                                {TEXT_COLORS.map((c) => (
+                                                    <button
+                                                        key={c.name}
+                                                        type="button"
+                                                        onMouseDown={(e) => e.preventDefault()}
+                                                        onClick={() => applyTextColor(block.id, c.color)}
+                                                        style={{ backgroundColor: c.bg }}
+                                                        className="w-7 h-7 rounded-lg border border-slate-300/80 hover:scale-110 transition-transform cursor-pointer shadow-2xs flex items-center justify-center"
+                                                        title={c.name}
+                                                    />
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="w-[1px] h-5 bg-slate-200 mx-0.5" />
+
+                                {/* Alignment Controls */}
+                                <div className="flex items-center bg-white rounded-lg border border-slate-200 p-0.5 shadow-2xs">
+                                    <button
+                                        type="button"
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => {
+                                            applyInlineFormat("justifyLeft", "", block.id);
+                                            updateBlockStyle(block.id, { textAlign: "left" });
+                                        }}
+                                        className="px-2 py-0.5 text-xs text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded cursor-pointer transition-colors font-bold"
+                                        title="Align Left"
+                                    >
+                                        Left
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => {
+                                            applyInlineFormat("justifyCenter", "", block.id);
+                                            updateBlockStyle(block.id, { textAlign: "center" });
+                                        }}
+                                        className="px-2 py-0.5 text-xs text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded cursor-pointer transition-colors font-bold"
+                                        title="Align Center"
+                                    >
+                                        Center
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => {
+                                            applyInlineFormat("justifyRight", "", block.id);
+                                            updateBlockStyle(block.id, { textAlign: "right" });
+                                        }}
+                                        className="px-2 py-0.5 text-xs text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded cursor-pointer transition-colors font-bold"
+                                        title="Align Right"
+                                    >
+                                        Right
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => {
+                                            applyInlineFormat("justifyFull", "", block.id);
+                                            updateBlockStyle(block.id, { textAlign: "justify" });
+                                        }}
+                                        className="px-2 py-0.5 text-xs text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded cursor-pointer transition-colors font-bold"
+                                        title="Justify Text"
+                                    >
+                                        Justify
+                                    </button>
+                                </div>
+
+                                <div className="w-[1px] h-5 bg-slate-200 mx-0.5" />
+
+                                {/* Bullet and Number Lists */}
+                                <div className="flex items-center bg-white rounded-lg border border-slate-200 p-0.5 shadow-2xs">
+                                    <button
+                                        type="button"
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => applyInlineFormat("insertUnorderedList", "", block.id)}
+                                        className="px-2 py-0.5 text-xs text-slate-700 hover:text-indigo-600 hover:bg-indigo-50 rounded cursor-pointer transition-colors font-medium"
+                                        title="Bullet List"
+                                    >
+                                        • Bullets
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => applyInlineFormat("insertOrderedList", "", block.id)}
+                                        className="px-2 py-0.5 text-xs text-slate-700 hover:text-indigo-600 hover:bg-indigo-50 rounded cursor-pointer transition-colors font-medium"
+                                        title="Numbered List"
+                                    >
+                                        1. Numbers
+                                    </button>
+                                </div>
+
+                                <div className="w-[1px] h-5 bg-slate-200 mx-0.5" />
+
+                                {/* Hyperlink Inserter */}
+                                <button
+                                    type="button"
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={() => {
+                                        saveSelection();
                                         const url = prompt("Enter hyperlink URL:", "https://");
                                         if (url) {
+                                            restoreSelection(block.id);
                                             document.execCommand("createLink", false, url);
+                                            if (editorRefs.current[block.id]) {
+                                                updateBlock(block.id, editorRefs.current[block.id]?.innerHTML || "");
+                                            }
                                         }
                                     }}
-                                    className="px-2 py-0.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-white rounded cursor-pointer border border-indigo-200"
+                                    className="px-2.5 py-1 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg cursor-pointer border border-indigo-200 shadow-2xs transition-colors flex items-center gap-1"
                                     title="Add Hyperlink"
                                 >
-                                    Link
+                                    <span>🔗 Link</span>
                                 </button>
-                            </div>
 
-                            {/* Dynamic Presets */}
-                            <div className="flex items-center gap-1 text-[11px]">
-                                <span className="text-[10px] font-bold text-slate-400">Preset:</span>
+                                {/* Clean Formatting Button */}
                                 <button
                                     type="button"
-                                    onClick={() => applyTextPreset(block.id, "body")}
-                                    className="px-1.5 py-0.5 rounded font-semibold bg-white text-slate-700 hover:bg-indigo-50 border border-slate-200 cursor-pointer"
-                                >
-                                    Body
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => applyTextPreset(block.id, "lead")}
-                                    className="px-1.5 py-0.5 rounded font-bold bg-white text-indigo-700 hover:bg-indigo-50 border border-indigo-200 cursor-pointer"
-                                >
-                                    Lead
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => applyTextPreset(block.id, "editorial")}
-                                    className="px-1.5 py-0.5 rounded font-serif italic bg-white text-slate-800 hover:bg-amber-50 border border-slate-200 cursor-pointer"
-                                >
-                                    Editorial
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => applyTextPreset(block.id, "tip")}
-                                    className="px-1.5 py-0.5 rounded font-bold bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 cursor-pointer"
-                                >
-                                    Deal Tip
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => applyTextPreset(block.id, "card")}
-                                    className="px-1.5 py-0.5 rounded font-bold bg-slate-100 text-slate-700 hover:bg-white border border-slate-300 cursor-pointer"
-                                >
-                                    Card
-                                </button>
-                                <button
-                                    type="button"
+                                    onMouseDown={(e) => e.preventDefault()}
                                     onClick={() => {
                                         try {
                                             document.execCommand("removeFormat", false, undefined);
                                         } catch (_) { }
                                         updateBlock(block.id, cleanHtmlContent(block.content || ""));
                                     }}
-                                    className="px-1.5 py-0.5 rounded font-bold bg-slate-100 text-slate-700 hover:bg-white border border-slate-300 cursor-pointer text-xs"
+                                    className="px-2.5 py-1 text-xs font-bold text-slate-600 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg cursor-pointer shadow-2xs transition-colors flex items-center gap-1"
                                     title="Clean formatting and remove dark backgrounds"
                                 >
-                                    Clean
+                                    <span>🧹 Clean</span>
                                 </button>
                             </div>
                         </div>
 
-                        {/* ContentEditable Live Dynamic Editor with Cursor Jump Protection */}
+                        {/* ContentEditable Live Dynamic Editor with Cursor Jump Protection & Live Range Sync */}
                         <RichTextBlock
                             block={block as any}
                             onUpdateContent={(content) => updateBlock(block.id, content)}
@@ -1821,10 +2974,11 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                 }, 0);
                             }}
                             registerRef={(el) => { editorRefs.current[block.id] = el; }}
-                            onSaveSelection={() => { }}
+                            onSaveSelection={saveSelection}
                         />
                     </div>
                 );
+            }
             case "image": {
                 const st = block.style || {};
                 const currentAspect = st.aspectRatio || "16/9";
@@ -1837,6 +2991,18 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                     <div className="space-y-3 group/imgcard">
                         {/* Image Crop & Sizing Adjustment Toolbar */}
                         <div className="flex items-center justify-between gap-2 flex-wrap bg-slate-100 p-2 rounded-xl border border-slate-200 text-xs">
+                            {/* Upload from files button */}
+                            <label className="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition-all shrink-0">
+                                <span className="material-symbols-outlined text-[15px]">upload_file</span>
+                                <span>Upload Image File</span>
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={(e) => handleImageFileUpload(block.id, e.target.files?.[0])}
+                                />
+                            </label>
+
                             {/* Aspect Ratio / Crop Box */}
                             <div className="flex items-center gap-1">
                                 <span className="text-[10px] font-black uppercase text-slate-500 mr-1 flex items-center gap-0.5">
@@ -1912,7 +3078,7 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                             {/* Focus Position Alignment */}
                             <div className="flex items-center gap-1">
                                 <span className="text-[10px] font-black uppercase text-slate-500 mr-1">Focus:</span>
-                                {(["top", "center", "bottom"] as const).map((pos) => (
+                                {([ "top", "center", "bottom"] as const).map((pos) => (
                                     <button
                                         key={pos}
                                         type="button"
@@ -1926,9 +3092,19 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                             </div>
                         </div>
 
-                        {/* Cropped & Adjusted Image Container */}
+                        {/* Cropped & Adjusted Image Container with Drag & Drop */}
                         <div
-                            className="relative overflow-hidden border border-slate-200 shadow-md bg-slate-900 group/preview"
+                            onDragOver={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                            }}
+                            onDrop={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                const file = e.dataTransfer.files?.[0];
+                                if (file) handleImageFileUpload(block.id, file);
+                            }}
+                            className="relative overflow-hidden border-2 border-dashed border-slate-300 hover:border-indigo-400 shadow-md bg-slate-900 group/preview transition-all"
                             style={{
                                 borderRadius: currentRad,
                                 maxHeight: currentMaxH,
@@ -1936,7 +3112,7 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                         >
                             <img
                                 src={block.content}
-                                alt="Blog illustration"
+                                alt={block.fileName || "Blog illustration"}
                                 className="w-full transition-all"
                                 style={{
                                     aspectRatio: currentAspect,
@@ -1946,56 +3122,393 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                 }}
                             />
 
-                            {/* Quick URL change on hover */}
-                            <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover/preview:opacity-100 transition-opacity flex items-center gap-2">
-                                <span className="text-[10px] font-bold text-white uppercase tracking-wider shrink-0">Image URL:</span>
+                            {/* Uploaded File Badge */}
+                            {block.fileName && (
+                                <div className="absolute top-3 left-3 px-2.5 py-1 bg-black/75 backdrop-blur-md rounded-lg text-white text-[11px] font-mono flex items-center gap-1.5 border border-white/20">
+                                    <span className="material-symbols-outlined text-[13px] text-emerald-400">check_circle</span>
+                                    <span className="font-bold truncate max-w-[160px]">{block.fileName}</span>
+                                    {block.fileSize && <span className="text-slate-300 text-[10px]">({block.fileSize})</span>}
+                                </div>
+                            )}
+
+                            {/* Quick URL change & Upload trigger on hover */}
+                            <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/90 via-black/60 to-transparent opacity-0 group-hover/preview:opacity-100 transition-opacity flex items-center gap-2 flex-wrap">
+                                <label className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg cursor-pointer flex items-center gap-1 shrink-0 transition-colors">
+                                    <span className="material-symbols-outlined text-[14px]">upload</span>
+                                    <span>Upload from File</span>
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={(e) => handleImageFileUpload(block.id, e.target.files?.[0])}
+                                    />
+                                </label>
+                                <span className="text-[10px] font-bold text-white/80 uppercase tracking-wider shrink-0">OR URL:</span>
                                 <input
                                     type="text"
-                                    value={block.content}
+                                    value={block.content.startsWith("data:image") ? "(Uploaded Image File)" : block.content}
                                     onChange={(e) => updateBlock(block.id, e.target.value)}
-                                    className="flex-1 px-3 py-1 bg-white/20 backdrop-blur rounded-lg text-white text-xs border border-white/30 outline-none placeholder-white/60 font-mono"
-                                    placeholder="Paste image URL..."
+                                    className="flex-1 min-w-[200px] px-3 py-1 bg-white/20 backdrop-blur rounded-lg text-white text-xs border border-white/30 outline-none placeholder-white/60 font-mono"
+                                    placeholder="Paste image URL (https://...)"
                                 />
                             </div>
+                        </div>
+
+                        {/* Image Caption */}
+                        <div className="flex items-center gap-2 px-1">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider shrink-0 flex items-center gap-0.5">
+                                <span className="material-symbols-outlined text-[13px]">subtitles</span> Caption:
+                            </span>
+                            <input
+                                type="text"
+                                value={block.caption || ""}
+                                onChange={(e) => updateBlockProperties(block.id, { caption: e.target.value })}
+                                placeholder="Add image caption or credit attribution..."
+                                className="flex-1 px-3 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 placeholder-slate-400 focus:bg-white focus:ring-1 focus:ring-indigo-300 outline-none"
+                            />
                         </div>
                     </div>
                 );
             }
-            case "video":
+            case "video": {
+                const isDirect = isDirectVideoSource(block.content);
+                const formattedEmbed = formatVideoEmbedUrl(block.content || "");
+
                 return (
-                    <div className="aspect-video rounded-xl overflow-hidden bg-gray-100">
-                        <iframe src={block.content} className="w-full h-full" allowFullScreen />
-                    </div>
-                );
-            case "button":
-                return (
-                    <div className="my-2 p-3 bg-gray-50 rounded-xl border border-gray-200 space-y-2 max-w-md">
-                        <div className="flex items-center gap-2">
+                    <div className="space-y-3 group/videocard">
+                        {/* Video Element Toolbar */}
+                        <div className="flex items-center justify-between gap-2 flex-wrap bg-slate-100 p-2 rounded-xl border border-slate-200 text-xs">
+                            <div className="flex items-center gap-2">
+                                <label className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition-all shrink-0">
+                                    <span className="material-symbols-outlined text-[15px]">video_file</span>
+                                    <span>Upload Video File</span>
+                                    <input
+                                        type="file"
+                                        accept="video/mp4,video/webm,video/ogg,video/quicktime,video/*"
+                                        className="hidden"
+                                        onChange={(e) => handleVideoFileUpload(block.id, e.target.files?.[0])}
+                                    />
+                                </label>
+
+                                <span className={`px-2 py-0.5 rounded text-[11px] font-bold flex items-center gap-1 ${
+                                    isDirect ? "bg-emerald-100 text-emerald-800 border border-emerald-300" : "bg-blue-100 text-blue-800 border border-blue-300"
+                                }`}>
+                                    <span className="material-symbols-outlined text-[13px]">{isDirect ? "play_circle" : "smart_display"}</span>
+                                    {isDirect ? "Direct Video File (HTML5)" : "Embed Video (YouTube / Vimeo)"}
+                                </span>
+                            </div>
+
+                            {/* Quick URL Presets */}
+                            <div className="flex items-center gap-1 text-[11px] text-slate-500">
+                                <span className="text-[10px] font-black uppercase text-slate-400 mr-1">Formats:</span>
+                                <span className="px-1.5 py-0.5 bg-white border border-slate-200 rounded font-mono text-[10px]">.MP4</span>
+                                <span className="px-1.5 py-0.5 bg-white border border-slate-200 rounded font-mono text-[10px]">.WebM</span>
+                                <span className="px-1.5 py-0.5 bg-white border border-slate-200 rounded font-mono text-[10px]">YouTube</span>
+                                <span className="px-1.5 py-0.5 bg-white border border-slate-200 rounded font-mono text-[10px]">Vimeo</span>
+                            </div>
+                        </div>
+
+                        {/* Video Player Display Container with Drag & Drop */}
+                        <div
+                            onDragOver={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                            }}
+                            onDrop={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                const file = e.dataTransfer.files?.[0];
+                                if (file) handleVideoFileUpload(block.id, file);
+                            }}
+                            className="relative aspect-video rounded-2xl overflow-hidden bg-slate-950 border-2 border-dashed border-slate-300 hover:border-rose-400 shadow-md group/vpreview transition-all"
+                        >
+                            {isDirect ? (
+                                <video
+                                    controls
+                                    playsInline
+                                    className="w-full h-full object-contain bg-black"
+                                    src={block.content}
+                                    key={block.content}
+                                >
+                                    Your browser does not support the video tag.
+                                </video>
+                            ) : (
+                                <iframe
+                                    src={formattedEmbed}
+                                    className="w-full h-full"
+                                    allowFullScreen
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                />
+                            )}
+
+                            {/* Uploaded File Badge */}
+                            {block.fileName && (
+                                <div className="absolute top-3 left-3 px-2.5 py-1 bg-black/80 backdrop-blur-md rounded-lg text-white text-[11px] font-mono flex items-center gap-1.5 border border-white/20">
+                                    <span className="material-symbols-outlined text-[13px] text-emerald-400">check_circle</span>
+                                    <span className="font-bold truncate max-w-[180px]">{block.fileName}</span>
+                                    {block.fileSize && <span className="text-slate-300 text-[10px]">({block.fileSize})</span>}
+                                </div>
+                            )}
+
+                            {/* Quick URL change & Upload trigger on hover */}
+                            <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/90 via-black/60 to-transparent opacity-0 group-hover/vpreview:opacity-100 transition-opacity flex items-center gap-2 flex-wrap">
+                                <label className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg cursor-pointer flex items-center gap-1 shrink-0 transition-colors">
+                                    <span className="material-symbols-outlined text-[14px]">upload</span>
+                                    <span>Upload Video File</span>
+                                    <input
+                                        type="file"
+                                        accept="video/mp4,video/webm,video/ogg,video/quicktime,video/*"
+                                        className="hidden"
+                                        onChange={(e) => handleVideoFileUpload(block.id, e.target.files?.[0])}
+                                    />
+                                </label>
+                                <span className="text-[10px] font-bold text-white/80 uppercase tracking-wider shrink-0">OR URL:</span>
+                                <input
+                                    type="text"
+                                    value={block.content.startsWith("data:video") ? "(Uploaded Video File)" : block.content}
+                                    onChange={(e) => updateBlock(block.id, e.target.value)}
+                                    className="flex-1 min-w-[200px] px-3 py-1 bg-white/20 backdrop-blur rounded-lg text-white text-xs border border-white/30 outline-none placeholder-white/60 font-mono"
+                                    placeholder="Paste YouTube, Vimeo or MP4 URL..."
+                                />
+                            </div>
+                        </div>
+
+                        {/* Video Caption */}
+                        <div className="flex items-center gap-2 px-1">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider shrink-0 flex items-center gap-0.5">
+                                <span className="material-symbols-outlined text-[13px]">subtitles</span> Caption:
+                            </span>
                             <input
                                 type="text"
-                                value={block.content}
-                                onChange={(e) => updateBlock(block.id, e.target.value)}
-                                placeholder="Button label..."
-                                className="flex-1 font-bold text-xs px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-gray-800 focus:outline-none"
+                                value={block.caption || ""}
+                                onChange={(e) => updateBlockProperties(block.id, { caption: e.target.value })}
+                                placeholder="Add video caption or description (e.g. Video guide to student visa funding)..."
+                                className="flex-1 px-3 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 placeholder-slate-400 focus:bg-white focus:ring-1 focus:ring-indigo-300 outline-none"
                             />
                         </div>
-                        <button
-                            type="button"
-                            className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold rounded-xl text-xs shadow-md"
-                        >
-                            {block.content || "Click Here"}
-                        </button>
                     </div>
                 );
-            case "list":
+            }
+            case "button": {
+                const text = block.buttonText || block.content || "Explore Loan Options";
+                const url = block.buttonUrl || "/apply-loan";
+                const isNewTab = block.buttonNewTab !== false;
+                const align = block.buttonAlign || "center";
+                const variant = block.buttonVariant || "gradient";
+                const size = block.buttonSize || "md";
+
+                const variantClasses: Record<string, string> = {
+                    gradient: "bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md shadow-indigo-600/30 hover:from-purple-700 hover:to-indigo-700",
+                    emerald: "bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-600/30 hover:from-emerald-700 hover:to-teal-700",
+                    dark: "bg-slate-900 text-white shadow-md hover:bg-slate-800",
+                    outline: "bg-transparent text-indigo-600 border-2 border-indigo-600 hover:bg-indigo-50",
+                    amber: "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md shadow-amber-500/30 hover:from-amber-600 hover:to-orange-600",
+                    rose: "bg-gradient-to-r from-rose-600 to-pink-600 text-white shadow-md shadow-rose-600/30 hover:from-rose-700 hover:to-pink-700",
+                };
+
+                const sizeClasses: Record<string, string> = {
+                    sm: "px-4 py-2 text-xs font-bold rounded-lg",
+                    md: "px-6 py-2.5 text-xs font-bold rounded-xl",
+                    lg: "px-8 py-3.5 text-sm font-extrabold rounded-2xl",
+                };
+
+                const alignClasses: Record<string, string> = {
+                    left: "justify-start text-left",
+                    center: "justify-center text-center",
+                    right: "justify-end text-right",
+                    full: "w-full justify-center",
+                };
+
                 return (
-                    <textarea
-                        value={block.content}
-                        onChange={(e) => updateBlock(block.id, e.target.value)}
-                        className="w-full text-gray-700 outline-none resize-none min-h-[100px] bg-transparent"
-                        placeholder="• Item 1&#10;• Item 2&#10;• Item 3"
-                    />
+                    <div className="space-y-2.5 group/button my-2 p-3 bg-slate-50/90 rounded-2xl border border-slate-200">
+                        {/* Interactive Toolbar for Button */}
+                        <div className="flex items-center justify-between gap-2 flex-wrap pb-1.5 border-b border-slate-200 text-xs">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 font-bold text-[11px] border border-indigo-200 shadow-2xs">
+                                    <span className="material-symbols-outlined text-[13px]">smart_button</span>
+                                    Dynamic Button
+                                </span>
+
+                                {/* Alignment */}
+                                <div className="inline-flex items-center bg-white p-0.5 rounded-lg border border-slate-200 shadow-2xs">
+                                    {(["left", "center", "right", "full"] as const).map((al) => (
+                                        <button
+                                            key={al}
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                updateBlockButton(block.id, { buttonAlign: al });
+                                            }}
+                                            title={`Align ${al}`}
+                                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold cursor-pointer capitalize transition-all ${
+                                                align === al
+                                                    ? "bg-indigo-600 text-white shadow-xs"
+                                                    : "text-slate-500 hover:text-slate-900"
+                                            }`}
+                                        >
+                                            {al === "full" ? "Full" : al}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {/* Style Colors */}
+                                <div className="inline-flex items-center gap-1 bg-white p-0.5 px-1.5 rounded-lg border border-slate-200 shadow-2xs">
+                                    <span className="text-[10px] text-slate-400 font-semibold">Style:</span>
+                                    {(["gradient", "emerald", "dark", "outline", "amber", "rose"] as const).map((v) => (
+                                        <button
+                                            key={v}
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                updateBlockButton(block.id, { buttonVariant: v });
+                                            }}
+                                            title={`Style: ${v}`}
+                                            className={`w-3.5 h-3.5 rounded-full border cursor-pointer transition-transform ${
+                                                v === "gradient" ? "bg-gradient-to-r from-purple-600 to-indigo-600" :
+                                                v === "emerald" ? "bg-emerald-600" :
+                                                v === "dark" ? "bg-slate-900" :
+                                                v === "outline" ? "bg-white border-indigo-600" :
+                                                v === "amber" ? "bg-amber-500" :
+                                                "bg-rose-600"
+                                            } ${variant === v ? "scale-125 ring-2 ring-indigo-400 border-white" : "border-slate-300"}`}
+                                        />
+                                    ))}
+                                </div>
+
+                                {/* Size */}
+                                <div className="inline-flex items-center bg-white p-0.5 rounded-lg border border-slate-200 shadow-2xs">
+                                    {(["sm", "md", "lg"] as const).map((sz) => (
+                                        <button
+                                            key={sz}
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                updateBlockButton(block.id, { buttonSize: sz });
+                                            }}
+                                            title={`Size: ${sz}`}
+                                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold cursor-pointer uppercase transition-all ${
+                                                size === sz
+                                                    ? "bg-indigo-600 text-white shadow-xs"
+                                                    : "text-slate-500 hover:text-slate-900"
+                                            }`}
+                                        >
+                                            {sz}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <label className="flex items-center gap-1 text-[11px] text-slate-600 font-medium cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={isNewTab}
+                                    onChange={(e) => updateBlockButton(block.id, { buttonNewTab: e.target.checked })}
+                                    className="rounded text-indigo-600 focus:ring-indigo-400"
+                                />
+                                New Tab
+                            </label>
+                        </div>
+
+                        {/* Quick In-Canvas Inputs: Label & URL */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">Button Label</label>
+                                <input
+                                    type="text"
+                                    value={text}
+                                    onChange={(e) => updateBlockButton(block.id, { content: e.target.value, buttonText: e.target.value })}
+                                    placeholder="Enter label..."
+                                    className="w-full font-bold px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:border-indigo-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">Target Link (URL)</label>
+                                <input
+                                    type="text"
+                                    value={url}
+                                    onChange={(e) => updateBlockButton(block.id, { buttonUrl: e.target.value })}
+                                    placeholder="e.g. /apply-loan or https://..."
+                                    className="w-full font-mono text-[11px] px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:border-indigo-500"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Rendered Live Preview Button */}
+                        <div className={`flex ${alignClasses[align]} pt-1`}>
+                            <a
+                                href={url}
+                                target={isNewTab ? "_blank" : "_self"}
+                                rel={isNewTab ? "noopener noreferrer" : undefined}
+                                onClick={(e) => e.preventDefault()}
+                                className={`inline-flex items-center justify-center gap-2 transition-all transform active:scale-95 cursor-pointer ${variantClasses[variant] || variantClasses.gradient} ${sizeClasses[size] || sizeClasses.md} ${align === "full" ? "w-full" : ""}`}
+                            >
+                                <span>{text || "Click Here"}</span>
+                                <span className="material-symbols-outlined text-sm font-bold">arrow_forward</span>
+                            </a>
+                        </div>
+                    </div>
                 );
+            }
+            case "list": {
+                const isOrdered = block.listType === "ordered";
+                return (
+                    <div className="space-y-2 group/list">
+                        {/* List Type Switcher Toolbar */}
+                        <div className="flex items-center justify-between gap-2 flex-wrap pb-1.5 border-b border-slate-200 text-xs">
+                            <div className="flex items-center gap-1.5">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-teal-50 text-teal-700 font-bold text-[11px] border border-teal-200 shadow-2xs">
+                                    <span className="material-symbols-outlined text-[13px]">{isOrdered ? "format_list_numbered" : "format_list_bulleted"}</span>
+                                    {isOrdered ? "Ordered List (Numbered)" : "Unordered List (Bullets)"}
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-semibold hidden sm:inline">| Switch Type:</span>
+                                <div className="inline-flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            updateBlockListType(block.id, "unordered");
+                                        }}
+                                        className={`px-2 py-0.5 rounded text-[11px] font-bold cursor-pointer transition-all flex items-center gap-1 ${
+                                            !isOrdered
+                                                ? "bg-teal-600 text-white shadow-xs"
+                                                : "text-slate-600 hover:text-slate-900 hover:bg-white"
+                                        }`}
+                                    >
+                                        <span className="material-symbols-outlined text-[12px]">format_list_bulleted</span>
+                                        Bullets (&bull;)
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            updateBlockListType(block.id, "ordered");
+                                        }}
+                                        className={`px-2 py-0.5 rounded text-[11px] font-bold cursor-pointer transition-all flex items-center gap-1 ${
+                                            isOrdered
+                                                ? "bg-teal-600 text-white shadow-xs"
+                                                : "text-slate-600 hover:text-slate-900 hover:bg-white"
+                                        }`}
+                                    >
+                                        <span className="material-symbols-outlined text-[12px]">format_list_numbered</span>
+                                        Numbered (1, 2, 3)
+                                    </button>
+                                </div>
+                            </div>
+                            <span className="text-[10px] font-mono text-slate-400">&lt;{isOrdered ? "ol" : "ul"}&gt;</span>
+                        </div>
+
+                        {/* List Items Textarea */}
+                        <div className="relative">
+                            <textarea
+                                value={block.content}
+                                onChange={(e) => updateBlock(block.id, e.target.value)}
+                                className="w-full text-slate-800 text-sm leading-relaxed outline-none resize-y min-h-[90px] p-3 rounded-xl border border-slate-200 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 font-sans transition-all bg-white"
+                                placeholder={isOrdered ? "1. Item 1\n2. Item 2\n3. Item 3" : "• Item 1\n• Item 2\n• Item 3"}
+                            />
+                        </div>
+                    </div>
+                );
+            }
             case "quote":
                 return (
                     <blockquote className="border-l-4 border-purple-500 pl-6 py-2 bg-purple-50/50 rounded-r-xl">
@@ -2727,6 +4240,22 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                     <h1 className="text-base font-bold hidden md:block">✨ Create Blog Post - Canva Studio</h1>
                 </div>
                 <div className="flex items-center gap-3">
+                    {/* SEO Health Quick Badge */}
+                    <button
+                        type="button"
+                        onClick={() => setSidebarTab("seo")}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                            seoAnalysis.score >= 80
+                                ? "bg-emerald-500/20 text-emerald-100 border-emerald-400/50 hover:bg-emerald-500/30"
+                                : seoAnalysis.score >= 50
+                                ? "bg-amber-500/20 text-amber-100 border-amber-400/50 hover:bg-amber-500/30"
+                                : "bg-rose-500/20 text-rose-100 border-rose-400/50 hover:bg-rose-500/30"
+                        }`}
+                        title="Click to view SEO analysis & SERP preview"
+                    >
+                        <span className="material-symbols-outlined text-[15px]">manage_search</span>
+                        <span>SEO: {seoAnalysis.score}/100</span>
+                    </button>
                     <button
                         onClick={autoSave}
                         className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-white/20 transition-colors text-xs font-medium"
@@ -2755,161 +4284,764 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
 
             <div className="flex flex-1 overflow-hidden">
                 {/* Left Sidebar */}
-                <aside className="w-[300px] bg-white border-r border-slate-200 overflow-y-auto flex-shrink-0">
-                    <div className="p-4">
-                        {/* Templates Section */}
-                        <div className="mb-6">
-                            <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">📐 Templates</h2>
+                <aside className="w-[330px] md:w-[360px] bg-white border-r border-slate-200 overflow-y-auto flex-shrink-0 flex flex-col">
+                    {/* Top Mode Tabs */}
+                    <div className="flex border-b border-slate-200 bg-slate-50 sticky top-0 z-20 shadow-2xs">
+                        <button
+                            type="button"
+                            onClick={() => setSidebarTab("content")}
+                            className={`flex-1 py-3 text-xs font-bold flex items-center justify-center gap-1.5 border-b-2 transition-all cursor-pointer ${
+                                sidebarTab === "content"
+                                    ? "border-indigo-600 text-indigo-700 bg-white shadow-2xs"
+                                    : "border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-100"
+                            }`}
+                        >
+                            <span className="material-symbols-outlined text-[16px]">widgets</span>
+                            <span>Content</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setSidebarTab("seo")}
+                            className={`flex-1 py-3 text-xs font-bold flex items-center justify-center gap-1.5 border-b-2 transition-all cursor-pointer ${
+                                sidebarTab === "seo"
+                                    ? "border-indigo-600 text-indigo-700 bg-white shadow-2xs"
+                                    : "border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-100"
+                            }`}
+                        >
+                            <span className="material-symbols-outlined text-[16px]">manage_search</span>
+                            <span>SEO & SERP</span>
+                            <span
+                                className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+                                    seoAnalysis.score >= 80
+                                        ? "bg-emerald-100 text-emerald-800"
+                                        : seoAnalysis.score >= 50
+                                        ? "bg-amber-100 text-amber-800"
+                                        : "bg-rose-100 text-rose-800"
+                                }`}
+                            >
+                                {seoAnalysis.score}
+                            </span>
+                        </button>
+                    </div>
+
+                    {sidebarTab === "content" ? (
+                        <div className="p-4">
+                            {/* Templates Section */}
+                            <div className="mb-6">
+                                <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">📐 Templates</h2>
+                                <div className="space-y-2">
+                                    {TEMPLATES.map((t) => (
+                                        <div
+                                            key={t.id}
+                                            onClick={() => loadTemplate(t.id)}
+                                            className="border border-slate-200 rounded-lg p-2.5 cursor-pointer hover:border-indigo-500 hover:bg-indigo-50/40 transition-all"
+                                        >
+                                            <p className="font-bold text-xs text-slate-800">{t.name}</p>
+                                            <p className="text-[10px] text-slate-500">{t.desc}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <hr className="my-4 border-slate-200" />
+
+                            {/* Elements Section */}
+                            <div className="flex items-center justify-between mb-3">
+                                <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">🎨 Elements</h2>
+                                <span className="text-[10px] text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded">Click or Drag</span>
+                            </div>
                             <div className="space-y-2">
-                                {TEMPLATES.map((t) => (
-                                    <div
-                                        key={t.id}
-                                        onClick={() => loadTemplate(t.id)}
-                                        className="border border-slate-200 rounded-lg p-2.5 cursor-pointer hover:border-indigo-500 hover:bg-indigo-50/40 transition-all"
+                                {ELEMENT_TYPES.map((el) => {
+                                    if (el.type === "heading") {
+                                        return (
+                                            <div key="headings-group" className="space-y-1.5">
+                                                {/* Main Heading Card */}
+                                                <div
+                                                    draggable
+                                                    onDragStart={(e) => handleDragStart(e, "heading", undefined, 2)}
+                                                    onDragEnd={handleDragEnd}
+                                                    className="p-2.5 rounded-xl border border-blue-200/90 bg-gradient-to-r from-blue-50/70 to-indigo-50/40 hover:border-blue-400 transition-all shadow-2xs group/headcard"
+                                                >
+                                                    <div className="flex items-center justify-between">
+                                                        <div
+                                                            onClick={() => setIsHeadingsExpanded(!isHeadingsExpanded)}
+                                                            className="flex items-center gap-2.5 cursor-pointer flex-1"
+                                                            title="Click to toggle H1-H6 list"
+                                                        >
+                                                            <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-blue-600 text-white shadow-xs">
+                                                                <span className="material-symbols-outlined text-[18px]">title</span>
+                                                            </div>
+                                                            <div>
+                                                                <p className="font-bold text-xs text-slate-800 flex items-center gap-1.5 group-hover/headcard:text-blue-700 transition-colors">
+                                                                    Headings (H1 - H6)
+                                                                    <span className="text-[9px] font-black bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full uppercase">All 6 Types</span>
+                                                                </p>
+                                                                <p className="text-[10px] text-slate-500">Pick any heading level (H1 to H6)</p>
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setIsHeadingsExpanded(!isHeadingsExpanded)}
+                                                            className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer transition-colors"
+                                                            title={isHeadingsExpanded ? "Collapse levels" : "Expand all levels"}
+                                                        >
+                                                            <span className="material-symbols-outlined text-base font-bold">
+                                                                {isHeadingsExpanded ? "expand_less" : "expand_more"}
+                                                            </span>
+                                                        </button>
+                                                    </div>
+
+                                                    {/* Quick 1-Click Pill Buttons for H1-H6 */}
+                                                    <div className="mt-2 pt-2 border-t border-blue-100/90 flex items-center justify-between gap-1">
+                                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Quick Add:</span>
+                                                        <div className="flex items-center gap-1 flex-wrap">
+                                                            {HEADING_LEVELS.map((hl) => (
+                                                                <button
+                                                                    key={hl.level}
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleAddElement("heading", undefined, hl.level);
+                                                                    }}
+                                                                    title={`Add ${hl.name} (${hl.sizeLabel})`}
+                                                                    className="px-1.5 py-0.5 rounded text-[10px] font-black bg-white hover:bg-blue-600 hover:text-white border border-blue-200 text-blue-700 transition-all cursor-pointer shadow-2xs active:scale-95"
+                                                                >
+                                                                    H{hl.level}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Expanded List of all H1-H6 levels with drag & drop */}
+                                                {isHeadingsExpanded && (
+                                                    <div className="space-y-1 pl-2 border-l-2 border-blue-200/80 ml-3 py-1">
+                                                        {HEADING_LEVELS.map((hl) => (
+                                                            <div
+                                                                key={hl.level}
+                                                                draggable
+                                                                onDragStart={(e) => handleDragStart(e, "heading", undefined, hl.level)}
+                                                                onDragEnd={handleDragEnd}
+                                                                onClick={() => handleAddElement("heading", undefined, hl.level)}
+                                                                className="flex items-center justify-between p-2 rounded-lg border border-slate-200/80 bg-white hover:bg-blue-50/50 hover:border-blue-300 transition-all cursor-pointer group/hitem shadow-2xs"
+                                                                title={`Click or drag to add ${hl.name}`}
+                                                            >
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className={`w-6 h-6 rounded flex items-center justify-center font-black text-[10px] shrink-0 ${hl.badgeBg}`}>
+                                                                        H{hl.level}
+                                                                    </span>
+                                                                    <div>
+                                                                        <p className="font-bold text-[11px] text-slate-800 group-hover/hitem:text-blue-700 transition-colors">
+                                                                            {hl.name}
+                                                                        </p>
+                                                                        <p className="text-[9px] text-slate-400">
+                                                                            {hl.sublabel} • <span className="font-mono text-slate-500 font-semibold">{hl.sizeLabel}</span>
+                                                                        </p>
+                                                                    </div>
+                                                                </div>
+                                                                <span className="text-[10px] font-bold text-blue-600 opacity-0 group-hover/hitem:opacity-100 transition-opacity bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded">
+                                                                    + Add
+                                                                </span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    }
+
+                                    return (
+                                        <div
+                                            key={el.label}
+                                            draggable
+                                            onDragStart={(e) => handleDragStart(e, el.type, el.defaultLayout, undefined, el.defaultListType)}
+                                            onDragEnd={handleDragEnd}
+                                            onClick={() => handleAddElement(el.type, el.defaultLayout, undefined, el.defaultListType)}
+                                            className="flex items-center justify-between p-2.5 rounded-xl border border-slate-200/80 cursor-pointer active:scale-[0.98] hover:bg-indigo-50/50 hover:border-indigo-300 transition-all group/item shadow-2xs bg-white"
+                                            title="Click to add or drag into position"
+                                        >
+                                            <div className="flex items-center gap-2.5">
+                                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${COLOR_MAP[el.color]}`}>
+                                                    <span className="material-symbols-outlined text-[18px]">{el.icon}</span>
+                                                </div>
+                                                <div>
+                                                    <p className="font-bold text-xs text-slate-800 group-hover/item:text-indigo-700 transition-colors">{el.label}</p>
+                                                    <p className="text-[10px] text-slate-400">{el.desc}</p>
+                                                </div>
+                                            </div>
+                                            <span className="text-slate-300 group-hover/item:text-indigo-600 transition-colors text-sm font-bold opacity-0 group-hover/item:opacity-100 mr-1 shrink-0">
+                                                +
+                                            </span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            <hr className="my-4 border-slate-200" />
+
+                            {/* Blog Settings */}
+                            <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">⚙️ Blog Settings</h2>
+                            <div className="space-y-3">
+                                <div>
+                                    <label className="text-xs font-bold text-slate-700">Blog Title *</label>
+                                    <input
+                                        type="text"
+                                        value={title}
+                                        onChange={(e) => setTitle(e.target.value)}
+                                        placeholder="Enter title..."
+                                        className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs mt-1 focus:ring-2 focus:ring-indigo-200 outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-slate-700">Slug (Auto-generated) *</label>
+                                    <input
+                                        type="text"
+                                        value={slug}
+                                        readOnly
+                                        placeholder="auto-generated-from-title"
+                                        className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs mt-1 bg-slate-50 font-mono text-slate-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-slate-700">Category *</label>
+                                    <select
+                                        value={category}
+                                        onChange={(e) => setCategory(e.target.value)}
+                                        className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs mt-1 focus:ring-2 focus:ring-indigo-200 outline-none"
                                     >
-                                        <p className="font-bold text-xs text-slate-800">{t.name}</p>
-                                        <p className="text-[10px] text-slate-500">{t.desc}</p>
-                                    </div>
-                                ))}
+                                        <option value="Education">Education</option>
+                                        <option value="Finance">Finance</option>
+                                        <option value="Technology">Technology</option>
+                                        <option value="News">News</option>
+                                        <option value="Tips & Guides">Tips & Guides</option>
+                                        <option value="Loan Guidance">Loan Guidance</option>
+                                        <option value="Bank Reviews">Bank Reviews</option>
+                                        <option value="Student Life">Student Life</option>
+                                        <option value="Visa & Admissions">Visa & Admissions</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-slate-700">Author *</label>
+                                    <input
+                                        type="text"
+                                        value={author}
+                                        onChange={(e) => setAuthor(e.target.value)}
+                                        placeholder="Author name"
+                                        className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs mt-1 focus:ring-2 focus:ring-indigo-200 outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-slate-700">Tags</label>
+                                    <input
+                                        type="text"
+                                        value={tags}
+                                        onChange={(e) => setTags(e.target.value)}
+                                        placeholder="tag1, tag2, tag3"
+                                        className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs mt-1 focus:ring-2 focus:ring-indigo-200 outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-slate-700">Excerpt</label>
+                                    <textarea
+                                        value={excerpt}
+                                        onChange={(e) => setExcerpt(e.target.value)}
+                                        placeholder="Short description..."
+                                        rows={3}
+                                        className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs mt-1 resize-none focus:ring-2 focus:ring-indigo-200 outline-none"
+                                    />
+                                </div>
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={isFeatured}
+                                        onChange={(e) => setIsFeatured(e.target.checked)}
+                                        className="w-3.5 h-3.5 rounded accent-indigo-600"
+                                    />
+                                    <span className="text-xs font-semibold text-slate-700">Mark as featured</span>
+                                </label>
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={isPublished}
+                                        onChange={(e) => setIsPublished(e.target.checked)}
+                                        className="w-3.5 h-3.5 rounded accent-indigo-600"
+                                    />
+                                    <span className="text-xs font-semibold text-slate-700">Publish immediately</span>
+                                </label>
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={enableComments}
+                                        onChange={(e) => setEnableComments(e.target.checked)}
+                                        className="w-3.5 h-3.5 rounded accent-indigo-600"
+                                    />
+                                    <span className="text-xs font-semibold text-slate-700">Enable comments</span>
+                                </label>
                             </div>
                         </div>
-
-                        <hr className="my-4 border-slate-200" />
-
-                        {/* Elements Section */}
-                        <div className="flex items-center justify-between mb-3">
-                            <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">🎨 Elements</h2>
-                            <span className="text-[10px] text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded">Click or Drag</span>
-                        </div>
-                        <div className="space-y-2">
-                            {ELEMENT_TYPES.map((el) => (
-                                <div
-                                    key={el.label}
-                                    draggable
-                                    onDragStart={(e) => handleDragStart(e, el.type, el.defaultLayout)}
-                                    onDragEnd={handleDragEnd}
-                                    onClick={() => handleAddElement(el.type, el.defaultLayout)}
-                                    className="flex items-center justify-between p-2.5 rounded-xl border border-slate-200/80 cursor-pointer active:scale-[0.98] hover:bg-indigo-50/50 hover:border-indigo-300 transition-all group/item shadow-2xs bg-white"
-                                    title="Click to add or drag into position"
-                                >
-                                    <div className="flex items-center gap-2.5">
-                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${COLOR_MAP[el.color]}`}>
-                                            <span className="material-symbols-outlined text-[18px]">{el.icon}</span>
-                                        </div>
-                                        <div>
-                                            <p className="font-bold text-xs text-slate-800 group-hover/item:text-indigo-700 transition-colors">{el.label}</p>
-                                            <p className="text-[10px] text-slate-400">{el.desc}</p>
-                                        </div>
+                    ) : (
+                        /* SEO SECTION */
+                        <div className="p-4 space-y-4">
+                            {/* SEO Score Banner */}
+                            <div className="p-4 rounded-2xl bg-gradient-to-br from-indigo-900 via-indigo-800 to-purple-900 text-white shadow-md relative overflow-hidden">
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-2">
+                                        <span className="material-symbols-outlined text-indigo-300 text-[18px]">travel_explore</span>
+                                        <span className="text-xs font-bold tracking-wide uppercase text-indigo-200">SEO Score</span>
                                     </div>
-                                    <span className="text-slate-300 group-hover/item:text-indigo-600 transition-colors text-sm font-bold opacity-0 group-hover/item:opacity-100 mr-1 shrink-0">
-                                        +
+                                    <span
+                                        className={`px-2.5 py-0.5 rounded-full text-xs font-black shadow-xs ${
+                                            seoAnalysis.score >= 80
+                                                ? "bg-emerald-500 text-white"
+                                                : seoAnalysis.score >= 50
+                                                ? "bg-amber-500 text-white"
+                                                : "bg-rose-500 text-white"
+                                        }`}
+                                    >
+                                        {seoAnalysis.score} / 100
                                     </span>
                                 </div>
-                            ))}
-                        </div>
-
-                        <hr className="my-4 border-slate-200" />
-
-                        {/* Blog Settings */}
-                        <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">⚙️ Blog Settings</h2>
-                        <div className="space-y-3">
-                            <div>
-                                <label className="text-xs font-bold text-slate-700">Blog Title *</label>
-                                <input
-                                    type="text"
-                                    value={title}
-                                    onChange={(e) => setTitle(e.target.value)}
-                                    placeholder="Enter title..."
-                                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs mt-1 focus:ring-2 focus:ring-indigo-200 outline-none"
-                                />
+                                <div className="w-full bg-white/20 rounded-full h-2 mb-3 overflow-hidden">
+                                    <div
+                                        className={`h-2 rounded-full transition-all duration-500 ${
+                                            seoAnalysis.score >= 80
+                                                ? "bg-emerald-400"
+                                                : seoAnalysis.score >= 50
+                                                ? "bg-amber-400"
+                                                : "bg-rose-400"
+                                        }`}
+                                        style={{ width: `${Math.max(5, seoAnalysis.score)}%` }}
+                                    />
+                                </div>
+                                <div className="grid grid-cols-3 gap-2 text-center text-[10px]">
+                                    <div className="bg-white/10 rounded-lg py-1 px-1.5">
+                                        <span className="font-bold text-emerald-300 block text-xs">{seoAnalysis.passes}</span>
+                                        <span className="text-indigo-200">Passes</span>
+                                    </div>
+                                    <div className="bg-white/10 rounded-lg py-1 px-1.5">
+                                        <span className="font-bold text-amber-300 block text-xs">{seoAnalysis.warns}</span>
+                                        <span className="text-indigo-200">Warnings</span>
+                                    </div>
+                                    <div className="bg-white/10 rounded-lg py-1 px-1.5">
+                                        <span className="font-bold text-rose-300 block text-xs">{seoAnalysis.fails}</span>
+                                        <span className="text-indigo-200">Issues</span>
+                                    </div>
+                                </div>
                             </div>
-                            <div>
-                                <label className="text-xs font-bold text-slate-700">Slug (Auto-generated) *</label>
-                                <input
-                                    type="text"
-                                    value={slug}
-                                    readOnly
-                                    placeholder="auto-generated-from-title"
-                                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs mt-1 bg-slate-50 font-mono text-slate-500"
-                                />
-                            </div>
-                            <div>
-                                <label className="text-xs font-bold text-slate-700">Category *</label>
-                                <select
-                                    value={category}
-                                    onChange={(e) => setCategory(e.target.value)}
-                                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs mt-1 focus:ring-2 focus:ring-indigo-200 outline-none"
+
+                            {/* SEO Sub-Tab Switcher */}
+                            <div className="grid grid-cols-4 gap-1 p-1 bg-slate-100 rounded-xl text-[10px] font-bold">
+                                <button
+                                    type="button"
+                                    onClick={() => setSeoTabMode("serp")}
+                                    className={`py-1.5 rounded-lg transition-all cursor-pointer text-center ${
+                                        seoTabMode === "serp" ? "bg-white text-indigo-700 shadow-2xs font-extrabold" : "text-slate-500 hover:text-slate-800"
+                                    }`}
                                 >
-                                    <option value="Education">Education</option>
-                                    <option value="Finance">Finance</option>
-                                    <option value="Technology">Technology</option>
-                                    <option value="News">News</option>
-                                    <option value="Tips & Guides">Tips & Guides</option>
-                                    <option value="Loan Guidance">Loan Guidance</option>
-                                    <option value="Bank Reviews">Bank Reviews</option>
-                                    <option value="Student Life">Student Life</option>
-                                    <option value="Visa & Admissions">Visa & Admissions</option>
-                                </select>
+                                    Google SERP
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setSeoTabMode("social")}
+                                    className={`py-1.5 rounded-lg transition-all cursor-pointer text-center ${
+                                        seoTabMode === "social" ? "bg-white text-indigo-700 shadow-2xs font-extrabold" : "text-slate-500 hover:text-slate-800"
+                                    }`}
+                                >
+                                    Social Card
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setSeoTabMode("checklist")}
+                                    className={`py-1.5 rounded-lg transition-all cursor-pointer text-center ${
+                                        seoTabMode === "checklist" ? "bg-white text-indigo-700 shadow-2xs font-extrabold" : "text-slate-500 hover:text-slate-800"
+                                    }`}
+                                >
+                                    Audit
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setSeoTabMode("faq")}
+                                    className={`py-1.5 rounded-lg transition-all cursor-pointer text-center ${
+                                        seoTabMode === "faq" ? "bg-white text-indigo-700 shadow-2xs font-extrabold" : "text-slate-500 hover:text-slate-800"
+                                    }`}
+                                >
+                                    FAQ ({faqSchema.length})
+                                </button>
                             </div>
-                            <div>
-                                <label className="text-xs font-bold text-slate-700">Author *</label>
-                                <input
-                                    type="text"
-                                    value={author}
-                                    onChange={(e) => setAuthor(e.target.value)}
-                                    placeholder="Author name"
-                                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs mt-1 focus:ring-2 focus:ring-indigo-200 outline-none"
-                                />
-                            </div>
-                            <div>
-                                <label className="text-xs font-bold text-slate-700">Tags</label>
-                                <input
-                                    type="text"
-                                    value={tags}
-                                    onChange={(e) => setTags(e.target.value)}
-                                    placeholder="tag1, tag2, tag3"
-                                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs mt-1 focus:ring-2 focus:ring-indigo-200 outline-none"
-                                />
-                            </div>
-                            <div>
-                                <label className="text-xs font-bold text-slate-700">Excerpt</label>
-                                <textarea
-                                    value={excerpt}
-                                    onChange={(e) => setExcerpt(e.target.value)}
-                                    placeholder="Short description..."
-                                    rows={3}
-                                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs mt-1 resize-none focus:ring-2 focus:ring-indigo-200 outline-none"
-                                />
-                            </div>
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={isFeatured}
-                                    onChange={(e) => setIsFeatured(e.target.checked)}
-                                    className="w-3.5 h-3.5 rounded accent-indigo-600"
-                                />
-                                <span className="text-xs font-semibold text-slate-700">Mark as featured</span>
-                            </label>
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={isPublished}
-                                    onChange={(e) => setIsPublished(e.target.checked)}
-                                    className="w-3.5 h-3.5 rounded accent-indigo-600"
-                                />
-                                <span className="text-xs font-semibold text-slate-700">Publish immediately</span>
-                            </label>
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={enableComments}
-                                    onChange={(e) => setEnableComments(e.target.checked)}
-                                    className="w-3.5 h-3.5 rounded accent-indigo-600"
-                                />
-                                <span className="text-xs font-semibold text-slate-700">Enable comments</span>
-                            </label>
+
+                            {/* SUB-VIEW 1: GOOGLE SERP SIMULATION & MAIN METADATA */}
+                            {seoTabMode === "serp" && (
+                                <div className="space-y-4">
+                                    {/* Google SERP Card Preview */}
+                                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                                                <span className="material-symbols-outlined text-[14px] text-indigo-600">preview</span>
+                                                Google Search Snippet
+                                            </span>
+                                            <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-0.5 text-[10px]">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSerpDevice("desktop")}
+                                                    className={`px-2 py-0.5 rounded cursor-pointer ${serpDevice === "desktop" ? "bg-indigo-600 text-white font-bold" : "text-slate-500"}`}
+                                                >
+                                                    Desktop
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSerpDevice("mobile")}
+                                                    className={`px-2 py-0.5 rounded cursor-pointer ${serpDevice === "mobile" ? "bg-indigo-600 text-white font-bold" : "text-slate-500"}`}
+                                                >
+                                                    Mobile
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div className="p-3 bg-white rounded-lg border border-slate-200/90 shadow-2xs font-sans text-left">
+                                            <div className="flex items-center gap-1.5 mb-1">
+                                                <div className="w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[9px] font-black">
+                                                    V
+                                                </div>
+                                                <div className="leading-none">
+                                                    <span className="text-[11px] font-medium text-slate-900 block">VidyaLoans</span>
+                                                    <span className="text-[9px] text-slate-400 font-mono truncate block max-w-[240px]">
+                                                        https://www.vidyaloans.in/blog/{slug || "post-url"}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <h4 className="text-sm font-medium text-[#1a0dab] hover:underline cursor-pointer leading-snug line-clamp-2">
+                                                {metaTitle.trim() || title || "Your Blog Post Headline"} | VidyaLoans
+                                            </h4>
+                                            <p className="text-[11px] text-slate-600 leading-relaxed line-clamp-2 mt-1">
+                                                {metaDescription.trim() || excerpt || "Detailed education loan guidance, interest rates, eligibility criteria, and step-by-step application walkthrough."}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Focus Keyword */}
+                                    <div>
+                                        <div className="flex items-center justify-between mb-1">
+                                            <label className="text-xs font-bold text-slate-700">Focus Keyword *</label>
+                                            {focusKeyword && (
+                                                <span
+                                                    className={`text-[10px] font-bold px-2 py-0.2 rounded-full ${
+                                                        seoAnalysis.kwCount > 0 ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"
+                                                    }`}
+                                                >
+                                                    {seoAnalysis.kwCount} in content ({seoAnalysis.kwDensity}%)
+                                                </span>
+                                            )}
+                                        </div>
+                                        <input
+                                            type="text"
+                                            value={focusKeyword}
+                                            onChange={(e) => {
+                                                setFocusKeyword(e.target.value);
+                                                setSaveStatus("Unsaved");
+                                            }}
+                                            placeholder="e.g. sbi education loan for abroad"
+                                            className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-200 outline-none"
+                                        />
+                                        <p className="text-[10px] text-slate-400 mt-1">The main search query you want this blog to rank for on Google.</p>
+                                    </div>
+
+                                    {/* Meta Title */}
+                                    <div>
+                                        <div className="flex items-center justify-between mb-1">
+                                            <label className="text-xs font-bold text-slate-700">Meta Title (SEO Title)</label>
+                                            <div className="flex items-center gap-1.5">
+                                                <button
+                                                    type="button"
+                                                    onClick={autoFillMetaTitle}
+                                                    className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold cursor-pointer"
+                                                    title="Copy from Blog Title"
+                                                >
+                                                    Auto-Fill
+                                                </button>
+                                                <span
+                                                    className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                                                        (metaTitle.length || title.length) >= 40 && (metaTitle.length || title.length) <= 65
+                                                            ? "bg-emerald-100 text-emerald-800"
+                                                            : (metaTitle.length || title.length) > 65
+                                                            ? "bg-rose-100 text-rose-800"
+                                                            : "bg-slate-100 text-slate-600"
+                                                    }`}
+                                                >
+                                                    {metaTitle.length || title.length} / 60
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <input
+                                            type="text"
+                                            value={metaTitle}
+                                            onChange={(e) => {
+                                                setMetaTitle(e.target.value);
+                                                setSaveStatus("Unsaved");
+                                            }}
+                                            placeholder={title || "Article SEO title..."}
+                                            className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-200 outline-none"
+                                        />
+                                        <p className="text-[10px] text-slate-400 mt-1">Recommended length: 40-60 characters for complete SERP display.</p>
+                                    </div>
+
+                                    {/* Meta Description */}
+                                    <div>
+                                        <div className="flex items-center justify-between mb-1">
+                                            <label className="text-xs font-bold text-slate-700">Meta Description</label>
+                                            <div className="flex items-center gap-1.5">
+                                                <button
+                                                    type="button"
+                                                    onClick={autoFillMetaDesc}
+                                                    className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold cursor-pointer"
+                                                    title="Auto-extract from first content paragraph"
+                                                >
+                                                    Auto-Extract
+                                                </button>
+                                                <span
+                                                    className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                                                        (metaDescription.length || excerpt.length) >= 120 && (metaDescription.length || excerpt.length) <= 160
+                                                            ? "bg-emerald-100 text-emerald-800"
+                                                            : (metaDescription.length || excerpt.length) > 160
+                                                            ? "bg-rose-100 text-rose-800"
+                                                            : "bg-slate-100 text-slate-600"
+                                                    }`}
+                                                >
+                                                    {metaDescription.length || excerpt.length} / 155
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <textarea
+                                            value={metaDescription}
+                                            onChange={(e) => {
+                                                setMetaDescription(e.target.value);
+                                                setSaveStatus("Unsaved");
+                                            }}
+                                            placeholder={excerpt || "Summarize the blog post for searchers..."}
+                                            rows={3}
+                                            className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs resize-none focus:ring-2 focus:ring-indigo-200 outline-none"
+                                        />
+                                        <p className="text-[10px] text-slate-400 mt-1">Target 120-160 characters. Appears as snippet text beneath your link.</p>
+                                    </div>
+
+                                    {/* Slug & Canonical */}
+                                    <div className="space-y-3 pt-2 border-t border-slate-200">
+                                        <div>
+                                            <div className="flex items-center justify-between mb-1">
+                                                <label className="text-xs font-bold text-slate-700">URL Slug</label>
+                                                <button
+                                                    type="button"
+                                                    onClick={autoGenerateCleanSlug}
+                                                    className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold cursor-pointer"
+                                                >
+                                                    Regenerate
+                                                </button>
+                                            </div>
+                                            <input
+                                                type="text"
+                                                value={slug}
+                                                onChange={(e) => {
+                                                    setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9\-]/g, "-"));
+                                                    setSaveStatus("Unsaved");
+                                                }}
+                                                className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-mono text-slate-700 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-200 outline-none"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-700 block mb-1">Custom Canonical URL (Optional)</label>
+                                            <input
+                                                type="text"
+                                                value={canonicalUrl}
+                                                onChange={(e) => {
+                                                    setCanonicalUrl(e.target.value);
+                                                    setSaveStatus("Unsaved");
+                                                }}
+                                                placeholder={`https://www.vidyaloans.in/blog/${slug || "slug"}`}
+                                                className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-mono text-slate-700 placeholder:text-slate-400 focus:ring-2 focus:ring-indigo-200 outline-none"
+                                            />
+                                        </div>
+
+                                        {/* NoIndex Toggle */}
+                                        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
+                                            <label className="flex items-center justify-between cursor-pointer">
+                                                <span className="text-xs font-bold text-slate-800">Search Engine Indexing</span>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={!noIndex}
+                                                    onChange={(e) => {
+                                                        setNoIndex(!e.target.checked);
+                                                        setSaveStatus("Unsaved");
+                                                    }}
+                                                    className="w-4 h-4 rounded accent-indigo-600 cursor-pointer"
+                                                />
+                                            </label>
+                                            <p className="text-[10px] text-slate-500 leading-snug">
+                                                {noIndex
+                                                    ? "⚠️ Hidden: Search engines will receive noindex, nofollow and exclude this page."
+                                                    : "✓ Active: Included in sitemap.xml and open to Google crawling."}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* SUB-VIEW 2: SOCIAL SHARE CARD (WHATSAPP, LINKEDIN, X) */}
+                            {seoTabMode === "social" && (
+                                <div className="space-y-4">
+                                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                                        <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                                            <span className="material-symbols-outlined text-[16px] text-indigo-600">share</span>
+                                            Social & OpenGraph Preview
+                                        </h4>
+                                        <p className="text-[11px] text-slate-500">
+                                            This is how your article card appears when shared on WhatsApp, LinkedIn, Twitter/X, and Facebook.
+                                        </p>
+
+                                        {/* Mock Share Card */}
+                                        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
+                                            <div className="aspect-[1.91/1] bg-slate-100 relative overflow-hidden flex items-center justify-center">
+                                                {blocks.find((b) => b.type === "image")?.content || initialBlog?.coverImage || initialBlog?.featuredImage ? (
+                                                    <img
+                                                        src={blocks.find((b) => b.type === "image")?.content || initialBlog?.coverImage || initialBlog?.featuredImage}
+                                                        alt="OG Preview"
+                                                        className="w-full h-full object-cover"
+                                                    />
+                                                ) : (
+                                                    <div className="text-center p-4">
+                                                        <span className="material-symbols-outlined text-3xl text-slate-300">image</span>
+                                                        <span className="text-[11px] text-slate-400 block font-medium">Add an Image block to set Social Preview</span>
+                                                    </div>
+                                                )}
+                                                <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/70 text-white text-[9px] font-bold uppercase tracking-wider backdrop-blur-xs">
+                                                    1200 x 630 OG Standard
+                                                </span>
+                                            </div>
+                                            <div className="p-3 space-y-1">
+                                                <span className="text-[10px] text-slate-400 font-mono uppercase block">VIDYALOANS.IN</span>
+                                                <h5 className="text-xs font-bold text-slate-900 leading-snug line-clamp-2">
+                                                    {metaTitle.trim() || title || "Your Blog Post Headline"}
+                                                </h5>
+                                                <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">
+                                                    {metaDescription.trim() || excerpt || "Comprehensive guidance on study abroad education loans, rates, and criteria."}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* SUB-VIEW 3: AUDIT CHECKLIST */}
+                            {seoTabMode === "checklist" && (
+                                <div className="space-y-2.5">
+                                    <div className="flex items-center justify-between pb-1 border-b border-slate-200">
+                                        <span className="text-xs font-bold text-slate-800">Audit Checklist ({seoAnalysis.checks.length})</span>
+                                        <span className="text-[11px] font-mono text-slate-500">{seoAnalysis.wordCount} words (~{seoAnalysis.readingTime}m)</span>
+                                    </div>
+                                    <div className="space-y-2">
+                                        {seoAnalysis.checks.map((chk) => (
+                                            <div
+                                                key={chk.id}
+                                                className={`p-2.5 rounded-xl border text-left transition-all ${
+                                                    chk.status === "pass"
+                                                        ? "bg-emerald-50/50 border-emerald-200 text-emerald-950"
+                                                        : chk.status === "warn"
+                                                        ? "bg-amber-50/50 border-amber-200 text-amber-950"
+                                                        : "bg-rose-50/50 border-rose-200 text-rose-950"
+                                                }`}
+                                            >
+                                                <div className="flex items-center justify-between mb-0.5">
+                                                    <span className="text-xs font-bold flex items-center gap-1.5">
+                                                        <span className="material-symbols-outlined text-[15px]">
+                                                            {chk.status === "pass" ? "check_circle" : chk.status === "warn" ? "warning" : "cancel"}
+                                                        </span>
+                                                        {chk.label}
+                                                    </span>
+                                                    <span
+                                                        className={`text-[9px] font-black uppercase px-1.5 py-0.2 rounded-full ${
+                                                            chk.status === "pass"
+                                                                ? "bg-emerald-200 text-emerald-900"
+                                                                : chk.status === "warn"
+                                                                ? "bg-amber-200 text-amber-900"
+                                                                : "bg-rose-200 text-rose-900"
+                                                        }`}
+                                                    >
+                                                        {chk.status === "pass" ? "Pass" : chk.status === "warn" ? "Improve" : "Issue"}
+                                                    </span>
+                                                </div>
+                                                <p className="text-[11px] leading-snug pl-5 text-slate-600">{chk.message}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* SUB-VIEW 4: SCHEMA.ORG FAQ BUILDER */}
+                            {seoTabMode === "faq" && (
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <h4 className="text-xs font-bold text-slate-800">FAQ Schema (Rich Snippets)</h4>
+                                            <p className="text-[10px] text-slate-500">Enables Google drop-down FAQ accordions in SERP.</p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={addFaqItem}
+                                            className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer shadow-2xs"
+                                        >
+                                            <span>+ Add FAQ</span>
+                                        </button>
+                                    </div>
+
+                                    {faqSchema.length === 0 ? (
+                                        <div className="p-6 text-center border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50">
+                                            <span className="material-symbols-outlined text-3xl text-slate-300 block mb-1">quiz</span>
+                                            <p className="text-xs font-bold text-slate-600">No FAQs Added Yet</p>
+                                            <p className="text-[10px] text-slate-400 mt-1 mb-3">Adding 2-4 FAQs can qualify this article for Google FAQ Rich Snippets.</p>
+                                            <button
+                                                type="button"
+                                                onClick={addFaqItem}
+                                                className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg text-xs font-bold text-indigo-600 cursor-pointer shadow-2xs"
+                                            >
+                                                + Add First Question
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-3">
+                                            {faqSchema.map((item, idx) => (
+                                                <div key={item.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2 relative group">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-[11px] font-black text-indigo-700 uppercase">Question #{idx + 1}</span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => removeFaqItem(item.id)}
+                                                            className="text-slate-400 hover:text-rose-600 cursor-pointer text-xs font-bold"
+                                                            title="Delete FAQ"
+                                                        >
+                                                            ✕
+                                                        </button>
+                                                    </div>
+                                                    <input
+                                                        type="text"
+                                                        value={item.question}
+                                                        onChange={(e) => updateFaqItem(item.id, { question: e.target.value })}
+                                                        placeholder="e.g. Can I get an education loan without collateral?"
+                                                        className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-200 outline-none"
+                                                    />
+                                                    <textarea
+                                                        value={item.answer}
+                                                        onChange={(e) => updateFaqItem(item.id, { answer: e.target.value })}
+                                                        placeholder="Answer details that Google should show..."
+                                                        rows={2}
+                                                        className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-700 resize-none focus:ring-2 focus:ring-indigo-200 outline-none"
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
-                    </div>
+                    )}
                 </aside>
 
                 {/* Main Canvas Area */}
@@ -3004,16 +5136,163 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                             </button>
                         </div>
                         <div className="p-6">
-                            {editingBlock.type === "image" ? (
+                            {editingBlock.type === "heading" ? (
                                 <div className="space-y-4">
                                     <div>
-                                        <label className="text-xs font-bold text-slate-700 mb-1 block">Image URL</label>
+                                        <label className="text-xs font-bold text-slate-700 mb-2 block">
+                                            Select Heading Level (H1 - H6)
+                                        </label>
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                            {HEADING_LEVELS.map((hl) => {
+                                                const isSelected = (editingBlock.level || 2) === hl.level;
+                                                return (
+                                                    <button
+                                                        key={hl.level}
+                                                        type="button"
+                                                        onClick={() => setEditingBlock({ ...editingBlock, level: hl.level })}
+                                                        className={`p-2.5 rounded-xl border text-left transition-all flex flex-col justify-between ${
+                                                            isSelected
+                                                                ? "border-indigo-600 bg-indigo-50/70 ring-2 ring-indigo-200"
+                                                                : "border-slate-200 hover:border-slate-300 hover:bg-slate-50 bg-white"
+                                                        }`}
+                                                    >
+                                                        <div className="flex items-center justify-between mb-1">
+                                                            <span className={`px-2 py-0.5 rounded text-xs font-black ${
+                                                                isSelected ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-700"
+                                                            }`}>
+                                                                H{hl.level}
+                                                            </span>
+                                                            {isSelected && (
+                                                                <span className="material-symbols-outlined text-xs text-indigo-600">check_circle</span>
+                                                            )}
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-xs font-bold text-slate-800">{hl.name}</p>
+                                                            <p className="text-[10px] text-slate-500">{hl.sublabel}</p>
+                                                        </div>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-700 mb-1 block">Heading Content</label>
                                         <input
                                             type="text"
                                             value={editingBlock.content}
                                             onChange={(e) => setEditingBlock({ ...editingBlock, content: e.target.value })}
-                                            className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-200 outline-none font-mono"
-                                            placeholder="https://example.com/image.jpg"
+                                            className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-indigo-200 outline-none"
+                                            placeholder="Enter heading text..."
+                                        />
+                                    </div>
+
+                                    {/* Live Preview */}
+                                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                                            Live Preview &lt;h{editingBlock.level || 2}&gt;
+                                        </span>
+                                        <div className={
+                                            (editingBlock.level || 2) === 1 ? "text-2xl font-black text-slate-900" :
+                                            (editingBlock.level || 2) === 2 ? "text-xl font-extrabold text-slate-900" :
+                                            (editingBlock.level || 2) === 3 ? "text-lg font-bold text-slate-800" :
+                                            (editingBlock.level || 2) === 4 ? "text-base font-bold text-slate-800" :
+                                            (editingBlock.level || 2) === 5 ? "text-sm font-semibold text-slate-700" :
+                                            "text-xs font-bold text-slate-600 uppercase tracking-wider"
+                                        }>
+                                            {editingBlock.content || "Empty heading text"}
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : editingBlock.type === "image" ? (
+                                <div className="space-y-4">
+                                    {/* Source Mode Switcher */}
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-700 mb-2 block">Image Source</label>
+                                        <div className="grid grid-cols-2 gap-2 mb-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => setEditingBlock({ ...editingBlock, mediaMode: "upload" })}
+                                                className={`py-2 px-3 rounded-xl text-xs font-bold border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                                                    editingBlock.mediaMode !== "url"
+                                                        ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
+                                                        : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                                                }`}
+                                            >
+                                                <span className="material-symbols-outlined text-sm">upload_file</span>
+                                                <span>Upload from Device</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setEditingBlock({ ...editingBlock, mediaMode: "url" })}
+                                                className={`py-2 px-3 rounded-xl text-xs font-bold border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                                                    editingBlock.mediaMode === "url"
+                                                        ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
+                                                        : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                                                }`}
+                                            >
+                                                <span className="material-symbols-outlined text-sm">link</span>
+                                                <span>Image Web URL</span>
+                                            </button>
+                                        </div>
+
+                                        {editingBlock.mediaMode !== "url" ? (
+                                            <div
+                                                onDragOver={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                }}
+                                                onDrop={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    const f = e.dataTransfer.files?.[0];
+                                                    if (f) handleModalImageFileUpload(f);
+                                                }}
+                                                className="border-2 border-dashed border-indigo-200 hover:border-indigo-400 bg-indigo-50/30 rounded-2xl p-6 text-center transition-all"
+                                            >
+                                                <span className="material-symbols-outlined text-3xl text-indigo-500 mb-1 block">cloud_upload</span>
+                                                <p className="text-xs font-bold text-slate-700 mb-0.5">Drag & drop image file here</p>
+                                                <p className="text-[11px] text-slate-400 mb-3">Supports JPG, PNG, WEBP, GIF, SVG</p>
+                                                <label className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl cursor-pointer shadow-xs transition-colors">
+                                                    <span className="material-symbols-outlined text-sm">folder_open</span>
+                                                    <span>Browse from Computer</span>
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        className="hidden"
+                                                        onChange={(e) => handleModalImageFileUpload(e.target.files?.[0])}
+                                                    />
+                                                </label>
+                                                {editingBlock.fileName && (
+                                                    <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-indigo-200 rounded-lg text-xs text-indigo-700 font-mono">
+                                                        <span className="material-symbols-outlined text-sm text-emerald-500">check_circle</span>
+                                                        <span className="font-bold">{editingBlock.fileName}</span>
+                                                        {editingBlock.fileSize && <span className="text-slate-400">({editingBlock.fileSize})</span>}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div>
+                                                <input
+                                                    type="text"
+                                                    value={editingBlock.content.startsWith("data:image") ? "" : editingBlock.content}
+                                                    onChange={(e) => setEditingBlock({ ...editingBlock, content: e.target.value, fileName: undefined, fileSize: undefined })}
+                                                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-200 outline-none font-mono"
+                                                    placeholder="https://example.com/image.jpg"
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Caption Field */}
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-700 mb-1 block">Image Caption / Attribution (Optional)</label>
+                                        <input
+                                            type="text"
+                                            value={editingBlock.caption || ""}
+                                            onChange={(e) => setEditingBlock({ ...editingBlock, caption: e.target.value })}
+                                            className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-200 outline-none"
+                                            placeholder="e.g. Photo courtesy of Stanford University, Admissions Center"
                                         />
                                     </div>
 
@@ -3362,16 +5641,339 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                         }
                                     )}
                                 </div>
+                            ) : editingBlock.type === "button" ? (
+                                <div className="space-y-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-700 mb-1 block">Button Label / CTA Text *</label>
+                                            <input
+                                                type="text"
+                                                value={editingBlock.buttonText || editingBlock.content || ""}
+                                                onChange={(e) => setEditingBlock({
+                                                    ...editingBlock,
+                                                    content: e.target.value,
+                                                    buttonText: e.target.value,
+                                                })}
+                                                className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-200 outline-none"
+                                                placeholder="e.g. Apply for Study Loan Now"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-700 mb-1 block">Target URL (Web Link) *</label>
+                                            <input
+                                                type="text"
+                                                value={editingBlock.buttonUrl || ""}
+                                                onChange={(e) => setEditingBlock({ ...editingBlock, buttonUrl: e.target.value })}
+                                                className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-indigo-200 outline-none"
+                                                placeholder="e.g. /apply-loan or https://..."
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-700 mb-1 block">Color & Style Theme</label>
+                                            <select
+                                                value={editingBlock.buttonVariant || "gradient"}
+                                                onChange={(e) => setEditingBlock({ ...editingBlock, buttonVariant: e.target.value as any })}
+                                                className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-indigo-200 outline-none capitalize"
+                                            >
+                                                <option value="gradient">Purple-Indigo Gradient (Vibrant)</option>
+                                                <option value="emerald">Emerald Success (Green)</option>
+                                                <option value="dark">Dark Slate / Black</option>
+                                                <option value="outline">Indigo Border / Outline</option>
+                                                <option value="amber">Amber / Gold Accent</option>
+                                                <option value="rose">Rose / Coral Action</option>
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-700 mb-1 block">Button Size</label>
+                                            <select
+                                                value={editingBlock.buttonSize || "md"}
+                                                onChange={(e) => setEditingBlock({ ...editingBlock, buttonSize: e.target.value as any })}
+                                                className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-indigo-200 outline-none"
+                                            >
+                                                <option value="sm">Small (Compact)</option>
+                                                <option value="md">Medium (Standard)</option>
+                                                <option value="lg">Large (Prominent Headline CTA)</option>
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-700 mb-1 block">Alignment</label>
+                                            <select
+                                                value={editingBlock.buttonAlign || "center"}
+                                                onChange={(e) => setEditingBlock({ ...editingBlock, buttonAlign: e.target.value as any })}
+                                                className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-indigo-200 outline-none"
+                                            >
+                                                <option value="center">Center</option>
+                                                <option value="left">Left Aligned</option>
+                                                <option value="right">Right Aligned</option>
+                                                <option value="full">Full Width (100% Stretch)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div className="pt-1">
+                                        <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={editingBlock.buttonNewTab !== false}
+                                                onChange={(e) => setEditingBlock({ ...editingBlock, buttonNewTab: e.target.checked })}
+                                                className="rounded text-indigo-600 focus:ring-indigo-400"
+                                            />
+                                            Open link in a new browser tab (target=&ldquo;_blank&rdquo;)
+                                        </label>
+                                    </div>
+
+                                    {/* Live Preview */}
+                                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Live Button Preview:</span>
+                                        <div className={`flex ${
+                                            editingBlock.buttonAlign === "left" ? "justify-start" :
+                                            editingBlock.buttonAlign === "right" ? "justify-end" :
+                                            editingBlock.buttonAlign === "full" ? "w-full justify-center" :
+                                            "justify-center"
+                                        }`}>
+                                            <a
+                                                href={editingBlock.buttonUrl || "#"}
+                                                onClick={(e) => e.preventDefault()}
+                                                className={`inline-flex items-center justify-center gap-2 font-bold cursor-pointer transition-all shadow-md ${
+                                                    editingBlock.buttonVariant === "emerald" ? "bg-gradient-to-r from-emerald-600 to-teal-600 text-white" :
+                                                    editingBlock.buttonVariant === "dark" ? "bg-slate-900 text-white" :
+                                                    editingBlock.buttonVariant === "outline" ? "bg-transparent text-indigo-600 border-2 border-indigo-600" :
+                                                    editingBlock.buttonVariant === "amber" ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white" :
+                                                    editingBlock.buttonVariant === "rose" ? "bg-gradient-to-r from-rose-600 to-pink-600 text-white" :
+                                                    "bg-gradient-to-r from-purple-600 to-indigo-600 text-white"
+                                                } ${
+                                                    editingBlock.buttonSize === "sm" ? "px-4 py-2 text-xs rounded-lg" :
+                                                    editingBlock.buttonSize === "lg" ? "px-8 py-4 text-base rounded-2xl" :
+                                                    "px-6 py-2.5 text-xs rounded-xl"
+                                                } ${editingBlock.buttonAlign === "full" ? "w-full" : ""}`}
+                                            >
+                                                <span>{editingBlock.buttonText || editingBlock.content || "Click Here"}</span>
+                                                <span className="material-symbols-outlined text-sm font-bold">arrow_forward</span>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : editingBlock.type === "list" ? (
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-700 mb-1.5 block">Select List Format</label>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const raw = (editingBlock.content || "").split("\n").map((l) => l.replace(/^(\s*•|\s*-|\s*\d+[\.\)])\s*/, "").trim());
+                                                    setEditingBlock({
+                                                        ...editingBlock,
+                                                        listType: "unordered",
+                                                        content: raw.map((l) => `• ${l}`).join("\n"),
+                                                    });
+                                                }}
+                                                className={`p-3 rounded-xl border text-left transition-all flex items-center gap-3 ${
+                                                    editingBlock.listType !== "ordered"
+                                                        ? "border-teal-600 bg-teal-50/70 ring-2 ring-teal-200"
+                                                        : "border-slate-200 hover:border-slate-300 hover:bg-slate-50 bg-white"
+                                                }`}
+                                            >
+                                                <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-teal-600 text-white shrink-0">
+                                                    <span className="material-symbols-outlined text-xl">format_list_bulleted</span>
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs font-bold text-slate-800">Unordered List (Bullets)</p>
+                                                    <p className="text-[10px] text-slate-500">Feature points, bulleted overview (&bull;)</p>
+                                                </div>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const raw = (editingBlock.content || "").split("\n").map((l) => l.replace(/^(\s*•|\s*-|\s*\d+[\.\)])\s*/, "").trim());
+                                                    setEditingBlock({
+                                                        ...editingBlock,
+                                                        listType: "ordered",
+                                                        content: raw.map((l, i) => `${i + 1}. ${l}`).join("\n"),
+                                                    });
+                                                }}
+                                                className={`p-3 rounded-xl border text-left transition-all flex items-center gap-3 ${
+                                                    editingBlock.listType === "ordered"
+                                                        ? "border-teal-600 bg-teal-50/70 ring-2 ring-teal-200"
+                                                        : "border-slate-200 hover:border-slate-300 hover:bg-slate-50 bg-white"
+                                                }`}
+                                            >
+                                                <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-teal-600 text-white shrink-0">
+                                                    <span className="material-symbols-outlined text-xl">format_list_numbered</span>
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs font-bold text-slate-800">Ordered List (Numbered)</p>
+                                                    <p className="text-[10px] text-slate-500">Step-by-step procedure (1, 2, 3)</p>
+                                                </div>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-700 mb-1 block">
+                                            List Items (Each line represents one item)
+                                        </label>
+                                        <textarea
+                                            value={editingBlock.content}
+                                            onChange={(e) => setEditingBlock({ ...editingBlock, content: e.target.value })}
+                                            className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-teal-200 outline-none min-h-[140px] resize-y font-sans leading-relaxed"
+                                            placeholder="Item 1&#10;Item 2&#10;Item 3"
+                                        />
+                                    </div>
+
+                                    {/* Live Preview */}
+                                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                                            Live Preview &lt;{editingBlock.listType === "ordered" ? "ol" : "ul"}&gt;
+                                        </span>
+                                        {editingBlock.listType === "ordered" ? (
+                                            <ol className="list-decimal list-outside ml-5 space-y-1 text-xs text-slate-700">
+                                                {(editingBlock.content || "")
+                                                    .split("\n")
+                                                    .map((l) => l.replace(/^(\s*•|\s*-|\s*\d+[\.\)])\s*/, "").trim())
+                                                    .filter(Boolean)
+                                                    .map((it, idx) => (
+                                                        <li key={idx}>{it}</li>
+                                                    ))}
+                                            </ol>
+                                        ) : (
+                                            <ul className="list-disc list-outside ml-5 space-y-1 text-xs text-slate-700">
+                                                {(editingBlock.content || "")
+                                                    .split("\n")
+                                                    .map((l) => l.replace(/^(\s*•|\s*-|\s*\d+[\.\)])\s*/, "").trim())
+                                                    .filter(Boolean)
+                                                    .map((it, idx) => (
+                                                        <li key={idx}>{it}</li>
+                                                    ))}
+                                            </ul>
+                                        )}
+                                    </div>
+                                </div>
                             ) : editingBlock.type === "video" ? (
-                                <div>
-                                    <label className="text-xs font-bold text-slate-700 mb-2 block">Video Embed URL</label>
-                                    <input
-                                        type="text"
-                                        value={editingBlock.content}
-                                        onChange={(e) => setEditingBlock({ ...editingBlock, content: e.target.value })}
-                                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-200 outline-none"
-                                        placeholder="https://youtube.com/embed/..."
-                                    />
+                                <div className="space-y-4">
+                                    {/* Video Source Switcher */}
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-700 mb-2 block">Video Source</label>
+                                        <div className="grid grid-cols-2 gap-2 mb-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => setEditingBlock({ ...editingBlock, mediaMode: "upload" })}
+                                                className={`py-2 px-3 rounded-xl text-xs font-bold border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                                                    editingBlock.mediaMode !== "url"
+                                                        ? "bg-rose-600 text-white border-rose-600 shadow-xs"
+                                                        : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                                                }`}
+                                            >
+                                                <span className="material-symbols-outlined text-sm">video_file</span>
+                                                <span>Upload Video File</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setEditingBlock({ ...editingBlock, mediaMode: "url" })}
+                                                className={`py-2 px-3 rounded-xl text-xs font-bold border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                                                    editingBlock.mediaMode === "url"
+                                                        ? "bg-rose-600 text-white border-rose-600 shadow-xs"
+                                                        : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                                                }`}
+                                            >
+                                                <span className="material-symbols-outlined text-sm">link</span>
+                                                <span>Video URL / Embed</span>
+                                            </button>
+                                        </div>
+
+                                        {editingBlock.mediaMode !== "url" ? (
+                                            <div
+                                                onDragOver={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                }}
+                                                onDrop={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    const f = e.dataTransfer.files?.[0];
+                                                    if (f) handleModalVideoFileUpload(f);
+                                                }}
+                                                className="border-2 border-dashed border-rose-200 hover:border-rose-400 bg-rose-50/30 rounded-2xl p-6 text-center transition-all"
+                                            >
+                                                <span className="material-symbols-outlined text-3xl text-rose-500 mb-1 block">movie</span>
+                                                <p className="text-xs font-bold text-slate-700 mb-0.5">Drag & drop video file here</p>
+                                                <p className="text-[11px] text-slate-400 mb-3">Supports MP4, WebM, Ogg, MOV</p>
+                                                <label className="inline-flex items-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl cursor-pointer shadow-xs transition-colors">
+                                                    <span className="material-symbols-outlined text-sm">folder_open</span>
+                                                    <span>Browse Video File</span>
+                                                    <input
+                                                        type="file"
+                                                        accept="video/mp4,video/webm,video/ogg,video/quicktime,video/*"
+                                                        className="hidden"
+                                                        onChange={(e) => handleModalVideoFileUpload(e.target.files?.[0])}
+                                                    />
+                                                </label>
+                                                {editingBlock.fileName && (
+                                                    <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-rose-200 rounded-lg text-xs text-rose-700 font-mono">
+                                                        <span className="material-symbols-outlined text-sm text-emerald-500">check_circle</span>
+                                                        <span className="font-bold">{editingBlock.fileName}</span>
+                                                        {editingBlock.fileSize && <span className="text-slate-400">({editingBlock.fileSize})</span>}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div>
+                                                <label className="text-xs font-bold text-slate-700 mb-1 block">Video or Embed URL</label>
+                                                <input
+                                                    type="text"
+                                                    value={editingBlock.content.startsWith("data:video") ? "" : editingBlock.content}
+                                                    onChange={(e) => setEditingBlock({ ...editingBlock, content: e.target.value, fileName: undefined, fileSize: undefined })}
+                                                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-200 outline-none font-mono"
+                                                    placeholder="Paste YouTube, Vimeo or MP4 URL (e.g. https://www.youtube.com/watch?v=...)"
+                                                />
+                                                <p className="text-[11px] text-slate-400 mt-1">Automatic conversion: YouTube watch URLs are converted into embed URLs automatically.</p>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Video Caption */}
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-700 mb-1 block">Video Caption / Description (Optional)</label>
+                                        <input
+                                            type="text"
+                                            value={editingBlock.caption || ""}
+                                            onChange={(e) => setEditingBlock({ ...editingBlock, caption: e.target.value })}
+                                            className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-200 outline-none"
+                                            placeholder="e.g. Overview of international student loan application process"
+                                        />
+                                    </div>
+
+                                    {/* Live Video Preview */}
+                                    {editingBlock.content && (
+                                        <div>
+                                            <span className="text-[10px] font-bold uppercase text-slate-500 block mb-1">Live Video Player Preview</span>
+                                            <div className="aspect-video rounded-xl overflow-hidden bg-black border border-slate-200 shadow-inner">
+                                                {isDirectVideoSource(editingBlock.content) ? (
+                                                    <video
+                                                        controls
+                                                        playsInline
+                                                        className="w-full h-full object-contain"
+                                                        src={editingBlock.content}
+                                                        key={editingBlock.content}
+                                                    >
+                                                        Your browser does not support the video tag.
+                                                    </video>
+                                                ) : (
+                                                    <iframe
+                                                        src={formatVideoEmbedUrl(editingBlock.content)}
+                                                        className="w-full h-full"
+                                                        allowFullScreen
+                                                    />
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             ) : editingBlock.type === "divider" || editingBlock.type === "spacer" ? (
                                 <p className="text-xs text-slate-500">This element has no editable content.</p>

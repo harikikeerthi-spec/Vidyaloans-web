@@ -216,6 +216,32 @@ export default async function BlogPostPage({ params }: Props) {
     ],
   };
 
+  // Schema.org FAQPage Structured Data (if FAQs exist)
+  let faqList: Array<{ question: string; answer: string }> = (blog as any).faqSchema || [];
+  if ((!faqList || faqList.length === 0) && blog.content) {
+    const seoMatch = blog.content.match(/<!--SEO_JSON_START-->([\s\S]*?)<!--SEO_JSON_END-->/);
+    if (seoMatch && seoMatch[1]) {
+      try {
+        const parsed = JSON.parse(seoMatch[1]);
+        if (Array.isArray(parsed.faqSchema)) faqList = parsed.faqSchema;
+      } catch (_) {}
+    }
+  }
+
+  const validFaqs = (faqList || []).filter((f) => f.question?.trim() && f.answer?.trim());
+  const jsonLdFaq = validFaqs.length > 0 ? {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: validFaqs.map((f) => ({
+      "@type": "Question",
+      name: f.question.trim(),
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: f.answer.trim(),
+      },
+    })),
+  } : null;
+
   return (
     <>
       {/* Schema.org Structured Data */}
@@ -227,6 +253,12 @@ export default async function BlogPostPage({ params }: Props) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdBreadcrumb) }}
       />
+      {jsonLdFaq && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdFaq) }}
+        />
+      )}
       <BlogRegistrationHandler />
 
       <article className="pt-24 pb-32 bg-white">

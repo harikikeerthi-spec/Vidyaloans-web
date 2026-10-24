@@ -83,25 +83,7 @@ interface MailDetailItem {
     };
 }
 
-const SAMPLE_FALLBACKS: Record<string, Partial<MailDetailItem>> = {
-    "sample-disbursal-aug": {
-        id: "sample-disbursal-aug",
-        from: "Anshul Mohan",
-        to: "vamsikrishna@bmkconsultants.in",
-        subject: "DISBURSAL DATA \\\\ AUG",
-        date: new Date().toISOString(),
-        size: 94208,
-        read: true,
-        snippet: "Please provide the sign & stamp",
-        attachments: [
-            { filename: "BMK AUG26.pdf", contentType: "application/pdf", size: 94208, content: "" },
-            { filename: "Avanse_Partner_Stamp.png", contentType: "image/png", size: 42100, content: "" }
-        ],
-        text: "Dear Sir,\n\nPlease provide the sign & stamp\n\nThanks & Regards\nAnshul Mohan\nRelationship Manager\nStudent Lending - Channels\nAVANSE Financial Services LTD.",
-        html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1e293b;line-height:1.6;padding:4px;"><p style="font-size:14px;margin-top:0;">Dear Sir,</p><p style="font-size:14px;margin:20px 0;">Please provide the sign &amp; stamp</p><div style="margin-top:36px;display:flex;align-items:flex-start;gap:20px;"><div style="width:140px;height:115px;background:#FFE3E3;border:1.5px dashed #FA5252;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:10px;box-sizing:border-box;"><div style="width:30px;height:30px;border-radius:50%;background:#E03131;color:white;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:13px;margin-bottom:4px;">A</div><span style="font-size:11px;font-weight:800;color:#C92A2A;text-transform:uppercase;letter-spacing:0.5px;">AVANSE</span><span style="font-size:9px;color:#E03131;font-weight:700;margin-top:2px;">Authorized Stamp</span><span style="font-size:8px;color:#868E96;margin-top:3px;">DISBURSAL UNIT</span></div><div style="border-left:3px solid #E03131;padding-left:16px;"><p style="margin:0;font-weight:700;color:#C92A2A;font-size:13px;">Thanks &amp; Regards</p><p style="margin:4px 0 0 0;font-weight:800;color:#C92A2A;font-size:15px;">Anshul Mohan</p><p style="margin:2px 0 0 0;font-style:italic;color:#C92A2A;font-size:12px;">Relationship Manager</p><p style="margin:2px 0 0 0;font-style:italic;color:#C92A2A;font-size:12px;">Student Lending - Channels</p><p style="margin:14px 0 0 0;font-weight:900;color:#1864AB;font-size:14px;letter-spacing:-0.2px;">AVANSE Financial Services LTD.</p></div></div></div>`,
-        authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }
-    }
-};
+
 
 function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id: string }> }) {
     const router = useRouter();
@@ -182,13 +164,6 @@ function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id
     useEffect(() => {
         setLoading(true);
         setError(null);
-
-        // Check fallback sample emails
-        if (SAMPLE_FALLBACKS[emailId]) {
-            setMail(SAMPLE_FALLBACKS[emailId] as MailDetailItem);
-            setLoading(false);
-            return;
-        }
 
         mailApi.getMail(emailId)
             .then((res: any) => {
@@ -355,16 +330,8 @@ function EmailDetailPageContent({ paramsPromise }: { paramsPromise: Promise<{ id
     // Attachment download
     const handleDownloadAttachment = (att: MailAttachment) => {
         if (!att.content) {
-            const dummy = `File: ${att.filename}\nDownloaded from VidyaLoans Staff Mailbox.`;
-            const blob = new Blob([dummy], { type: att.contentType || "application/pdf" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = att.filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+            setToast({ type: "error", message: `Attachment content for "${att.filename}" is not available.` });
+            setTimeout(() => setToast(null), 3000);
             return;
         }
         try {

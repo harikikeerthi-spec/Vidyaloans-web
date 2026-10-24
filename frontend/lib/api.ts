@@ -2169,7 +2169,7 @@ export const mailApi = {
         method: "POST",
         body: JSON.stringify({ prefix }),
     }),
-    getMail: (id: string) => apiFetch(`${API_URL}/mail/inbox/${id}`),
+    getMail: (id: string) => apiFetch(`${API_URL}/mail/inbox/${encodeURIComponent(id)}`),
     getStats: () => apiFetch(`${API_URL}/mail/stats`),
     sendMail: (data: {
         to: string | string[];
