@@ -15,6 +15,7 @@ const allowedDevOrigins: string[] = [
 ];
 
 const nextConfig = {
+  poweredByHeader: false,
   // Fix: explicitly set Turbopack root to this directory so Next.js does not
   // incorrectly infer the parent Loan/ folder as the workspace root.
   turbopack: {
@@ -23,6 +24,31 @@ const nextConfig = {
   // Allow specific dev origins to request Next.js assets in development.
   // Use the ALLOWED_DEV_ORIGINS env var (comma-separated) to add more without changing code.
   allowedDevOrigins,
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          {
+            key: "X-Frame-Options",
+            value: "DENY",
+          },
+          {
+            key: "X-Content-Type-Options",
+            value: "nosniff",
+          },
+          {
+            key: "Referrer-Policy",
+            value: "strict-origin-when-cross-origin",
+          },
+          {
+            key: "Content-Security-Policy-Report-Only",
+            value: "default-src 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none';",
+          },
+        ],
+      },
+    ];
+  },
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "images.unsplash.com" },
