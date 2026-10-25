@@ -143,7 +143,11 @@ function ToolCard({ href, bg, icon, title, desc, cta, large = false, border = fa
         >
             <div className={`flex items-start ${large ? "gap-8 mb-0" : "gap-6 mb-8"}`}>
                 <div className={`${large ? "w-16 h-16" : "w-12 h-12"} rounded-xl flex items-center justify-center shrink-0 shadow-sm overflow-hidden p-2.5`} style={{ background: 'rgba(255,255,255,0.85)' }}>
-                    <img src={icon} alt={title} className="w-full h-full object-contain" style={{ filter: 'none' }} />
+                    {icon.startsWith("/") || icon.startsWith("http") ? (
+                        <img src={icon} alt={title} className="w-full h-full object-contain" style={{ filter: 'none' }} />
+                    ) : (
+                        <i className={`ph ${icon.startsWith("ph-") ? icon : `ph-${icon}`} text-2xl text-[#6605c7]`} />
+                    )}
                 </div>
                 <div className="flex-1">
                     <h3 className={`${large ? "text-xl" : "text-[15px]"} font-bold mb-2 text-gray-900 leading-tight`}>{title}</h3>

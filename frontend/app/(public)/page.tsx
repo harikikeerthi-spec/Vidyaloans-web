@@ -174,9 +174,19 @@ async function getDisbursedAmount() {
 }
 
 export const metadata: Metadata = {
-    title: "VidyaLoans - Find Your Dream Education Abroad",
+    title: {
+        absolute: "VidyaLoans - Fund Your Dream Education Abroad",
+    },
     description:
         "Compare education loans from 5+ partner banks & NBFCs. Get the best rates, 48-hour approvals, and expert guidance — all in one place.",
+    alternates: {
+        canonical: "/",
+    },
+    openGraph: {
+        title: "VidyaLoans - Fund Your Dream Education Abroad",
+        description:
+            "Compare education loans from 5+ partner banks & NBFCs. Get the best rates, 48-hour approvals, and expert guidance — all in one place.",
+    },
 };
 
 const heroGradient = { background: 'linear-gradient(135deg, #ede0ff 0%, #f3eaff 25%, #fdf6ff 55%, #fef3e8 80%, #fde8c8 100%)' };

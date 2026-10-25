@@ -1655,6 +1655,39 @@ export const universityApi = {
 
     checkInquiry: (email: string, universityName: string, type: string): Promise<{ exists: boolean }> =>
         apiFetch(`${API_URL}/university-inquiry/check?email=${encodeURIComponent(email)}&universityName=${encodeURIComponent(universityName)}&type=${type}`),
+
+    getInquiries: (params?: { type?: string; status?: string; search?: string; assignedStaffId?: string }) => {
+        const q = new URLSearchParams();
+        if (params?.type && params.type !== 'all') q.set('type', params.type);
+        if (params?.status && params.status !== 'all') q.set('status', params.status);
+        if (params?.search) q.set('search', params.search);
+        if (params?.assignedStaffId && params.assignedStaffId !== 'all') q.set('assignedStaffId', params.assignedStaffId);
+        const queryStr = q.toString() ? `?${q.toString()}` : '';
+        return apiFetch(`${API_URL}/university-inquiry${queryStr}`);
+    },
+
+    assignInquiry: (id: string, data: { staffId?: string | null; staffName?: string | null; staffEmail?: string | null }) =>
+        apiFetch(`${API_URL}/university-inquiry/${id}/assign`, {
+            method: "PATCH",
+            body: JSON.stringify(data),
+        }),
+
+    bulkAssignInquiries: (leadIds: string[], data: { staffId?: string | null; staffName?: string | null; staffEmail?: string | null }) =>
+        apiFetch(`${API_URL}/university-inquiry/bulk-assign`, {
+            method: "POST",
+            body: JSON.stringify({ leadIds, ...data }),
+        }),
+
+    updateInquiryStatus: (id: string, status: string) =>
+        apiFetch(`${API_URL}/university-inquiry/${id}/status`, {
+            method: "PATCH",
+            body: JSON.stringify({ status }),
+        }),
+
+    deleteInquiry: (id: string) =>
+        apiFetch(`${API_URL}/university-inquiry/${id}`, {
+            method: "DELETE",
+        }),
 };
 
 // ─── Chat ─────────────────────────────────────────────────────────────

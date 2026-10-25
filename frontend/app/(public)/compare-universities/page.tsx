@@ -1,9 +1,13 @@
+import type { Metadata } from "next";
 import UniversityComparisonFlow from "@/components/UniversityComparisonFlow";
 
-export const metadata = {
-  title: "Compare Universities - Cost, ROI & Career Outcomes | Vidya Loans",
+export const metadata: Metadata = {
+  title: "Compare Universities - Cost, ROI & Career Outcomes",
   description:
-    "Side-by-side comparison of universities with detailed metrics: cost, ROI, scholarships, employability, and more.",
+    "Side-by-side comparison of universities with detailed metrics: tuition cost, living expenses, ROI, scholarships, and career employability.",
+  alternates: {
+    canonical: "/compare-universities",
+  },
 };
 
 interface CompareUniversitiesPageProps {

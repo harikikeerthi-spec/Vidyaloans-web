@@ -11,8 +11,11 @@ export async function generateMetadata({ params }: Props) {
     const { slug } = await params;
     const universityName = slug.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
     return {
-        title: `${universityName} – Rankings & Education Loan | VidyaLoans`,
-        description: `Explore ${universityName}'s rankings, programs, and apply for a VidyaLoans education loan today.`,
+        title: `${universityName} – Rankings & Education Loan`,
+        description: `Explore ${universityName}'s rankings, programs, tuition cost, and compare education loan options at VidyaLoans.`,
+        alternates: {
+            canonical: `/university/${slug}`,
+        },
     };
 }
 

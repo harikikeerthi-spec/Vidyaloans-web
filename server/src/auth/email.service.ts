@@ -201,23 +201,17 @@ Do not share this code with anyone.`;
     };
 
     try {
-      // Always log to console for debugging
-      console.log(`[EmailService] PREPARING TO SEND OTP`);
-      console.log(`[EmailService] Target Email: ${email}`);
-      console.log(`[EmailService] OTP Value: ${otp}`);
-      console.log(`--------------------------------`);
+      console.log(`[EmailService] Preparing to send OTP verification email to: ${email}`);
 
       // Send actual email if credentials are configured
       if (this.hasCredentials()) {
         await this.transporter.sendMail(mailOptions);
-        console.log(`Email sent successfully to ${email}`);
+        console.log(`[EmailService] Verification email dispatched successfully to ${email}`);
       } else {
-        console.log(`Email credentials not configured - OTP only logged to console`);
+        console.warn(`[EmailService] SMTP credentials not configured. Email could not be sent to ${email}`);
       }
     } catch (error) {
-      console.error('Error sending email:', error);
-      // Don't throw - still allow OTP flow to work even if email fails
-      console.log(`Email failed but OTP is: ${otp}`);
+      console.error(`[EmailService] Error sending OTP verification email to ${email}:`, error);
     }
   }
 

@@ -1,7 +1,16 @@
 import React from 'react';
+import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
 import ReferralClientPage from './ReferralClientPage';
+
+export const metadata: Metadata = {
+  title: "Refer & Earn ₹3,000 - Student Referral Program",
+  description: "Invite your friends to apply for education loans through VidyaLoans. Earn ₹3,000 for every student who secures a loan sanction.",
+  alternates: {
+    canonical: "/referral",
+  },
+};
 
 async function getReferralData(token: string) {
   try {

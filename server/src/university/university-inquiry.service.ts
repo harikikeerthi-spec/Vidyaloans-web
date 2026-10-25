@@ -17,7 +17,17 @@ export class UniversityInquiryService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    // Database tables (UniversityInquiry, FastTrackApplication, CallbackRequest, queries) are pre-migrated in PostgreSQL
+    try {
+      await (this.prisma as any).$executeRawUnsafe(`
+        ALTER TABLE "UniversityInquiry" 
+        ADD COLUMN IF NOT EXISTS "assignedStaffId" TEXT,
+        ADD COLUMN IF NOT EXISTS "assignedStaffName" TEXT,
+        ADD COLUMN IF NOT EXISTS "assignedStaffEmail" TEXT,
+        ADD COLUMN IF NOT EXISTS "assignedAt" TIMESTAMP(3);
+
+        CREATE INDEX IF NOT EXISTS "UniversityInquiry_assignedStaffId_idx" ON "UniversityInquiry"("assignedStaffId");
+      `);
+    } catch (_) {}
   }
 
   async createInquiry(data: {
@@ -163,7 +173,7 @@ export class UniversityInquiryService implements OnModuleInit {
     }
   }
 
-  async getAllInquiries(params?: { type?: string; status?: string; search?: string }) {
+  async getAllInquiries(params?: { type?: string; status?: string; search?: string; assignedStaffId?: string }) {
     try {
       const where: any = {};
       if (params?.type && params.type !== 'all') {
@@ -171,6 +181,13 @@ export class UniversityInquiryService implements OnModuleInit {
       }
       if (params?.status && params.status !== 'all') {
         where.status = params.status;
+      }
+      if (params?.assignedStaffId) {
+        if (params.assignedStaffId === 'unassigned') {
+          where.assignedStaffId = null;
+        } else if (params.assignedStaffId !== 'all') {
+          where.assignedStaffId = params.assignedStaffId;
+        }
       }
       if (params?.search && params.search.trim() !== '') {
         const s = params.search.trim();
@@ -182,15 +199,15 @@ export class UniversityInquiryService implements OnModuleInit {
         ];
       }
 
-      const inquiries = await this.prisma.universityInquiry.findMany({
+      const inquiries = await (this.prisma as any).universityInquiry.findMany({
         where,
         orderBy: { createdAt: 'desc' },
       });
 
       const total = inquiries.length;
-      const pending = inquiries.filter(i => i.status === 'pending').length;
-      const contacted = inquiries.filter(i => i.status === 'contacted').length;
-      const converted = inquiries.filter(i => i.status === 'converted' || i.status === 'approved').length;
+      const pending = inquiries.filter((i: any) => i.status === 'pending').length;
+      const contacted = inquiries.filter((i: any) => i.status === 'contacted').length;
+      const converted = inquiries.filter((i: any) => i.status === 'converted' || i.status === 'approved').length;
 
       return {
         success: true,
@@ -203,6 +220,13 @@ export class UniversityInquiryService implements OnModuleInit {
         let q = this.db.from('UniversityInquiry').select('*').order('createdAt', { ascending: false });
         if (params?.type && params.type !== 'all') q = q.eq('type', params.type);
         if (params?.status && params.status !== 'all') q = q.eq('status', params.status);
+        if (params?.assignedStaffId) {
+          if (params.assignedStaffId === 'unassigned') {
+            q = q.is('assignedStaffId', null);
+          } else if (params.assignedStaffId !== 'all') {
+            q = q.eq('assignedStaffId', params.assignedStaffId);
+          }
+        }
         const { data } = await q;
         const list = data || [];
         return {
@@ -223,7 +247,7 @@ export class UniversityInquiryService implements OnModuleInit {
 
   async updateInquiryStatus(id: string, status: string) {
     try {
-      const updated = await this.prisma.universityInquiry.update({
+      const updated = await (this.prisma as any).universityInquiry.update({
         where: { id },
         data: { status },
       });
@@ -237,6 +261,130 @@ export class UniversityInquiryService implements OnModuleInit {
           .select()
           .maybeSingle();
         return { success: true, data };
+      } catch (e: any) {
+        return { success: false, error: e.message };
+      }
+    }
+  }
+
+  async assignInquiry(
+    id: string,
+    assignment: { staffId?: string | null; staffName?: string | null; staffEmail?: string | null }
+  ) {
+    let staffId = assignment.staffId?.trim() || null;
+    let staffName = assignment.staffName?.trim() || null;
+    let staffEmail = assignment.staffEmail?.trim() || null;
+
+    if (staffId && staffId !== 'unassigned') {
+      if (!staffName || !staffEmail) {
+        try {
+          const user = await this.prisma.user.findUnique({
+            where: { id: staffId },
+            select: { id: true, firstName: true, lastName: true, email: true },
+          });
+          if (user) {
+            staffName = staffName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email;
+            staffEmail = staffEmail || user.email;
+          }
+        } catch (_) {}
+      }
+    } else {
+      staffId = null;
+      staffName = null;
+      staffEmail = null;
+    }
+
+    const assignedAt = staffId ? new Date() : null;
+
+    try {
+      const updated = await (this.prisma as any).universityInquiry.update({
+        where: { id },
+        data: {
+          assignedStaffId: staffId,
+          assignedStaffName: staffName,
+          assignedStaffEmail: staffEmail,
+          assignedAt: assignedAt,
+        },
+      });
+      return { success: true, data: updated };
+    } catch (err: any) {
+      try {
+        const { data } = await this.db
+          .from('UniversityInquiry')
+          .update({
+            assignedStaffId: staffId,
+            assignedStaffName: staffName,
+            assignedStaffEmail: staffEmail,
+            assignedAt: assignedAt ? assignedAt.toISOString() : null,
+            updatedAt: new Date().toISOString(),
+          })
+          .eq('id', id)
+          .select()
+          .maybeSingle();
+        return { success: true, data };
+      } catch (e: any) {
+        return { success: false, error: e.message };
+      }
+    }
+  }
+
+  async bulkAssignInquiries(
+    leadIds: string[],
+    assignment: { staffId?: string | null; staffName?: string | null; staffEmail?: string | null }
+  ) {
+    if (!leadIds || leadIds.length === 0) {
+      return { success: true, count: 0 };
+    }
+
+    let staffId = assignment.staffId?.trim() || null;
+    let staffName = assignment.staffName?.trim() || null;
+    let staffEmail = assignment.staffEmail?.trim() || null;
+
+    if (staffId && staffId !== 'unassigned') {
+      if (!staffName || !staffEmail) {
+        try {
+          const user = await this.prisma.user.findUnique({
+            where: { id: staffId },
+            select: { id: true, firstName: true, lastName: true, email: true },
+          });
+          if (user) {
+            staffName = staffName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email;
+            staffEmail = staffEmail || user.email;
+          }
+        } catch (_) {}
+      }
+    } else {
+      staffId = null;
+      staffName = null;
+      staffEmail = null;
+    }
+
+    const assignedAt = staffId ? new Date() : null;
+
+    try {
+      await (this.prisma as any).universityInquiry.updateMany({
+        where: { id: { in: leadIds } },
+        data: {
+          assignedStaffId: staffId,
+          assignedStaffName: staffName,
+          assignedStaffEmail: staffEmail,
+          assignedAt: assignedAt,
+        },
+      });
+      return { success: true, count: leadIds.length };
+    } catch (err: any) {
+      try {
+        await this.db
+          .from('UniversityInquiry')
+          .update({
+            assignedStaffId: staffId,
+            assignedStaffName: staffName,
+            assignedStaffEmail: staffEmail,
+            assignedAt: assignedAt ? assignedAt.toISOString() : null,
+            updatedAt: new Date().toISOString(),
+          })
+          .in('id', leadIds);
+        return { success: true, count: leadIds.length };
       } catch (e: any) {
         return { success: false, error: e.message };
       }

@@ -71,14 +71,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   if (!blog) {
     return {
-      title: "Article Not Found | VidyaLoans",
+      title: "Article Not Found",
       description: "The requested education loan guide or article could not be located.",
     };
   }
 
   const metaTitle =
     (blog as any).metaTitle ||
-    `${blog.title} | VidyaLoans Education Guide`;
+    blog.title;
   const metaDescription =
     (blog as any).metaDescription ||
     blog.subtitle ||
@@ -89,7 +89,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const ogImage =
     blog.coverImage ||
     blog.featuredImage ||
-    `${SITE_URL}/images/og-default.jpg`;
+    `${SITE_URL}/images/og-image.png`;
   const publishedTime = blog.publishedAt || (blog as any).createdAt || new Date().toISOString();
   const modifiedTime =
     (blog as any).updatedAt || blog.publishedAt || (blog as any).createdAt || publishedTime;

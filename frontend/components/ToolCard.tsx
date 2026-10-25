@@ -11,7 +11,11 @@ export default function ToolCard({ href, bg, icon, title, desc, cta, large = fal
         >
             <div className={`flex items-start ${large ? "gap-8 mb-0" : "gap-6 mb-8"}`}>
                 <div className={`${large ? "w-16 h-16" : "w-12 h-12"} bg-white/80 rounded-xl flex items-center justify-center shrink-0 shadow-sm overflow-hidden p-2.5`}>
-                    <Image src={icon} alt={title} width={48} height={48} className="w-full h-full object-contain" />
+                    {icon.startsWith("/") || icon.startsWith("http") ? (
+                        <Image src={icon} alt={title} width={48} height={48} className="w-full h-full object-contain" />
+                    ) : (
+                        <i className={`ph ${icon.startsWith("ph-") ? icon : `ph-${icon}`} text-2xl text-[#6605c7]`} />
+                    )}
                 </div>
                 <div className="flex-1">
                     <h3 className="text-xl font-black mb-2 text-gray-900 leading-tight">{title}</h3>

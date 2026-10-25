@@ -5,8 +5,11 @@ import TeamSection from "./TeamSection";
 import { SITE_STATS } from "@/lib/siteStats";
 
 export const metadata: Metadata = {
-    title: "About Us - VidyaLoans",
+    title: "About Us - Our Mission & Leadership",
     description: "Learn about VidyaLoans' mission to make education financing simple, transparent, and accessible for every student.",
+    alternates: {
+        canonical: "/about-us",
+    },
 };
 
 

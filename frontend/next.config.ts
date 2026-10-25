@@ -62,8 +62,29 @@ const nextConfig = {
   async redirects() {
     return [
       {
+        source: "/:path*",
+        has: [
+          {
+            type: "host",
+            value: "vidyaloans.in",
+          },
+        ],
+        destination: "https://www.vidyaloans.in/:path*",
+        permanent: true,
+      },
+      {
         source: "/apply",
         destination: "/apply-loan",
+        permanent: true,
+      },
+      {
+        source: "/banks",
+        destination: "/bank-reviews",
+        permanent: true,
+      },
+      {
+        source: "/ai-tools",
+        destination: "/loan-assistant",
         permanent: true,
       },
       {

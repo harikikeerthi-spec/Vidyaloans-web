@@ -31,8 +31,11 @@ export async function generateMetadata({ params }: Props) {
     const description = dbBank ? (dbBank.features?.[0] || `Get customized education loans from ${dbBank.name}.`) : (banks[slug]?.description || "");
 
     return {
-        title: `${name} Education Loan - VidyaLoan`,
+        title: `${name} Education Loan - Interest Rates & Eligibility`,
         description: description,
+        alternates: {
+            canonical: `/bank/${slug}`,
+        },
     };
 }
 
@@ -263,7 +266,7 @@ export default async function BankPage({ params }: Props) {
                 {/* Stats Counter Section */}
                 <section className="mb-20">
                     <div className="rounded-3xl p-10 text-white relative overflow-hidden" style={{ background: bank.gradient }}>
-                        <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&w=1200&q=80')] opacity-10 bg-cover bg-center" />
+                        <div className="absolute inset-0 bg-[url('/images/university-default.jpg')] opacity-10 bg-cover bg-center" />
                         <div className="relative z-10 grid grid-cols-2 md:grid-cols-4 gap-8">
                             {[
                                 { label: "Students Funded", value: bank.stats.studentsFunded, icon: "groups" },

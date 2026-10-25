@@ -26,7 +26,14 @@ import {
   X,
   Copy,
   Check,
+  UserCheck,
+  UserPlus,
+  ShieldCheck,
+  CheckSquare,
+  Square,
+  User,
 } from "lucide-react";
+import { staffProfileApi, adminApi } from "@/lib/api";
 
 export interface LeadInquiry {
   id: string;
@@ -36,8 +43,19 @@ export interface LeadInquiry {
   universityName: string;
   type: string;
   status: string;
+  assignedStaffId?: string | null;
+  assignedStaffName?: string | null;
+  assignedStaffEmail?: string | null;
+  assignedAt?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface StaffOption {
+  id: string;
+  name: string;
+  email: string;
+  role?: string;
 }
 
 interface ParsedLeadInfo {
@@ -51,15 +69,23 @@ interface ParsedLeadInfo {
 
 export default function RegistrationLeadsSection() {
   const [leads, setLeads] = useState<LeadInquiry[]>([]);
+  const [staffMembers, setStaffMembers] = useState<StaffOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [staffFilter, setStaffFilter] = useState<string>("all");
   const [selectedLead, setSelectedLead] = useState<LeadInquiry | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [assigningLeadId, setAssigningLeadId] = useState<string | null>(null);
+
+  // Bulk selection state
+  const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
+  const [bulkStaffId, setBulkStaffId] = useState<string>("");
+  const [bulkAssigning, setBulkAssigning] = useState<boolean>(false);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -85,8 +111,32 @@ export default function RegistrationLeadsSection() {
     }
   };
 
+  const fetchStaffMembers = async () => {
+    try {
+      const res: any = await staffProfileApi.getStaffMembersList();
+      const list = res?.data || res || [];
+      if (Array.isArray(list) && list.length > 0) {
+        setStaffMembers(list);
+      } else {
+        const userRes: any = await adminApi.getUsers(200, 0, "", "");
+        const users = userRes?.data || [];
+        const staffOnly = users
+          .filter((u: any) => u.role === "staff" || u.role === "staff_admin")
+          .map((u: any) => ({
+            id: u.id,
+            name: `${u.firstName || ""} ${u.lastName || ""}`.trim() || u.email,
+            email: u.email,
+          }));
+        setStaffMembers(staffOnly);
+      }
+    } catch (err) {
+      console.error("Failed to fetch staff members:", err);
+    }
+  };
+
   useEffect(() => {
     fetchLeads();
+    fetchStaffMembers();
     // Auto-poll every 25 seconds for new leads
     const interval = setInterval(() => {
       fetchLeads();
@@ -120,6 +170,145 @@ export default function RegistrationLeadsSection() {
     }
   };
 
+  const handleAssignLead = async (leadId: string, staffId: string) => {
+    setAssigningLeadId(leadId);
+    try {
+      const isUnassign = !staffId || staffId === "unassigned";
+      const selectedStaff = staffMembers.find((s) => s.id === staffId);
+
+      const payload = {
+        staffId: isUnassign ? null : staffId,
+        staffName: isUnassign ? null : selectedStaff?.name || null,
+        staffEmail: isUnassign ? null : selectedStaff?.email || null,
+      };
+
+      const res = await fetch(`/api/university-inquiry/${leadId}/assign`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+
+      if (json && json.success) {
+        const assignedAt = isUnassign ? null : new Date().toISOString();
+        setLeads((prev) =>
+          prev.map((item) =>
+            item.id === leadId
+              ? {
+                  ...item,
+                  assignedStaffId: payload.staffId,
+                  assignedStaffName: payload.staffName,
+                  assignedStaffEmail: payload.staffEmail,
+                  assignedAt,
+                }
+              : item
+          )
+        );
+        if (selectedLead && selectedLead.id === leadId) {
+          setSelectedLead((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  assignedStaffId: payload.staffId,
+                  assignedStaffName: payload.staffName,
+                  assignedStaffEmail: payload.staffEmail,
+                  assignedAt,
+                }
+              : null
+          );
+        }
+        showToast(
+          isUnassign
+            ? "Lead unassigned"
+            : `Assigned to ${selectedStaff?.name || "staff"}`
+        );
+      } else {
+        showToast("Failed to assign lead");
+      }
+    } catch (err) {
+      console.error("Failed to assign lead:", err);
+      showToast("Failed to assign lead");
+    } finally {
+      setAssigningLeadId(null);
+    }
+  };
+
+  const handleBulkAssign = async () => {
+    if (selectedLeadIds.length === 0) {
+      showToast("Please select at least one lead");
+      return;
+    }
+    if (!bulkStaffId) {
+      showToast("Please choose a staff member to assign");
+      return;
+    }
+
+    setBulkAssigning(true);
+    try {
+      const isUnassign = bulkStaffId === "unassigned";
+      const selectedStaff = staffMembers.find((s) => s.id === bulkStaffId);
+
+      const payload = {
+        leadIds: selectedLeadIds,
+        staffId: isUnassign ? null : bulkStaffId,
+        staffName: isUnassign ? null : selectedStaff?.name || null,
+        staffEmail: isUnassign ? null : selectedStaff?.email || null,
+      };
+
+      const res = await fetch("/api/university-inquiry/bulk-assign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+
+      if (json && json.success) {
+        const assignedAt = isUnassign ? null : new Date().toISOString();
+        setLeads((prev) =>
+          prev.map((item) =>
+            selectedLeadIds.includes(item.id)
+              ? {
+                  ...item,
+                  assignedStaffId: payload.staffId,
+                  assignedStaffName: payload.staffName,
+                  assignedStaffEmail: payload.staffEmail,
+                  assignedAt,
+                }
+              : item
+          )
+        );
+        showToast(
+          isUnassign
+            ? `Unassigned ${selectedLeadIds.length} leads`
+            : `Assigned ${selectedLeadIds.length} leads to ${selectedStaff?.name || "staff"}`
+        );
+        setSelectedLeadIds([]);
+        setBulkStaffId("");
+      } else {
+        showToast("Failed to bulk assign leads");
+      }
+    } catch (err) {
+      console.error("Failed to bulk assign leads:", err);
+      showToast("Failed to bulk assign leads");
+    } finally {
+      setBulkAssigning(false);
+    }
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedLeadIds.length === filteredLeads.length && filteredLeads.length > 0) {
+      setSelectedLeadIds([]);
+    } else {
+      setSelectedLeadIds(filteredLeads.map((l) => l.id));
+    }
+  };
+
+  const toggleSelectLead = (id: string) => {
+    setSelectedLeadIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
   const handleDeleteLead = async (id: string) => {
     if (!window.confirm("Are you sure you want to delete this lead?")) return;
     setActionLoadingId(id);
@@ -130,6 +319,7 @@ export default function RegistrationLeadsSection() {
       const json = await res.json();
       if (json && json.success) {
         setLeads((prev) => prev.filter((item) => item.id !== id));
+        setSelectedLeadIds((prev) => prev.filter((item) => item !== id));
         if (selectedLead?.id === id) setSelectedLead(null);
         showToast("Lead removed successfully");
       }
@@ -189,7 +379,9 @@ export default function RegistrationLeadsSection() {
         lead.name?.toLowerCase().includes(q) ||
         lead.email?.toLowerCase().includes(q) ||
         lead.mobile?.includes(q) ||
-        lead.universityName?.toLowerCase().includes(q);
+        lead.universityName?.toLowerCase().includes(q) ||
+        lead.assignedStaffName?.toLowerCase().includes(q) ||
+        lead.assignedStaffEmail?.toLowerCase().includes(q);
 
       const matchesStatus =
         statusFilter === "all" ||
@@ -201,9 +393,16 @@ export default function RegistrationLeadsSection() {
         (typeFilter === "blog" && lead.type === "blog_registration") ||
         (typeFilter === "callback" && lead.type === "callback");
 
-      return matchesSearch && matchesStatus && matchesType;
+      const matchesStaff =
+        staffFilter === "all" ||
+        (staffFilter === "unassigned" && (!lead.assignedStaffId || lead.assignedStaffId === "unassigned")) ||
+        (staffFilter === "assigned" && !!lead.assignedStaffId && lead.assignedStaffId !== "unassigned") ||
+        lead.assignedStaffId === staffFilter ||
+        lead.assignedStaffEmail === staffFilter;
+
+      return matchesSearch && matchesStatus && matchesType && matchesStaff;
     });
-  }, [leads, searchQuery, statusFilter, typeFilter]);
+  }, [leads, searchQuery, statusFilter, typeFilter, staffFilter]);
 
   // Statistics
   const stats = useMemo(() => {
@@ -213,8 +412,21 @@ export default function RegistrationLeadsSection() {
     const inProgress = leads.filter((l) => l.status === "in_progress").length;
     const converted = leads.filter((l) => l.status === "converted" || l.status === "approved").length;
     const registrationPageLeads = leads.filter((l) => l.type === "registration_lead").length;
+    const assignedCount = leads.filter(
+      (l) => !!l.assignedStaffId && l.assignedStaffId !== "unassigned"
+    ).length;
+    const unassignedCount = total - assignedCount;
 
-    return { total, pending, contacted, inProgress, converted, registrationPageLeads };
+    return {
+      total,
+      pending,
+      contacted,
+      inProgress,
+      converted,
+      registrationPageLeads,
+      assignedCount,
+      unassignedCount,
+    };
   }, [leads]);
 
   // Export CSV
@@ -235,6 +447,8 @@ export default function RegistrationLeadsSection() {
       "Loan Status",
       "City",
       "Source",
+      "Assigned Staff",
+      "Assigned Staff Email",
       "Status",
       "Created At",
     ];
@@ -252,6 +466,8 @@ export default function RegistrationLeadsSection() {
         `"${p.loanStatus}"`,
         `"${p.city}"`,
         `"${p.source}"`,
+        `"${l.assignedStaffName || "Unassigned"}"`,
+        `"${l.assignedStaffEmail || ""}"`,
         `"${l.status || "pending"}"`,
         `"${new Date(l.createdAt).toLocaleString()}"`,
       ].join(",");
@@ -389,7 +605,7 @@ export default function RegistrationLeadsSection() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         {/* Total Leads */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs relative overflow-hidden">
           <div className="flex items-center justify-between mb-2">
@@ -404,6 +620,30 @@ export default function RegistrationLeadsSection() {
           </p>
         </div>
 
+        {/* Unassigned Leads */}
+        <div className="bg-white p-5 rounded-2xl border border-purple-200/80 bg-gradient-to-br from-white to-purple-50/30 shadow-xs relative overflow-hidden">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-purple-700">Unassigned</span>
+            <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center text-purple-700">
+              <UserPlus className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="text-2xl font-black text-purple-900">{stats.unassignedCount}</div>
+          <p className="text-[11px] text-purple-700/80 mt-1 font-medium">Ready to assign to staff</p>
+        </div>
+
+        {/* Assigned to Staff */}
+        <div className="bg-white p-5 rounded-2xl border border-indigo-200/80 bg-gradient-to-br from-white to-indigo-50/30 shadow-xs relative overflow-hidden">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-indigo-700">Assigned</span>
+            <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-700">
+              <UserCheck className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="text-2xl font-black text-indigo-900">{stats.assignedCount}</div>
+          <p className="text-[11px] text-indigo-700/80 mt-1 font-medium">Under counselor handling</p>
+        </div>
+
         {/* New / Pending */}
         <div className="bg-white p-5 rounded-2xl border border-amber-200/80 bg-gradient-to-br from-white to-amber-50/30 shadow-xs relative overflow-hidden">
           <div className="flex items-center justify-between mb-2">
@@ -414,18 +654,6 @@ export default function RegistrationLeadsSection() {
           </div>
           <div className="text-2xl font-black text-amber-800">{stats.pending}</div>
           <p className="text-[11px] text-amber-700/80 mt-1 font-medium">Awaiting first follow-up</p>
-        </div>
-
-        {/* Contacted */}
-        <div className="bg-white p-5 rounded-2xl border border-blue-200/80 bg-gradient-to-br from-white to-blue-50/30 shadow-xs relative overflow-hidden">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-blue-700">Contacted</span>
-            <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center text-blue-700">
-              <PhoneCall className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-2xl font-black text-blue-900">{stats.contacted + stats.inProgress}</div>
-          <p className="text-[11px] text-blue-700/80 mt-1 font-medium">In counseling / review</p>
         </div>
 
         {/* Converted */}
@@ -441,16 +669,71 @@ export default function RegistrationLeadsSection() {
         </div>
       </div>
 
+      {/* Bulk Assignment Bar (Shows when 1 or more leads are selected) */}
+      {selectedLeadIds.length > 0 && (
+        <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-slate-900 text-white p-4 rounded-2xl shadow-xl flex flex-col md:flex-row items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 border border-purple-500/30">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-purple-500/20 text-purple-300 flex items-center justify-center border border-purple-500/30 font-bold text-xs">
+              {selectedLeadIds.length}
+            </div>
+            <div>
+              <p className="text-xs font-bold text-white">
+                {selectedLeadIds.length} Lead{selectedLeadIds.length > 1 ? "s" : ""} Selected
+              </p>
+              <p className="text-[11px] text-purple-200">
+                Choose a staff member to assign the selected leads in bulk.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 w-full md:w-auto">
+            <select
+              value={bulkStaffId}
+              onChange={(e) => setBulkStaffId(e.target.value)}
+              className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/10 text-white border border-white/20 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:bg-slate-900"
+            >
+              <option value="" className="text-slate-800">
+                Select Staff Member...
+              </option>
+              <option value="unassigned" className="text-slate-800">
+                -- Unassign Selected Leads --
+              </option>
+              {staffMembers.map((s) => (
+                <option key={s.id} value={s.id} className="text-slate-800">
+                  {s.name} ({s.email})
+                </option>
+              ))}
+            </select>
+
+            <button
+              onClick={handleBulkAssign}
+              disabled={bulkAssigning || !bulkStaffId}
+              className="px-4 py-2 rounded-xl text-xs font-bold bg-purple-500 hover:bg-purple-600 disabled:opacity-50 text-white shadow-md transition-all flex items-center gap-1.5"
+            >
+              {bulkAssigning && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+              <span>{bulkStaffId === "unassigned" ? "Unassign Selected" : "Assign to Staff"}</span>
+            </button>
+
+            <button
+              onClick={() => setSelectedLeadIds([])}
+              className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-all"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Filters & Search Toolbar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row gap-3 items-center justify-between">
+      <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col lg:flex-row gap-3 items-center justify-between">
         {/* Search Bar */}
-        <div className="relative w-full md:w-96">
+        <div className="relative w-full lg:w-80">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by student name, phone, email, city..."
+            placeholder="Search student, staff, email, phone..."
             className="w-full pl-9 pr-8 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all text-slate-800 placeholder:text-slate-400 bg-slate-50/60"
           />
           {searchQuery && (
@@ -463,13 +746,13 @@ export default function RegistrationLeadsSection() {
           )}
         </div>
 
-        {/* Filter Pills */}
-        <div className="flex items-center gap-2 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
+        {/* Filter Dropdowns & Pills */}
+        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
           {/* Status Filters */}
-          <div className="flex items-center bg-slate-100 p-1 rounded-xl text-xs font-semibold">
+          <div className="flex items-center bg-slate-100 p-1 rounded-xl text-xs font-semibold overflow-x-auto">
             {[
               { id: "all", label: "All Status" },
-              { id: "pending", label: "New (Pending)" },
+              { id: "pending", label: "New" },
               { id: "contacted", label: "Contacted" },
               { id: "converted", label: "Converted" },
             ].map((f) => (
@@ -486,6 +769,24 @@ export default function RegistrationLeadsSection() {
               </button>
             ))}
           </div>
+
+          {/* Staff Filter Dropdown */}
+          <select
+            value={staffFilter}
+            onChange={(e) => setStaffFilter(e.target.value)}
+            className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20 max-w-[190px]"
+          >
+            <option value="all">Staff: All Leads</option>
+            <option value="unassigned">⚠️ Unassigned Leads</option>
+            <option value="assigned">👤 Assigned Leads</option>
+            <optgroup label="Filter by Staff">
+              {staffMembers.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </optgroup>
+          </select>
 
           {/* Type Filter */}
           <select
@@ -515,7 +816,7 @@ export default function RegistrationLeadsSection() {
             </div>
             <h3 className="text-sm font-bold text-slate-800">No matching leads found</h3>
             <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-              {searchQuery || statusFilter !== "all" || typeFilter !== "all"
+              {searchQuery || statusFilter !== "all" || typeFilter !== "all" || staffFilter !== "all"
                 ? "Try clearing your filters or search keywords."
                 : "Submit a new student lead via http://localhost:3000/registration to test."}
             </p>
@@ -525,12 +826,26 @@ export default function RegistrationLeadsSection() {
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  <th className="py-3.5 px-3 w-10 text-center">
+                    <button
+                      type="button"
+                      onClick={toggleSelectAll}
+                      className="text-slate-400 hover:text-purple-600 focus:outline-none flex items-center justify-center"
+                      title={selectedLeadIds.length === filteredLeads.length ? "Deselect All" : "Select All"}
+                    >
+                      {selectedLeadIds.length === filteredLeads.length && filteredLeads.length > 0 ? (
+                        <CheckSquare className="w-4 h-4 text-purple-600" />
+                      ) : (
+                        <Square className="w-4 h-4 text-slate-300" />
+                      )}
+                    </button>
+                  </th>
                   <th className="py-3.5 px-4">Student</th>
                   <th className="py-3.5 px-4">Contact Info</th>
                   <th className="py-3.5 px-4">Destination & Amount</th>
+                  <th className="py-3.5 px-4">Assigned Staff</th>
                   <th className="py-3.5 px-4">Registration Details</th>
                   <th className="py-3.5 px-4">Source</th>
-                  <th className="py-3.5 px-4">Status</th>
                   <th className="py-3.5 px-4">Captured</th>
                   <th className="py-3.5 px-4 text-right">Actions</th>
                 </tr>
@@ -540,13 +855,32 @@ export default function RegistrationLeadsSection() {
                   const parsed = parseLeadDetails(lead.universityName, lead.type);
                   const createdDate = new Date(lead.createdAt);
                   const isRecent = Date.now() - createdDate.getTime() < 1000 * 60 * 60 * 24; // last 24h
+                  const isSelected = selectedLeadIds.includes(lead.id);
+                  const isLeadAssigned = !!lead.assignedStaffId && lead.assignedStaffId !== "unassigned";
 
                   return (
                     <tr
                       key={lead.id}
-                      className="hover:bg-purple-50/30 transition-colors group cursor-pointer"
+                      className={`hover:bg-purple-50/30 transition-colors group cursor-pointer ${
+                        isSelected ? "bg-purple-50/40" : ""
+                      }`}
                       onClick={() => setSelectedLead(lead)}
                     >
+                      {/* Checkbox */}
+                      <td className="py-3.5 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={() => toggleSelectLead(lead.id)}
+                          className="focus:outline-none flex items-center justify-center"
+                        >
+                          {isSelected ? (
+                            <CheckSquare className="w-4 h-4 text-purple-600" />
+                          ) : (
+                            <Square className="w-4 h-4 text-slate-300 group-hover:text-slate-400" />
+                          )}
+                        </button>
+                      </td>
+
                       {/* Student Name */}
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-3">
@@ -623,6 +957,61 @@ export default function RegistrationLeadsSection() {
                         </div>
                       </td>
 
+                      {/* Assigned Staff (Assignment Column) */}
+                      <td className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
+                        <div className="relative inline-block w-full min-w-[150px]">
+                          {isLeadAssigned ? (
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-6 h-6 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0">
+                                {lead.assignedStaffName?.[0]?.toUpperCase() || "S"}
+                              </div>
+                              <select
+                                value={lead.assignedStaffId || ""}
+                                onChange={(e) => handleAssignLead(lead.id, e.target.value)}
+                                disabled={assigningLeadId === lead.id}
+                                className="w-full text-[11px] font-semibold py-1 px-2 rounded-lg border border-indigo-200 bg-indigo-50/50 text-indigo-900 hover:bg-indigo-50 cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-500 truncate"
+                                title={`Assigned: ${lead.assignedStaffName || lead.assignedStaffEmail}`}
+                              >
+                                <option value={lead.assignedStaffId || ""}>
+                                  {lead.assignedStaffName || "Assigned Staff"}
+                                </option>
+                                <option value="unassigned">-- Unassign --</option>
+                                <optgroup label="Reassign to Staff">
+                                  {staffMembers.map((s) => (
+                                    <option key={s.id} value={s.id}>
+                                      {s.name} ({s.email})
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              </select>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5">
+                              <select
+                                value=""
+                                onChange={(e) => handleAssignLead(lead.id, e.target.value)}
+                                disabled={assigningLeadId === lead.id}
+                                className="w-full text-[11px] font-medium py-1 px-2.5 rounded-lg border border-dashed border-slate-300 bg-slate-50 text-slate-600 hover:bg-purple-50 hover:text-purple-700 hover:border-purple-300 cursor-pointer focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                              >
+                                <option value="" disabled>
+                                  + Assign to Staff
+                                </option>
+                                {staffMembers.map((s) => (
+                                  <option key={s.id} value={s.id}>
+                                    {s.name} ({s.email})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+                          {assigningLeadId === lead.id && (
+                            <span className="text-[10px] text-indigo-600 animate-pulse font-medium block mt-0.5">
+                              Updating assignment...
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
                       {/* Registration Details */}
                       <td className="py-3.5 px-4">
                         <div className="space-y-1 text-[11px]">
@@ -656,23 +1045,7 @@ export default function RegistrationLeadsSection() {
                         </span>
                       </td>
 
-                      {/* Status */}
-                      <td className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
-                        <div className="relative inline-block">
-                          <select
-                            value={lead.status || "pending"}
-                            onChange={(e) => handleUpdateStatus(lead.id, e.target.value)}
-                            disabled={actionLoadingId === lead.id}
-                            className="text-[11px] font-bold py-1 px-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 cursor-pointer focus:outline-none focus:ring-1 focus:ring-purple-500 transition-all"
-                          >
-                            <option value="pending">🟡 New (Pending)</option>
-                            <option value="contacted">🔵 Contacted</option>
-                            <option value="in_progress">🟣 In Review</option>
-                            <option value="converted">🟢 Converted</option>
-                            <option value="rejected">🔴 Rejected</option>
-                          </select>
-                        </div>
-                      </td>
+
 
                       {/* Date */}
                       <td className="py-3.5 px-4 text-slate-500 text-[11px]">
@@ -722,7 +1095,7 @@ export default function RegistrationLeadsSection() {
       {/* Modal: Lead Detail Popup */}
       {selectedLead && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
             {/* Modal Header */}
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div className="flex items-center gap-3">
@@ -745,12 +1118,77 @@ export default function RegistrationLeadsSection() {
             {/* Modal Body */}
             {(() => {
               const p = parseLeadDetails(selectedLead.universityName, selectedLead.type);
+              const isAssigned =
+                !!selectedLead.assignedStaffId && selectedLead.assignedStaffId !== "unassigned";
+
               return (
                 <div className="py-5 space-y-4 text-xs">
                   {/* Status Banner */}
                   <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200/80">
                     <span className="font-bold text-slate-700">Lead Status</span>
                     {getStatusBadge(selectedLead.status)}
+                  </div>
+
+                  {/* Staff Assignment Card */}
+                  <div className="p-4 rounded-xl bg-indigo-50/60 border border-indigo-100 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="font-bold text-indigo-900 flex items-center gap-1.5 text-xs">
+                        <UserCheck className="w-4 h-4 text-indigo-600" />
+                        Assigned Staff Member
+                      </div>
+                      {isAssigned ? (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-700">
+                          Assigned
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700">
+                          Unassigned
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col gap-2 pt-1">
+                      {isAssigned && (
+                        <div className="text-xs text-slate-700 flex items-center justify-between bg-white/80 p-2.5 rounded-lg border border-indigo-100/80">
+                          <div>
+                            <div className="font-bold text-slate-900">
+                              {selectedLead.assignedStaffName || "Staff Member"}
+                            </div>
+                            <div className="text-[11px] text-slate-500">
+                              {selectedLead.assignedStaffEmail || ""}
+                            </div>
+                          </div>
+                          {selectedLead.assignedAt && (
+                            <div className="text-[10px] text-slate-400 text-right">
+                              Assigned on:
+                              <br />
+                              {new Date(selectedLead.assignedAt).toLocaleDateString("en-IN")}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Dropdown to change or assign */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase text-slate-500">
+                          {isAssigned ? "Reassign or Change Staff" : "Assign to Staff Member"}
+                        </label>
+                        <select
+                          value={selectedLead.assignedStaffId || ""}
+                          onChange={(e) => handleAssignLead(selectedLead.id, e.target.value)}
+                          disabled={assigningLeadId === selectedLead.id}
+                          className="w-full p-2 rounded-xl text-xs font-semibold bg-white border border-indigo-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        >
+                          <option value="">-- Choose Staff Member --</option>
+                          {isAssigned && <option value="unassigned">-- Remove Assignment (Unassign) --</option>}
+                          {staffMembers.map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.name} ({s.email})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Contact Info */}
@@ -832,7 +1270,7 @@ export default function RegistrationLeadsSection() {
                     <button
                       onClick={() =>
                         copyToClipboard(
-                          `Student: ${selectedLead.name}\nPhone: ${selectedLead.mobile}\nEmail: ${selectedLead.email}\nCountry: ${p.country}\nAmount: ${p.amount}\nAdmission: ${p.admissionStatus}\nLoan: ${p.loanStatus}\nCity: ${p.city}`,
+                          `Student: ${selectedLead.name}\nPhone: ${selectedLead.mobile}\nEmail: ${selectedLead.email}\nCountry: ${p.country}\nAmount: ${p.amount}\nAdmission: ${p.admissionStatus}\nLoan: ${p.loanStatus}\nCity: ${p.city}\nAssigned Staff: ${selectedLead.assignedStaffName || "Unassigned"}`,
                           selectedLead.id
                         )
                       }

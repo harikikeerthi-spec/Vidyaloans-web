@@ -155,7 +155,7 @@ export default function UniversityPageClient({ serverUniversity, slug }: Props) 
       return [
         'https://images.unsplash.com/photo-1562774053-701939374585?w=800&q=80',
         'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=800&q=80',
-        'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=800&q=80',
+        '/images/university-default.jpg',
       ];
     })(),
     logo: (() => {

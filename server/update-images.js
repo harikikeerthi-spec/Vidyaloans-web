@@ -9,7 +9,7 @@ async function main() {
     const updates = [
         {
             slug: 'top-5-cs-universities-2026',
-            image: 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80', // University
+            image: '/images/university-default.jpg', // University
         },
         {
             slug: 'how-to-write-winning-sop',

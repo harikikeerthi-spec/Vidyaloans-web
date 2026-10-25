@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException, HttpException, HttpStatus } from '@nestjs/common';
+import { randomInt } from 'crypto';
 import { SupabaseService } from '../supabase/supabase.service';
 import { OpenRouterService } from '../ai/services/openrouter.service';
 
@@ -8,7 +9,7 @@ export class CommunityService {
     return this.supabase.getClient();
   }
 
-  private otpStore = new Map<string, { otp: string; expiresAt: Date }>();
+  private otpStore = new Map<string, { otp: string; expiresAt: Date; attempts: number; lockedUntil?: number }>();
 
   constructor(
     private supabase: SupabaseService,
@@ -577,29 +578,58 @@ export class CommunityService {
   // ==================== MENTOR AUTH & DASHBOARD METHODS ====================
 
   async requestMentorOTP(email: string) {
-    const { data: mentor } = await this.db.from('Mentor').select('*').eq('email', email).single();
+    const cleanEmail = email.toLowerCase().trim();
+    const { data: mentor } = await this.db.from('Mentor').select('*').eq('email', cleanEmail).single();
     if (!mentor) throw new NotFoundException('Mentor not found with this email');
     if (!mentor.isApproved) throw new BadRequestException('Your mentor application is pending approval');
     if (!mentor.isActive) throw new BadRequestException('Your mentor account is not active');
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
-    this.otpStore.set(email, { otp, expiresAt });
+    const existing = this.otpStore.get(cleanEmail);
+    if (existing?.lockedUntil && Date.now() < existing.lockedUntil) {
+      const remainingMins = Math.ceil((existing.lockedUntil - Date.now()) / 60000);
+      throw new BadRequestException(`Account verification is locked due to too many failed attempts. Please try again in ${remainingMins} minute(s).`);
+    }
 
-    console.log(`\n🔐 OTP for ${email}: ${otp}\n`);
-    return { success: true, message: 'OTP sent to your email. Please check your inbox.', data: { email, expiresIn: 300, ...(process.env.NODE_ENV === 'development' ? { otp } : {}) } };
+    const otp = randomInt(100000, 1000000).toString();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+    this.otpStore.set(cleanEmail, { otp, expiresAt, attempts: 0 });
+
+    return {
+      success: true,
+      message: 'OTP sent to your email. Please check your inbox.',
+      data: { email: cleanEmail, expiresIn: 300 }
+    };
   }
 
   async verifyMentorOTP(email: string, otp: string) {
-    const { data: mentor } = await this.db.from('Mentor').select('*').eq('email', email).single();
+    const cleanEmail = email.toLowerCase().trim();
+    const { data: mentor } = await this.db.from('Mentor').select('*').eq('email', cleanEmail).single();
     if (!mentor) throw new NotFoundException('Mentor not found');
 
-    const storedOTP = this.otpStore.get(email);
+    const storedOTP = this.otpStore.get(cleanEmail);
     if (!storedOTP) throw new BadRequestException('OTP not found. Please request a new OTP.');
-    if (new Date() > storedOTP.expiresAt) { this.otpStore.delete(email); throw new BadRequestException('OTP has expired. Please request a new OTP.'); }
-    if (storedOTP.otp !== otp) throw new BadRequestException('Invalid OTP. Please try again.');
 
-    this.otpStore.delete(email);
+    if (storedOTP.lockedUntil && Date.now() < storedOTP.lockedUntil) {
+      const remainingMins = Math.ceil((storedOTP.lockedUntil - Date.now()) / 60000);
+      throw new BadRequestException(`Account is locked due to too many failed attempts. Please try again in ${remainingMins} minute(s).`);
+    }
+
+    if (new Date() > storedOTP.expiresAt) {
+      this.otpStore.delete(cleanEmail);
+      throw new BadRequestException('OTP has expired. Please request a new OTP.');
+    }
+
+    if (storedOTP.otp !== otp.trim()) {
+      storedOTP.attempts = (storedOTP.attempts || 0) + 1;
+      if (storedOTP.attempts >= 5) {
+        storedOTP.lockedUntil = Date.now() + 15 * 60 * 1000;
+        throw new BadRequestException('Too many incorrect OTP attempts (5/5). Account verification locked for 15 minutes.');
+      }
+      const remaining = 5 - storedOTP.attempts;
+      throw new BadRequestException(`Invalid OTP. Please try again. (${remaining} attempt${remaining === 1 ? '' : 's'} remaining)`);
+    }
+
+    this.otpStore.delete(cleanEmail);
     return { success: true, message: 'Login successful', data: { id: mentor.id, name: mentor.name, email: mentor.email, university: mentor.university, isApproved: mentor.isApproved, isActive: mentor.isActive } };
   }
 

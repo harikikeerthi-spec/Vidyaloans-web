@@ -235,6 +235,7 @@ const AnnouncementItem = ({ ann, onDelete }: { ann: any; onDelete: (id: string) 
 // ─── Section URL Route Mappings ────────────────────────────────────────────────
 const sectionToPathMap: Record<string, string> = {
     overview: '/admin/dashboard',
+    registration_leads: '/admin/registration-leads',
     applications: '/admin/applications',
     users: '/admin/users',
     users_students: '/admin/users/students',
@@ -247,6 +248,7 @@ const sectionToPathMap: Record<string, string> = {
     countries: '/admin/countries',
     chat: '/admin/chat',
     community: '/admin/community',
+    site_settings: '/admin/site-settings',
     audit_logs: '/admin/audit-logs',
     error_logs: '/admin/error-logs',
     blogs: '/admin/blogs',
@@ -265,6 +267,9 @@ const sectionToPathMap: Record<string, string> = {
 const pathToSectionMap: Record<string, string> = {
     '/admin': 'overview',
     '/admin/dashboard': 'overview',
+    '/admin/registration-leads': 'registration_leads',
+    '/admin/registration_leads': 'registration_leads',
+    '/admin/leads': 'registration_leads',
     '/admin/applications': 'applications',
     '/admin/users': 'users_students',
     '/admin/users/students': 'users_students',
@@ -278,6 +283,8 @@ const pathToSectionMap: Record<string, string> = {
     '/admin/users/bank': 'users_banks',
     '/admin/analytics': 'analytics',
     '/admin/system': 'system',
+    '/admin/site-settings': 'site_settings',
+    '/admin/site_settings': 'site_settings',
     '/admin/banks': 'banks',
     '/admin/countries': 'countries',
     '/admin/chat': 'chat',

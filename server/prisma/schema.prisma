@@ -1106,22 +1106,27 @@ model VisaMockInterviewResult {
 }
 
 model UniversityInquiry {
-  id             String   @id @default(uuid())
+  id             String    @id @default(uuid())
   userId         String?
-  user           User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user           User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
   name           String
   email          String
   mobile         String
   universityName String
   type           String // "callback" or "fasttrack"
-  status         String   @default("pending")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  status         String    @default("pending")
+  assignedStaffId String?
+  assignedStaffName String?
+  assignedStaffEmail String?
+  assignedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@index([userId])
   @@index([email])
   @@index([mobile])
   @@index([universityName])
+  @@index([assignedStaffId])
 }
 
 model FastTrackApplication {

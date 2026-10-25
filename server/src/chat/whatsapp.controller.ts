@@ -1,5 +1,6 @@
 import { Controller, Post, Res, Req, Body, Logger, Get, Param, Query } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import * as crypto from 'crypto';
 import { ConfigService } from '@nestjs/config';
 import { ChatService } from './chat.service';
 import { ChatGateway } from './chat.gateway';
@@ -37,12 +38,16 @@ export class WhatsappController {
   ) {
     const configuredToken =
       this.configService.get<string>('AWS_WHATSAPP_VERIFY_TOKEN') ||
-      this.configService.get<string>('WHATSAPP_VERIFY_TOKEN') ||
-      'vidyaloan_webhook_verify_token';
+      this.configService.get<string>('WHATSAPP_VERIFY_TOKEN');
 
     // Meta / AWS WhatsApp webhook subscription challenge
     if (mode === 'subscribe') {
-      if (token === configuredToken) {
+      if (!configuredToken) {
+        this.logger.error(`[AWS WhatsApp Webhook] Webhook verify token is not configured in environment variables`);
+        return res.status(500).send('Webhook verify token is not configured on the server');
+      }
+
+      if (token && token === configuredToken) {
         this.logger.log(`[AWS WhatsApp Webhook] Verification successful. Responding with challenge.`);
         return res.status(200).type('text/plain').send(challenge);
       } else {
@@ -72,6 +77,26 @@ export class WhatsappController {
   @Post()
   @Post('sns')
   async handleIncomingMessage(@Req() req: Request, @Res() res: Response, @Body() rawBody: any) {
+    // 0. Verify Meta signature if X-Hub-Signature-256 header is present or secret is configured
+    const hubSignature = (req.headers['x-hub-signature-256'] || req.headers['x-hub-signature']) as string;
+    const metaAppSecret = this.configService.get<string>('META_APP_SECRET') || this.configService.get<string>('WHATSAPP_APP_SECRET');
+
+    if (hubSignature && metaAppSecret) {
+      try {
+        const rawPayload = typeof rawBody === 'string' ? rawBody : JSON.stringify(rawBody);
+        const expectedSig = 'sha256=' + crypto.createHmac('sha256', metaAppSecret).update(rawPayload).digest('hex');
+        const sigBuffer = Buffer.from(hubSignature);
+        const expectedBuffer = Buffer.from(expectedSig);
+        if (sigBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(sigBuffer, expectedBuffer)) {
+          this.logger.warn('[AWS WhatsApp Webhook] Rejected incoming webhook: Invalid X-Hub-Signature-256');
+          return res.status(403).json({ error: 'Invalid webhook signature' });
+        }
+      } catch (sigErr: any) {
+        this.logger.error(`[AWS WhatsApp Webhook] Signature verification failed: ${sigErr?.message}`);
+        return res.status(403).json({ error: 'Signature verification failure' });
+      }
+    }
+
     let body = rawBody;
 
     // 1. If body arrives as a raw string (e.g. from AWS SNS sending text/plain)
@@ -86,15 +111,21 @@ export class WhatsappController {
     const messageTypeHeader = req.headers['x-amz-sns-message-type'];
     const snsType = (messageTypeHeader || body?.Type || '').toString();
 
-    // 2. Handle AWS SNS Subscription Confirmation (Auto-confirm subscription)
+    // 2. Handle AWS SNS Subscription Confirmation (Auto-confirm subscription with URL validation)
     if (snsType === 'SubscriptionConfirmation' || body?.Type === 'SubscriptionConfirmation') {
       this.logger.log(`━━━━━━━━━━ AWS SNS SUBSCRIPTION CONFIRMATION ━━━━━━━━━━`);
       this.logger.log(`TopicArn: ${body?.TopicArn}`);
       if (body?.SubscribeURL) {
-        this.logger.log(`Auto-confirming SNS subscription via URL: ${body.SubscribeURL}`);
+        const urlStr = String(body.SubscribeURL);
+        const isValidSnsUrl = /^https:\/\/sns\.[a-z0-9-]+\.amazonaws\.com\//i.test(urlStr);
+        if (!isValidSnsUrl) {
+          this.logger.warn(`[AWS SNS] Rejected invalid or untrusted SubscribeURL: ${urlStr}`);
+          return res.status(400).json({ error: 'Invalid SubscribeURL host' });
+        }
+        this.logger.log(`Auto-confirming SNS subscription via URL: ${urlStr}`);
         try {
           if (typeof fetch !== 'undefined') {
-            await fetch(body.SubscribeURL);
+            await fetch(urlStr);
             this.logger.log(`[AWS SNS] Successfully confirmed subscription for Topic: ${body.TopicArn}`);
           }
         } catch (e: any) {

@@ -31,8 +31,32 @@ export class UniversityInquiryController {
         @Query('type') type?: string,
         @Query('status') status?: string,
         @Query('search') search?: string,
+        @Query('assignedStaffId') assignedStaffId?: string,
     ) {
-        return this.inquiryService.getAllInquiries({ type, status, search });
+        return this.inquiryService.getAllInquiries({ type, status, search, assignedStaffId });
+    }
+
+    @Post('bulk-assign')
+    async bulkAssign(
+        @Body() body: { leadIds: string[]; staffId?: string | null; staffName?: string | null; staffEmail?: string | null },
+    ) {
+        return this.inquiryService.bulkAssignInquiries(body?.leadIds || [], body || {});
+    }
+
+    @Patch(':id/assign')
+    async assignPatch(
+        @Param('id') id: string,
+        @Body() body: { staffId?: string | null; staffName?: string | null; staffEmail?: string | null },
+    ) {
+        return this.inquiryService.assignInquiry(id, body || {});
+    }
+
+    @Post(':id/assign')
+    async assignPost(
+        @Param('id') id: string,
+        @Body() body: { staffId?: string | null; staffName?: string | null; staffEmail?: string | null },
+    ) {
+        return this.inquiryService.assignInquiry(id, body || {});
     }
 
     @Patch(':id/status')

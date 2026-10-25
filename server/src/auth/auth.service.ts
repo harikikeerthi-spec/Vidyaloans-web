@@ -1,4 +1,5 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, Logger } from '@nestjs/common';
+import { randomInt } from 'crypto';
 import { UsersService } from '../users/users.service';
 import { FirebaseAuthService } from './firebase-auth.service';
 import { EmailService } from './email.service';
@@ -10,9 +11,97 @@ import { SiteSettingsService } from '../site-settings/site-settings.service';
 
 const phoneUtil = PhoneNumberUtil.getInstance();
 
+interface OtpEntry {
+  otp: string;
+  expiresAt: number;
+  attempts: number;
+  lockedUntil?: number;
+}
+
 @Injectable()
 export class AuthService {
-  private otps = new Map<string, { otp: string; expiresAt: number }>();
+  private readonly logger = new Logger(AuthService.name);
+  private otps = new Map<string, OtpEntry>();
+  private sendRateLimits = new Map<string, { lastSentAt: number; count: number; windowStart: number }>();
+
+  private checkSendRateLimit(email: string): { allowed: boolean; message?: string } {
+    const cleanEmail = email.toLowerCase().trim();
+    const existing = this.otps.get(cleanEmail);
+    const now = Date.now();
+
+    if (existing?.lockedUntil && now < existing.lockedUntil) {
+      const remainingMins = Math.ceil((existing.lockedUntil - now) / 60000);
+      return {
+        allowed: false,
+        message: `Account is temporarily locked due to too many failed OTP attempts. Please try again in ${remainingMins} minute(s).`
+      };
+    }
+
+    const rate = this.sendRateLimits.get(cleanEmail);
+    if (rate) {
+      if (now - rate.lastSentAt < 30000) {
+        const waitSecs = Math.ceil((30000 - (now - rate.lastSentAt)) / 1000);
+        return {
+          allowed: false,
+          message: `Please wait ${waitSecs} second(s) before requesting another OTP.`
+        };
+      }
+      if (now - rate.windowStart < 600000) {
+        if (rate.count >= 5) {
+          return {
+            allowed: false,
+            message: 'Too many OTP requests. Please wait 10 minutes before requesting again.'
+          };
+        }
+        rate.count += 1;
+        rate.lastSentAt = now;
+      } else {
+        this.sendRateLimits.set(cleanEmail, { windowStart: now, count: 1, lastSentAt: now });
+      }
+    } else {
+      this.sendRateLimits.set(cleanEmail, { windowStart: now, count: 1, lastSentAt: now });
+    }
+
+    return { allowed: true };
+  }
+
+  private verifyAndConsumeOtp(email: string, inputOtp: string): void {
+    const cleanEmail = email.toLowerCase().trim();
+    const stored = this.otps.get(cleanEmail);
+
+    if (!stored) {
+      throw new BadRequestException('No active OTP found. Please request a new OTP.');
+    }
+
+    const now = Date.now();
+    if (stored.lockedUntil && now < stored.lockedUntil) {
+      const remainingMins = Math.ceil((stored.lockedUntil - now) / 60000);
+      throw new UnauthorizedException(
+        `Account is locked due to too many failed attempts. Please try again in ${remainingMins} minute(s).`
+      );
+    }
+
+    if (now > stored.expiresAt) {
+      this.otps.delete(cleanEmail);
+      throw new BadRequestException('OTP has expired. Please request a new OTP.');
+    }
+
+    if (stored.otp !== inputOtp.trim()) {
+      stored.attempts = (stored.attempts || 0) + 1;
+      if (stored.attempts >= 5) {
+        stored.lockedUntil = now + 15 * 60 * 1000;
+        throw new UnauthorizedException(
+          'Too many incorrect OTP attempts (5/5). Account verification locked for 15 minutes.'
+        );
+      }
+      const remaining = 5 - stored.attempts;
+      throw new BadRequestException(
+        `Invalid OTP. Please enter the correct code. (${remaining} attempt${remaining === 1 ? '' : 's'} remaining)`
+      );
+    }
+
+    this.otps.delete(cleanEmail);
+  }
 
   private validatePhoneNumberStructurally(phoneNumber: string): { isValid: boolean; message?: string } {
     if (!phoneNumber || phoneNumber.trim() === '') {
@@ -335,9 +424,15 @@ export class AuthService {
       return { success: false, message: 'User not found. Please signup first.', redirect: 'signup' };
     }
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    this.otps.set(email, { otp, expiresAt: Date.now() + 120000 }); // Expires in 2 minutes
-    console.log(`[AuthService] New OTP generated for ${email}: ${otp}`);
+    const cleanEmail = email.toLowerCase().trim();
+    const rateCheck = this.checkSendRateLimit(cleanEmail);
+    if (!rateCheck.allowed) {
+      return { success: false, message: rateCheck.message };
+    }
+
+    const otp = randomInt(100000, 1000000).toString();
+    this.otps.set(cleanEmail, { otp, expiresAt: Date.now() + 120000, attempts: 0 });
+    this.logger.log(`[AuthService] New OTP generated for ${cleanEmail}`);
 
     // Store signup data for registration - ONLY update if fields are provided
     // This prevents overwriting existing data with 'undefined' during resend
@@ -565,16 +660,22 @@ export class AuthService {
 
     try {
 
-      // Generate OTP
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      this.otps.set(email, { otp, expiresAt: Date.now() + 120000 }); // Expires in 2 minutes
-      console.log(`[AuthService] OTP generated for ${email}: ${otp}`);
+      const cleanEmail = email.toLowerCase().trim();
+      const rateCheck = this.checkSendRateLimit(cleanEmail);
+      if (!rateCheck.allowed) {
+        return { success: false, message: rateCheck.message };
+      }
+
+      // Generate OTP cryptographically
+      const otp = randomInt(100000, 1000000).toString();
+      this.otps.set(cleanEmail, { otp, expiresAt: Date.now() + 120000, attempts: 0 });
+      this.logger.log(`[AuthService] OTP generated for ${cleanEmail}`);
 
       // Send OTP via email with target portal context
       try {
-        await this.emailService.sendOtp(email, otp, targetPortal);
+        await this.emailService.sendOtp(cleanEmail, otp, targetPortal);
       } catch (emailError) {
-        console.warn(`[AuthService] SMTP failed to send email but OTP is generated: ${otp}`, emailError);
+        this.logger.warn(`[AuthService] SMTP failed to send email to ${cleanEmail}`, emailError);
       }
 
       let bankInfo: any = null;
@@ -595,8 +696,7 @@ export class AuthService {
         userExists: !!existingUser, // Return whether user exists or not
         bankId: bankInfo?.bankId || null,
         bankName: bankInfo?.bankName || null,
-        bankLogo: bankInfo?.bankLogo || null,
-        ...(process.env.NODE_ENV === 'development' ? { otp } : {})
+        bankLogo: bankInfo?.bankLogo || null
       };
     } catch (error) {
       console.error('[AuthService] Database or Email error in sendOtpUnified:', error);
@@ -617,20 +717,8 @@ export class AuthService {
    * For new users: create user + return token + userExists=false, hasUserDetails=false
    */
   async verifyOtpUnified(email: string, otp: string) {
-    // Verify OTP
-    const stored = this.otps.get(email);
-
-    if (!stored || stored.otp !== otp) {
-      throw new BadRequestException('Invalid OTP. Please enter the right one to login.');
-    }
-
-    if (Date.now() > stored.expiresAt) {
-      this.otps.delete(email);
-      throw new BadRequestException('OTP has expired. Please request a new OTP.');
-    }
-
-    // Invalidate OTP after verification
-    this.otps.delete(email);
+    // Verify OTP with attempt lockout and expiry
+    this.verifyAndConsumeOtp(email, otp);
 
     // Verify email is not blocked/disposable
     const disposableCheck = await this.siteSettingsService.checkDisposableEmail(email);
@@ -1162,16 +1250,8 @@ export class AuthService {
       );
     }
 
-    // Verify OTP
-    const stored = this.otps.get(cleanEmail);
-    if (!stored || stored.otp !== otp) {
-      throw new BadRequestException('Invalid OTP. Please enter the right verification code.');
-    }
-    if (Date.now() > stored.expiresAt) {
-      this.otps.delete(cleanEmail);
-      throw new BadRequestException('OTP has expired. Please request a new verification code.');
-    }
-    this.otps.delete(cleanEmail);
+    // Verify OTP with attempt lockout and expiry
+    this.verifyAndConsumeOtp(cleanEmail, otp);
 
     // Parse loan amount
     const parsedAmount = typeof body.loanAmount === 'string' ? parseFloat(body.loanAmount) : body.loanAmount;

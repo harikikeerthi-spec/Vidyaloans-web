@@ -4,9 +4,15 @@
  * Run: node scripts/run-staff-id-migration.js
  */
 const { createClient } = require('@supabase/supabase-js');
+require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
 
-const SUPABASE_URL = 'https://mhhmqdbzsmwyizmvwtsx.supabase.co';
-const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1oaG1xZGJ6c213eWl6bXZ3dHN4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzAzMDQ2OCwiZXhwIjoyMDg4NjA2NDY4fQ.ySrjelBYD9uK22tfPMZHSojDNkgzeaR9by-ChtXe0aY';
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
+
+if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+  console.error('❌ Error: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables are required.');
+  process.exit(1);
+}
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
