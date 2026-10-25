@@ -37,6 +37,17 @@ export default function StandaloneApplicationView({ id, activeTab = "application
         }
     }, [id, authLoading, token]);
 
+    useEffect(() => {
+        if (!loading && !authLoading && application) {
+            const targetUserId = application.userId || application.studentId || application.user?.id || application.user_id || application.applicantId;
+            if (targetUserId) {
+                router.replace(`/staff/users/${targetUserId}/applications`);
+            } else {
+                router.replace("/staff/users");
+            }
+        }
+    }, [application, loading, authLoading, router]);
+
     if (authLoading || loading) {
         return (
             <div className="min-h-screen bg-slate-50 text-slate-800 flex items-center justify-center" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
@@ -61,17 +72,6 @@ export default function StandaloneApplicationView({ id, activeTab = "application
             </div>
         );
     }
-
-    useEffect(() => {
-        if (application) {
-            const targetUserId = application.userId || application.studentId || application.user?.id || application.user_id || application.applicantId;
-            if (targetUserId) {
-                router.replace(`/staff/users/${targetUserId}/applications`);
-            } else {
-                router.replace("/staff/users");
-            }
-        }
-    }, [application, router]);
 
     return (
         <div className="min-h-screen bg-slate-50 text-slate-800 flex items-center justify-center" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>

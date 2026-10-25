@@ -88,7 +88,7 @@ export default function BlogClient() {
                         <button
                             key={cat}
                             onClick={() => { setActiveCategory(cat); setPage(1); }}
-                            className={`px-5 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-widest whitespace-nowrap transition-all border ${activeCategory === cat
+                            className={`min-h-[44px] px-5 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-widest whitespace-nowrap transition-all border inline-flex items-center justify-center cursor-pointer ${activeCategory === cat
                                 ? "bg-[#6605c7] text-white border-[#6605c7] shadow-lg shadow-purple-500/20"
                                 : "bg-white text-gray-400 border-transparent hover:text-gray-900 hover:bg-gray-50"
                                 }`}

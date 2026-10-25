@@ -102,7 +102,7 @@ export default function LoginWall({ children }: { children: React.ReactNode }) {
                             </div>
 
                             <p className="mt-8 text-xs text-gray-400 font-bold uppercase tracking-[0.2em]">
-                                Join 10,000+ students already funding their dreams
+                                Join 1,000+ students already funding their dreams
                             </p>
                         </div>
                     </div>

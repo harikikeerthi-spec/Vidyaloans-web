@@ -89,8 +89,8 @@ export default function ComparisonGrid({
 
   return (
     <div className="bg-white/70 backdrop-blur-xl border border-white p-6 rounded-[2.5rem] shadow-[0_20px_50px_-15px_rgba(102,5,199,0.1)] overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse">
+      <div className="overflow-x-auto w-full">
+        <table className="w-full min-w-[650px] border-collapse">
           <thead>
             <tr className="border-b border-gray-100">
               <th className="sticky left-0 px-6 py-5 text-left bg-[#fcfaff] text-xs font-black text-gray-400 uppercase tracking-widest z-10 rounded-tl-2xl">

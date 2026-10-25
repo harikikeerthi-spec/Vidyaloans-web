@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Script from "next/script";
+import { Plus_Jakarta_Sans, Noto_Serif } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SiteSettingsProvider } from "@/contexts/SiteSettingsContext";
@@ -11,10 +12,24 @@ import CookieConsentBanner from "@/components/CookieConsentBanner";
 import MobileAppDownloadBanner from "@/components/MobileAppDownloadBanner";
 import ProfileGate from "@/components/ProfileGate";
 
+const plusJakartaSans = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  variable: "--font-plus-jakarta",
+  display: "swap",
+  weight: ["300", "400", "500", "600", "700", "800"],
+});
+
+const notoSerif = Noto_Serif({
+  subsets: ["latin"],
+  variable: "--font-noto-serif",
+  display: "swap",
+  weight: ["400", "600", "700"],
+});
+
 export const metadata: Metadata = {
   title: {
-    default: "Vidya Loans - Fund Your Dream Education Abroad",
-    template: "%s | Vidya Loans",
+    default: "VidyaLoans - Fund Your Dream Education Abroad",
+    template: "%s | VidyaLoans",
   },
   description:
     "Compare education loans from our curated network of top lending partners. Get the best rates, quick approvals, and expert guidance — all in one place.",
@@ -26,7 +41,7 @@ export const metadata: Metadata = {
     "overseas education",
   ],
   openGraph: {
-    title: "Vidya Loans - Fund Your Dream Education Abroad",
+    title: "VidyaLoans - Fund Your Dream Education Abroad",
     description:
       "Compare education loans from our curated network of top lending partners. Get the best rates, quick approvals, and expert guidance.",
     type: "website",
@@ -50,32 +65,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${plusJakartaSans.variable} ${notoSerif.variable}`}>
       <head>
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="icon" type="image/png" href="/icon.png" />
         <link rel="apple-touch-icon" href="/icon.png" />
         <meta name="google-play-app" content="app-id=in.vidyaloans.app" />
 
-
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         <link
           rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,100..900;1,100..900&family=Noto+Sans:ital,wght@0,100..900;1,100..900&family=Plus+Jakarta+Sans:wght@200..800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
-        />
-        <link
-          rel="stylesheet"
-          href="https://api.fontshare.com/v2/css?f[]=clash-display@200,300,400,500,600,700&f[]=cabinet-grotesk@100,200,300,400,500,700,800&f[]=satoshi@300,400,500,700,900,300italic,400italic,500italic,700italic,900italic&f[]=satoshi-mono@300,400,500,700&display=swap"
-        />
-        <link
-          rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Inter+Tight:ital,wght@0,100..900;1,100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap"
-        />
-        <link
-          rel="stylesheet"
-          type="text/css"
-          href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/style.css"
+          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
         />
         {/* PDF.js for EVV Test Agent */}
         <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" />

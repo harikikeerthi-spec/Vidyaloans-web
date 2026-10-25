@@ -401,7 +401,7 @@ export class ReferenceService {
 
   async getPlatformStats() {
     const baseStudents = 1000;
-    const baseCountries = 10;
+    const baseCountries = 30;
     const basePrograms = 18000;
 
     let dynamicUserCount = 0;
@@ -437,9 +437,10 @@ export class ReferenceService {
     } catch (e) {}
 
     const totalStudents = baseStudents + dynamicUserCount;
+    const roundedStudents = Math.floor(totalStudents / 1000) * 1000;
     const studentsFormatted = totalStudents >= 100000 
       ? `${(totalStudents / 100000).toFixed(1)} lakh` 
-      : `${totalStudents.toLocaleString()}+`;
+      : `${roundedStudents.toLocaleString()}+`;
 
     return {
       success: true,
@@ -451,6 +452,9 @@ export class ReferenceService {
         countriesFormatted: `${countryCount}+`,
         programs: programCount,
         programsFormatted: `${programCount.toLocaleString()}+`,
+        lenders: 5,
+        lendersFormatted: '5+',
+        approvalHours: '48h',
       },
     };
   }

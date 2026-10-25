@@ -240,6 +240,7 @@ export class ReferenceController {
      * POST /reference/countries
      */
     @Post('countries')
+    @UseGuards(AdminGuard)
     async createCountry(@Body() body: any) {
         return this.referenceService.createCountry(body);
     }
@@ -249,6 +250,7 @@ export class ReferenceController {
      * PUT /reference/countries/:id
      */
     @Put('countries/:id')
+    @UseGuards(AdminGuard)
     async updateCountry(@Param('id') id: string, @Body() body: any) {
         return this.referenceService.updateCountry(id, body);
     }
@@ -258,6 +260,7 @@ export class ReferenceController {
      * DELETE /reference/countries/:id
      */
     @Delete('countries/:id')
+    @UseGuards(AdminGuard)
     async deleteCountry(@Param('id') id: string) {
         return this.referenceService.deleteCountry(id);
     }

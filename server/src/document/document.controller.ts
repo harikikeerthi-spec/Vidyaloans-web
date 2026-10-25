@@ -23,6 +23,8 @@ import { KycService } from '../ai/services/kyc.service';
 import { maskSensitiveIds } from '../ai/utils/ocr-fields.util';
 import { validateFileSignature } from '../ai/utils/file-signature.util';
 import { UserGuard } from '../auth/user.guard';
+import { StaffGuard } from '../auth/staff.guard';
+import { OwnershipOrStaffGuard } from '../auth/ownership.guard';
 import { S3Service } from './s3.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { memoryStorage } from 'multer';
@@ -383,6 +385,7 @@ export class DocumentController {
 
   // ─── Check if document is already uploaded for a specific unique user ────
   @Get('check-duplicate')
+  @UseGuards(OwnershipOrStaffGuard)
   async checkDuplicate(
     @Query('userId') userId: string,
     @Query('docType') docType: string,
@@ -416,6 +419,7 @@ export class DocumentController {
 
   // ─── OCR Re-verify (reads from S3) ──────────────────────────────────────
   @Post('ocr-reverify')
+  @UseGuards(OwnershipOrStaffGuard)
   async ocrReverify(
     @Body('userId') userId: string,
     @Body('docType') docType: string,
@@ -573,6 +577,7 @@ export class DocumentController {
 
   // ─── DigiLocker flow ─────────────────────────────────────────────────────
   @Post('digilocker/initiate')
+  @UseGuards(OwnershipOrStaffGuard)
   async initiateDigilockerFlow(
     @Body('userId') userId: string,
     @Body('docType') docType: string,
@@ -609,6 +614,7 @@ export class DocumentController {
 
   // ─── View document — redirects to a short-lived S3 presigned URL ─────────
   @Get('view/:userId/:docType')
+  @UseGuards(OwnershipOrStaffGuard)
   async viewDocument(
     @Param('userId') userId: string,
     @Param('docType') docType: string,
@@ -840,6 +846,7 @@ export class DocumentController {
   // ─── Presigned URL endpoint (for frontend preview without redirect) ───────
 
   @Get('presigned-view/:userId/:docType')
+  @UseGuards(OwnershipOrStaffGuard)
   async getPresignedViewUrl(
     @Param('userId') userId: string,
     @Param('docType') docType: string,
@@ -886,6 +893,7 @@ export class DocumentController {
 
   // ─── Export Verified Documents as ZIP ────────────────────────────────────
   @Get('export-zip/:userId')
+  @UseGuards(OwnershipOrStaffGuard)
   async exportVerifiedDocumentsZipAlias(
     @Param('userId') userId: string,
     @Query('onlyVerified') onlyVerified: string,
@@ -895,6 +903,7 @@ export class DocumentController {
   }
 
   @Get(':userId/zip')
+  @UseGuards(OwnershipOrStaffGuard)
   async exportVerifiedDocumentsZip(
     @Param('userId') userId: string,
     @Query('onlyVerified') onlyVerified: string,
@@ -1072,6 +1081,7 @@ export class DocumentController {
 
   // ─── List user documents ─────────────────────────────────────────────────
   @Get(':userId')
+  @UseGuards(OwnershipOrStaffGuard)
   async getUserDocuments(@Param('userId') userId: string) {
     const documents = await this.usersService.getUserDocuments(userId);
     return { success: true, data: documents };
@@ -1079,6 +1089,7 @@ export class DocumentController {
 
   // ─── Delete document — removes from S3 + DB ──────────────────────────────
   @Delete(':userId/:docType')
+  @UseGuards(OwnershipOrStaffGuard)
   async deleteDocument(
     @Param('userId') userId: string,
     @Param('docType') docType: string,
@@ -1096,6 +1107,7 @@ export class DocumentController {
 
   // ─── Delete document file — removes from S3 but keeps DB requirement ──────
   @Delete(':userId/:docType/file')
+  @UseGuards(OwnershipOrStaffGuard)
   async deleteDocumentFile(
     @Param('userId') userId: string,
     @Param('docType') docType: string,
@@ -1117,6 +1129,7 @@ export class DocumentController {
 
   // ─── Add document requirement ────────────────────────────────────────────
   @Post('requirement')
+  @UseGuards(StaffGuard)
   async addRequirement(
     @Body('userId') userId: string,
     @Body('docType') docType: string,
@@ -1164,6 +1177,7 @@ export class DocumentController {
 
   // ─── Accept a document (staff action) ────────────────────────────────────
   @Post(':docId/accept')
+  @UseGuards(StaffGuard)
   async acceptDocument(@Param('docId') docId: string) {
     if (!docId) {
       throw new BadRequestException('Document ID is required');
@@ -1201,6 +1215,7 @@ export class DocumentController {
 
   // ─── Reject a document with reason (staff action) ──────────────────────────
   @Post(':docId/reject')
+  @UseGuards(StaffGuard)
   async rejectDocument(
     @Param('docId') docId: string,
     @Body('rejectionReason') rejectionReason?: string,
@@ -1246,6 +1261,7 @@ export class DocumentController {
 
   // ─── Send document to bank (staff action) ─────────────────────────────────
   @Post('send-to-bank')
+  @UseGuards(StaffGuard)
   async sendDocumentToBank(
     @Body('userId') userId: string,
     @Body('docType') docType: string,

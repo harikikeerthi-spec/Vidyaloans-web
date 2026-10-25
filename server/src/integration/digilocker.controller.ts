@@ -247,7 +247,7 @@ export class DigilockerController {
                     document.getElementById('step-otp').style.display = 'none';
                     document.getElementById('step-account').style.display = 'block';
                 } else {
-                    alert('Invalid OTP. (Hint: use 123456 in development)');
+                    alert('Invalid OTP. Please enter the valid verification code.');
                 }
             } catch (e) { alert('Error verifying OTP. Please try again.'); }
         }
@@ -307,7 +307,7 @@ export class DigilockerController {
     @Post('mock/verify-otp')
     async mockVerifyOtp(@Body() body: { mobile: string; otp: string }) {
         const storedOtp = this.mockOtps.get(body.mobile);
-        if (body.otp === storedOtp || body.otp === '123456') {
+        if (storedOtp && body.otp === storedOtp) {
             const user = await this.usersService.findByMobile(body.mobile);
             if (!user) throw new BadRequestException('Account vanished!');
             return {

@@ -129,7 +129,7 @@ export default function SearchUniversitiesPage() {
                     <h2 className="text-2xl font-bold tracking-tight text-[#0A2540]">
                         Global Universities Directory
                     </h2>
-                    <p className="text-xs text-slate-500 font-semibold mt-0.5">Explore 10,000+ verified institutions, global rankings, tuition & study loan funding</p>
+                    <p className="text-xs text-slate-500 font-semibold mt-0.5">Explore 500+ verified institutions, global rankings, tuition &amp; study loan funding</p>
                 </div>
                 <div className="flex items-center gap-3">
                     <button
@@ -159,7 +159,7 @@ export default function SearchUniversitiesPage() {
                     <button
                         key={c}
                         onClick={() => { setSelectedCountry(c); setCurrentPage(1); }}
-                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border shrink-0 cursor-pointer ${selectedCountry === c
+                        className={`min-h-[44px] px-4 py-2.5 rounded-xl text-xs font-bold transition-all border shrink-0 cursor-pointer inline-flex items-center justify-center ${selectedCountry === c
                             ? "bg-[#4F46E5] text-white border-indigo-600 shadow-sm"
                             : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
                             }`}

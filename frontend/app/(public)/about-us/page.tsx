@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import TeamSection from "./TeamSection";
+import { SITE_STATS } from "@/lib/siteStats";
 
 export const metadata: Metadata = {
-    title: "About Us - Vidya Loans",
-    description: "Learn about VidyaLoan's mission to make education financing simple, transparent, and accessible for every student.",
+    title: "About Us - VidyaLoans",
+    description: "Learn about VidyaLoans' mission to make education financing simple, transparent, and accessible for every student.",
 };
 
 
@@ -41,7 +42,7 @@ export default async function AboutPage() {
                         Changing How India Finances <span className="italic">Education</span>
                     </h1>
                     <p className="text-[18px] text-purple-100 max-w-2xl mx-auto">
-                        Founded in 2023, VidyaLoan was born from the frustration of navigating complex education loan systems. We're on a mission to make quality education accessible to every ambitious student.
+                        Founded in 2023, VidyaLoans was born from the frustration of navigating complex education loan systems. We're on a mission to make quality education accessible to every ambitious student.
                     </p>
                 </div>
             </section>
@@ -51,9 +52,9 @@ export default async function AboutPage() {
                 <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8">
                     {[
                         { num: await getDisbursedAmount(), label: "Loans Disbursed" },
-                        { num: "10,000+", label: "Students Helped" },
-                        { num: "5+", label: "Premium Partners" },
-                        { num: "30+", label: "Countries Covered" },
+                        { num: SITE_STATS.students, label: "Students Helped" },
+                        { num: SITE_STATS.lenders, label: "Premium Partners" },
+                        { num: SITE_STATS.countries, label: "Countries Covered" },
                     ].map((s) => (
                         <div key={s.label} className="text-center">
                             <div className="text-4xl font-bold text-[#6605c7] mb-2">{s.num}</div>
@@ -116,8 +117,8 @@ export default async function AboutPage() {
             {/* CTA */}
             <section className="py-16 px-6 text-center">
                 <div className="max-w-2xl mx-auto">
-                    <h2 className="text-3xl font-bold font-display mb-4">Join the VidyaLoan Community</h2>
-                    <p className="text-[13px] text-gray-500 mb-8">Start your education loan journey today with 10,000+ students who've already taken the leap.</p>
+                    <h2 className="text-3xl font-bold font-display mb-4">Join the {SITE_STATS.brandName} Community</h2>
+                    <p className="text-[13px] text-gray-500 mb-8">Start your education loan journey today with {SITE_STATS.students} students who've already taken the leap.</p>
                     <Link href="/community" className="inline-block px-10 py-4 bg-[#6605c7] text-white text-[11px] font-bold uppercase tracking-widest rounded-xl hover:-translate-y-1 transition-all shadow-lg shadow-[#6605c7]/20">
                         Get Started Free
                     </Link>

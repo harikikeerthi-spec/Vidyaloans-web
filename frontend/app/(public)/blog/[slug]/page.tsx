@@ -376,7 +376,7 @@ export default async function BlogPostPage({ params }: Props) {
                 Looking for an Education Loan?
               </h2>
               <p className="text-indigo-200 text-sm sm:text-base leading-relaxed">
-                Compare pre-approved loan options from 15+ premier banks & NBFCs with 100% paperless verification and 3-day approval guarantees.
+                Compare pre-approved loan options from 5+ partner banks &amp; NBFCs with 100% paperless verification and 48-hour approval processing.
               </p>
               <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
                 <Link

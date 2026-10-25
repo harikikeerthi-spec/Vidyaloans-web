@@ -2094,6 +2094,14 @@ export class ApplicationService {
     const prefix = `VL-APP-${year}-`;
     
     try {
+      // 1. Try atomic PostgreSQL sequence if function/sequence is configured in DB
+      try {
+        const { data: rpcSeq, error: rpcErr } = await this.db.rpc('next_application_sequence', { p_year: year });
+        if (!rpcErr && rpcSeq && Number.isInteger(Number(rpcSeq))) {
+          return `${prefix}${String(rpcSeq).padStart(5, '0')}`;
+        }
+      } catch (_) {}
+
       const { data, error } = await this.db
         .from('LoanApplication')
         .select('applicationNumber')
@@ -2116,11 +2124,34 @@ export class ApplicationService {
           }
         }
       }
-      return `${prefix}${String(nextSeq).padStart(5, '0')}`;
+
+      // Collision-safe probe
+      let candidate = `${prefix}${String(nextSeq).padStart(5, '0')}`;
+      let attempts = 0;
+      while (attempts < 50) {
+        try {
+          const { data: existing } = await this.db
+            .from('LoanApplication')
+            .select('id')
+            .eq('applicationNumber', candidate)
+            .limit(1)
+            .maybeSingle();
+
+          if (!existing) {
+            return candidate;
+          }
+        } catch (_) {}
+
+        nextSeq += 1;
+        candidate = `${prefix}${String(nextSeq).padStart(5, '0')}`;
+        attempts += 1;
+      }
+
+      return candidate;
     } catch (err) {
-      console.error('[ApplicationService] Failed to generate sequential application number, falling back to random:', err);
-      const seq = String(Math.floor(Math.random() * 100_000)).padStart(5, '0');
-      return `${prefix}${seq}`;
+      console.error('[ApplicationService] Failed to generate sequential application number:', err);
+      const timestampSuffix = Date.now().toString().slice(-5);
+      return `${prefix}${timestampSuffix}`;
     }
   }
 

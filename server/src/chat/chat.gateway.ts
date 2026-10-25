@@ -46,7 +46,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       if (isSimulator && simPhone) {
         const digits = String(simPhone).replace('whatsapp:', '').trim().replace(/\D/g, '');
         const cleanPhone = digits.length > 10 && digits.startsWith('91') ? digits.substring(2) : (digits.length > 10 ? digits.slice(-10) : digits);
-        client.join(`sim_${cleanPhone}`);
+        await client.join(`sim_${cleanPhone}`);
         this.logger.log(`Simulator connected for phone: ${cleanPhone}`);
         return;
       }
@@ -64,28 +64,28 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       
       // Join general room based on role
       if (payload.role === 'admin' || payload.role === 'staff' || payload.role === 'super_admin') {
-        client.join('room_staff');
+        await client.join('room_staff');
       } else if (payload.role === 'bank' || payload.role === 'partner_bank') {
-        client.join('room_bank');
+        await client.join('room_bank');
         // Also join a per-bank room so notifications can be targeted to a specific bank
         // The bankId may be stored on the JWT as bankId, bank_id, or derived from bankName
         const bankId = payload.bankId || payload.bank_id || payload.selectedBank || null;
         if (bankId) {
           const safeBankId = String(bankId).toLowerCase().replace(/[^a-z0-9_-]/g, '_');
-          client.join(`room_bank_${safeBankId}`);
+          await client.join(`room_bank_${safeBankId}`);
           client.data.bankId = safeBankId;
           this.logger.log(`Bank client ${client.id} joined per-bank room: room_bank_${safeBankId}`);
         }
       } else if (payload.role === 'support') {
-        client.join('room_support');
-        client.join('room_staff');
-        client.join('room_bank');
+        await client.join('room_support');
+        await client.join('room_staff');
+        await client.join('room_bank');
       }
 
       // Join direct user room for personal notifications
       const userId = payload.id || payload.uid || payload.sub;
       if (userId) {
-        client.join(`user_${userId}`);
+        await client.join(`user_${userId}`);
       }
 
       // Track online presence if email is available
@@ -110,7 +110,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('joinRoom')
-  handleJoinRoom(
+  async handleJoinRoom(
     @ConnectedSocket() client: Socket,
     @MessageBody() room: string
   ) {
@@ -122,7 +122,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     // Allow per-bank rooms (e.g. room_bank_idfc) for bank clients
     const isPerBankRoom = isBank && /^room_bank_[a-z0-9_-]+$/.test(room);
     if ((room === 'room_staff' && isStaff) || (room === 'room_bank' && isBank) || (room === 'room_support' && isSupport) || isPerBankRoom) {
-      client.join(room);
+      await client.join(room);
       this.logger.log(`Client ${client.id} explicitly joined ${room}`);
     }
     return { success: true };
@@ -135,20 +135,20 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('join_conversation')
-  handleJoinConversation(
+  async handleJoinConversation(
     @ConnectedSocket() client: Socket,
     @MessageBody() conversationId: string
   ) {
-    client.join(`conv_${conversationId}`);
+    await client.join(`conv_${conversationId}`);
     return { status: 'joined', conversationId };
   }
 
   @SubscribeMessage('leave_conversation')
-  handleLeaveConversation(
+  async handleLeaveConversation(
     @ConnectedSocket() client: Socket,
     @MessageBody() conversationId: string
   ) {
-    client.leave(`conv_${conversationId}`);
+    await client.leave(`conv_${conversationId}`);
     return { status: 'left', conversationId };
   }
 
@@ -378,26 +378,31 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: any
   ) {
-    this.logger.log(`Broadcasting multiparty message in conversation ${payload.conversationId}`);
-    if (this.server) {
-      this.server.to(`conv_${payload.conversationId}`).emit('new_message', payload);
-      
-      const user = client.data.user;
-      if (user) {
-        if (user.role === 'bank' || user.role === 'partner_bank') {
-          this.server.to('room_bank').emit('conversation_updated', {
-            conversationId: payload.conversationId,
-            lastMessage: payload
-          });
-        } else {
-          this.server.to('room_staff').emit('conversation_updated', {
-            conversationId: payload.conversationId,
-            lastMessage: payload
-          });
+    try {
+      this.logger.log(`Broadcasting multiparty message in conversation ${payload?.conversationId}`);
+      if (this.server && payload?.conversationId) {
+        this.server.to(`conv_${payload.conversationId}`).emit('new_message', payload);
+        
+        const user = client.data.user;
+        if (user) {
+          if (user.role === 'bank' || user.role === 'partner_bank') {
+            this.server.to('room_bank').emit('conversation_updated', {
+              conversationId: payload.conversationId,
+              lastMessage: payload
+            });
+          } else {
+            this.server.to('room_staff').emit('conversation_updated', {
+              conversationId: payload.conversationId,
+              lastMessage: payload
+            });
+          }
         }
       }
+      return { success: true };
+    } catch (err: any) {
+      this.logger.error('Failed to broadcast multiparty message:', err);
+      return { success: false, error: err?.message };
     }
-    return { success: true };
   }
 
   @OnEvent('user.login')

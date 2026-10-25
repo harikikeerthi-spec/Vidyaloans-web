@@ -43,7 +43,8 @@ export default function MobileFloatingActionBar() {
                     <span className="hidden xs:inline">EMI</span>
                 </Link>
 
-                {/* Refer & Earn (Locked) */}
+                {/* Refer & Earn (Locked) - Hidden until live */}
+                {false && (
                 <div
                     className="relative flex items-center justify-center p-3 rounded-xl bg-amber-50 text-amber-700 border border-amber-200/80 cursor-default"
                     title="Refer & Earn — Locked (Coming Soon)"
@@ -53,6 +54,7 @@ export default function MobileFloatingActionBar() {
                         <span className="material-symbols-outlined text-[9px]">lock</span>
                     </div>
                 </div>
+                )}
             </div>
         </aside>
     );

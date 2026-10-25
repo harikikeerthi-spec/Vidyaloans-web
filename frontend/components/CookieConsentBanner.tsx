@@ -7,17 +7,42 @@ export default function CookieConsentBanner() {
     const [isVisible, setIsVisible] = useState(false);
 
     useEffect(() => {
+        if (typeof window === "undefined") return;
+
         // Check if user has already answered the cookie consent
         const hasAnswered = document.cookie.includes("cookie_consent_answered=true");
-        if (!hasAnswered) {
-            // Add a small delay so it doesn't pop up too aggressively
-            const timer = setTimeout(() => setIsVisible(true), 1500);
+        if (hasAnswered) return;
+
+        const isMobile = window.matchMedia("(max-width: 767px)").matches;
+        let appPopupSeen = false;
+        try {
+            appPopupSeen = !!sessionStorage.getItem("vidyaloans_app_popup_seen");
+        } catch {
+            // Ignore storage errors
+        }
+
+        if (isMobile && !appPopupSeen) {
+            // On mobile, show after app popup is dismissed or resolved so they never overlap
+            const handleResolved = () => {
+                setTimeout(() => setIsVisible(true), 600);
+            };
+            window.addEventListener("vidya_app_popup_resolved", handleResolved, { once: true });
+            return () => window.removeEventListener("vidya_app_popup_resolved", handleResolved);
+        } else {
+            // Desktop or app popup already handled, display slim banner shortly after load
+            const timer = setTimeout(() => setIsVisible(true), 800);
             return () => clearTimeout(timer);
         }
     }, []);
 
+    const markConsentResolved = () => {
+        setIsVisible(false);
+        if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("vidya_cookie_consent_settled"));
+        }
+    };
+
     const acceptAll = () => {
-        // Set all to true
         const prefs = { essential: true, analytical: true, marketing: true };
         localStorage.setItem('cookie-preferences', JSON.stringify(prefs));
         
@@ -25,11 +50,10 @@ export default function CookieConsentBanner() {
         document.cookie = "visitor_analytics_id=active; max-age=63072000; path=/";
         document.cookie = "marketing_funnel_state=active; max-age=31536000; path=/";
         
-        setIsVisible(false);
+        markConsentResolved();
     };
 
     const acceptEssential = () => {
-        // Set only essential to true
         const prefs = { essential: true, analytical: false, marketing: false };
         localStorage.setItem('cookie-preferences', JSON.stringify(prefs));
         
@@ -37,49 +61,51 @@ export default function CookieConsentBanner() {
         document.cookie = "visitor_analytics_id=; max-age=0; path=/";
         document.cookie = "marketing_funnel_state=; max-age=0; path=/";
         
-        setIsVisible(false);
+        markConsentResolved();
     };
 
     if (!isVisible) return null;
 
     return (
-        <div className="fixed bottom-0 left-0 right-0 z-50 p-4 md:p-6 pointer-events-none">
-            <div className="max-w-4xl mx-auto bg-white/95 backdrop-blur-xl border border-[#6605c7]/20 rounded-2xl p-5 md:p-6 shadow-2xl pointer-events-auto flex flex-col md:flex-row items-center gap-6 transform transition-all duration-500 ease-out translate-y-0 opacity-100">
-                <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                        <span className="material-symbols-outlined text-[#6605c7]">cookie</span>
-                        <h3 className="text-[16px] font-bold font-display text-gray-900">We Value Your Privacy</h3>
-                    </div>
-                    <p className="text-[13px] text-gray-600 font-medium leading-relaxed">
-                        We use cookies to enhance your browsing experience, serve personalized loans, and analyze our traffic. 
-                        By clicking "Accept All", you consent to our use of cookies. 
-                        <Link href="/cookies" className="text-[#6605c7] hover:underline font-bold ml-1">
-                            Read our Cookie Policy
-                        </Link>
+        <aside
+            role="region"
+            aria-label="Cookie consent banner"
+            className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-purple-100 shadow-[0_-4px_24px_rgba(0,0,0,0.08)] py-2.5 px-4 sm:px-6 transition-all animate-in fade-in slide-in-from-bottom-4 duration-300 pointer-events-auto"
+        >
+            <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5 text-center sm:text-left">
+                    <span className="material-symbols-outlined text-[#6605c7] text-lg shrink-0 hidden sm:inline-block">cookie</span>
+                    <p className="text-[12px] text-gray-600 font-medium leading-snug">
+                        We use cookies to personalize your experience and analyze traffic. By browsing, you consent to our{" "}
+                        <Link href="/cookies" className="text-[#6605c7] font-bold hover:underline">
+                            Cookie Policy
+                        </Link>.
                     </p>
                 </div>
-                <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto shrink-0">
-                    <Link 
+                <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end">
+                    <Link
                         href="/cookies"
-                        onClick={() => setIsVisible(false)}
-                        className="px-5 py-2.5 rounded-xl border border-gray-200 text-gray-700 font-bold text-xs uppercase tracking-wider hover:bg-gray-50 transition-colors text-center"
+                        onClick={markConsentResolved}
+                        className="min-h-[44px] px-3.5 py-2 rounded-xl border border-gray-200 text-gray-600 font-bold text-[11px] uppercase tracking-wider hover:bg-gray-50 transition-colors inline-flex items-center justify-center text-center"
                     >
                         Customize
                     </Link>
                     <button
+                        type="button"
                         onClick={acceptEssential}
-                        className="px-5 py-2.5 rounded-xl border border-[#6605c7]/20 text-[#6605c7] font-bold text-xs uppercase tracking-wider hover:bg-[#6605c7]/5 transition-colors"
+                        className="min-h-[44px] px-3.5 py-2 rounded-xl border border-[#6605c7]/20 text-[#6605c7] font-bold text-[11px] uppercase tracking-wider hover:bg-[#6605c7]/5 transition-colors cursor-pointer inline-flex items-center justify-center"
                     >
                         Essential Only
                     </button>
                     <button
+                        type="button"
                         onClick={acceptAll}
-                        className="px-5 py-2.5 rounded-xl bg-[#6605c7] text-white font-bold text-xs uppercase tracking-wider hover:bg-[#8b24e5] transition-colors shadow-lg shadow-purple-500/20"
+                        className="min-h-[44px] px-4 py-2 rounded-xl bg-[#6605c7] text-white font-bold text-[11px] uppercase tracking-wider hover:bg-[#8b24e5] transition-colors shadow-sm cursor-pointer inline-flex items-center justify-center"
                     >
                         Accept All
                     </button>
                 </div>
             </div>
-        </div>
+        </aside>
     );
 }

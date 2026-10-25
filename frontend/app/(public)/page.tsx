@@ -13,6 +13,7 @@ import MobileFloatingActionBar from "../../components/MobileFloatingActionBar";
 import LenderLogo from "../../components/LenderLogo";
 import { lenders, features } from "../../data/home";
 import { fetchTopGoogleReviews } from "../../lib/googleReviews";
+import { SITE_STATS } from "../../lib/siteStats";
 
 // 5 Core Lending Partners ordered as requested: Auxilo, Poonawalla, Avanse, HDFC Credila, IDFC
 const CORE_BANKS_CONFIG = [
@@ -173,9 +174,9 @@ async function getDisbursedAmount() {
 }
 
 export const metadata: Metadata = {
-    title: "Vidya Loans - Find Your Dream Education Abroad",
+    title: "VidyaLoans - Find Your Dream Education Abroad",
     description:
-        "Compare education loans from 50+ banks & NBFCs. Get the best rates, quick approvals, and expert guidance — all in one place.",
+        "Compare education loans from 5+ partner banks & NBFCs. Get the best rates, 48-hour approvals, and expert guidance — all in one place.",
 };
 
 const heroGradient = { background: 'linear-gradient(135deg, #ede0ff 0%, #f3eaff 25%, #fdf6ff 55%, #fef3e8 80%, #fde8c8 100%)' };
@@ -189,68 +190,54 @@ export default async function HomePage() {
     return (
         <div className="relative min-h-screen text-gray-900 bg-transparent selection:bg-[#6605c7]/20">
             <div className="relative z-10">
-                {/* Floating Referral Badge - Premium Design */}
-                <Link
-                    href=""
-                    aria-label="Refer and Earn - Locked (Coming Soon)"
-                    className="hidden md:block fixed left-6 top-[75%] -translate-y-1/2 z-50 group"
-                    title="Refer & Earn — Locked (Coming Soon)"
-                >
-                    <div className="relative">
-                        {/* Animated rings */}
-                        <div role="presentation" className="absolute inset-0 animate-[ping_1s_ease-in-out_3] rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 opacity-20" />
-                        <div role="presentation" className="absolute -inset-1 animate-pulse rounded-xl bg-gradient-to-r from-amber-400/30 to-orange-500/30 blur-md" />
-
-                        {/* Main badge */}
-                        <div className="relative flex flex-col items-center gap-1">
-                            {/* Hover tooltip */}
-                            <span className="absolute left-full ml-3 whitespace-nowrap bg-gradient-to-r from-amber-500 to-orange-600 text-white text-[11px] font-black px-4 py-2 rounded-xl shadow-xl shadow-orange-500/30 opacity-0 -translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 uppercase tracking-wider">
-                                <span className="flex items-center gap-1.5">
-                                    <span className="material-symbols-outlined text-xs">lock</span>
-                                    <span>Locked — Refer & Earn Coming Soon</span>
+                {/* Floating Referral Badge - Hidden until live to prevent overlap and clutter */}
+                {false && (
+                    <Link
+                        href=""
+                        aria-label="Refer and Earn - Locked (Coming Soon)"
+                        className="hidden md:block fixed right-6 bottom-24 z-40 group"
+                        title="Refer & Earn — Locked (Coming Soon)"
+                    >
+                        <div className="relative">
+                            <div role="presentation" className="absolute inset-0 animate-[ping_1s_ease-in-out_3] rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 opacity-20" />
+                            <div role="presentation" className="absolute -inset-1 animate-pulse rounded-xl bg-gradient-to-r from-amber-400/30 to-orange-500/30 blur-md" />
+                            <div className="relative flex flex-col items-center gap-1">
+                                <span className="absolute right-full mr-3 whitespace-nowrap bg-gradient-to-r from-amber-500 to-orange-600 text-white text-[11px] font-black px-4 py-2 rounded-xl shadow-xl shadow-orange-500/30 opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 uppercase tracking-wider">
+                                    <span className="flex items-center gap-1.5">
+                                        <span className="material-symbols-outlined text-xs">lock</span>
+                                        <span>Locked — Refer & Earn Coming Soon</span>
+                                    </span>
                                 </span>
-                            </span>
-
-                            {/* Custom Logo Container */}
-                            <div className="relative w-14 h-14 group-hover:scale-110 transition-all duration-300">
-                                {/* Rotating border */}
-                                <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-amber-400 via-orange-500 to-amber-400 animate-[spin_3s_linear_infinite] opacity-80" style={{ padding: '2px' }}>
-                                    <div className="w-full h-full rounded-xl bg-white" />
-                                </div>
-
-                                {/* Icon container */}
-                                <div className="absolute inset-[2px] rounded-xl bg-gradient-to-br from-amber-400 via-orange-500 to-amber-600 flex items-center justify-center shadow-lg overflow-hidden">
-                                    {/* Shine effect */}
-                                    <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/30 to-white/0 -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
-
-                                    {/* Custom referral icon - coins/gift mashup */}
-                                    <div className="relative z-10 flex flex-col items-center">
-                                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" className="text-white drop-shadow-lg">
-                                            <path d="M12 2L14.09 8.26L20.81 9.27L15.91 13.97L17.18 20.73L12 17.77L6.82 20.73L8.09 13.97L3.19 9.27L9.91 8.26L12 2Z" fill="currentColor" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
-                                            <circle cx="12" cy="12" r="3" fill="#fbbf24" stroke="white" strokeWidth="1" />
-                                        </svg>
+                                <div className="relative w-14 h-14 group-hover:scale-110 transition-all duration-300">
+                                    <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-amber-400 via-orange-500 to-amber-400 animate-[spin_3s_linear_infinite] opacity-80" style={{ padding: '2px' }}>
+                                        <div className="w-full h-full rounded-xl bg-white" />
+                                    </div>
+                                    <div className="absolute inset-[2px] rounded-xl bg-gradient-to-br from-amber-400 via-orange-500 to-amber-600 flex items-center justify-center shadow-lg overflow-hidden">
+                                        <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/30 to-white/0 -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+                                        <div className="relative z-10 flex flex-col items-center">
+                                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" className="text-white drop-shadow-lg">
+                                                <path d="M12 2L14.09 8.26L20.81 9.27L15.91 13.97L17.18 20.73L12 17.77L6.82 20.73L8.09 13.97L3.19 9.27L9.91 8.26L12 2Z" fill="currentColor" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
+                                                <circle cx="12" cy="12" r="3" fill="#fbbf24" stroke="white" strokeWidth="1" />
+                                            </svg>
+                                        </div>
+                                    </div>
+                                    <div className="absolute -top-1 -right-1 z-20 w-5 h-5 bg-amber-600 text-white rounded-full flex items-center justify-center shadow-md border-2 border-white">
+                                        <span className="material-symbols-outlined text-[11px] font-bold">lock</span>
                                     </div>
                                 </div>
-
-                                {/* Lock Badge Overlay */}
-                                <div className="absolute -top-1 -right-1 z-20 w-5 h-5 bg-amber-600 text-white rounded-full flex items-center justify-center shadow-md border-2 border-white">
-                                    <span className="material-symbols-outlined text-[11px] font-bold">lock</span>
+                                <div className="text-center flex flex-col items-center gap-0.5">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-[#1a1626] group-hover:text-[#6605c7] transition-colors whitespace-nowrap drop-shadow-sm">
+                                        Refer & Earn
+                                    </span>
+                                    <span className="inline-flex items-center gap-0.5 text-[8px] font-extrabold uppercase tracking-wider text-amber-700 bg-amber-50 border border-amber-200/90 px-1.5 py-0.5 rounded-full shadow-xs">
+                                        <span className="material-symbols-outlined text-[10px] text-amber-600">lock</span>
+                                        Locked
+                                    </span>
                                 </div>
                             </div>
-
-                            {/* Refer Now label */}
-                            <div className="text-center flex flex-col items-center gap-0.5">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-[#1a1626] group-hover:text-[#6605c7] transition-colors whitespace-nowrap drop-shadow-sm">
-                                    Refer & Earn
-                                </span>
-                                <span className="inline-flex items-center gap-0.5 text-[8px] font-extrabold uppercase tracking-wider text-amber-700 bg-amber-50 border border-amber-200/90 px-1.5 py-0.5 rounded-full shadow-xs">
-                                    <span className="material-symbols-outlined text-[10px] text-amber-600">lock</span>
-                                    Locked
-                                </span>
-                            </div>
                         </div>
-                    </div>
-                </Link>
+                    </Link>
+                )}
 
                 {/* Hero Section */}
                 <section className="relative min-h-screen flex items-center pt-28 overflow-hidden bg-transparent">
@@ -309,17 +296,16 @@ export default async function HomePage() {
                                         ))}
                                     </div>
                                     <div>
-                                        <div className="text-[13px] font-black text-[#1a1626]">4.9/5 ★</div>
-                                        <div className="text-[11px] text-gray-400">2,000+ reviews</div>
+                                        <div className="text-[13px] font-black text-[#1a1626]">{SITE_STATS.ratingStars}</div>
+                                        <div className="text-[11px] text-gray-500 font-medium">({SITE_STATS.ratingCount})</div>
                                     </div>
                                 </div>
                                 <div className="hidden sm:block w-px h-8 bg-gray-100" />
                                 {[
-                                    // { val: `${activeLenders.length}+`, label: 'Lenders' },
-                                    { val: '30+', label: 'Countries' },
-                                    { val: '48h', label: 'Approval' },
+                                    { val: SITE_STATS.lenders, label: 'Lenders' },
+                                    { val: SITE_STATS.countries, label: 'Countries' },
+                                    { val: SITE_STATS.approvalTimeShort, label: 'Approval' },
                                     { val: disbursedAmount, label: 'Disbursed' },
-
                                 ].map(s => (
                                     <div key={s.label} className="text-center">
                                         <div className="text-[13px] font-black text-[#6605c7]">{s.val}</div>
@@ -493,38 +479,16 @@ export default async function HomePage() {
                                 </div>
                             </Link>
 
-                            {/* 4 — Exam Prep */}
-                            <div className="col-span-12 sm:col-span-6 lg:col-span-4 row-span-1 group relative overflow-hidden rounded-xl shadow-lg flex flex-col justify-end min-h-[240px]" style={{ background: 'linear-gradient(135deg, #064e3b 0%, #065f46 100%)' }}>
-                                <div className="absolute inset-0 opacity-20" style={{ background: "url('/images/ecosystem/exam-prep.jpg') center/cover" }} />
-                                <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(6,78,59,0.9) 0%, rgba(6,78,59,0.3) 70%, transparent 100%)' }} />
-                                <div className="absolute top-4 right-4 w-20 h-20 rounded-2xl bg-emerald-400/20 backdrop-blur-md will-change-transform flex items-center justify-center border border-emerald-400/30">
-                                    <span className="material-symbols-outlined text-5xl text-white font-light">edit_note</span>
-                                </div>
-                                <div className="absolute top-4 left-4 flex flex-wrap gap-1.5 items-center">
-                                    {['GRE', 'IELTS', 'TOEFL'].map(t => (
-                                        <span key={t} className="px-2 py-0.5 rounded-lg bg-emerald-400/20 backdrop-blur-sm will-change-transform text-emerald-300 text-[10px] font-black border border-emerald-400/20">{t}</span>
-                                    ))}
-                                    <span className="px-2 py-0.5 rounded-lg bg-amber-400 text-slate-950 text-[9px] font-black uppercase tracking-wider">Coming Soon</span>
-                                </div>
-                                <div className="relative z-10 p-6">
-                                    <div className="text-2xl font-black text-white mb-1"><AnimatedNumber value="5000+" /></div>
-                                    <h3 className="text-lg font-bold text-white mb-2">Exam Prep</h3>
-                                    <p className="text-white/55 text-[13px] font-medium leading-relaxed mb-4">GRE, IELTS, TOEFL & more. AI‑adaptive tests.</p>
-                                    <span className="inline-flex items-center gap-2 text-emerald-300 font-bold text-[13px]">
-                                        Coming Soon <span className="material-symbols-outlined text-[13px]" aria-hidden="true">lock</span>
-                                    </span>
-                                </div>
-                            </div>
-
-                            {/* 5 — Education Loan */}
-                            <Link href="/apply-loan" className="col-span-12 sm:col-span-6 lg:col-span-3 row-span-1 group relative overflow-hidden rounded-xl shadow-xl flex flex-col justify-end min-h-[240px]" style={{ background: 'linear-gradient(135deg, #6605c7 0%, #9333ea 100%)' }}>
+                            {/* 4 — Education Loan (Live) */}
+                            <Link href="/apply-loan" className="col-span-12 lg:col-span-7 row-span-1 group relative overflow-hidden rounded-xl shadow-xl flex flex-col justify-end min-h-[240px]" style={{ background: 'linear-gradient(135deg, #6605c7 0%, #9333ea 100%)' }}>
                                 <div className="absolute inset-0 opacity-10" style={{ background: "url('/images/ecosystem/education-loan.jpg') center/cover" }} />
                                 <div className="absolute top-4 right-4 w-20 h-20 rounded-2xl bg-white/10 backdrop-blur-md will-change-transform flex items-center justify-center group-hover:scale-110 transition-transform border border-white/20">
                                     <span className="material-symbols-outlined text-5xl text-white font-light">payments</span>
                                 </div>
                                 <div className="relative z-10 p-6">
                                     <span className="inline-block px-2 py-0.5 rounded-lg bg-white/10 text-white text-[10px] font-black uppercase tracking-widest mb-3 border border-white/10">⭐ Best Rates</span>
-                                    <h3 className="text-lg font-bold text-white mb-2">Education Loans</h3>
+                                    <h3 className="text-xl font-bold text-white mb-2">Education Loans</h3>
+                                    <p className="text-white/65 text-[13px] font-medium leading-relaxed mb-3 max-w-md">Compare {SITE_STATS.lenders} verified partner banks &amp; NBFCs with collateral-free options, fast 48-hour approvals, and lowest interest rates.</p>
                                     <span className="inline-flex items-center gap-2 text-purple-200 font-bold text-[13px] group-hover:gap-3 transition-all">
                                         Check Now <span className="material-symbols-outlined text-[13px]" aria-hidden="true">arrow_forward</span>
                                     </span>
@@ -535,11 +499,9 @@ export default async function HomePage() {
                         {/* Floating Stats Bar */}
                         <div className="mt-8 flex flex-wrap gap-4 justify-center">
                             {[
-                                { icon: '🌍', val: '30+', label: 'Countries' },
-                                { icon: '🏛️', val: '500+', label: 'Universities' },
-                                { icon: '📚', val: '200+', label: 'Courses' },
-
-
+                                { icon: '🌍', val: SITE_STATS.countries, label: 'Countries' },
+                                { icon: '🏛️', val: SITE_STATS.universities, label: 'Universities' },
+                                { icon: '📚', val: SITE_STATS.courses, label: 'Courses' },
                             ].map(s => (
                                 <div key={s.label} className="flex items-center gap-2.5 px-5 py-3 rounded-xl bg-white border border-gray-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all group">
                                     <span className="text-lg group-hover:scale-125 transition-transform">{s.icon}</span>
@@ -581,7 +543,7 @@ export default async function HomePage() {
                         </div>
 
                         <div className="mt-12 flex flex-wrap justify-center gap-12 text-center border-t border-black/5 pt-12">
-                            {[{ num: "3000+", label: "Universities Covered" }, { num: "98%", label: "Accuracy Rate" }].map((s) => (
+                            {[{ num: SITE_STATS.universities, label: "Universities Covered" }, { num: "98%", label: "Accuracy Rate" }].map((s) => (
                                 <div key={s.label}>
                                     <div className="text-4xl font-bold text-gray-900"><AnimatedNumber value={s.num} duration={2.5} /></div>
                                     <div className="text-xs text-gray-500 uppercase font-bold tracking-widest mt-1">{s.label}</div>
@@ -784,7 +746,7 @@ export default async function HomePage() {
                                 Testimonials
                             </span>
                             <h2 className="text-3xl md:text-5xl font-black text-gray-900 mb-4 leading-tight">
-                                Loved by <span className="text-[#6605c7]">10,000+</span> Students
+                                Loved by <span className="text-[#6605c7]">{SITE_STATS.students}</span> Students
                             </h2>
                             <p className="text-gray-500 text-[13px] font-medium">Real stories from students who funded their dreams with us</p>
                         </div>
@@ -793,7 +755,7 @@ export default async function HomePage() {
                         <MobileTestimonialsSlider
                             testimonials={dynamicTestimonials && dynamicTestimonials.length > 0 ? dynamicTestimonials : [
                                 { name: "Priya Sharma", school: "MS Computer Science, NYU", quote: "VidyaLoans made my dream of studying at NYU possible. Got my loan approved in just 48 hours with zero hassle!", highlight: "₹45 Lakhs", highlightLabel: "Loan Approved" },
-                                { name: "Rahul Mehta", school: "MBA, Oxford Said", quote: "Comparing 20+ lenders saved me over 1.5% in interest rate. The loan counsellor walked me through every single step.", highlight: "8.65%", highlightLabel: "Interest Rate" },
+                                { name: "Rahul Mehta", school: "MBA, Oxford Said", quote: "Comparing partner lenders saved me over 1.5% in interest rate. The loan counsellor walked me through every single step.", highlight: "8.65%", highlightLabel: "Interest Rate" },
                                 { name: "Ananya Reddy", school: "MS Data Science, Univ. of Melbourne", quote: "Completely paperless! DigiLocker sync and digital signatures took only 10 minutes. Highly recommended for study abroad.", highlight: "48 Hours", highlightLabel: "Turnaround Time" },
                             ]}
                         />
@@ -850,146 +812,96 @@ export default async function HomePage() {
                 <PostAdmissionServicesSection />
 
 
-                {/* Refer & Earn Section */}
-                <section className="py-20 bg-transparent">
-                    <div className="max-w-6xl mx-auto px-6">
-                        <div className="relative rounded-3xl overflow-hidden">
-                            {/* Animated gradient background */}
-                            <div className="absolute inset-0 bg-gradient-to-br from-amber-400 via-orange-500 to-amber-600" />
-                            <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(255,255,255,0.3) 0%, transparent 50%), radial-gradient(circle at 80% 50%, rgba(255,255,255,0.2) 0%, transparent 40%)' }} />
+                {/* Refer & Earn Section - Hidden until live */}
+                {false && (
+                    <section className="py-20 bg-transparent">
+                        <div className="max-w-6xl mx-auto px-6">
+                            <div className="relative rounded-3xl overflow-hidden">
+                                {/* Animated gradient background */}
+                                <div className="absolute inset-0 bg-gradient-to-br from-amber-400 via-orange-500 to-amber-600" />
+                                <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(255,255,255,0.3) 0%, transparent 50%), radial-gradient(circle at 80% 50%, rgba(255,255,255,0.2) 0%, transparent 40%)' }} />
 
-                            {/* Pattern overlay */}
-                            <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cpath d=\'M30 0L60 30L30 60L0 30L30 0z\' fill=\'%23fff\' fill-opacity=\'0.1\'/%3E%3C/svg%3E")', backgroundSize: '30px 30px' }} />
+                                {/* Pattern overlay */}
+                                <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cpath d=\'M30 0L60 30L30 60L0 30L30 0z\' fill=\'%23fff\' fill-opacity=\'0.1\'/%3E%3C/svg%3E")', backgroundSize: '30px 30px' }} />
 
-                            {/* Floating elements */}
-                            <div className="absolute top-10 left-10 w-16 h-16 bg-white/10 rounded-2xl rotate-12 animate-pulse" />
-                            <div className="absolute bottom-10 right-20 w-20 h-20 bg-white/10 rounded-full animate-bounce" style={{ animationDuration: '3s' }} />
-                            <div className="absolute top-1/2 right-10 w-8 h-8 bg-yellow-300/30 rounded-lg rotate-45" />
+                                {/* Floating elements */}
+                                <div className="absolute top-10 left-10 w-16 h-16 bg-white/10 rounded-2xl rotate-12 animate-pulse" />
+                                <div className="absolute bottom-10 right-20 w-20 h-20 bg-white/10 rounded-full animate-bounce" style={{ animationDuration: '3s' }} />
+                                <div className="absolute top-1/2 right-10 w-8 h-8 bg-yellow-300/30 rounded-lg rotate-45" />
 
-                            <div className="relative z-10 p-10 md:p-16">
-                                <div className="flex flex-col lg:flex-row items-center gap-10">
-                                    {/* Custom Referral Logo/Icon */}
-                                    <div className="relative flex-shrink-0">
-                                        {/* Outer glow */}
-                                        <div className="absolute inset-0 bg-white/20 rounded-3xl blur-xl scale-110" />
-
-                                        {/* Main container */}
-                                        <div className="relative w-32 h-32 md:w-40 md:h-40">
-                                            {/* Rotating ring */}
-                                            <div className="absolute inset-0 rounded-3xl border-4 border-dashed border-white/30 animate-[spin_20s_linear_infinite]" />
-
-                                            {/* Inner container */}
-                                            <div className="absolute inset-2 rounded-2xl bg-white/20 backdrop-blur-sm will-change-transform flex items-center justify-center">
-                                                {/* Custom SVG Logo */}
-                                                <svg width="80" height="80" viewBox="0 0 100 100" fill="none" className="drop-shadow-2xl">
-                                                    {/* Gift box base */}
-                                                    <rect x="15" y="45" width="70" height="45" rx="8" fill="white" />
-                                                    <rect x="15" y="45" width="70" height="45" rx="8" fill="url(#gift-gradient)" fillOpacity="0.3" />
-
-                                                    {/* Gift box lid */}
-                                                    <rect x="10" y="35" width="80" height="15" rx="4" fill="white" />
-                                                    <rect x="10" y="35" width="80" height="15" rx="4" fill="url(#gift-gradient)" fillOpacity="0.2" />
-
-                                                    {/* Ribbon vertical */}
-                                                    <rect x="45" y="35" width="10" height="55" fill="#f59e0b" />
-
-                                                    {/* Ribbon horizontal */}
-                                                    <rect x="15" y="55" width="70" height="10" fill="#f59e0b" />
-
-                                                    {/* Bow */}
-                                                    <ellipse cx="35" cy="30" rx="12" ry="10" fill="#f59e0b" />
-                                                    <ellipse cx="65" cy="30" rx="12" ry="10" fill="#f59e0b" />
-                                                    <circle cx="50" cy="32" r="8" fill="#fbbf24" />
-
-                                                    {/* Coins coming out */}
-                                                    <circle cx="70" cy="20" r="8" fill="#fcd34d" stroke="#f59e0b" strokeWidth="2" />
-                                                    <text x="70" y="24" textAnchor="middle" fill="#92400e" fontSize="10" fontWeight="bold">₹</text>
-
-                                                    <circle cx="82" cy="28" r="6" fill="#fcd34d" stroke="#f59e0b" strokeWidth="2" />
-                                                    <circle cx="25" cy="18" r="7" fill="#fcd34d" stroke="#f59e0b" strokeWidth="2" />
-                                                    <text x="25" y="22" textAnchor="middle" fill="#92400e" fontSize="9" fontWeight="bold">₹</text>
-
-                                                    {/* Sparkles */}
-                                                    <path d="M88 15L90 10L92 15L97 17L92 19L90 24L88 19L83 17L88 15Z" fill="white" />
-                                                    <path d="M15 25L16 22L17 25L20 26L17 27L16 30L15 27L12 26L15 25Z" fill="white" />
-
-                                                    <defs>
-                                                        <linearGradient id="gift-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                                            <stop offset="0%" stopColor="#f59e0b" />
-                                                            <stop offset="100%" stopColor="#ea580c" />
-                                                        </linearGradient>
-                                                    </defs>
-                                                </svg>
-                                            </div>
-
-                                            {/* Sparkle accents */}
-                                            <div className="absolute -top-2 -right-2 w-6 h-6 bg-yellow-300 rounded-full animate-ping" />
-                                            <div className="absolute -top-2 -right-2 w-6 h-6 bg-yellow-300 rounded-full flex items-center justify-center">
-                                                <span className="text-amber-700 text-xs">✦</span>
-                                            </div>
-                                            <div className="absolute -bottom-1 -left-1 w-4 h-4 bg-white rounded-full animate-pulse" />
-                                        </div>
-                                    </div>
-
-                                    {/* Content */}
-                                    <div className="flex-1 text-center lg:text-left">
-                                        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/20 backdrop-blur-sm will-change-transform mb-4">
-                                            <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
-                                            <span className="text-white text-[11px] font-black uppercase tracking-widest">Exclusive Rewards Program</span>
-                                        </div>
-
-                                        <h2 className="text-3xl md:text-5xl font-black text-white mb-4 leading-tight">
-                                            Refer Friends,<br />
-                                            <span className="text-yellow-200">Earn ₹3,000</span> Each!
-                                        </h2>
-
-                                        <p className="text-white/90 text-[15px] mb-8 max-w-lg leading-relaxed font-medium">
-                                            Know someone planning to study abroad? Refer them to VidyaLoan and earn rewards for every successful loan disbursement. Plus, unlock ₹10,000 bonus when you hit 5 referrals!
-                                        </p>
-
-                                        {/* <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-                                            <Link href="/referral" className="px-8 py-4 bg-white text-amber-600 font-black rounded-xl shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all text-[13px] uppercase tracking-widest flex items-center justify-center gap-2">
-                                                <span className="material-symbols-outlined" aria-hidden="true">share</span>
-                                                Start Referring
-                                            </Link>
-                                            <Link href="/referral" className="px-8 py-4 bg-white/20 backdrop-blur-sm will-change-transform text-white border-2 border-white/30 font-bold rounded-xl hover:bg-white/30 transition-all text-[13px] uppercase tracking-widest flex items-center justify-center gap-2">
-                                                <span className="material-symbols-outlined" aria-hidden="true">info</span>
-                                                Learn More
-                                            </Link>
-                                        </div> */}
-
-                                        {/* Stats */}
-                                        <div className="flex flex-wrap gap-6 mt-8 justify-center lg:justify-start">
-                                            {[
-                                                { value: '₹3,000', label: 'Per Referral' },
-                                                { value: '₹1000', label: 'Bonus at 5' },
-                                                { value: 'Unlimited', label: 'Earnings' },
-                                            ].map(stat => (
-                                                <div key={stat.label} className="text-center lg:text-left">
-                                                    <div className="text-2xl font-black text-white">{stat.value}</div>
-                                                    <div className="text-white/70 text-[11px] uppercase tracking-wider font-bold">{stat.label}</div>
+                                <div className="relative z-10 p-10 md:p-16">
+                                    <div className="flex flex-col lg:flex-row items-center gap-10">
+                                        {/* Custom Referral Logo/Icon */}
+                                        <div className="relative flex-shrink-0">
+                                            <div className="absolute inset-0 bg-white/20 rounded-3xl blur-xl scale-110" />
+                                            <div className="relative w-32 h-32 md:w-40 md:h-40">
+                                                <div className="absolute inset-0 rounded-3xl border-4 border-dashed border-white/30 animate-[spin_20s_linear_infinite]" />
+                                                <div className="absolute inset-2 rounded-2xl bg-white/20 backdrop-blur-sm will-change-transform flex items-center justify-center">
+                                                    <svg width="80" height="80" viewBox="0 0 100 100" fill="none" className="drop-shadow-2xl">
+                                                        <rect x="15" y="45" width="70" height="45" rx="8" fill="white" />
+                                                        <rect x="15" y="45" width="70" height="45" rx="8" fill="url(#gift-gradient)" fillOpacity="0.3" />
+                                                        <rect x="10" y="35" width="80" height="15" rx="4" fill="white" />
+                                                        <rect x="10" y="35" width="80" height="15" rx="4" fill="url(#gift-gradient)" fillOpacity="0.2" />
+                                                        <rect x="45" y="35" width="10" height="55" fill="#f59e0b" />
+                                                        <rect x="15" y="55" width="70" height="10" fill="#f59e0b" />
+                                                        <ellipse cx="35" cy="30" rx="12" ry="10" fill="#f59e0b" />
+                                                        <ellipse cx="65" cy="30" rx="12" ry="10" fill="#f59e0b" />
+                                                        <circle cx="50" cy="32" r="8" fill="#fbbf24" />
+                                                        <circle cx="70" cy="20" r="8" fill="#fcd34d" stroke="#f59e0b" strokeWidth="2" />
+                                                        <text x="70" y="24" textAnchor="middle" fill="#92400e" fontSize="10" fontWeight="bold">₹</text>
+                                                        <circle cx="82" cy="28" r="6" fill="#fcd34d" stroke="#f59e0b" strokeWidth="2" />
+                                                        <circle cx="25" cy="18" r="7" fill="#fcd34d" stroke="#f59e0b" strokeWidth="2" />
+                                                        <text x="25" y="22" textAnchor="middle" fill="#92400e" fontSize="9" fontWeight="bold">₹</text>
+                                                        <path d="M88 15L90 10L92 15L97 17L92 19L90 24L88 19L83 17L88 15Z" fill="white" />
+                                                        <path d="M15 25L16 22L17 25L20 26L17 27L16 30L15 27L12 26L15 25Z" fill="white" />
+                                                        <defs>
+                                                            <linearGradient id="gift-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                                                <stop offset="0%" stopColor="#f59e0b" />
+                                                                <stop offset="100%" stopColor="#ea580c" />
+                                                            </linearGradient>
+                                                        </defs>
+                                                    </svg>
                                                 </div>
-                                            ))}
+                                                <div className="absolute -top-2 -right-2 w-6 h-6 bg-yellow-300 rounded-full animate-ping" />
+                                                <div className="absolute -top-2 -right-2 w-6 h-6 bg-yellow-300 rounded-full flex items-center justify-center">
+                                                    <span className="text-amber-700 text-xs">✦</span>
+                                                </div>
+                                                <div className="absolute -bottom-1 -left-1 w-4 h-4 bg-white rounded-full animate-pulse" />
+                                            </div>
+                                        </div>
+
+                                        {/* Content */}
+                                        <div className="flex-1 text-center lg:text-left">
+                                            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/20 backdrop-blur-sm will-change-transform mb-4">
+                                                <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                                                <span className="text-white text-[11px] font-black uppercase tracking-widest">Exclusive Rewards Program</span>
+                                            </div>
+                                            <h2 className="text-3xl md:text-5xl font-black text-white mb-4 leading-tight">
+                                                Refer Friends,<br />
+                                                <span className="text-yellow-200">Earn {SITE_STATS.referralPerStudent}</span> Each!
+                                            </h2>
+                                            <p className="text-white/90 text-[15px] mb-8 max-w-lg leading-relaxed font-medium">
+                                                Know someone planning to study abroad? Refer them to {SITE_STATS.brandName} and earn rewards for every successful loan disbursement. Plus, unlock {SITE_STATS.referralBonusAt5} bonus when you hit 5 referrals!
+                                            </p>
+                                            <div className="flex flex-wrap gap-6 mt-8 justify-center lg:justify-start">
+                                                {[
+                                                    { value: SITE_STATS.referralPerStudent, label: 'Per Referral' },
+                                                    { value: SITE_STATS.referralBonusAt5Box, label: 'Bonus at 5' },
+                                                    { value: 'Unlimited', label: 'Earnings' },
+                                                ].map(stat => (
+                                                    <div key={stat.label} className="text-center lg:text-left">
+                                                        <div className="text-2xl font-black text-white">{stat.value}</div>
+                                                        <div className="text-white/70 text-[11px] uppercase tracking-wider font-bold">{stat.label}</div>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
-
-                        {/* Refer Now CTA below card */}
-                        {/* <div className="mt-10 flex justify-center">
-                            <Link
-                                href="/referral"
-                                className="group inline-flex items-center gap-3 px-10 py-4 rounded-xl font-black text-[13px] uppercase tracking-widest text-white transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl"
-                                style={{ background: 'linear-gradient(135deg, #f59e0b, #ea580c)', boxShadow: '0 8px 32px rgba(245,158,11,0.35)' }}
-                            >
-                                <span className="material-symbols-outlined text-lg icon-filled" aria-hidden="true">redeem</span>
-                                Refer Now
-                                <span className="material-symbols-outlined text-sm group-hover:translate-x-1 transition-transform" aria-hidden="true">arrow_forward</span>
-                            </Link>
-                        </div> */}
-                    </div>
-                </section>
+                    </section>
+                )}
 
                 {/* Final CTA */}
                 <section className="pt-24 pb-28 bg-transparent">
@@ -999,7 +911,7 @@ export default async function HomePage() {
                             <div className="absolute bottom-0 left-0 w-64 h-64 bg-black/10 rounded-full blur-3xl -ml-32 -mb-32" />
                             <h2 className="text-3xl md:text-5xl font-bold font-display mb-8 relative z-10 uppercase tracking-tight">Ready to Fund Your Education?</h2>
                             <p className="text-[15px] text-white/80 mb-12 max-w-2xl mx-auto relative z-10 font-medium leading-relaxed">
-                                Join 1000+ students who found their perfect education loan. <br className="hidden md:block" /> Start your journey in under 5 minutes.
+                                Join {SITE_STATS.students} students who found their perfect education loan. <br className="hidden md:block" /> Start your journey in under 5 minutes.
                             </p>
                             <div className="flex flex-col sm:flex-row gap-6 justify-center relative z-10">
                                 <Link href="/apply-loan" className="px-10 py-5 bg-white text-[#6605c7] font-bold rounded-xl shadow-xl hover:-translate-y-1 transition-all text-[13px] uppercase tracking-widest">Start Application</Link>

@@ -12,6 +12,7 @@ import CampaignsDashboard from "@/components/Admin/CampaignsDashboard";
 import AdminBanksSection from "@/components/Admin/AdminBanksSection";
 import AdminCountriesSection from "@/components/Admin/AdminCountriesSection";
 import SiteSettingsSection from "@/components/Admin/SiteSettingsSection";
+import RegistrationLeadsSection from "@/components/Admin/RegistrationLeadsSection";
 import AdminErrorLogsSection from "@/components/Admin/AdminErrorLogsSection";
 import ProgressTracker from "@/components/ProgressTracker";
 import {
@@ -1867,6 +1868,7 @@ export default function AdminDashboardPage() {
 
     const navItems = [
         { section: "overview", icon: "dashboard", label: "Dashboard", badge: 0 },
+        { section: "registration_leads", icon: "how_to_reg", label: "Registration Leads", badge: 0 },
         { section: "analytics", icon: "analytics", label: "Platform Analytics", badge: 0 },
         { section: "applications", icon: "description", label: "Applications", badge: pendingCount },
         { section: "system", icon: "admin_panel_settings", label: "System Control", badge: announcements.length },
@@ -1907,6 +1909,7 @@ export default function AdminDashboardPage() {
     // ─── Section Title Map ──────────────────────────────────────────────────────
     const sectionTitles: Record<string, string> = {
         overview: 'Dashboard',
+        registration_leads: 'Registration Leads & CRM Inquiries',
         analytics: 'Platform Analytics',
         applications: 'Applications',
         system: 'System Control',
@@ -2873,6 +2876,10 @@ export default function AdminDashboardPage() {
 
                     {activeSection === "site_settings" && (
                         <SiteSettingsSection />
+                    )}
+
+                    {activeSection === "registration_leads" && (
+                        <RegistrationLeadsSection />
                     )}
 
                     {/* ─── USERS MANAGEMENT DASHBOARD ──────────────────────────────────────── */}

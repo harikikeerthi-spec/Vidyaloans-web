@@ -8,9 +8,11 @@ import {
     Query,
     HttpCode,
     HttpStatus,
+    UseGuards,
 } from '@nestjs/common';
 import { ConnectedService } from './connected.service';
 import { CreateCohortApplicationDto } from './dto/create-cohort-application.dto';
+import { StaffGuard } from '../auth/staff.guard';
 
 @Controller('connected')
 export class ConnectedController {
@@ -30,11 +32,13 @@ export class ConnectedController {
 
     /** GET /api/connected/applications?status=pending — admin */
     @Get('applications')
+    @UseGuards(StaffGuard)
     findAll(@Query('status') status?: string) {
         return this.connectedService.findAll(status);
     }
 
     @Patch('applications/:id/status')
+    @UseGuards(StaffGuard)
     updateStatus(
         @Param('id') id: string,
         @Body()

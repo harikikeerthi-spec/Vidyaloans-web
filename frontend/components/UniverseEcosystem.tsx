@@ -81,14 +81,14 @@ const universeItems = [
         id: 6,
         title: 'Community Hub',
         subtitle: 'Connect & Grow',
-        desc: 'Join a thriving community of 10,000+ students and alumni. Exchange tips, experiences, and opportunities.',
+        desc: 'Join a thriving community of 1,000+ students and alumni. Exchange tips, experiences, and opportunities.',
         icon: '🤝',
         materialIcon: 'groups',
         color: '#6366f1', // Indigo
         gradient: 'linear-gradient(135deg, #6366f1, #4338ca)',
         label: 'New',
         bgImage: '/images/ecosystem/community.jpg',
-        stats: '10K+ Members',
+        stats: '1,000+ Members',
         cta: 'Join Now'
     }
 ];

@@ -167,7 +167,7 @@ export default function FAQPage() {
                             key={cat.id}
                             id={`cat-btn-${cat.id}`}
                             onClick={() => setSelectedCategory(cat.id)}
-                            className={`flex items-center gap-2 px-5 py-3.5 rounded-full border text-[11px] font-black uppercase tracking-wider transition-all duration-150 ease-out select-none whitespace-nowrap cursor-pointer ${
+                            className={`min-h-[44px] inline-flex items-center gap-2 px-5 py-3 rounded-full border text-[11px] font-black uppercase tracking-wider transition-all duration-150 ease-out select-none whitespace-nowrap cursor-pointer ${
                                 selectedCategory === cat.id
                                     ? "bg-[#6605c7] border-[#6605c7] text-white shadow-[0_4px_12px_rgba(102,5,199,0.25)] -translate-y-0.5"
                                     : "bg-white border-gray-100 text-gray-500 shadow-sm hover:border-[#6605c7]/20 hover:text-gray-900"

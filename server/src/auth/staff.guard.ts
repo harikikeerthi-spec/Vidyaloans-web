@@ -27,36 +27,17 @@ export class StaffGuard implements CanActivate {
             }
             token = tokenStr;
         } else if (request.query && request.query.token) {
-            token = request.query.token as string;
+            // Only allow token in query string for specific file download/export routes
+            const path = (request.path || request.url || '').toLowerCase();
+            const isDownloadRoute = path.includes('/download') || path.includes('/export');
+            if (isDownloadRoute) {
+                token = request.query.token as string;
+            }
         } else if (request.cookies) {
-            token = request.cookies.staffAccessToken || request.cookies.itAccessToken || request.cookies.adminAccessToken || request.cookies.accessToken || request.cookies.token;
+            token = request.cookies.staffAccessToken || request.cookies.adminAccessToken || request.cookies.accessToken;
         }
 
         if (!token) {
-            if (request.headers['x-portal'] === 'it' || (request.headers['referer'] && request.headers['referer'].includes('/it'))) {
-                request.user = {
-                    id: 'it-admin',
-                    email: 'it@vidyaloans.com',
-                    role: 'it',
-                };
-                return true;
-            }
-            if (request.body && (request.body.userId || request.body.authorId || request.body.email)) {
-                request.user = {
-                    id: request.body.userId || request.body.authorId || 'staff-admin',
-                    email: request.body.email || 'staff@vidyaloans.com',
-                    role: 'staff',
-                };
-                return true;
-            }
-            if (request.query && (request.query.userId || request.query.email)) {
-                request.user = {
-                    id: (request.query.userId as string) || 'staff-admin',
-                    email: (request.query.email as string) || 'staff@vidyaloans.com',
-                    role: 'staff',
-                };
-                return true;
-            }
             throw new UnauthorizedException('No authorization token provided');
         }
 
@@ -64,11 +45,32 @@ export class StaffGuard implements CanActivate {
             // Verify JWT token signature and expiry
             const payload = await this.jwtService.verifyAsync(token);
 
-            const allowedRoles = ['staff', 'admin', 'super_admin', 'bank', 'partner_bank', 'support', 'it', 'user', 'agent', 'partner_agent', 'analyst', 'marketing'];
+            // StaffGuard explicitly allows staff, admin, super_admin, and operational roles (excluding students/users)
+            const allowedRoles = [
+                'staff',
+                'admin',
+                'super_admin',
+                'support',
+                'agent',
+                'partner_agent',
+                'analyst',
+                'marketing',
+                'bank',
+                'partner_bank',
+                'it',
+            ];
 
-            // Fast path: role is embedded in the JWT payload — no DB lookup needed
             const payloadRoleLower = (payload.role || '').toLowerCase();
-            if (payload.role && (allowedRoles.includes(payloadRoleLower) || payloadRoleLower.startsWith('bank_'))) {
+            let userRole = payloadRoleLower;
+
+            if (!userRole) {
+                const user = await this.usersService.findOne(payload.email);
+                if (!user) {
+                    throw new UnauthorizedException('User not found');
+                }
+                userRole = (user.role || '').toLowerCase();
+                request.user = user;
+            } else {
                 let mailboxEmail = payload.mailboxEmail;
                 let mailboxPrefix = payload.mailboxPrefix;
                 let canAccessSupport = payload.canAccessSupport;
@@ -82,7 +84,7 @@ export class StaffGuard implements CanActivate {
                             canAccessSupport = dbUser.canAccessSupport;
                         }
                     } catch (e) {
-                        // Non-blocking fallback
+                        // Non-blocking lookup
                     }
                 }
 
@@ -96,35 +98,14 @@ export class StaffGuard implements CanActivate {
                     mailboxPrefix,
                     canAccessSupport,
                 };
-                return true;
             }
 
-            // Slow path: role not in payload, fetch from DB
-            const user = await this.usersService.findOne(payload.email);
-
-            if (!user) {
-                console.error('[StaffGuard] User not found in DB for email:', payload.email);
-                throw new UnauthorizedException('User not found');
+            if (!allowedRoles.includes(userRole) && !userRole.startsWith('bank_')) {
+                throw new ForbiddenException('Access denied. Staff privileges required.');
             }
 
-            const dbRoleLower = (user.role || '').toLowerCase();
-            if (!allowedRoles.includes(dbRoleLower) && !dbRoleLower.startsWith('bank_')) {
-                console.warn(`[StaffGuard] Access denied for role: ${user.role}. User: ${user.email}`);
-                throw new ForbiddenException('Access denied. Elevated privileges required.');
-            }
-
-            request.user = user;
             return true;
         } catch (error) {
-            if (request.headers['x-portal'] === 'it' || (request.headers['referer'] && request.headers['referer'].includes('/it'))) {
-                request.user = {
-                    id: 'it-admin',
-                    email: 'it@vidyaloans.com',
-                    role: 'it',
-                };
-                return true;
-            }
-
             if (error instanceof ForbiddenException || error instanceof UnauthorizedException) {
                 throw error;
             }
@@ -134,12 +115,11 @@ export class StaffGuard implements CanActivate {
                     message: 'Token has expired',
                     error: 'Unauthorized',
                     statusCode: 401,
-                    hint: 'Please use the /auth/refresh endpoint with your refresh_token to get a new access token'
+                    hint: 'Please refresh your session to obtain a new access token'
                 });
             }
 
-            console.error('[StaffGuard] Token verification failed:', error.message || error);
-            throw new UnauthorizedException('Invalid token');
+            throw new UnauthorizedException('Invalid or expired token');
         }
     }
 }

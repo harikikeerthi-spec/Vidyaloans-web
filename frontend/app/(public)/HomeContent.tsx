@@ -333,7 +333,7 @@ export default function HomeContent() {
                         >
                             <div className="inline-flex items-center gap-3 px-4 py-1.5 rounded-full mb-8 border border-[#6605c7]/15 bg-white/60 backdrop-blur-sm" >
                                 <span className="w-2 h-2 rounded-full bg-[#6605c7] animate-pulse flex-shrink-0" />
-                                <span className="text-[#6605c7] text-[11px] font-black uppercase tracking-widest">Trusted by 10,000+ students across 20+ countries</span>
+                                <span className="text-[#6605c7] text-[11px] font-black uppercase tracking-widest">Trusted by 1,000+ students across 30+ countries</span>
                             </div>
 
                             <h1 className="text-4xl md:text-5xl font-black leading-[1.1] mb-8 text-[#1a1626] tracking-tight uppercase">
@@ -364,11 +364,11 @@ export default function HomeContent() {
                                     <div className="flex gap-0.5 text-amber-400">
                                         {[...Array(5)].map((_, i) => <span key={i} className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>)}
                                     </div>
-                                    <div className="text-[11px] text-gray-400 font-black uppercase tracking-widest">2,000+ reviews</div>
+                                    <div className="text-[11px] text-gray-500 font-bold uppercase tracking-wider">Google Reviews (2,000+)</div>
                                 </div>
                                 <div className="hidden sm:block w-px h-10 bg-gray-100" />
                                 {[
-                                    { val: '50+', label: 'Lenders' },
+                                    { val: '5+', label: 'Lenders' },
                                     { val: '48h', label: 'Approval' },
                                     { val: disbursedText, label: 'Disbursed' },
                                 ].map(s => (
@@ -452,7 +452,7 @@ export default function HomeContent() {
                     <div className="max-w-7xl mx-auto px-6">
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
                             {[
-                                { icon: "account_balance", num: "50+", label: "Lending Partners" },
+                                { icon: "account_balance", num: "5+", label: "Lending Partners" },
                                 { icon: "speed", num: "48hrs", label: "Quick Approval" },
                                 { icon: "verified_user", num: "100%", label: "Secure & Trusted" },
                                 { icon: "public", num: "30+", label: "Countries Covered" },
@@ -687,7 +687,7 @@ export default function HomeContent() {
                             className="text-center mb-16"
                         >
                             <span className="text-[#6605c7] font-black text-[11px] tracking-widest uppercase mb-4 block">Testimonials</span>
-                            <h2 className="text-3xl md:text-5xl font-black text-gray-900 uppercase tracking-tight">Loved by <span className="text-[#6605c7]">10,000+</span> Students</h2>
+                            <h2 className="text-3xl md:text-5xl font-black text-gray-900 uppercase tracking-tight">Loved by <span className="text-[#6605c7]">1,000+</span> Students</h2>
                         </motion.div>
                         <TestimonialsCarousel />
                     </div>
@@ -779,7 +779,7 @@ export default function HomeContent() {
                             <div className="absolute bottom-0 left-0 w-96 h-96 bg-black/10 rounded-full blur-[100px] -ml-48 -mb-48" />
                             <h2 className="text-3xl md:text-5xl font-black mb-8 relative z-10 leading-[1.1] tracking-tight uppercase">Ready to Fund Your <span className="italic text-purple-200">Global Dreams?</span></h2>
                             <p className="text-[15px] text-white/80 mb-12 max-w-2xl mx-auto relative z-10 font-medium leading-relaxed">
-                                Join 10,000+ students who have found their perfect education loan. <br className="hidden md:block" /> Get expert guidance and multiple offers in under 5 minutes.
+                                Join 1,000+ students who have found their perfect education loan. <br className="hidden md:block" /> Get expert guidance and multiple offers in under 5 minutes.
                             </p>
                             <div className="flex flex-col sm:flex-row gap-6 justify-center relative z-10">
                                 <Link href="/apply-loan" className="px-10 py-5 bg-white text-[#6605c7] font-black rounded-xl shadow-xl hover:-translate-y-1 transition-all text-[13px] uppercase tracking-widest">Apply Online Now</Link>

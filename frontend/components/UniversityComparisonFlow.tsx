@@ -728,10 +728,10 @@ export default function UniversityComparisonFlow({
         {/* View Mode Selector & AI trigger */}
         {selectedUnis.length >= 2 && (
           <div className="flex flex-col md:flex-row gap-4 items-center justify-between mb-8">
-            <div className="bg-white/80 border border-white shadow-sm p-1.5 rounded-2xl flex items-center gap-1">
+            <div className="bg-white/80 border border-white shadow-sm p-1.5 rounded-2xl flex flex-wrap items-center gap-1">
               <button
                 onClick={() => setViewMode("grid")}
-                className={`px-6 py-3 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${viewMode === "grid"
+                className={`min-h-[44px] inline-flex items-center justify-center px-6 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${viewMode === "grid"
                   ? "bg-[#6605c7] text-white shadow-lg shadow-purple-500/25"
                   : "text-gray-500 hover:text-gray-900 hover:bg-white/50"
                   }`}
@@ -740,7 +740,7 @@ export default function UniversityComparisonFlow({
               </button>
               <button
                 onClick={() => setViewMode("metrics")}
-                className={`px-6 py-3 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${viewMode === "metrics"
+                className={`min-h-[44px] inline-flex items-center justify-center px-6 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${viewMode === "metrics"
                   ? "bg-[#6605c7] text-white shadow-lg shadow-purple-500/25"
                   : "text-gray-500 hover:text-gray-900 hover:bg-white/50"
                   }`}
@@ -749,7 +749,7 @@ export default function UniversityComparisonFlow({
               </button>
               <button
                 onClick={() => setViewMode("weighted")}
-                className={`px-6 py-3 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${viewMode === "weighted"
+                className={`min-h-[44px] inline-flex items-center justify-center px-6 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${viewMode === "weighted"
                   ? "bg-[#6605c7] text-white shadow-lg shadow-purple-500/25"
                   : "text-gray-500 hover:text-gray-900 hover:bg-white/50"
                   }`}

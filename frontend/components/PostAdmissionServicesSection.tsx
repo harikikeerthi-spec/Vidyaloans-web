@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import AnimatedNumber from "./AnimatedNumber";
+import { SITE_STATS } from "../lib/siteStats";
 
 interface ModalData {
     id: string;
@@ -210,7 +211,8 @@ export default function PostAdmissionServicesSection() {
                         </div>
                     </div>
 
-                    {/* 4 — UK Bank Account (bottom middle) */}
+                    {/* 4 — UK Bank Account - Hidden until live */}
+                    {false && (
                     <div
                         onClick={() => openModal(
                             "uk_bank_account",
@@ -244,15 +246,16 @@ export default function PostAdmissionServicesSection() {
                             </span>
                         </div>
                     </div>
+                    )}
                 </div>
 
                 {/* Stats Bar */}
                 <div className="mt-8 flex flex-wrap gap-4 justify-center">
                     {[
-                        { icon: 'public', val: '30+', label: 'Countries Covered' },
+                        { icon: 'public', val: SITE_STATS.countries, label: 'Countries Covered' },
                         { icon: 'payments', val: '0%', label: 'Forex Markup' },
                         { icon: 'account_balance', val: 'Pre-Arrival', label: 'Bank Accounts' },
-                        { icon: 'target', val: '10K+', label: 'Students Helped' },
+                        { icon: 'target', val: SITE_STATS.students, label: 'Students Helped' },
                     ].map(s => (
                         <div key={s.label} className="flex items-center gap-2.5 px-5 py-3 rounded-xl bg-white border border-gray-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all group">
                             <span className="material-symbols-outlined text-[#6605c7] text-2xl group-hover:scale-125 transition-transform">{s.icon}</span>
@@ -315,7 +318,7 @@ export default function PostAdmissionServicesSection() {
                             {/* Modal Content */}
                             <div className="space-y-6">
                                 <p className="text-[13px] text-gray-600 leading-relaxed font-medium">
-                                    {modalData.desc} We are working hard to integrate this directly on Vidya Loans with the best partners. Subscribing ensures you get notified as soon as this launches.
+                                    {modalData.desc} We are working hard to integrate this directly on VidyaLoans with the best partners. Subscribing ensures you get notified as soon as this launches.
                                 </p>
 
                                 {!submitted ? (

@@ -389,43 +389,45 @@ export default async function BankPage({ params }: Props) {
                         <p className="text-gray-500 mt-4 max-w-2xl mx-auto">See why thousands of students choose to apply through VidyaLoan</p>
                     </div>
                     <div className="bg-white/80 backdrop-blur-xl border border-gray-100 rounded-3xl overflow-hidden shadow-lg">
-                        <table className="w-full">
-                            <thead>
-                                <tr className="border-b border-gray-100 bg-gradient-to-r from-[#6605c7]/5 to-transparent">
-                                    <th className="text-left p-6 font-bold text-gray-900 uppercase text-xs tracking-wider">Comparison</th>
-                                    <th className="text-center p-6">
-                                        <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#6605c7] text-white rounded-full text-sm font-bold">
-                                            <span className="material-symbols-outlined text-lg">verified</span>
-                                            With VidyaLoan
-                                        </div>
-                                    </th>
-                                    <th className="text-center p-6 text-gray-500 font-medium text-sm">Direct Application</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {[
-                                    { feature: "Processing Time", withUs: bank.approvalTime, without: "15-30 days" },
-                                    { feature: "Personalized Document Checklist", withUs: "Yes", without: "No" },
-                                    { feature: "Branch Visits Required", withUs: "1-2", without: "5-8" },
-                                    { feature: "Pre-visa Disbursement", withUs: "Easy", without: "Difficult" },
-                                    { feature: "Dedicated Loan Expert", withUs: "Yes", without: "No" },
-                                    { feature: "Rate Negotiation", withUs: "Yes", without: "No" },
-                                    { feature: "Application Tracking", withUs: "Real-time", without: "Manual follow-up" },
-                                    { feature: "Service Cost", withUs: "100% Free", without: "N/A" }
-                                ].map((row, i) => (
-                                    <tr key={i} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
-                                        <td className="p-6 font-medium text-gray-700">{row.feature}</td>
-                                        <td className="p-6 text-center">
-                                            <span className="inline-flex items-center gap-2 text-green-600 font-bold">
-                                                <span className="material-symbols-outlined text-lg">check_circle</span>
-                                                {row.withUs}
-                                            </span>
-                                        </td>
-                                        <td className="p-6 text-center text-gray-400">{row.without}</td>
+                        <div className="overflow-x-auto w-full">
+                            <table className="w-full min-w-[600px]">
+                                <thead>
+                                    <tr className="border-b border-gray-100 bg-gradient-to-r from-[#6605c7]/5 to-transparent">
+                                        <th className="text-left p-6 font-bold text-gray-900 uppercase text-xs tracking-wider">Comparison</th>
+                                        <th className="text-center p-6">
+                                            <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#6605c7] text-white rounded-full text-sm font-bold">
+                                                <span className="material-symbols-outlined text-lg">verified</span>
+                                                With VidyaLoan
+                                            </div>
+                                        </th>
+                                        <th className="text-center p-6 text-gray-500 font-medium text-sm">Direct Application</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    {[
+                                        { feature: "Processing Time", withUs: bank.approvalTime, without: "15-30 days" },
+                                        { feature: "Personalized Document Checklist", withUs: "Yes", without: "No" },
+                                        { feature: "Branch Visits Required", withUs: "1-2", without: "5-8" },
+                                        { feature: "Pre-visa Disbursement", withUs: "Easy", without: "Difficult" },
+                                        { feature: "Dedicated Loan Expert", withUs: "Yes", without: "No" },
+                                        { feature: "Rate Negotiation", withUs: "Yes", without: "No" },
+                                        { feature: "Application Tracking", withUs: "Real-time", without: "Manual follow-up" },
+                                        { feature: "Service Cost", withUs: "100% Free", without: "N/A" }
+                                    ].map((row, i) => (
+                                        <tr key={i} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
+                                            <td className="p-6 font-medium text-gray-700">{row.feature}</td>
+                                            <td className="p-6 text-center">
+                                                <span className="inline-flex items-center gap-2 text-green-600 font-bold">
+                                                    <span className="material-symbols-outlined text-lg">check_circle</span>
+                                                    {row.withUs}
+                                                </span>
+                                            </td>
+                                            <td className="p-6 text-center text-gray-400">{row.without}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </section>
 

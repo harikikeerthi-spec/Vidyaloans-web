@@ -402,6 +402,7 @@ export class ApplicationController {
      * GET /applications/admin/:id/documents/:documentId/view
      */
     @Get('admin/:id/documents/:documentId/view')
+    @UseGuards(StaffGuard)
     async viewDocumentAdmin(
         @Param('id') applicationId: string,
         @Param('documentId') documentId: string,
@@ -506,6 +507,7 @@ export class ApplicationController {
      * GET /applications/admin/:id/documents/zip
      */
     @Get('admin/:id/documents/zip')
+    @UseGuards(StaffGuard)
     @Header('Content-Type', 'application/zip')
     async downloadDocumentsZipAdmin(
         @Param('id') applicationId: string,
@@ -521,6 +523,7 @@ export class ApplicationController {
      * GET /applications/:id/documents/zip
      */
     @Get(':id/documents/zip')
+    @UseGuards(StaffGuard)
     @Header('Content-Type', 'application/zip')
     async downloadDocumentsZip(
         @Param('id') applicationId: string,

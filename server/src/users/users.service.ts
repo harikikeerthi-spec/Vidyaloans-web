@@ -61,6 +61,31 @@ export function sanitizeUserPayload(payload: any): Record<string, any> {
 
 @Injectable()
 export class UsersService implements OnModuleInit {
+  private static appSeqLock: Promise<void> = Promise.resolve();
+  private static studentSeqLock: Promise<void> = Promise.resolve();
+  private static lastIssuedAppSeq: number = 0;
+  private static lastIssuedStudentSeq: number = 0;
+
+  private acquireAppSeqLock(): Promise<() => void> {
+    let release: () => void = () => {};
+    const nextLock = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    const currentLock = UsersService.appSeqLock;
+    UsersService.appSeqLock = currentLock.then(() => nextLock);
+    return currentLock.then(() => release);
+  }
+
+  private acquireStudentSeqLock(): Promise<() => void> {
+    let release: () => void = () => {};
+    const nextLock = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    const currentLock = UsersService.studentSeqLock;
+    UsersService.studentSeqLock = currentLock.then(() => nextLock);
+    return currentLock.then(() => release);
+  }
+
   private get db() {
     return this.supabase.getClient();
   }
@@ -82,33 +107,79 @@ export class UsersService implements OnModuleInit {
   }
 
   public async generateApplicationNumber(): Promise<string> {
-    const year = new Date().getFullYear();
-    const prefix = `VL-APP-${year}-`;
-
+    const release = await this.acquireAppSeqLock();
     try {
-      const { data, error } = await this.db
-        .from('LoanApplication')
-        .select('applicationNumber')
-        .like('applicationNumber', `${prefix}%`)
-        .order('applicationNumber', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const year = new Date().getFullYear();
+      const prefix = `VL-APP-${year}-`;
 
-      let nextSeq = 1;
-      if (data && data.applicationNumber) {
-        const parts = data.applicationNumber.split('-');
-        if (parts.length === 4) {
-          const currentSeq = parseInt(parts[3], 10);
-          if (!isNaN(currentSeq)) {
-            nextSeq = currentSeq + 1;
+      // 1. Try atomic PostgreSQL sequence if function/sequence is configured in DB
+      try {
+        const { data: rpcSeq, error: rpcErr } = await this.db.rpc('next_application_sequence', { p_year: year });
+        if (!rpcErr && rpcSeq && Number.isInteger(Number(rpcSeq))) {
+          const seqNum = Number(rpcSeq);
+          UsersService.lastIssuedAppSeq = Math.max(UsersService.lastIssuedAppSeq, seqNum);
+          return `${prefix}${String(seqNum).padStart(5, '0')}`;
+        }
+      } catch (_) {
+        // RPC not configured, fall through to query-and-verify logic
+      }
+
+      // 2. Query highest existing sequence in database
+      let dbMaxSeq = 0;
+      try {
+        const { data } = await this.db
+          .from('LoanApplication')
+          .select('applicationNumber')
+          .like('applicationNumber', `${prefix}%`)
+          .order('applicationNumber', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (data && data.applicationNumber) {
+          const parts = data.applicationNumber.split('-');
+          if (parts.length === 4) {
+            const currentSeq = parseInt(parts[3], 10);
+            if (!isNaN(currentSeq)) {
+              dbMaxSeq = currentSeq;
+            }
           }
         }
+      } catch (err) {
+        console.error('[UsersService] Error querying max application number:', err);
       }
-      return `${prefix}${String(nextSeq).padStart(5, '0')}`;
-    } catch (err) {
-      console.error('[UsersService] Failed to generate sequential application number:', err);
-      const seq = String(Math.floor(Math.random() * 100_000)).padStart(5, '0');
-      return `${prefix}${seq}`;
+
+      // Next sequence is higher than both DB max and any sequence already issued in this process
+      let candidateSeq = Math.max(dbMaxSeq, UsersService.lastIssuedAppSeq) + 1;
+
+      // 3. Uniqueness collision-safe verification loop (probes against DB)
+      let candidate = `${prefix}${String(candidateSeq).padStart(5, '0')}`;
+      let attempts = 0;
+      while (attempts < 50) {
+        try {
+          const { data: existing } = await this.db
+            .from('LoanApplication')
+            .select('id')
+            .eq('applicationNumber', candidate)
+            .limit(1)
+            .maybeSingle();
+
+          if (!existing) {
+            UsersService.lastIssuedAppSeq = candidateSeq;
+            return candidate;
+          }
+        } catch (_) {
+          // If probe query fails, increment candidate and retry
+        }
+
+        candidateSeq += 1;
+        candidate = `${prefix}${String(candidateSeq).padStart(5, '0')}`;
+        attempts += 1;
+      }
+
+      UsersService.lastIssuedAppSeq = candidateSeq;
+      return candidate;
+    } finally {
+      release();
     }
   }
 
@@ -342,42 +413,81 @@ export class UsersService implements OnModuleInit {
    * Properly handles numeric sorting to find the highest sequential number
    */
   private async generateSequentialStudentId(): Promise<string> {
-    const year = new Date().getFullYear();
-    const prefix = `VL-STU-${year}-`;
-
+    const release = await this.acquireStudentSeqLock();
     try {
-      // Fetch all student IDs for this year
-      const { data: allIds, error } = await this.db
-        .from('User')
-        .select('id')
-        .like('id', `${prefix}%`);
+      const year = new Date().getFullYear();
+      const prefix = `VL-STU-${year}-`;
 
-      if (error) {
-        console.error('[UsersService] Error fetching student IDs:', error);
-      }
-
-      let nextSeq = 1;
-
-      if (allIds && allIds.length > 0) {
-        // Extract numeric suffixes and find the maximum
-        const numericIds = allIds
-          .map(u => {
-            const suffix = u.id.substring(prefix.length);
-            const num = parseInt(suffix, 10);
-            return isNaN(num) ? 0 : num;
-          })
-          .filter(n => n > 0);
-
-        if (numericIds.length > 0) {
-          nextSeq = Math.max(...numericIds) + 1;
+      // 1. Try atomic PostgreSQL sequence if available
+      try {
+        const { data: rpcSeq, error: rpcErr } = await this.db.rpc('next_student_sequence', { p_year: year });
+        if (!rpcErr && rpcSeq && Number.isInteger(Number(rpcSeq))) {
+          const seqNum = Number(rpcSeq);
+          UsersService.lastIssuedStudentSeq = Math.max(UsersService.lastIssuedStudentSeq, seqNum);
+          return `${prefix}${String(seqNum).padStart(5, '0')}`;
         }
+      } catch (_) {
+        // RPC not configured, fall through
       }
 
-      return `${prefix}${String(nextSeq).padStart(5, '0')}`;
-    } catch (err) {
-      console.error('[UsersService] Failed to generate sequential student ID, falling back to random:', err);
-      const seq = String(Math.floor(Math.random() * 100_000)).padStart(5, '0');
-      return `${prefix}${seq}`;
+      // 2. Fetch student IDs for this year to find the maximum
+      let dbMaxSeq = 0;
+      try {
+        const { data: allIds, error } = await this.db
+          .from('User')
+          .select('id')
+          .like('id', `${prefix}%`);
+
+        if (error) {
+          console.error('[UsersService] Error fetching student IDs:', error);
+        }
+
+        if (allIds && allIds.length > 0) {
+          const numericIds = allIds
+            .map(u => {
+              const suffix = u.id.substring(prefix.length);
+              const num = parseInt(suffix, 10);
+              return isNaN(num) ? 0 : num;
+            })
+            .filter(n => n > 0);
+
+          if (numericIds.length > 0) {
+            dbMaxSeq = Math.max(...numericIds);
+          }
+        }
+      } catch (err) {
+        console.error('[UsersService] Error querying student IDs for max sequence:', err);
+      }
+
+      let candidateSeq = Math.max(dbMaxSeq, UsersService.lastIssuedStudentSeq) + 1;
+
+      // 3. Collision-safe verification against User table
+      let candidate = `${prefix}${String(candidateSeq).padStart(5, '0')}`;
+      let attempts = 0;
+      while (attempts < 50) {
+        try {
+          const { data: existing } = await this.db
+            .from('User')
+            .select('id')
+            .eq('id', candidate)
+            .limit(1)
+            .maybeSingle();
+
+          if (!existing) {
+            UsersService.lastIssuedStudentSeq = candidateSeq;
+            return candidate;
+          }
+        } catch (_) {}
+
+        candidateSeq += 1;
+        candidate = `${prefix}${String(candidateSeq).padStart(5, '0')}`;
+        attempts += 1;
+      }
+
+      UsersService.lastIssuedStudentSeq = candidateSeq;
+      return candidate;
+    } finally {
+      release();
     }
   }
 

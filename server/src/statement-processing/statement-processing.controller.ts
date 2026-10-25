@@ -8,10 +8,12 @@ import {
   UseInterceptors,
   Request,
   Logger,
+  UseGuards,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { StatementProcessingService } from './statement-processing.service';
 import { PasswordRedactionInterceptor } from './interceptors/password-redaction.interceptor';
+import { UserGuard } from '../auth/user.guard';
 import {
   UnlockAndExtractDto,
   ConfirmColumnMappingDto,
@@ -19,6 +21,7 @@ import {
 } from './types/statement.types';
 
 @Controller('statements')
+@UseGuards(UserGuard)
 @UseInterceptors(PasswordRedactionInterceptor)
 export class StatementProcessingController {
   private readonly logger = new Logger(StatementProcessingController.name);

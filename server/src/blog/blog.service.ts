@@ -49,11 +49,19 @@ export class BlogService {
     const leadAmount = rawData.amount || rawData.loanAmount || rawData['loan_amount'] || rawData['loan_amount_required'] || rawData.targetCourse || 'Not Specified';
     const recordId = randomUUID();
 
+    const isRegistrationPage = rawData.source === 'registration_page' || rawData.blogSlug === '/registration';
+    const leadType = isRegistrationPage ? 'registration_lead' : 'blog_registration';
+
     const parts = [leadCountry];
     if (leadAmount && leadAmount !== 'Not Specified') parts.push(`[${leadAmount}]`);
-    if (rawData.targetCourse) parts.push(`[Course: ${rawData.targetCourse}]`);
-    if (rawData.blogTitle) parts.push(`(Blog: ${rawData.blogTitle})`);
+    if (rawData.targetCourse) parts.push(`[${rawData.targetCourse}]`);
+    if (rawData.blogTitle && !isRegistrationPage) parts.push(`(Blog: ${rawData.blogTitle})`);
+    else if (isRegistrationPage) parts.push(`(Source: Registration Form)`);
     const universityDescriptor = parts.filter(Boolean).join(' ');
+
+    // Calculate exact Indian Standard Time (IST, UTC+05:30) so DB table shows accurate local time
+    const istOffsetMs = 5.5 * 60 * 60 * 1000;
+    const istNow = new Date(Date.now() + istOffsetMs);
 
     const inquiryRecord = {
       id: recordId,
@@ -61,8 +69,10 @@ export class BlogService {
       email: leadEmail,
       mobile: leadMobile,
       universityName: universityDescriptor.substring(0, 255),
-      type: 'blog_registration',
+      type: leadType,
       status: 'pending',
+      createdAt: istNow,
+      updatedAt: istNow,
     };
 
     let savedResult: any = null;
@@ -77,8 +87,8 @@ export class BlogService {
       try {
         const { data: sbInq } = await this.db.from('UniversityInquiry').insert({
           ...inquiryRecord,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
+          createdAt: istNow.toISOString(),
+          updatedAt: istNow.toISOString(),
         }).select().maybeSingle();
         savedResult = sbInq || inquiryRecord;
       } catch (sbErr) {
@@ -96,6 +106,8 @@ export class BlogService {
           mobile: leadMobile,
           universityName: universityDescriptor.substring(0, 255),
           status: 'pending',
+          createdAt: istNow,
+          updatedAt: istNow,
         },
       });
     } catch (cbErr) {
@@ -107,8 +119,8 @@ export class BlogService {
           mobile: leadMobile,
           universityName: universityDescriptor.substring(0, 255),
           status: 'pending',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
+          createdAt: istNow.toISOString(),
+          updatedAt: istNow.toISOString(),
         });
       } catch (e) {}
     }

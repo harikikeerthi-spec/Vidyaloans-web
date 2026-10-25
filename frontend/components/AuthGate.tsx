@@ -60,7 +60,7 @@ export default function AuthGate({ children, contentLabel = "this content" }: Au
                                 </span>
                             </h2>
                             <p className="text-gray-500 text-sm leading-relaxed mb-8 max-w-xs mx-auto">
-                                Create a free VidyaLoan account to access university details, compare education loans, and get AI-matched to the best lenders.
+                                Create a free VidyaLoans account to access university details, compare education loans, and get AI-matched to the best lenders.
                             </p>
 
                             {/* Perks list */}
@@ -68,7 +68,7 @@ export default function AuthGate({ children, contentLabel = "this content" }: Au
                                 {[
                                     { icon: "school", text: "Full university profiles & rankings" },
                                     { icon: "auto_awesome", text: "AI-powered loan eligibility check" },
-                                    { icon: "compare_arrows", text: "Compare loans from 10+ lenders" },
+                                    { icon: "compare_arrows", text: "Compare loans from 5+ partner lenders" },
                                     { icon: "payments", text: "Collateral-free loan up to ₹1 Cr" },
                                 ].map((p) => (
                                     <div key={p.icon} className="flex items-center gap-3">

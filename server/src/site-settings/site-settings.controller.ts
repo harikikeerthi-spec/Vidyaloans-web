@@ -1,6 +1,7 @@
-import { Controller, Get, Put, Post, Body, Query } from '@nestjs/common';
+import { Controller, Get, Put, Post, Body, Query, UseGuards } from '@nestjs/common';
 import { SiteSettingsService } from './site-settings.service';
 import { UpdateSiteSettingsDto } from './dto/update-site-settings.dto';
+import { AdminGuard } from '../auth/admin.guard';
 
 @Controller('site-settings')
 export class SiteSettingsController {
@@ -25,6 +26,7 @@ export class SiteSettingsController {
   }
 
   @Put()
+  @UseGuards(AdminGuard)
   async updateSettings(@Body() dto: UpdateSiteSettingsDto) {
     const updated = await this.siteSettingsService.updateSettings(dto);
     return {
@@ -35,6 +37,7 @@ export class SiteSettingsController {
   }
 
   @Post('reset-defaults')
+  @UseGuards(AdminGuard)
   async resetDefaults() {
     const reset = await this.siteSettingsService.resetDefaults();
     return {

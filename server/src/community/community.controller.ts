@@ -11,6 +11,7 @@ import {
     Request,
     HttpException,
     HttpStatus,
+    Logger,
 } from '@nestjs/common';
 import { CommunityService } from './community.service';
 import { AdminGuard } from '../auth/admin.guard';
@@ -20,6 +21,8 @@ import { JwtService } from '@nestjs/jwt';
 
 @Controller('community')
 export class CommunityController {
+    private readonly logger = new Logger(CommunityController.name);
+
     constructor(
         private communityService: CommunityService,
         private jwtService: JwtService
@@ -683,7 +686,9 @@ export class CommunityController {
                 const decoded = this.jwtService.decode(token) as any;
                 userId = decoded?.id;
             }
-        } catch (e) { }
+        } catch (e: any) {
+            this.logger.debug(`Failed to decode auth token in getForumPosts: ${e?.message}`);
+        }
 
         return this.communityService.getForumPosts({
             category,
@@ -713,7 +718,9 @@ export class CommunityController {
                 const decoded = this.jwtService.decode(token) as any;
                 userId = decoded?.id;
             }
-        } catch (e) { }
+        } catch (e: any) {
+            this.logger.debug(`Failed to decode auth token in getPostsAlias: ${e?.message}`);
+        }
 
         return this.communityService.getForumPosts({ category, limit: 20, offset }, userId);
     }
@@ -743,7 +750,9 @@ export class CommunityController {
                     userId = decoded.id;
                 }
             }
-        } catch (e) { }
+        } catch (e: any) {
+            this.logger.debug(`Failed to decode auth token in getPostByIdAlias: ${e?.message}`);
+        }
 
         return this.communityService.getForumPostById(id, userId);
     }

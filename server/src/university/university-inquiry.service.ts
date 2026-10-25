@@ -32,6 +32,9 @@ export class UniversityInquiryService implements OnModuleInit {
     const validUserId = (data.userId && data.userId.trim() !== '') ? data.userId.trim() : null;
     const recordId = randomUUID();
 
+    const istOffsetMs = 5.5 * 60 * 60 * 1000;
+    const istNow = new Date(Date.now() + istOffsetMs);
+
     const baseData = {
       id: recordId,
       userId: validUserId,
@@ -40,6 +43,8 @@ export class UniversityInquiryService implements OnModuleInit {
       mobile: data.mobile,
       universityName: data.universityName,
       status: 'pending',
+      createdAt: istNow,
+      updatedAt: istNow,
     };
 
     let inquiryResult: any = null;
@@ -58,8 +63,8 @@ export class UniversityInquiryService implements OnModuleInit {
         const { data: inq } = await this.db.from('UniversityInquiry').insert({
           ...baseData,
           type: finalType,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
+          createdAt: istNow.toISOString(),
+          updatedAt: istNow.toISOString(),
         }).select().maybeSingle();
         inquiryResult = inq || { ...baseData, type: finalType };
       } catch (sbErr) {
@@ -78,8 +83,8 @@ export class UniversityInquiryService implements OnModuleInit {
         try {
           await this.db.from('FastTrackApplication').insert({
             ...baseData,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
+            createdAt: istNow.toISOString(),
+            updatedAt: istNow.toISOString(),
           });
         } catch (e) {}
       }
@@ -93,8 +98,8 @@ export class UniversityInquiryService implements OnModuleInit {
         try {
           await this.db.from('CallbackRequest').insert({
             ...baseData,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
+            createdAt: istNow.toISOString(),
+            updatedAt: istNow.toISOString(),
           });
         } catch (e) {}
       }
@@ -154,6 +159,100 @@ export class UniversityInquiryService implements OnModuleInit {
         return { exists: !!existing };
       } catch (err) {
         return { exists: false };
+      }
+    }
+  }
+
+  async getAllInquiries(params?: { type?: string; status?: string; search?: string }) {
+    try {
+      const where: any = {};
+      if (params?.type && params.type !== 'all') {
+        where.type = params.type;
+      }
+      if (params?.status && params.status !== 'all') {
+        where.status = params.status;
+      }
+      if (params?.search && params.search.trim() !== '') {
+        const s = params.search.trim();
+        where.OR = [
+          { name: { contains: s, mode: 'insensitive' } },
+          { email: { contains: s, mode: 'insensitive' } },
+          { mobile: { contains: s, mode: 'insensitive' } },
+          { universityName: { contains: s, mode: 'insensitive' } },
+        ];
+      }
+
+      const inquiries = await this.prisma.universityInquiry.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+      });
+
+      const total = inquiries.length;
+      const pending = inquiries.filter(i => i.status === 'pending').length;
+      const contacted = inquiries.filter(i => i.status === 'contacted').length;
+      const converted = inquiries.filter(i => i.status === 'converted' || i.status === 'approved').length;
+
+      return {
+        success: true,
+        data: inquiries,
+        stats: { total, pending, contacted, converted },
+      };
+    } catch (err: any) {
+      console.error('Error fetching university inquiries via Prisma, falling back to Supabase:', err);
+      try {
+        let q = this.db.from('UniversityInquiry').select('*').order('createdAt', { ascending: false });
+        if (params?.type && params.type !== 'all') q = q.eq('type', params.type);
+        if (params?.status && params.status !== 'all') q = q.eq('status', params.status);
+        const { data } = await q;
+        const list = data || [];
+        return {
+          success: true,
+          data: list,
+          stats: {
+            total: list.length,
+            pending: list.filter((i: any) => i.status === 'pending').length,
+            contacted: list.filter((i: any) => i.status === 'contacted').length,
+            converted: list.filter((i: any) => i.status === 'converted').length,
+          },
+        };
+      } catch (e: any) {
+        return { success: false, data: [], error: e.message };
+      }
+    }
+  }
+
+  async updateInquiryStatus(id: string, status: string) {
+    try {
+      const updated = await this.prisma.universityInquiry.update({
+        where: { id },
+        data: { status },
+      });
+      return { success: true, data: updated };
+    } catch (err: any) {
+      try {
+        const { data } = await this.db
+          .from('UniversityInquiry')
+          .update({ status, updatedAt: new Date().toISOString() })
+          .eq('id', id)
+          .select()
+          .maybeSingle();
+        return { success: true, data };
+      } catch (e: any) {
+        return { success: false, error: e.message };
+      }
+    }
+  }
+
+  async deleteInquiry(id: string) {
+    try {
+      await this.prisma.universityInquiry.delete({ where: { id } });
+      return { success: true };
+    } catch (err: any) {
+      try {
+        await this.db.from('UniversityInquiry').delete().eq('id', id);
+        return { success: true };
+      } catch (e: any) {
+        return { success: false, error: e.message };
       }
     }
   }

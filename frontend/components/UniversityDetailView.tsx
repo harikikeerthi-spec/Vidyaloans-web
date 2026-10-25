@@ -781,7 +781,7 @@ export default function UniversityDetailView({ university: initialUni, onApply, 
                                     </div>
                                 </div>
                                 <div className="bg-gray-900 p-8 rounded-[2.5rem] text-white flex flex-col justify-between">
-                                    <h3 className="text-xl font-display font-bold mb-4" style={{ fontFamily: "'Noto Serif', 'Playfair Display', serif" }}>VidyaLoan Advantage</h3>
+                                    <h3 className="text-xl font-display font-bold mb-4" style={{ fontFamily: "'Noto Serif', 'Playfair Display', serif" }}>VidyaLoans Advantage</h3>
                                     <Link href={`/apply-loan?university=${encodeURIComponent(u.name)}&country=${encodeURIComponent(u.country)}`} className="block w-full py-5 bg-white text-gray-900 font-black rounded-2xl text-center shadow-xl hover:-translate-y-1 transition-all">Get Funding Now</Link>
                                     {u.loanInfo && (
                                         <div className="mt-6 text-sm text-gray-100">

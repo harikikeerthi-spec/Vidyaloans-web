@@ -1,10 +1,11 @@
-import { Injectable, BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException, NotFoundException, Logger } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { UsersService } from '../users/users.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
 @Injectable()
 export class AgentService {
+  private readonly logger = new Logger(AgentService.name);
   private get db() {
     return this.supabase.getClient();
   }
@@ -886,7 +887,9 @@ export class AgentService {
     if (fs.existsSync(path)) {
       try {
         data = JSON.parse(fs.readFileSync(path, 'utf8'));
-      } catch (e) {}
+      } catch (e: any) {
+        this.logger.warn(`Failed to parse subagents file at ${path}: ${e?.message}`);
+      }
     }
 
     const newSub = {
@@ -949,7 +952,8 @@ export class AgentService {
     try {
       const data = JSON.parse(fs.readFileSync(path, 'utf8'));
       return data[agentId] || [];
-    } catch (e) {
+    } catch (e: any) {
+      this.logger.warn(`Failed to parse training completions: ${e?.message}`);
       return [];
     }
   }
@@ -961,7 +965,9 @@ export class AgentService {
     if (fs.existsSync(path)) {
       try {
         modules = JSON.parse(fs.readFileSync(path, 'utf8'));
-      } catch (e) {}
+      } catch (e: any) {
+        this.logger.warn(`Failed to parse training modules: ${e?.message}`);
+      }
     }
 
     const completions = this.readTrainingCompletions(agentId);
@@ -978,7 +984,9 @@ export class AgentService {
     if (fs.existsSync(path)) {
       try {
         data = JSON.parse(fs.readFileSync(path, 'utf8'));
-      } catch (e) {}
+      } catch (e: any) {
+        this.logger.warn(`Failed to parse training completions file for update: ${e?.message}`);
+      }
     }
 
     if (!data[agentId]) {
@@ -1070,7 +1078,9 @@ export class AgentService {
     if (fs.existsSync(path)) {
       try {
         data = JSON.parse(fs.readFileSync(path, 'utf8'));
-      } catch (e) {}
+      } catch (e: any) {
+        this.logger.warn(`Failed to parse tracking links file: ${e?.message}`);
+      }
     }
 
     const crypto = require('crypto');
@@ -1100,7 +1110,9 @@ export class AgentService {
     let data: Record<string, any> = {};
     try {
       data = JSON.parse(fs.readFileSync(path, 'utf8'));
-    } catch (e) {}
+    } catch (e: any) {
+      this.logger.warn(`Failed to parse tracking links file during lookup: ${e?.message}`);
+    }
 
     const linkInfo = data[token];
     if (!linkInfo) throw new NotFoundException('Tracking link expired or invalid');
@@ -1158,7 +1170,9 @@ export class AgentService {
     let list: any[] = [];
     try {
       list = JSON.parse(fs.readFileSync(path, 'utf8'));
-    } catch (e) {}
+    } catch (e: any) {
+      this.logger.warn(`Failed to parse BT leads file: ${e?.message}`);
+    }
 
     let filtered = list.filter((b: any) => b.agentId === agentId);
     

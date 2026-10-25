@@ -617,18 +617,16 @@ export class AuthService {
    * For new users: create user + return token + userExists=false, hasUserDetails=false
    */
   async verifyOtpUnified(email: string, otp: string) {
-    // Verify OTP (with '123456' E2E master bypass for automated staff validation)
+    // Verify OTP
     const stored = this.otps.get(email);
 
-    if (otp !== '123456') {
-      if (!stored || stored.otp !== otp) {
-        throw new BadRequestException('Invalid OTP. Please enter the right one to login.');
-      }
+    if (!stored || stored.otp !== otp) {
+      throw new BadRequestException('Invalid OTP. Please enter the right one to login.');
+    }
 
-      if (Date.now() > stored.expiresAt) {
-        this.otps.delete(email);
-        throw new BadRequestException('OTP has expired. Please request a new OTP.');
-      }
+    if (Date.now() > stored.expiresAt) {
+      this.otps.delete(email);
+      throw new BadRequestException('OTP has expired. Please request a new OTP.');
     }
 
     // Invalidate OTP after verification
@@ -1164,16 +1162,14 @@ export class AuthService {
       );
     }
 
-    // Verify OTP (with '123456' E2E master bypass)
+    // Verify OTP
     const stored = this.otps.get(cleanEmail);
-    if (otp !== '123456') {
-      if (!stored || stored.otp !== otp) {
-        throw new BadRequestException('Invalid OTP. Please enter the right verification code.');
-      }
-      if (Date.now() > stored.expiresAt) {
-        this.otps.delete(cleanEmail);
-        throw new BadRequestException('OTP has expired. Please request a new verification code.');
-      }
+    if (!stored || stored.otp !== otp) {
+      throw new BadRequestException('Invalid OTP. Please enter the right verification code.');
+    }
+    if (Date.now() > stored.expiresAt) {
+      this.otps.delete(cleanEmail);
+      throw new BadRequestException('OTP has expired. Please request a new verification code.');
     }
     this.otps.delete(cleanEmail);
 

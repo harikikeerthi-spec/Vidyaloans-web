@@ -25,43 +25,34 @@ export class UserGuard implements CanActivate {
                 throw new UnauthorizedException('Invalid authorization format');
             }
             token = tokenStr;
-        } else if (request.query.token) {
-            token = request.query.token as string;
+        } else if (request.query && request.query.token) {
+            // Allow token in query string for file preview, view, download, and export routes
+            const path = (request.path || request.url || '').toLowerCase();
+            const isDownloadRoute =
+                path.includes('/download') ||
+                path.includes('/export') ||
+                path.includes('/view') ||
+                path.includes('/zip') ||
+                path.includes('/presigned');
+            if (isDownloadRoute) {
+                token = request.query.token as string;
+            }
+        } else if (request.cookies) {
+            token =
+                request.cookies.accessToken ||
+                request.cookies.token ||
+                request.cookies.staffAccessToken ||
+                request.cookies.adminAccessToken;
         }
 
         if (!token) {
-            if (request.headers['x-portal'] === 'it' || (request.headers['referer'] && request.headers['referer'].includes('/it'))) {
-                request.user = {
-                    id: 'it-admin',
-                    email: 'it@vidyaloans.com',
-                    role: 'it',
-                };
-                return true;
-            }
-            if (request.body && (request.body.userId || request.body.email)) {
-                request.user = {
-                    id: request.body.userId || 'guest-user',
-                    email: request.body.email || 'user@example.com',
-                    role: 'user',
-                };
-                return true;
-            }
-            if (request.query && (request.query.userId || request.query.email)) {
-                request.user = {
-                    id: (request.query.userId as string) || 'guest-user',
-                    email: (request.query.email as string) || 'user@example.com',
-                    role: 'user',
-                };
-                return true;
-            }
             throw new UnauthorizedException('No authorization token provided');
         }
 
         try {
             const payload = await this.jwtService.verifyAsync(token);
 
-            // Fast path: email is in JWT payload — no DB lookup needed for basic user routes
-            if (payload.email) {
+            if (payload && payload.email) {
                 request.user = {
                     id: payload.sub || payload.id,
                     email: payload.email,
@@ -72,40 +63,14 @@ export class UserGuard implements CanActivate {
                 return true;
             }
 
-            // Slow path: no email in payload, fetch from DB
             const user = await this.usersService.findOne(payload.email);
             if (!user) {
-                if (request.body && (request.body.userId || request.body.email)) {
-                    request.user = {
-                        id: request.body.userId || 'guest-user',
-                        email: request.body.email || 'user@example.com',
-                        role: 'user',
-                    };
-                    return true;
-                }
                 throw new UnauthorizedException('User not found');
             }
+
             request.user = user;
             return true;
         } catch (error) {
-            if (request.body && (request.body.userId || request.body.email)) {
-                request.user = {
-                    id: request.body.userId || 'guest-user',
-                    email: request.body.email || 'user@example.com',
-                    role: 'user',
-                };
-                return true;
-            }
-
-            if (request.headers['x-portal'] === 'it' || (request.headers['referer'] && request.headers['referer'].includes('/it'))) {
-                request.user = {
-                    id: 'it-admin',
-                    email: 'it@vidyaloans.com',
-                    role: 'it',
-                };
-                return true;
-            }
-
             if (error instanceof UnauthorizedException) {
                 throw error;
             }
@@ -115,11 +80,11 @@ export class UserGuard implements CanActivate {
                     message: 'Token has expired',
                     error: 'Unauthorized',
                     statusCode: 401,
-                    hint: 'Please use the /auth/refresh endpoint with your refresh_token to get a new access token'
+                    hint: 'Please refresh your session to obtain a new access token'
                 });
             }
 
-            throw new UnauthorizedException('Invalid token');
+            throw new UnauthorizedException('Invalid or expired token');
         }
     }
 }

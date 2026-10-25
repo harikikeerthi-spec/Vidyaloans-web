@@ -174,13 +174,23 @@ function RegistrationContent() {
   const progressPercentage = step >= 6 ? 100 : ((step - 1) / 5) * 100 + 10;
 
   return (
-    <div className="min-h-screen bg-[#faf8fd] text-slate-900 flex flex-col justify-between relative selection:bg-purple-100 selection:text-purple-900">
+    <div className="min-h-screen bg-transparent text-slate-900 flex flex-col justify-between relative selection:bg-purple-100 selection:text-purple-900">
       
-      {/* Subtle Background Ambience (VidyaLoans Theme) */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[720px] h-[360px] bg-gradient-to-b from-purple-200/35 via-indigo-100/25 to-transparent rounded-full blur-3xl" />
-        <div className="absolute top-1/2 right-[-10%] w-[420px] h-[420px] bg-purple-200/20 rounded-full blur-3xl" />
-        <div className="absolute bottom-[-10%] left-[-10%] w-[420px] h-[420px] bg-indigo-200/20 rounded-full blur-3xl" />
+      {/* Signature Main Page Background Structure */}
+      <div className="fixed inset-0 -z-10 bg-white pointer-events-none overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(at_0%_0%,rgba(102,5,199,0.4)_0px,transparent_50%),radial-gradient(at_100%_0%,rgba(224,195,137,0.5)_0px,transparent_50%),radial-gradient(at_100%_100%,rgba(139,192,232,0.4)_0px,transparent_50%),radial-gradient(at_0%_100%,rgba(102,5,199,0.3)_0px,transparent_50%)] opacity-90" />
+        <div
+          className="absolute inset-0 opacity-30 mix-blend-overlay"
+          style={{
+            backgroundImage:
+              'url("https://lh3.googleusercontent.com/aida-public/AB6AXuCSQJcRexkqlKu3kzwZCWIGdx9mSdhvK4Je6lxA9kVrWHQFg-ShCu6j3XLipgBh0waP45VYm3rBVD2Psy-FTMp2qLU946EXQwD2sIGZJLe5tw2ugWPYnnOTMWoTGM95X4u1epiDmYaEV_vVdH7tyv2ZlDuFjSMZlzWulHW3UyesMipUWi30MryHEiz-_Lje83ApXK-FpMUQdIEWe0M_ZFfiu3BcH1_opus8b5qOTiMh8tMBAX7ifzSLR_qpWnWtdB8obUzknDxLtfeP")',
+            backgroundSize: "cover",
+          }}
+        />
+        {/* Subtle ambient depth glows */}
+        <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[720px] h-[360px] bg-gradient-to-b from-purple-300/30 via-indigo-200/20 to-transparent rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-1/2 right-[-10%] w-[420px] h-[420px] bg-purple-300/15 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-[-10%] left-[-10%] w-[420px] h-[420px] bg-indigo-300/15 rounded-full blur-3xl pointer-events-none" />
       </div>
 
       {/* Top Header Bar */}
@@ -207,7 +217,7 @@ function RegistrationContent() {
         <div className="flex items-center gap-3">
           <a
             href="tel:+918143797779"
-            className="hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-[#6605c7] transition-colors"
+            className="hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 hover:text-[#6605c7] transition-colors bg-white/70 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/60 shadow-xs"
           >
             <span className="material-symbols-outlined text-sm text-[#6605c7]">call</span>
             <span>+91 8143797779</span>
@@ -215,7 +225,7 @@ function RegistrationContent() {
 
           <Link
             href="/"
-            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-slate-600 bg-white hover:bg-slate-100 border border-slate-200/80 shadow-2xs transition-all cursor-pointer"
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-slate-700 bg-white/80 hover:bg-white backdrop-blur-md border border-white/80 shadow-xs transition-all cursor-pointer"
           >
             <span className="material-symbols-outlined text-[15px]">arrow_back</span>
             <span>Back to Home</span>
@@ -225,7 +235,7 @@ function RegistrationContent() {
 
       {/* Main Content Area */}
       <main className="relative z-10 w-full max-w-xl mx-auto px-4 sm:px-6 my-auto py-4">
-        <div className="bg-white rounded-3xl shadow-[0_16px_50px_rgba(102,5,199,0.07)] border border-purple-100/80 overflow-hidden transition-all duration-300">
+        <div className="bg-white/92 backdrop-blur-xl rounded-3xl shadow-[0_20px_60px_rgba(102,5,199,0.09)] border border-white/80 overflow-hidden transition-all duration-300">
           
           {/* Progress Bar Line */}
           <div className="h-1.5 w-full bg-slate-100">

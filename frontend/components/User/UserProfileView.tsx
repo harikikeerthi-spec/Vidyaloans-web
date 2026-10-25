@@ -763,7 +763,7 @@ export default function UserProfileView({
                             onClick={onEditClick}
                             className="p-1 text-slate-400 hover:text-[#6605c7] transition-colors opacity-0 group-hover/field:opacity-100 border-0 bg-transparent flex items-center cursor-pointer"
                         >
-                            <i className="ph ph-pencil-simple text-sm" />
+                            <span className="material-symbols-outlined text-sm">edit</span>
                         </button>
                     </div>
                 </div>
@@ -781,7 +781,7 @@ export default function UserProfileView({
                         {displayVal}
                     </span>
                     {!isEmpty && (
-                        <i className="ph ph-pencil-simple text-slate-400 opacity-0 group-hover/field:opacity-100 transition-opacity text-sm ml-2" />
+                        <span className="material-symbols-outlined text-slate-400 opacity-0 group-hover/field:opacity-100 transition-opacity text-sm ml-2">edit</span>
                     )}
                 </div>
             </div>
@@ -846,7 +846,7 @@ export default function UserProfileView({
                                     onClick={startPersonalEdit}
                                     className="absolute inset-0 bg-[#0F172A]/70 opacity-0 group-hover/avatar:opacity-100 flex flex-col items-center justify-center text-white text-[9px] font-black tracking-widest uppercase transition-opacity duration-300 cursor-pointer border-0"
                                 >
-                                    <i className="ph ph-pencil-simple text-sm mb-0.5" />
+                                    <span className="material-symbols-outlined text-sm mb-0.5">edit</span>
                                     EDIT
                                 </button>
                             </div>
@@ -861,7 +861,7 @@ export default function UserProfileView({
                                         : activeProfile?.firstName || activeProfile?.email?.split("@")[0])}
                                 </h2>
                                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-100/70 text-emerald-700 text-[10px] font-black tracking-wider uppercase">
-                                    <i className="ph ph-shield-check text-xs text-emerald-600" />
+                                    <span className="material-symbols-outlined text-xs text-emerald-600">verified_user</span>
                                     Verified Account
                                 </span>
                             </div>
@@ -897,7 +897,7 @@ export default function UserProfileView({
                 <div className="bg-white rounded-[16px] shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-slate-100 p-6 md:col-span-2 relative group">
                     <div className="flex justify-between items-center mb-6 pb-3 border-b border-slate-100">
                         <h3 className="text-sm font-bold text-[#0F172A] flex items-center gap-2">
-                            <i className="ph ph-user text-[#6605c7] text-lg shrink-0" />
+                            <span className="material-symbols-outlined text-[#6605c7] text-lg shrink-0">person</span>
                             Personal Details
                         </h3>
                         {editingCard !== "personal" && (
@@ -906,7 +906,7 @@ export default function UserProfileView({
                                 onClick={startPersonalEdit}
                                 className="px-3 py-1.5 flex items-center gap-1.5 bg-purple-50 hover:bg-purple-100 text-[#6605c7] rounded-lg text-xs font-bold transition-all border-0 cursor-pointer"
                             >
-                                <i className="ph ph-pencil-simple text-sm" />
+                                <span className="material-symbols-outlined text-sm">edit</span>
                                 Edit Profile
                             </button>
                         )}
@@ -1096,7 +1096,7 @@ export default function UserProfileView({
                                 >
                                     {savingProfile ? (
                                         <>
-                                            <i className="ph ph-spinner animate-spin text-sm" /> Saving...
+                                            <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span> Saving...
                                         </>
                                     ) : (
                                         <>Save Changes</>
@@ -1200,7 +1200,7 @@ export default function UserProfileView({
                 {/* Card 2: Academic Details Card (Double height on lg screens) */}
                 <div className="bg-white rounded-[16px] shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-slate-100 p-6 md:col-span-1 lg:row-span-2 relative">
                     <div className="flex items-center gap-2 mb-6 pb-3 border-b border-slate-100">
-                        <i className="ph ph-graduation-cap text-[#6605c7] text-lg shrink-0" />
+                        <span className="material-symbols-outlined text-[#6605c7] text-lg shrink-0">school</span>
                         <h3 className="text-sm font-bold text-[#0F172A]">Academic Details</h3>
                     </div>
 
@@ -1209,7 +1209,7 @@ export default function UserProfileView({
                         <div className="p-4 bg-slate-50/50 rounded-[12px] border border-slate-100">
                             <div className="flex items-center gap-3">
                                 <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center text-[#6605c7] shrink-0">
-                                    <i className="ph ph-book-open text-base" />
+                                    <span className="material-symbols-outlined text-base">menu_book</span>
                                 </div>
                                 <div className="min-w-0 flex-1">
                                     <p className="text-xs font-bold text-[#0F172A]">10th / SSC marksheets</p>
@@ -1247,7 +1247,7 @@ export default function UserProfileView({
                         <div className="p-4 bg-slate-50/50 rounded-[12px] border border-slate-100">
                             <div className="flex items-center gap-3">
                                 <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center text-[#6605c7] shrink-0">
-                                    <i className="ph ph-book-bookmark text-base" />
+                                    <span className="material-symbols-outlined text-base">bookmark</span>
                                 </div>
                                 <div className="min-w-0 flex-1">
                                     <p className="text-xs font-bold text-[#0F172A]">12th / Intermediate marksheets</p>
@@ -1285,7 +1285,7 @@ export default function UserProfileView({
                         <div className="p-4 bg-slate-50/50 rounded-[12px] border border-slate-100">
                             <div className="flex items-center gap-3">
                                 <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center text-[#6605c7] shrink-0">
-                                    <i className="ph ph-student text-base" />
+                                    <span className="material-symbols-outlined text-base">school</span>
                                 </div>
                                 <div className="min-w-0 flex-1">
                                     <p className="text-xs font-bold text-[#0F172A]">Degree / Graduation</p>
@@ -1327,7 +1327,7 @@ export default function UserProfileView({
                         <div className="space-y-4">
                             <div className="flex justify-between items-center pb-3 border-b border-slate-100 mb-2">
                                 <h3 className="text-sm font-bold text-[#0F172A] flex items-center gap-2">
-                                    <i className="ph ph-gender-male text-blue-500 text-lg shrink-0" />
+                                    <span className="material-symbols-outlined text-blue-500 text-lg shrink-0">man</span>
                                     Edit Father Details
                                 </h3>
                             </div>
@@ -1377,7 +1377,7 @@ export default function UserProfileView({
                                 >
                                     {savingProfile ? (
                                         <>
-                                            <i className="ph ph-spinner animate-spin text-sm" /> Saving...
+                                            <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span> Saving...
                                         </>
                                     ) : (
                                         <>Save</>
@@ -1389,7 +1389,7 @@ export default function UserProfileView({
                         <div className="space-y-4">
                             <div className="flex justify-between items-center pb-3 border-b border-slate-100 mb-2">
                                 <h3 className="text-sm font-bold text-[#0F172A] flex items-center gap-2">
-                                    <i className="ph ph-gender-female text-pink-500 text-lg shrink-0" />
+                                    <span className="material-symbols-outlined text-pink-500 text-lg shrink-0">woman</span>
                                     Edit Mother Details
                                 </h3>
                             </div>
@@ -1439,7 +1439,7 @@ export default function UserProfileView({
                                 >
                                     {savingProfile ? (
                                         <>
-                                            <i className="ph ph-spinner animate-spin text-sm" /> Saving...
+                                            <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span> Saving...
                                         </>
                                     ) : (
                                         <>Save</>
@@ -1451,7 +1451,7 @@ export default function UserProfileView({
                         <div className="space-y-4">
                             <div className="flex justify-between items-center pb-3 border-b border-[#6605c7]/15 mb-2">
                                 <h3 className="text-sm font-bold text-[#6605c7] flex items-center gap-2">
-                                    <i className="ph ph-shield-star text-lg shrink-0" />
+                                    <span className="material-symbols-outlined text-lg shrink-0">security</span>
                                     Edit Co-Applicant Details
                                 </h3>
                             </div>
@@ -1539,7 +1539,7 @@ export default function UserProfileView({
                                 >
                                     {savingProfile ? (
                                         <>
-                                            <i className="ph ph-spinner animate-spin text-sm" /> Saving...
+                                            <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span> Saving...
                                         </>
                                     ) : (
                                         <>Save</>
@@ -1551,7 +1551,7 @@ export default function UserProfileView({
                         <div className="font-sans">
                             <div className="flex justify-between items-center mb-6 pb-3 border-b border-slate-100">
                                 <h3 className="text-sm font-bold text-[#0F172A] flex items-center gap-2">
-                                    <i className="ph ph-users text-[#6605c7] text-lg shrink-0" />
+                                    <span className="material-symbols-outlined text-[#6605c7] text-lg shrink-0">group</span>
                                     Family & Co-Applicant Details
                                 </h3>
                                 {editingCard !== "father" && editingCard !== "mother" && editingCard !== "coapplicant" && (
@@ -1637,7 +1637,7 @@ export default function UserProfileView({
                                                             <span>{finalName}</span>
                                                             {isFromPassport && (
                                                                 <span className="px-1.5 py-0.5 bg-purple-50 text-[#6605c7] border border-purple-100 rounded text-[9px] font-black uppercase tracking-widest flex items-center gap-1">
-                                                                    <i className="ph ph-passport text-xs" /> Passport
+                                                                    <span className="material-symbols-outlined text-xs">badge</span> Passport
                                                                 </span>
                                                             )}
                                                         </div>
@@ -1665,7 +1665,7 @@ export default function UserProfileView({
                                                             <span>{finalName}</span>
                                                             {isFromPassport && (
                                                                 <span className="px-1.5 py-0.5 bg-purple-50 text-[#6605c7] border border-purple-100 rounded text-[9px] font-black uppercase tracking-widest flex items-center gap-1">
-                                                                    <i className="ph ph-passport text-xs" /> Passport
+                                                                    <span className="material-symbols-outlined text-xs">badge</span> Passport
                                                                 </span>
                                                             )}
                                                         </div>

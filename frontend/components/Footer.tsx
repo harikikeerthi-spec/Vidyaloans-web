@@ -57,22 +57,22 @@ export default function Footer() {
                         </div>
 
                         {/* Contact */}
-                        <div className="space-y-2.5">
-                            <a href={`mailto:${supportEmail}`} className="flex items-center gap-2.5 text-gray-400 hover:text-white text-[13px] transition-colors group">
+                        <div className="space-y-1">
+                            <a href={`mailto:${supportEmail}`} className="flex items-center min-h-[44px] py-1 gap-2.5 text-gray-400 hover:text-white text-[13px] transition-colors group">
                                 <span className="material-symbols-outlined text-base text-gray-500 group-hover:text-[#6605c7] transition-colors">mail</span>
                                 {supportEmail}
                             </a>
-                            <a href={`tel:${phone.replace(/\s+/g, '')}`} className="flex items-center gap-2.5 text-gray-400 hover:text-white text-[13px] transition-colors group">
+                            <a href={`tel:${phone.replace(/\s+/g, '')}`} className="flex items-center min-h-[44px] py-1 gap-2.5 text-gray-400 hover:text-white text-[13px] transition-colors group">
                                 <span className="material-symbols-outlined text-base text-gray-500 group-hover:text-[#6605c7] transition-colors">call</span>
                                 {phone}
                             </a>
                         </div>
                     </div>
 
-                    {/* About VidyaLoan */}
+                    {/* About VidyaLoans */}
                     <div className="lg:col-span-2">
-                        <h4 className="text-[11px] font-bold uppercase tracking-[0.1em] text-white mb-6">About VidyaLoan</h4>
-                        <ul className="space-y-3 text-[13px]">
+                        <h4 className="text-[11px] font-bold uppercase tracking-[0.1em] text-white mb-4">About VidyaLoans</h4>
+                        <ul className="space-y-0.5 text-[13px]">
                             <FooterLink href="/about-us" label="Our Story" />
                             <FooterLink href="/how-it-works" label="How It Works" />
                             <FooterLink href="/privacy-policy" label="Privacy Policy" />
@@ -84,8 +84,8 @@ export default function Footer() {
 
                     {/* Resources */}
                     <div className="lg:col-span-2">
-                        <h4 className="text-[11px] font-bold uppercase tracking-[0.1em] text-white mb-6">Resources</h4>
-                        <ul className="space-y-3 text-[13px]">
+                        <h4 className="text-[11px] font-bold uppercase tracking-[0.1em] text-white mb-4">Resources</h4>
+                        <ul className="space-y-0.5 text-[13px]">
                             <FooterLink href="/compare-universities" label="University Selection" />
                             <FooterLink href="/compare-loans" label="Education Loans" />
                             <FooterLink href="/blog" label="Blogs & News" />
@@ -97,8 +97,8 @@ export default function Footer() {
 
                     {/* AI Tools */}
                     <div className="lg:col-span-2">
-                        <h4 className="text-[11px] font-bold uppercase tracking-[0.1em] text-white mb-6">AI Tools</h4>
-                        <ul className="space-y-3 text-[13px]">
+                        <h4 className="text-[11px] font-bold uppercase tracking-[0.1em] text-white mb-4">AI Tools</h4>
+                        <ul className="space-y-0.5 text-[13px]">
                             <FooterLink href="/emi" label="EMI Calculator" />
                             <FooterLink href="/loan-eligibility" label="Eligibility Checker" />
                             <FooterLink href="/sop-writer" label="SOP Writer" />
@@ -110,9 +110,9 @@ export default function Footer() {
 
                     {/* Offices */}
                     <div className="lg:col-span-3">
-                        <h4 className="text-[11px] font-bold uppercase tracking-[0.1em] text-white mb-6">Offices</h4>
-                        <ul className="space-y-3 text-[13px]">
-                            <li className="flex items-start gap-2 text-gray-400">
+                        <h4 className="text-[11px] font-bold uppercase tracking-[0.1em] text-white mb-4">Offices</h4>
+                        <ul className="space-y-1 text-[13px]">
+                            <li className="flex items-start gap-2 text-gray-400 min-h-[44px] py-1">
                                 <span className="material-symbols-outlined text-[#6605c7] text-base mt-0.5">location_on</span>
                                 <div>
                                     <span className="text-white font-medium block">Nuzvidu</span>
@@ -151,9 +151,9 @@ function SocialIcon({ href, icon, alt, color }: { href: string; icon: string; al
     return (
         <a
             href={href}
-            className={`w-8 h-8 bg-white/[0.05] ${color} rounded-lg flex items-center justify-center transition-all duration-300 hover:scale-105 hover:shadow-lg`}
+            className={`min-w-[44px] min-h-[44px] w-11 h-11 bg-white/[0.05] ${color} rounded-lg flex items-center justify-center transition-all duration-300 hover:scale-105 hover:shadow-lg`}
         >
-            <img src={icon} alt={alt} className="w-[14px] h-[14px] opacity-70 group-hover:opacity-100" />
+            <img src={icon} alt={alt} className="w-[18px] h-[18px] opacity-70 group-hover:opacity-100" />
         </a>
     );
 }
@@ -161,7 +161,7 @@ function SocialIcon({ href, icon, alt, color }: { href: string; icon: string; al
 function FooterLink({ href, label }: { href: string; label: string }) {
     return (
         <li>
-            <Link href={href} className="text-gray-400/80 hover:text-white transition-colors inline-block font-normal">
+            <Link href={href} className="text-gray-400/80 hover:text-white transition-colors inline-flex items-center min-h-[44px] py-1.5 font-normal">
                 {label}
             </Link>
         </li>

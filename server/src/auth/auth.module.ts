@@ -12,6 +12,7 @@ import { AuthorizationService } from './authorization.service';
 import { AuditLogService } from './audit-log.service';
 
 import { UserGuard } from './user.guard';
+import { OwnershipOrStaffGuard } from './ownership.guard';
 import { ReferralModule } from '../referral/referral.module';
 import { AssignmentModule } from '../assignment/assignment.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
@@ -50,6 +51,7 @@ import { SiteSettingsModule } from '../site-settings/site-settings.module';
     AuditLogService,
 
     UserGuard,
+    OwnershipOrStaffGuard,
     FirebaseAuthService,
     CsrfService,
   ],
@@ -63,6 +65,7 @@ import { SiteSettingsModule } from '../site-settings/site-settings.module';
     AuthorizationService,
     AuditLogService,
     UserGuard,
+    OwnershipOrStaffGuard,
     EmailService,
     FirebaseAuthService,
     CsrfService,

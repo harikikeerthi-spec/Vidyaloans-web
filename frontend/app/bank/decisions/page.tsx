@@ -2030,8 +2030,8 @@ export default function DecisionsHub() {
                                                             </h3>
 
                                                             {/* Side-by-side comparison table */}
-                                                            <div className="overflow-hidden border border-purple-100 rounded-2xl bg-white shadow-sm">
-                                                                <table className="w-full text-left border-collapse">
+                                                            <div className="overflow-x-auto w-full border border-purple-100 rounded-2xl bg-white shadow-sm">
+                                                                <table className="w-full min-w-[500px] text-left border-collapse">
                                                                     <thead>
                                                                         <tr className="bg-gray-50 border-b border-purple-50">
                                                                             <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-gray-400">Parameter</th>

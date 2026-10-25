@@ -3,12 +3,11 @@
 import { useState, useEffect } from "react";
 import { useSiteSettings } from "@/contexts/SiteSettingsContext";
 
-const STORAGE_KEY = "vidyaloans_playstore_popup_dismissed";
-const COOLDOWN_DAYS = 7;
+const SESSION_KEY = "vidyaloans_app_popup_seen";
 const DEFAULT_PACKAGE_ID = "in.vidyaloans.app";
-const DEFAULT_PLAY_STORE_URL = `https://play.google.com/store/apps/details?id=in.vidyaloans.app&hl=en-US&ah=Vx9t8taW0pweH2uHyGVMktR2FLs`;
+const DEFAULT_PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=in.vidyaloans.app";
 
-function GooglePlayLogo({ className = "w-4 h-4" }: { className?: string }) {
+function GooglePlayLogo({ className = "w-5 h-5" }: { className?: string }) {
     return (
         <svg
             className={className}
@@ -40,256 +39,214 @@ export default function MobileAppDownloadBanner() {
     const { settings } = useSiteSettings();
     const [isVisible, setIsVisible] = useState(false);
     const [isAndroid, setIsAndroid] = useState(false);
-    const [isIOS, setIsIOS] = useState(false);
-    const [isInstalling, setIsInstalling] = useState(false);
-    const [installProgress, setInstallProgress] = useState(0);
+
+    const playStoreUrl = (settings as any)?.playStoreUrl || DEFAULT_PLAY_STORE_URL;
 
     useEffect(() => {
         if (typeof window === "undefined") return;
 
-        // Check if admin disabled the mobile app banner
+        // Check if admin explicitly disabled the app banner
         if (settings && (settings as any).enableAppBanner === false) {
+            window.dispatchEvent(new CustomEvent("vidya_app_popup_resolved"));
             return;
         }
 
-        // Check frequency capping: suppress if user dismissed within last 7 days (bypass in dev mode for testing)
-        try {
-            const dismissedAt = localStorage.getItem(STORAGE_KEY);
-            if (dismissedAt && process.env.NODE_ENV === "production") {
-                const diffMs = Date.now() - parseInt(dismissedAt, 10);
-                const diffDays = diffMs / (1000 * 60 * 60 * 24);
-                if (diffDays < COOLDOWN_DAYS) {
-                    return;
-                }
-            }
-        } catch {
-            // Ignore localStorage errors
-        }
-
-        // Media query check: only mobile screens (< 768px)
-        const mobileMediaQuery = window.matchMedia("(max-width: 767px)");
-
-        // Check device type
+        // Detect mobile device or viewport (< 768px)
         const ua = navigator.userAgent || navigator.vendor || (window as any).opera || "";
         const uaLower = ua.toLowerCase();
         const android = uaLower.includes("android");
-        const ios = /iphone|ipad|ipod/.test(uaLower) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
         const isMobileUA = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(uaLower);
+        const mobileMediaQuery = window.matchMedia("(max-width: 767px)");
+        const isMobile = android || isMobileUA || mobileMediaQuery.matches;
 
         setIsAndroid(android);
-        setIsIOS(ios);
-
-        // Strict check: Must be a mobile device OR match mobile screen media query (< 768px)
-        const isMobile = android || ios || isMobileUA || mobileMediaQuery.matches;
 
         if (!isMobile) {
-            // Do not show on desktop / large screens
-            setIsVisible(false);
+            // Not a mobile device; notify cookie banner to proceed immediately
+            window.dispatchEvent(new CustomEvent("vidya_app_popup_resolved"));
             return;
         }
 
-        // Slide down after brief delay like a real-time push notification
+        // Frequency capping: don't annoy user on every single link click in the same session
+        // (can test anytime with ?app_popup=true or in a new tab)
+        const urlParams = new URLSearchParams(window.location.search);
+        const forceShow = urlParams.get("app_popup") === "true";
+        try {
+            const seenInSession = sessionStorage.getItem(SESSION_KEY);
+            if (seenInSession && !forceShow) {
+                window.dispatchEvent(new CustomEvent("vidya_app_popup_resolved"));
+                return;
+            }
+        } catch {
+            // Ignore storage errors
+        }
+
+        // Show popup shortly after mobile load
         const timer = setTimeout(() => {
             setIsVisible(true);
-            // Gentle haptic vibration on mobile devices if supported
-            if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+            if ("vibrate" in navigator) {
                 try {
-                    navigator.vibrate([40, 60, 40]);
+                    navigator.vibrate([30, 40, 30]);
                 } catch {
                     // Ignore haptic errors
                 }
             }
-        }, 1200);
+        }, 900);
 
-        // Dynamic listener in case screen is resized or DevTools device mode is toggled
-        const handleMediaChange = (e: MediaQueryListEvent) => {
-            if (!e.matches && !android && !ios && !isMobileUA) {
-                setIsVisible(false);
-            }
-        };
-
-        if (mobileMediaQuery.addEventListener) {
-            mobileMediaQuery.addEventListener("change", handleMediaChange);
-        } else {
-            mobileMediaQuery.addListener(handleMediaChange);
-        }
-
-        return () => {
-            clearTimeout(timer);
-            if (mobileMediaQuery.removeEventListener) {
-                mobileMediaQuery.removeEventListener("change", handleMediaChange);
-            } else {
-                mobileMediaQuery.removeListener(handleMediaChange);
-            }
-        };
+        return () => clearTimeout(timer);
     }, [settings]);
 
     const handleDismiss = () => {
         setIsVisible(false);
         try {
-            localStorage.setItem(STORAGE_KEY, Date.now().toString());
+            sessionStorage.setItem(SESSION_KEY, "true");
         } catch {
             // Ignore
         }
+        if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("vidya_app_popup_resolved"));
+        }
     };
 
-    const handleInstall = () => {
-        const playUrl = (settings as any)?.playStoreUrl || DEFAULT_PLAY_STORE_URL;
-        const iosUrl = (settings as any)?.appStoreUrl || playUrl;
+    const handleDownload = () => {
+        try {
+            sessionStorage.setItem(SESSION_KEY, "true");
+        } catch {
+            // Ignore
+        }
 
-        setIsInstalling(true);
+        // On Android try direct market intent, fallback to Play Store URL
+        if (isAndroid) {
+            const marketUrl = `market://details?id=${DEFAULT_PACKAGE_ID}`;
+            window.location.href = marketUrl;
+            setTimeout(() => {
+                window.open(playStoreUrl, "_blank", "noopener,noreferrer");
+            }, 600);
+        } else {
+            window.open(playStoreUrl, "_blank", "noopener,noreferrer");
+        }
 
-        // Realistic fast downloading progress animation before opening store
-        let progress = 15;
-        const interval = setInterval(() => {
-            progress += Math.floor(Math.random() * 25) + 15;
-            if (progress >= 100) {
-                progress = 100;
-                setInstallProgress(100);
-                clearInterval(interval);
-
-                setTimeout(() => {
-                    if (isAndroid) {
-                        const marketUrl = `market://details?id=${DEFAULT_PACKAGE_ID}`;
-                        window.location.href = marketUrl;
-                        setTimeout(() => {
-                            window.open(playUrl, "_blank", "noopener,noreferrer");
-                        }, 500);
-                    } else if (isIOS && (settings as any)?.appStoreUrl) {
-                        window.open(iosUrl, "_blank", "noopener,noreferrer");
-                    } else {
-                        window.open(playUrl, "_blank", "noopener,noreferrer");
-                    }
-                    handleDismiss();
-                }, 400);
-            } else {
-                setInstallProgress(progress);
-            }
-        }, 120);
+        setIsVisible(false);
+        if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("vidya_app_popup_resolved"));
+        }
     };
 
     if (!isVisible) return null;
 
     return (
-        <aside
-            role="region"
-            aria-label="Google Play Store Notification"
-            className="md:hidden fixed top-3 inset-x-3 z-[99999] pointer-events-auto transition-all animate-in fade-in slide-in-from-top-8 duration-500 ease-out"
+        <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="mobile-app-popup-title"
+            className="md:hidden fixed inset-0 z-[99999] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300"
+            onClick={(e) => {
+                if (e.target === e.currentTarget) handleDismiss();
+            }}
         >
-            <div className="bg-[#1f1f23]/95 backdrop-blur-2xl border border-white/10 rounded-[26px] p-3.5 sm:p-4 text-white shadow-[0_16px_40px_rgba(0,0,0,0.45)] ring-1 ring-black/20 overflow-hidden relative">
-                {/* Real-time notification header */}
-                <div className="flex items-center justify-between gap-2 mb-2.5 pb-2 border-b border-white/[0.08]">
-                    <div className="flex items-center gap-2 text-[11px] font-medium text-slate-300">
-                        {/* Official Google Play multicolor icon */}
-                        <GooglePlayLogo className="w-4 h-4 shrink-0" />
-                        <span className="font-semibold text-white tracking-tight">Google Play</span>
-                        <span className="text-white/40">•</span>
-                        <span className="text-emerald-400 font-medium text-[10.5px]">Recommended</span>
-                        <span className="text-white/40">•</span>
-                        <span className="text-slate-400 text-[10.5px]">now</span>
-                    </div>
+            <div className="w-full max-w-sm bg-white rounded-[28px] sm:rounded-[32px] p-5 sm:p-6 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.5)] border border-purple-100/70 relative overflow-hidden animate-in slide-in-from-bottom-8 duration-300">
+                {/* Decorative Top Accent Gradient */}
+                <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-[#6605c7] via-[#8b24e5] to-[#01875f]" />
 
-                    {/* Notification close button */}
+                {/* Header Row: Badge & Dismiss Button */}
+                <div className="flex items-center justify-between mb-4 pt-1">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-50 border border-purple-100/80 text-[#6605c7] text-[10.5px] font-extrabold uppercase tracking-wider">
+                        <span className="material-symbols-outlined text-[13px]">smartphone</span>
+                        Official Mobile App
+                    </span>
+
                     <button
                         type="button"
                         onClick={handleDismiss}
-                        aria-label="Dismiss notification"
-                        className="w-6 h-6 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+                        aria-label="Close mobile app popup"
+                        className="w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-900 flex items-center justify-center transition-colors cursor-pointer"
                     >
-                        <span className="material-symbols-outlined text-xs leading-none">close</span>
+                        <span className="material-symbols-outlined text-base">close</span>
                     </button>
                 </div>
 
-                {/* App Content Body */}
-                <div className="flex items-start gap-3">
-                    {/* App Squircle Icon with Google Play Corner Badge */}
+                {/* App Brand Presentation */}
+                <div className="flex items-start gap-3.5 mb-4">
                     <div className="relative shrink-0">
-                        <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-[#6605c7] to-[#4338ca] p-2 flex items-center justify-center shadow-lg shadow-purple-950/40 border border-white/15 overflow-hidden">
+                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#6605c7] to-[#3b0764] p-2 flex items-center justify-center shadow-lg shadow-purple-900/30 border border-white/20">
                             <img
                                 src={settings?.appIconUrl || "/icon.png"}
-                                alt="VidyaLoans App"
+                                alt="VidyaLoans Mobile App"
                                 className="w-full h-full object-contain"
                                 onError={(e) => {
                                     (e.target as HTMLImageElement).src = "/favicon.ico";
                                 }}
                             />
                         </div>
-                        <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-[#1f1f23] p-0.5 shadow-md flex items-center justify-center border border-white/20">
-                            <GooglePlayLogo className="w-3 h-3" />
+                        <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-white p-0.5 shadow-md flex items-center justify-center border border-gray-100">
+                            <GooglePlayLogo className="w-3.5 h-3.5" />
                         </div>
                     </div>
 
-                    {/* App Titles & Play Store Badges */}
                     <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                            <h4 className="text-xs font-bold text-white truncate tracking-tight">
-                                VidyaLoans: Overseas Loans
-                            </h4>
-                        </div>
-
-                        <p className="text-[11px] text-slate-300 mt-0.5 leading-tight line-clamp-1">
-                            Instant sanction &amp; compare 15+ banks
+                        <h3 id="mobile-app-popup-title" className="text-base font-extrabold text-gray-900 tracking-tight leading-tight">
+                            We Have a Mobile App!
+                        </h3>
+                        <p className="text-xs font-semibold text-[#6605c7] mt-0.5">
+                            VidyaLoans: Overseas Loans
                         </p>
-
-                        {/* Rating, Size & Play Protect Badge */}
-                        <div className="flex items-center gap-2 mt-1.5 text-[10.5px]">
-                            <div className="flex items-center gap-0.5 font-bold text-amber-400">
-                                <span>4.8</span>
-                                <span className="text-[11px]">★</span>
-                            </div>
-                            <span className="text-white/30">•</span>
-                            <span className="text-slate-300">18 MB</span>
-                            <span className="text-white/30">•</span>
-                            <div className="flex items-center gap-1 text-emerald-400 font-medium">
-                                <svg className="w-3 h-3 fill-current shrink-0" viewBox="0 0 24 24">
-                                    <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z" />
-                                </svg>
-                                <span className="text-[10px]">Play Protect</span>
-                            </div>
+                        <div className="flex items-center gap-1.5 mt-1 text-[11px] text-gray-500 font-medium">
+                            <span className="flex items-center text-amber-500 font-bold">★ 4.8</span>
+                            <span>•</span>
+                            <span>Free</span>
+                            <span>•</span>
+                            <span className="text-emerald-600 font-bold flex items-center gap-0.5">
+                                <span className="material-symbols-outlined text-[12px]">verified</span>
+                                Google Play
+                            </span>
                         </div>
                     </div>
                 </div>
 
-                {/* Progress bar if installing */}
-                {isInstalling && (
-                    <div className="mt-3">
-                        <div className="flex items-center justify-between text-[10.5px] text-slate-300 mb-1">
-                            <span className="text-emerald-400 font-medium animate-pulse">
-                                {installProgress < 100 ? "Downloading..." : "Installing..."}
-                            </span>
-                            <span>{installProgress}%</span>
-                        </div>
-                        <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
-                            <div
-                                className="h-full bg-gradient-to-r from-[#01875f] to-[#00c0fd] transition-all duration-150 ease-out"
-                                style={{ width: `${installProgress}%` }}
-                            />
-                        </div>
+                {/* Key Benefits List */}
+                <div className="bg-gradient-to-br from-purple-50/60 to-slate-50 border border-purple-100/60 rounded-2xl p-3 mb-4 space-y-2">
+                    <div className="flex items-center gap-2 text-xs font-medium text-gray-700">
+                        <span className="w-5 h-5 rounded-full bg-purple-100 text-[#6605c7] flex items-center justify-center text-[11px] font-bold shrink-0">
+                            ✓
+                        </span>
+                        <span>Compare <strong>5+ Partner Banks</strong> with instant quotes</span>
                     </div>
-                )}
-
-                {/* Android / Play Store Action Buttons */}
-                {!isInstalling && (
-                    <div className="mt-3 pt-2.5 border-t border-white/[0.08] flex items-center justify-end gap-2">
-                        <button
-                            type="button"
-                            onClick={handleDismiss}
-                            className="px-3.5 py-1.5 rounded-full text-xs font-medium text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-                        >
-                            Not now
-                        </button>
-
-                        <button
-                            type="button"
-                            onClick={handleInstall}
-                            className="px-5 py-1.5 rounded-full bg-[#01875f] hover:bg-[#00704e] active:scale-95 text-white text-xs font-semibold shadow-md shadow-[#01875f]/30 flex items-center gap-2 transition-all cursor-pointer"
-                        >
-                            <GooglePlayLogo className="w-3.5 h-3.5 shrink-0" />
-                            <span>Install</span>
-                        </button>
+                    <div className="flex items-center gap-2 text-xs font-medium text-gray-700">
+                        <span className="w-5 h-5 rounded-full bg-purple-100 text-[#6605c7] flex items-center justify-center text-[11px] font-bold shrink-0">
+                            ✓
+                        </span>
+                        <span><strong>1-Tap Document Upload</strong> from your phone</span>
                     </div>
-                )}
+                    <div className="flex items-center gap-2 text-xs font-medium text-gray-700">
+                        <span className="w-5 h-5 rounded-full bg-purple-100 text-[#6605c7] flex items-center justify-center text-[11px] font-bold shrink-0">
+                            ✓
+                        </span>
+                        <span><strong>Live Status Tracking</strong> with push notifications</span>
+                    </div>
+                </div>
+
+                {/* Primary CTA: Direct Download Link to Play Store */}
+                <div className="space-y-2 pt-1">
+                    <button
+                        type="button"
+                        onClick={handleDownload}
+                        className="w-full min-h-[48px] px-5 py-3 rounded-2xl bg-[#01875f] hover:bg-[#00704e] active:scale-[0.98] text-white text-sm font-bold shadow-lg shadow-[#01875f]/25 flex items-center justify-center gap-2.5 transition-all cursor-pointer"
+                    >
+                        <GooglePlayLogo className="w-5 h-5 shrink-0" />
+                        <span className="tracking-wide">Download on Google Play</span>
+                        <span className="material-symbols-outlined text-base">arrow_forward</span>
+                    </button>
+
+                    {/* Secondary Action */}
+                    <button
+                        type="button"
+                        onClick={handleDismiss}
+                        className="w-full min-h-[44px] py-2 text-xs font-semibold text-gray-500 hover:text-gray-800 transition-colors cursor-pointer text-center"
+                    >
+                        Continue to Website
+                    </button>
+                </div>
             </div>
-        </aside>
+        </div>
     );
 }

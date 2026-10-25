@@ -346,19 +346,21 @@ export default function DisbursementTracker() {
                             {loading ? (
                                 /* Skeleton loading rows */
                                 <motion.div key="sk" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                                    <table className="w-full text-left border-collapse">
-                                        <thead>
-                                            <tr className="border-b border-purple-50 text-[9px] font-black uppercase tracking-widest text-gray-400">
-                                                <th className="pb-4">Application &amp; LAN</th>
-                                                <th className="pb-4">Student &amp; Program</th>
-                                                <th className="pb-4">Sanction Details</th>
-                                                <th className="pb-4">Released Payout</th>
-                                                <th className="pb-4">Status</th>
-                                                <th className="pb-4 text-right">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-purple-50/50">{[1,2,3,4].map((i) => <SkeletonRow key={i} />)}</tbody>
-                                    </table>
+                                    <div className="overflow-x-auto w-full">
+                                        <table className="w-full min-w-[700px] text-left border-collapse">
+                                            <thead>
+                                                <tr className="border-b border-purple-50 text-[9px] font-black uppercase tracking-widest text-gray-400">
+                                                    <th className="pb-4">Application &amp; LAN</th>
+                                                    <th className="pb-4">Student &amp; Program</th>
+                                                    <th className="pb-4">Sanction Details</th>
+                                                    <th className="pb-4">Released Payout</th>
+                                                    <th className="pb-4">Status</th>
+                                                    <th className="pb-4 text-right">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-purple-50/50">{[1,2,3,4].map((i) => <SkeletonRow key={i} />)}</tbody>
+                                        </table>
+                                    </div>
                                 </motion.div>
                             ) : filteredApps.length === 0 ? (
                                 /* Premium empty state */
@@ -381,8 +383,8 @@ export default function DisbursementTracker() {
                             ) : (
                                 /* Data table */
                                 <motion.div key="tb" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-left border-collapse">
+                                    <div className="overflow-x-auto w-full">
+                                        <table className="w-full min-w-[700px] text-left border-collapse">
                                             <thead>
                                                 <tr className="border-b border-purple-50 text-[9px] font-black uppercase tracking-widest text-gray-400">
                                                     <th className="pb-4">Application &amp; LAN</th>

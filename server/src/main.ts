@@ -77,6 +77,7 @@ async function bootstrap() {
       url.includes('/support/send') ||
       url.includes('/blogs/inquiry') ||
       url.includes('/university-inquiry') ||
+      url.includes('/webmail') ||
       url.includes('/send')
     ) {
       return next();

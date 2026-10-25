@@ -6,6 +6,9 @@ import { AssignmentService } from '../assignment/assignment.service';
 import { CsrfService } from './csrf.service';
 import { EmailService } from './email.service';
 import { UserGuard } from './user.guard';
+import { StaffGuard } from './staff.guard';
+import { AdminGuard } from './admin.guard';
+import { OwnershipOrStaffGuard } from './ownership.guard';
 
 @Controller('auth')
 export class AuthController {
@@ -319,6 +322,7 @@ export class AuthController {
    * @returns { success: boolean, data: { applications: [], documents: [] } }
    */
   @Post('dashboard-data')
+  @UseGuards(OwnershipOrStaffGuard)
   async getDashboardData(@Body() body: { userId: string }) {
     if (!body || !body.userId) {
       return {
@@ -342,6 +346,7 @@ export class AuthController {
   }
 
   @Get('dashboard-data/:userId')
+  @UseGuards(OwnershipOrStaffGuard)
   async getDashboardDataByParam(@Param('userId') userId: string) {
     if (!userId) {
       return {
@@ -734,6 +739,7 @@ export class AuthController {
    * @returns { success: boolean, applications: [] }
    */
   @Post('applications')
+  @UseGuards(OwnershipOrStaffGuard)
   async getApplications(@Body() body: { userId: string }) {
     if (!body || !body.userId) {
       return {
@@ -762,6 +768,7 @@ export class AuthController {
    * @returns { success: boolean, application?: LoanApplication }
    */
   @Post('update-application/:id')
+  @UseGuards(StaffGuard)
   async updateApplication(
     @Param('id') id: string,
     @Body() body: { status: string }
@@ -792,6 +799,7 @@ export class AuthController {
    * @returns { success: boolean, message: string }
    */
   @Delete('application/:id')
+  @UseGuards(AdminGuard)
   async deleteApplication(@Param('id') id: string) {
     try {
       await this.usersService.deleteLoanApplication(id);
@@ -816,6 +824,7 @@ export class AuthController {
    * @returns { success: boolean, document?: UserDocument }
    */
   @Post('upload-document')
+  @UseGuards(OwnershipOrStaffGuard)
   async uploadDocument(@Body() body: {
     userId: string;
     docType: string;
@@ -853,6 +862,7 @@ export class AuthController {
    * @returns { success: boolean, documents: [] }
    */
   @Post('documents')
+  @UseGuards(OwnershipOrStaffGuard)
   async getDocuments(@Body() body: { userId: string }) {
     if (!body || !body.userId) {
       return {
@@ -880,6 +890,7 @@ export class AuthController {
    * @returns { success: boolean, message: string }
    */
   @Delete('document/:userId/:docType')
+  @UseGuards(OwnershipOrStaffGuard)
   async deleteDocument(
     @Param('userId') userId: string,
     @Param('docType') docType: string
