@@ -216,11 +216,20 @@ export default function ExecutiveWebmailPage() {
     setIsSending(true);
 
     try {
+      // Fetch CSRF token if available
+      let csrfToken = "";
+      try {
+        const csrfRes = await fetch("/api/csrf-token");
+        const csrfJson = await csrfRes.json();
+        if (csrfJson?.csrfToken) csrfToken = csrfJson.csrfToken;
+      } catch (e) {}
+
       const res = await fetch("/api/webmail/send", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
+          ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
         },
         body: JSON.stringify({
           to: composeTo,
@@ -276,11 +285,19 @@ export default function ExecutiveWebmailPage() {
     setPasswordLoading(true);
 
     try {
+      let csrfToken = "";
+      try {
+        const csrfRes = await fetch("/api/csrf-token");
+        const csrfJson = await csrfRes.json();
+        if (csrfJson?.csrfToken) csrfToken = csrfJson.csrfToken;
+      } catch (e) {}
+
       const res = await fetch("/api/webmail/change-password", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
+          ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
         },
         body: JSON.stringify({ oldPassword, newPassword }),
       });

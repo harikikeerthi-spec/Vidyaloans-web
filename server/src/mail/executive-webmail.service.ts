@@ -129,16 +129,29 @@ export class ExecutiveWebmailService implements OnModuleInit {
 
     try {
       const payload = await this.jwtService.verifyAsync(token);
-      if (!payload || !payload.s3Prefix || !payload.email) {
+      if (!payload || !payload.email) {
         throw new UnauthorizedException('Invalid executive token payload');
       }
+
+      // Check current DB record to get latest s3Prefix and ensure account is active
+      const cleanEmail = payload.email.toLowerCase().trim();
+      const rows: any[] = await this.prisma.$queryRawUnsafe(`
+        SELECT "id", "email", "name", "title", "s3Prefix", "status"
+        FROM "executive_mailboxes"
+        WHERE LOWER("email") = '${cleanEmail}'
+        LIMIT 1;
+      `);
+
+      const dbUser = rows && rows[0] ? rows[0] : null;
+      let effectivePrefix = dbUser ? dbUser.s3Prefix : payload.s3Prefix;
+
       return {
-        id: payload.id || payload.sub,
+        id: dbUser ? dbUser.id : (payload.id || payload.sub),
         email: payload.email,
-        name: payload.name || 'Executive Official',
-        title: payload.title || 'Official',
-        s3Prefix: payload.s3Prefix,
-        status: 'active',
+        name: dbUser ? dbUser.name : (payload.name || 'Executive Official'),
+        title: dbUser ? dbUser.title : (payload.title || 'Official'),
+        s3Prefix: effectivePrefix || `${cleanEmail.split('@')[0]}/`,
+        status: dbUser ? dbUser.status : 'active',
         createdAt: new Date(),
       };
     } catch (e: any) {
@@ -148,10 +161,12 @@ export class ExecutiveWebmailService implements OnModuleInit {
 
   // List emails for the logged-in official (Isolated to their private s3Prefix)
   async getInbox(user: ExecutiveMailboxUser, folder = 'inbox') {
-    // S3 prefix is strictly scoped to this official: e.g. "officials/director/"
+    let cleanPrefix = user.s3Prefix || `${user.email.split('@')[0]}/`;
+    if (!cleanPrefix.endsWith('/')) cleanPrefix += '/';
+
     const targetPrefix = folder === 'sent' 
-      ? `${user.s3Prefix}sent/`
-      : user.s3Prefix;
+      ? `${cleanPrefix}sent/`
+      : cleanPrefix;
 
     this.logger.log(`[ExecutiveWebmail] Fetching emails for ${user.email} in prefix: ${targetPrefix}`);
 
@@ -163,7 +178,14 @@ export class ExecutiveWebmailService implements OnModuleInit {
     };
 
     try {
-      const emails = await this.mailService.listSupport(targetPrefix, user.email, user.id, currentUser);
+      let emails = await this.mailService.listSupport(targetPrefix, user.email, user.id, currentUser);
+      
+      // If folder has 0 emails and prefix starts with officials/, try without officials/
+      if ((!emails || emails.length === 0) && targetPrefix.startsWith('officials/')) {
+        const altPrefix = targetPrefix.replace(/^officials\//, '');
+        emails = await this.mailService.listSupport(altPrefix, user.email, user.id, currentUser);
+      }
+
       return {
         success: true,
         data: emails,

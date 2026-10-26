@@ -32,7 +32,15 @@ export class OwnershipOrStaffGuard implements CanActivate {
           token = tokenStr;
         }
       } else if (request.query && request.query.token) {
-        token = request.query.token as string;
+        const path = (request.baseUrl || '') + (request.path || request.url || '');
+        const isDownloadOrView =
+          path.includes('/download') ||
+          path.includes('/export') ||
+          path.includes('/zip') ||
+          path.includes('/view');
+        if (isDownloadOrView) {
+          token = request.query.token as string;
+        }
       } else if (request.cookies) {
         token =
           request.cookies.accessToken ||
@@ -84,11 +92,14 @@ export class OwnershipOrStaffGuard implements CanActivate {
       return true;
     }
 
-    // 3. Extract target userId from route params, query, or body
+    // 3. Extract target userId or email from route params, query, or body
     const targetUserId =
       request.params?.userId ||
       request.query?.userId ||
-      request.body?.userId;
+      request.body?.userId ||
+      request.body?.email ||
+      request.params?.email ||
+      request.query?.email;
 
     // 4. Bank Role: Check student consent
     if (['bank', 'partner_bank'].includes(role)) {

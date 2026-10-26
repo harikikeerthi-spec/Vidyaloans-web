@@ -1,4 +1,5 @@
 import { Controller, Post, Body, Get, Param, Delete, Req, Res, Inject, forwardRef, UseGuards, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { ReferralService } from '../referral/referral.service';
@@ -53,6 +54,7 @@ export class AuthController {
    * @body email: string (required)
    * @returns { success: boolean, message: string, userExists: boolean }
    */
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('send-otp')
   async sendOtp(@Body() body: { email: string; portal?: string; role?: string; requiredRole?: string }) {
     if (!body || !body.email) {
@@ -128,6 +130,7 @@ export class AuthController {
     };
   }
 
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('request-otp')
   async requestOtp(@Body() body: { email: string; portal?: string }) {
     if (!body || !body.email) {
@@ -185,6 +188,7 @@ export class AuthController {
    * - If userExists: true && hasUserDetails: false → Navigate to user-details.html
    * - If userExists: false → Navigate to user-details.html (new user)
    */
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('verify-otp')
   async verifyOtp(
     @Req() req: any,
@@ -296,6 +300,7 @@ export class AuthController {
    * @returns { success: boolean, user: { id, email, firstName, lastName, phoneNumber, dateOfBirth, createdAt } }
    */
   @Post('dashboard')
+  @UseGuards(OwnershipOrStaffGuard)
   async getUserDashboard(@Body() body: { email: string }) {
     if (!body || !body.email) {
       return {
@@ -744,6 +749,7 @@ export class AuthController {
    * GET /auth/apply-loan-applications
    */
   @Get('apply-loan-applications')
+  @UseGuards(StaffGuard)
   async getApplyLoanApplications() {
     try {
       const { data, error } = await this.usersService.getApplyLoanApplications();
@@ -763,12 +769,14 @@ export class AuthController {
   }
 
   @Post('assign-all-unassigned')
+  @UseGuards(StaffGuard)
   async assignAllUnassigned() {
     await this.usersService.backfillAndAutoAssignApplications();
     return { success: true, message: 'Triggered auto-assignment for unassigned applications.' };
   }
 
   @Post('reassign/:loanId')
+  @UseGuards(StaffGuard)
   async reassignLoanFallback(
     @Param('loanId') loanId: string,
     @Body() body: { toStaffId: string; reason?: string },

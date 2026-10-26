@@ -344,19 +344,31 @@ function RegistrationContent() {
               <div className="space-y-5">
                 <div>
                   <h2 className="text-2xl font-black text-[#1a1626] tracking-tight">
-                    Admission process
+                    Admission Status
                   </h2>
                   <p className="text-xs text-slate-500 mt-1">
-                    Select your current stage in university shortlisting and admissions.
+                    Select your current progress in university shortlisting and admissions.
                   </p>
                 </div>
 
                 <div className="space-y-2.5 pt-1">
                   {[
-                    { title: "Ready", desc: "Shortlisting universities & preparing application documents" },
-                    { title: "Ready to apply", desc: "Test scores and SOP ready for submission" },
-                    { title: "Already applied", desc: "Admit letter received or awaiting university confirmation" },
-                    { title: "Planning for next intake", desc: "Looking at Spring or Fall intake admissions" },
+                    {
+                      title: "Confirmed Admission / Offer Letter",
+                      desc: "Received an official admit letter, I-20, CAS, or provisional university offer.",
+                    },
+                    {
+                      title: "Applied & Awaiting Decisions",
+                      desc: "University applications lodged; waiting for admission results and offer letters.",
+                    },
+                    {
+                      title: "Preparing Applications",
+                      desc: "Shortlisting target universities, completing tests (GRE/IELTS), and finalizing SOPs.",
+                    },
+                    {
+                      title: "Planning for Upcoming Intake",
+                      desc: "Early research stage; exploring universities and course options for future terms.",
+                    },
                   ].map((opt) => {
                     const isSelected = formData.admissionStatus === opt.title;
                     return (
@@ -372,7 +384,7 @@ function RegistrationContent() {
                       >
                         <div>
                           <div className="font-bold text-sm text-[#1a1626]">{opt.title}</div>
-                          <div className="text-[11px] text-slate-500 mt-0.5">{opt.desc}</div>
+                          <div className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">{opt.desc}</div>
                         </div>
                         <div
                           className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
@@ -404,19 +416,31 @@ function RegistrationContent() {
               <div className="space-y-5">
                 <div>
                   <h2 className="text-2xl font-black text-[#1a1626] tracking-tight">
-                    Education loan
+                    Education Loan Status
                   </h2>
                   <p className="text-xs text-slate-500 mt-1">
-                    What is your current education loan requirement or application status?
+                    What is your current education loan requirement or application stage?
                   </p>
                 </div>
 
                 <div className="space-y-2.5 pt-1">
                   {[
-                    { title: "Ready to apply", desc: "Need comparison across top public/private banks & fast sanction" },
-                    { title: "Already applied", desc: "Loan file submitted to a bank, seeking better rate or co-applicant check" },
-                    { title: "Rejected", desc: "Need expert second review, collateral advice, or NBFC alternatives" },
-                    { title: "Exploring options", desc: "Checking eligibility, rates & estimating monthly EMI" },
+                    {
+                      title: "Looking to Apply for a New Loan",
+                      desc: "Compare offers across 15+ partner banks & NBFCs to secure the lowest interest rates.",
+                    },
+                    {
+                      title: "Application Already in Progress",
+                      desc: "Already applied with a lender; seeking a faster sanction, lower interest rate, or co-applicant assistance.",
+                    },
+                    {
+                      title: "Facing Delays or Rejection",
+                      desc: "Need expert underwriting guidance, collateral restructuring, or non-collateral NBFC solutions.",
+                    },
+                    {
+                      title: "Exploring Eligibility & Options",
+                      desc: "Estimating borrow capacity, collateral vs non-collateral criteria, and projected monthly repayments.",
+                    },
                   ].map((opt) => {
                     const isSelected = formData.loanStatus === opt.title;
                     return (
@@ -432,7 +456,7 @@ function RegistrationContent() {
                       >
                         <div>
                           <div className="font-bold text-sm text-[#1a1626]">{opt.title}</div>
-                          <div className="text-[11px] text-slate-500 mt-0.5">{opt.desc}</div>
+                          <div className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">{opt.desc}</div>
                         </div>
                         <div
                           className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
@@ -464,23 +488,176 @@ function RegistrationContent() {
               <div className="space-y-5">
                 <div>
                   <h2 className="text-2xl font-black text-[#1a1626] tracking-tight">
-                    Target country
+                    Target Country
                   </h2>
                   <p className="text-xs text-slate-500 mt-1">
-                    Select your primary target country for overseas studies.
+                    Select your primary destination for academic studies.
                   </p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2.5 pt-1">
                   {[
-                    { name: "USA", flag: "🇺🇸" },
-                    { name: "United Kingdom", flag: "🇬🇧" },
-                    { name: "Canada", flag: "🇨🇦" },
-                    { name: "Australia", flag: "🇦🇺" },
-                    { name: "Germany", flag: "🇩🇪" },
-                    { name: "Ireland", flag: "🇮🇪" },
-                    { name: "India", flag: "🇮🇳" },
-                    { name: "Other Countries", flag: "🌍" },
+                    {
+                      name: "USA",
+                      flagSvg: (
+                        <svg viewBox="0 0 640 480" className="w-full h-full object-cover">
+                          <rect width="640" height="480" fill="#b22234" />
+                          <path d="M0,37h640M0,111h640M0,185h640M0,259h640M0,333h640M0,407h640" stroke="#fff" strokeWidth="37" />
+                          <rect width="256" height="259" fill="#3c3b6e" />
+                          <g fill="#fff">
+                            <circle cx="28" cy="26" r="6" />
+                            <circle cx="70" cy="26" r="6" />
+                            <circle cx="112" cy="26" r="6" />
+                            <circle cx="154" cy="26" r="6" />
+                            <circle cx="196" cy="26" r="6" />
+                            <circle cx="238" cy="26" r="6" />
+                            <circle cx="49" cy="52" r="6" />
+                            <circle cx="91" cy="52" r="6" />
+                            <circle cx="133" cy="52" r="6" />
+                            <circle cx="175" cy="52" r="6" />
+                            <circle cx="217" cy="52" r="6" />
+                            <circle cx="28" cy="78" r="6" />
+                            <circle cx="70" cy="78" r="6" />
+                            <circle cx="112" cy="78" r="6" />
+                            <circle cx="154" cy="78" r="6" />
+                            <circle cx="196" cy="78" r="6" />
+                            <circle cx="238" cy="78" r="6" />
+                            <circle cx="49" cy="104" r="6" />
+                            <circle cx="91" cy="104" r="6" />
+                            <circle cx="133" cy="104" r="6" />
+                            <circle cx="175" cy="104" r="6" />
+                            <circle cx="217" cy="104" r="6" />
+                            <circle cx="28" cy="130" r="6" />
+                            <circle cx="70" cy="130" r="6" />
+                            <circle cx="112" cy="130" r="6" />
+                            <circle cx="154" cy="130" r="6" />
+                            <circle cx="196" cy="130" r="6" />
+                            <circle cx="238" cy="130" r="6" />
+                            <circle cx="49" cy="156" r="6" />
+                            <circle cx="91" cy="156" r="6" />
+                            <circle cx="133" cy="156" r="6" />
+                            <circle cx="175" cy="156" r="6" />
+                            <circle cx="217" cy="156" r="6" />
+                            <circle cx="28" cy="182" r="6" />
+                            <circle cx="70" cy="182" r="6" />
+                            <circle cx="112" cy="182" r="6" />
+                            <circle cx="154" cy="182" r="6" />
+                            <circle cx="196" cy="182" r="6" />
+                            <circle cx="238" cy="182" r="6" />
+                            <circle cx="49" cy="208" r="6" />
+                            <circle cx="91" cy="208" r="6" />
+                            <circle cx="133" cy="208" r="6" />
+                            <circle cx="175" cy="208" r="6" />
+                            <circle cx="217" cy="208" r="6" />
+                            <circle cx="28" cy="234" r="6" />
+                            <circle cx="70" cy="234" r="6" />
+                            <circle cx="112" cy="234" r="6" />
+                            <circle cx="154" cy="234" r="6" />
+                            <circle cx="196" cy="234" r="6" />
+                            <circle cx="238" cy="234" r="6" />
+                          </g>
+                        </svg>
+                      ),
+                    },
+                    {
+                      name: "United Kingdom",
+                      flagSvg: (
+                        <svg viewBox="0 0 640 480" className="w-full h-full object-cover">
+                          <path fill="#012169" d="M0 0h640v480H0z" />
+                          <path fill="#fff" d="m75 0 245 180L565 0h75v50L400 240l240 180v60h-75L320 300 75 480H0v-50l240-190L0 60V0z" />
+                          <path fill="#C8102E" d="m424 288 216 162v30h-38L378 300zm-208-96L0 30V0h38l224 180zm254-192L230 180h-48L432 0zm-290 480 240-180h48L218 480z" />
+                          <path fill="#fff" d="M240 0h160v480H240zM0 160h640v160H0z" />
+                          <path fill="#C8102E" d="M266 0h108v480H266zM0 186h640v108H0z" />
+                        </svg>
+                      ),
+                    },
+                    {
+                      name: "Canada",
+                      flagSvg: (
+                        <svg viewBox="0 0 640 480" className="w-full h-full object-cover">
+                          <rect width="160" height="480" fill="#d52b1e" />
+                          <rect x="160" width="320" height="480" fill="#ffffff" />
+                          <rect x="480" width="160" height="480" fill="#d52b1e" />
+                          <path fill="#d52b1e" d="M320 90l16 46 44-12-18 44 42 16-34 30 18 42-42-12-12 50-14-4-14 4-12-50-42 12 18-42-34-30 42-16-18-44 44 12z" />
+                        </svg>
+                      ),
+                    },
+                    {
+                      name: "Australia",
+                      flagSvg: (
+                        <svg viewBox="0 0 640 480" className="w-full h-full object-cover">
+                          <rect width="640" height="480" fill="#00008b" />
+                          <g transform="scale(0.5)">
+                            <path fill="#012169" d="M0 0h640v480H0z" />
+                            <path fill="#fff" d="m75 0 245 180L565 0h75v50L400 240l240 180v60h-75L320 300 75 480H0v-50l240-190L0 60V0z" />
+                            <path fill="#C8102E" d="m424 288 216 162v30h-38L378 300zm-208-96L0 30V0h38l224 180zm254-192L230 180h-48L432 0zm-290 480 240-180h48L218 480z" />
+                            <path fill="#fff" d="M240 0h160v480H240zM0 160h640v160H0z" />
+                            <path fill="#C8102E" d="M266 0h108v480H266zM0 186h640v108H0z" />
+                          </g>
+                          <polygon fill="#fff" points="160,330 168,352 192,348 174,364 184,386 160,372 136,386 146,364 128,348 152,352" />
+                          <circle cx="480" cy="120" r="12" fill="#fff" />
+                          <circle cx="420" cy="220" r="12" fill="#fff" />
+                          <circle cx="540" cy="220" r="12" fill="#fff" />
+                          <circle cx="480" cy="340" r="16" fill="#fff" />
+                          <circle cx="510" cy="265" r="8" fill="#fff" />
+                        </svg>
+                      ),
+                    },
+                    {
+                      name: "Germany",
+                      flagSvg: (
+                        <svg viewBox="0 0 640 480" className="w-full h-full object-cover">
+                          <rect width="640" height="160" fill="#000000" />
+                          <rect y="160" width="640" height="160" fill="#dd0000" />
+                          <rect y="320" width="640" height="160" fill="#ffce00" />
+                        </svg>
+                      ),
+                    },
+                    {
+                      name: "Ireland",
+                      flagSvg: (
+                        <svg viewBox="0 0 640 480" className="w-full h-full object-cover">
+                          <rect width="213.3" height="480" fill="#169b62" />
+                          <rect x="213.3" width="213.4" height="480" fill="#ffffff" />
+                          <rect x="426.7" width="213.3" height="480" fill="#ff883e" />
+                        </svg>
+                      ),
+                    },
+                    {
+                      name: "India",
+                      flagSvg: (
+                        <svg viewBox="0 0 640 480" className="w-full h-full object-cover">
+                          <rect width="640" height="160" fill="#ff9933" />
+                          <rect y="160" width="640" height="160" fill="#ffffff" />
+                          <rect y="320" width="640" height="160" fill="#128807" />
+                          <circle cx="320" cy="240" r="48" fill="none" stroke="#000088" strokeWidth="6" />
+                          <circle cx="320" cy="240" r="12" fill="#000088" />
+                          <g stroke="#000088" strokeWidth="2.5">
+                            {[0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330, 15, 45, 75, 105, 135, 165, 195, 225, 255, 285, 315, 345].map((deg) => (
+                              <line
+                                key={deg}
+                                x1="320"
+                                y1="240"
+                                x2={320 + 45 * Math.cos((deg * Math.PI) / 180)}
+                                y2={240 + 45 * Math.sin((deg * Math.PI) / 180)}
+                              />
+                            ))}
+                          </g>
+                        </svg>
+                      ),
+                    },
+                    {
+                      name: "Other Countries",
+                      flagSvg: (
+                        <svg viewBox="0 0 640 480" className="w-full h-full bg-gradient-to-br from-purple-600 via-indigo-600 to-blue-600">
+                          <circle cx="320" cy="240" r="160" fill="none" stroke="#ffffff" strokeWidth="16" opacity="0.9" />
+                          <ellipse cx="320" cy="240" rx="80" ry="160" fill="none" stroke="#ffffff" strokeWidth="14" opacity="0.9" />
+                          <line x1="160" y1="240" x2="480" y2="240" stroke="#ffffff" strokeWidth="16" opacity="0.9" />
+                          <line x1="185" y1="160" x2="455" y2="160" stroke="#ffffff" strokeWidth="12" opacity="0.8" />
+                          <line x1="185" y1="320" x2="455" y2="320" stroke="#ffffff" strokeWidth="12" opacity="0.8" />
+                        </svg>
+                      ),
+                    },
                   ].map((c) => {
                     const isSelected = formData.country === c.name;
                     return (
@@ -494,7 +671,9 @@ function RegistrationContent() {
                             : "bg-white border-slate-200 hover:bg-slate-50 hover:border-purple-200"
                         }`}
                       >
-                        <span className="text-2xl shrink-0">{c.flag}</span>
+                        <div className="w-8 h-6 rounded-[5px] shadow-xs border border-slate-200/90 overflow-hidden shrink-0 flex items-center justify-center bg-slate-50">
+                          {c.flagSvg}
+                        </div>
                         <span className="font-bold text-xs text-[#1a1626] truncate">{c.name}</span>
                       </button>
                     );

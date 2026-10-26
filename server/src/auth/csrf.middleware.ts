@@ -4,34 +4,69 @@ import { doubleCsrfProtection } from './csrf.service';
 
 @Injectable()
 export class CsrfMiddleware implements NestMiddleware {
+  private static readonly EXEMPT_EXACT_ROUTES = new Set([
+    '/api/csrf-token',
+    '/api/auth/csrf-token',
+    '/api/documents/upload',
+    '/api/documents/complete-upload',
+    '/api/auth/upload-document',
+    '/api/statements/upload',
+    '/api/upload-statement',
+    '/api/auth/send-otp',
+    '/api/auth/verify-otp',
+    '/api/auth/request-otp',
+    '/api/auth/check-bank-officer',
+    '/api/auth/firebase',
+    '/api/auth/landing-page-submit',
+    '/api/auth/refresh',
+    '/api/auth/login',
+    '/api/auth/logout',
+    '/api/auth/dashboard',
+    '/api/auth/dashboard-data',
+    '/api/auth/user-details',
+    '/api/digilocker/callback',
+    // Fallback for paths without /api prefix
+    '/csrf-token',
+    '/auth/csrf-token',
+    '/documents/upload',
+    '/documents/complete-upload',
+    '/auth/upload-document',
+    '/statements/upload',
+    '/upload-statement',
+    '/auth/send-otp',
+    '/auth/verify-otp',
+    '/auth/request-otp',
+    '/auth/check-bank-officer',
+    '/auth/firebase',
+    '/auth/landing-page-submit',
+    '/auth/refresh',
+    '/auth/login',
+    '/auth/logout',
+    '/auth/dashboard',
+    '/auth/dashboard-data',
+    '/auth/user-details',
+    '/digilocker/callback',
+  ]);
+
+  private static readonly EXEMPT_PREFIXES = [
+    '/api/webhook',
+    '/webhook',
+    '/api/integration/whatsapp',
+    '/integration/whatsapp',
+    '/api/statements/',
+    '/statements/',
+    '/api/webmail/',
+    '/webmail/',
+    '/api/webmail',
+    '/webmail',
+  ];
+
   private isExemptPath(url: string): boolean {
-    const cleanUrl = url.toLowerCase();
-    return (
-      cleanUrl.includes('/webhook') ||
-      cleanUrl.includes('/integration/whatsapp') ||
-      cleanUrl.includes('/csrf-token') ||
-      cleanUrl.includes('/auth/csrf-token') ||
-      cleanUrl.includes('/documents/upload') ||
-      cleanUrl.includes('/documents/complete-upload') ||
-      cleanUrl.includes('/auth/upload-document') ||
-      cleanUrl.includes('/statements/upload') ||
-      cleanUrl.includes('/statements/') ||
-      cleanUrl.includes('/upload-statement') ||
-      cleanUrl.includes('/auth/send-otp') ||
-      cleanUrl.includes('/auth/send-otp/') ||
-      cleanUrl.includes('/auth/verify-otp') ||
-      cleanUrl.includes('/auth/request-otp') ||
-      cleanUrl.includes('/auth/check-bank-officer') ||
-      cleanUrl.includes('/auth/firebase') ||
-      cleanUrl.includes('/auth/landing-page-submit') ||
-      cleanUrl.includes('/auth/refresh') ||
-      cleanUrl.includes('/auth/login') ||
-      cleanUrl.includes('/auth/logout') ||
-      cleanUrl.includes('/auth/dashboard') ||
-      cleanUrl.includes('/auth/dashboard-data') ||
-      cleanUrl.includes('/auth/user-details') ||
-      cleanUrl.includes('/digilocker/callback')
-    );
+    const cleanPath = (url || '').split('?')[0].toLowerCase();
+    if (CsrfMiddleware.EXEMPT_EXACT_ROUTES.has(cleanPath)) {
+      return true;
+    }
+    return CsrfMiddleware.EXEMPT_PREFIXES.some(prefix => cleanPath.startsWith(prefix));
   }
 
   use(req: Request, res: Response, next: NextFunction) {

@@ -20,6 +20,8 @@ export default function robots(): MetadataRoute.Robots {
           '/agent',
           '/it',
           '/api',
+          '/webmail',
+          '/webmail/*',
         ],
       },
     ],

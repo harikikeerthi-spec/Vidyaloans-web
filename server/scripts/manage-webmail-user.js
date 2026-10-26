@@ -32,6 +32,13 @@ async function main() {
       WHERE LOWER("email") IN ('director@vidyaloans.in', 'management@vidyaloans.in');
     `);
     console.log(`[Success] Removed default mailboxes. Affected rows: ${res}`);
+  } else if (command === 'fix-prefixes') {
+    await prisma.$executeRawUnsafe(`
+      UPDATE "executive_mailboxes"
+      SET "s3Prefix" = REPLACE("s3Prefix", 'officials/', '')
+      WHERE "s3Prefix" LIKE 'officials/%';
+    `);
+    console.log('[Success] Stripped officials/ from s3Prefix so folders match S3 directly.');
   } else if (command === 'list') {
     const rows = await prisma.$queryRawUnsafe(`
       SELECT "id", "email", "name", "title", "s3Prefix", "status", "createdAt" 
@@ -42,14 +49,16 @@ async function main() {
     console.table(rows);
   } else if (command === 'add') {
     const [email, password, name, title, s3Prefix] = args;
-    if (!email || !password || !name) {
-      console.error('Usage: node scripts/manage-webmail-user.js add <email> <password> <name> [title] [s3Prefix]');
+    if (!email || !password) {
+      console.error('Usage: node scripts/manage-webmail-user.js add <email> <password> [name] [designation]');
       process.exit(1);
     }
     const cleanEmail = email.trim().toLowerCase();
-    const cleanName = name.trim();
-    const cleanTitle = (title || 'Official').trim();
-    const folderName = s3Prefix || `officials/${cleanEmail.split('@')[0]}/`;
+    const username = cleanEmail.split('@')[0];
+    const defaultName = username.charAt(0).toUpperCase() + username.slice(1);
+    const cleanName = (name && name.trim()) || defaultName;
+    const cleanTitle = (title && title.trim()) || 'Official';
+    const folderName = s3Prefix || `${username}/`;
     const cleanPrefix = folderName.endsWith('/') ? folderName : `${folderName}/`;
     const hashedPassword = hashPassword(password.trim());
 
