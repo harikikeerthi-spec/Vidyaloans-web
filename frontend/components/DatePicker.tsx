@@ -12,6 +12,9 @@ interface DatePickerProps {
     error?: string;
     required?: boolean;
     disabled?: boolean;
+    name?: string;
+    id?: string;
+    autoComplete?: string;
 }
 
 type Step = "year" | "month" | "day";
@@ -23,7 +26,10 @@ export default function DatePicker({
     placeholder = "Select Date",
     error,
     required,
-    disabled
+    disabled,
+    name = "dateOfBirth",
+    id = "apply-dateOfBirth",
+    autoComplete = "bday"
 }: DatePickerProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [currentStep, setCurrentStep] = useState<Step>("year");
@@ -143,6 +149,8 @@ export default function DatePicker({
                         )}
                     </label>
                 )}
+
+                <input type="hidden" name={name} id={id} value={value} autoComplete={autoComplete} />
 
                 <div
                     onClick={() => {

@@ -82,6 +82,77 @@ export class EmailService {
       .trim();
   }
 
+  async sendEmailChangeOtp(email: string, otp: string, type: 'current' | 'new', otherEmail: string) {
+    const isCurrent = type === 'current';
+    const subject = isCurrent
+      ? `${otp} is your VidyaLoans email change security confirmation code`
+      : `${otp} is your VidyaLoans new email verification code`;
+
+    const description = isCurrent
+      ? `A request was made to change your VidyaLoans account email to <strong>${otherEmail}</strong>. If you made this request, enter this code to confirm.`
+      : `You requested to use <strong>${email}</strong> as your new email address for VidyaLoans. Enter this code to verify ownership.`;
+
+    const warningHtml = isCurrent
+      ? `<div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px 16px; margin-top: 16px; color: #991b1b; font-size: 13px;">
+          <strong>Security Notice:</strong> If you did NOT request to change your email address, please change your password and contact support immediately.
+        </div>`
+      : '';
+
+    const html = `
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="utf-8">
+        <title>${subject}</title>
+      </head>
+      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; padding: 20px 0;">
+          <tr>
+            <td align="center">
+              <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                <tr>
+                  <td style="background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%); padding: 30px; text-align: center;">
+                    <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 700;">VidyaLoans Security</h1>
+                    <p style="color: #ccfbf1; margin: 8px 0 0; font-size: 14px;">Email Change Verification</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 30px 40px;">
+                    <p style="color: #334155; font-size: 15px; line-height: 1.6; margin: 0 0 16px;">
+                      ${description}
+                    </p>
+                    <div style="background: #f0fdfa; border: 2px dashed #0d9488; border-radius: 8px; padding: 20px; text-align: center; margin: 24px 0;">
+                      <span style="font-size: 32px; font-weight: 800; letter-spacing: 8px; color: #0f766e; font-family: monospace;">${otp}</span>
+                    </div>
+                    <p style="color: #64748b; font-size: 13px; text-align: center; margin: 0;">
+                      This code is valid for 10 minutes. Never share this code with anyone.
+                    </p>
+                    ${warningHtml}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const mailOptions = {
+      from: this.getFromAddress('VidyaLoans Security'),
+      to: email,
+      subject: subject,
+      text: `${this.stripHtml(description)}\n\nVerification Code: ${otp}\n\nThis code will expire in 10 minutes. Do not share this code with anyone.`,
+      html: html,
+      headers: {
+        'X-Mailer': 'VidyaLoan Platform',
+        'X-Priority': '1',
+      },
+    };
+
+    return this.transporter.sendMail(mailOptions);
+  }
+
   async sendOtp(email: string, otp: string, portalOrTitle?: string) {
     const timestamp = new Date().toLocaleTimeString();
     const portalLabel = portalOrTitle ? ` for ${portalOrTitle}` : '';
@@ -285,9 +356,15 @@ Do not share this code with anyone.`;
   }
 
   async sendMail(to: string, subject: string, html: string, text?: string, replyTo?: string, attachments?: any[]) {
+    const cleanTo = (to || '').trim();
+    if (!cleanTo || !cleanTo.includes('@')) {
+      console.warn(`[EmailService.sendMail] Skipped sending email: recipient "${to}" is empty or invalid`);
+      return;
+    }
+
     const mailOptions: any = {
       from: this.getFromAddress(),
-      to: to,
+      to: cleanTo,
       replyTo: replyTo,
       subject: subject,
       html: html,

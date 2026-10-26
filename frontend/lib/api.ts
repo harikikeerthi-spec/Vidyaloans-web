@@ -756,6 +756,25 @@ export const authApi = {
             body: JSON.stringify({ email, ...details }),
         }),
 
+    requestEmailChange: (newEmail: string) =>
+        apiFetch(HttpApiPaths.auth.requestEmailChange(), {
+            method: "POST",
+            body: JSON.stringify({ newEmail }),
+        }),
+
+    confirmEmailChange: (data: {
+        newEmail: string;
+        currentEmailOtp?: string;
+        oldOtp?: string;
+        currentOtp?: string;
+        newEmailOtp?: string;
+        newOtp?: string;
+    }) =>
+        apiFetch(HttpApiPaths.auth.confirmEmailChange(), {
+            method: "POST",
+            body: JSON.stringify(data),
+        }),
+
     uploadDocument: (data: {
         userId: string;
         docType: string;
@@ -1386,6 +1405,11 @@ export const adminApi = {
             method: "POST",
             body: JSON.stringify(data),
         }),
+    staffUpdateStudent: (data: any) =>
+        apiFetch(HttpApiPaths.admin.usersStaffUpdateStudent(), {
+            method: "POST",
+            body: JSON.stringify(data),
+        }),
     getOffices: () =>
         referenceApi.getOffices(),
     createOffice: (data: { name: string; city: string; location: string }) =>
@@ -1643,10 +1667,12 @@ export const universityApi = {
     submitInquiry: (data: {
         userId?: string;
         name: string;
-        email: string;
-        mobile: string;
-        universityName: string;
-        type: 'callback' | 'fasttrack';
+        email?: string;
+        mobile?: string;
+        phone?: string;
+        universityName?: string;
+        intake?: string;
+        type?: 'callback' | 'fasttrack' | string;
     }) =>
         apiFetch(`${API_URL}/university-inquiry`, {
             method: "POST",

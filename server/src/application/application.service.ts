@@ -10,6 +10,7 @@ import { BankWorkflowService } from '../bank/bank-workflow.service';
 import { S3Service } from '../document/s3.service';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as crypto from 'crypto';
 import { AssignmentService } from '../assignment/assignment.service';
 
 const APPLICATION_STAGES = {
@@ -2358,14 +2359,20 @@ export class ApplicationService {
     const userId = application.userId || application.id;
 
     // 2. Upload statement to S3 & save local copy
-    const fileExt = path.extname(file.originalname) || '.pdf';
-    const s3Key = `vault/${userId}/bank_statement${fileExt}`;
+    const rawExt = path.extname(file.originalname || '').toLowerCase();
+    const safeExt = /^\.[a-z0-9]{1,10}$/i.test(rawExt) ? rawExt : '.pdf';
+    const randomFileName = `${crypto.randomUUID()}${safeExt}`;
+    const safeUserId = String(userId).replace(/[^a-zA-Z0-9_-]/g, '');
+    const s3Key = `vault/${safeUserId}/bank_statement${safeExt}`;
 
     try {
-      const localDir = path.join(process.cwd(), 'uploads', userId, 'bank_statement');
-      await fs.promises.mkdir(localDir, { recursive: true });
-      await fs.promises.writeFile(path.join(localDir, `file${fileExt}`), file.buffer);
-      console.log(`[EVV Pipeline] Saved bank statement locally: ${localDir}`);
+      const baseUploads = path.resolve(process.cwd(), 'uploads');
+      const localDir = path.resolve(baseUploads, safeUserId, 'bank_statement');
+      if (localDir.startsWith(baseUploads + path.sep)) {
+        await fs.promises.mkdir(localDir, { recursive: true });
+        await fs.promises.writeFile(path.join(localDir, randomFileName), file.buffer);
+        console.log(`[EVV Pipeline] Saved bank statement locally: ${localDir}`);
+      }
     } catch (localWriteError: any) {
       console.error('[EVV Pipeline] Local save failed:', localWriteError.message);
     }

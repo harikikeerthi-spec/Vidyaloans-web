@@ -33,25 +33,35 @@ export class UniversityInquiryService implements OnModuleInit {
   async createInquiry(data: {
     userId?: string;
     name: string;
-    email: string;
-    mobile: string;
-    universityName: string;
-    type: string;
+    email?: string;
+    mobile?: string;
+    phone?: string;
+    universityName?: string;
+    intake?: string;
+    type?: string;
   }) {
-    const finalType = data.type === 'callback' ? 'callback' : 'fasttrack';
+    const finalType = data.type === 'fasttrack' ? 'fasttrack' : 'callback';
     const validUserId = (data.userId && data.userId.trim() !== '') ? data.userId.trim() : null;
     const recordId = randomUUID();
 
     const istOffsetMs = 5.5 * 60 * 60 * 1000;
     const istNow = new Date(Date.now() + istOffsetMs);
 
+    const cleanMobile = (data.mobile || data.phone || '').trim();
+    const cleanEmail = (data.email && data.email.trim() !== '')
+      ? data.email.trim()
+      : `${cleanMobile.replace(/[^0-9]/g, '') || 'lead'}@callback.vidyaloans.com`;
+    const cleanUniversity = (data.universityName && data.universityName.trim() !== '')
+      ? data.universityName.trim()
+      : (data.intake ? `Intake: ${data.intake.trim()}` : 'General Callback');
+
     const baseData = {
       id: recordId,
       userId: validUserId,
-      name: data.name,
-      email: data.email,
-      mobile: data.mobile,
-      universityName: data.universityName,
+      name: data.name ? data.name.trim() : 'Prospective Student',
+      email: cleanEmail,
+      mobile: cleanMobile,
+      universityName: cleanUniversity,
       status: 'pending',
       createdAt: istNow,
       updatedAt: istNow,
@@ -118,6 +128,7 @@ export class UniversityInquiryService implements OnModuleInit {
     // 3. Send email notifications asynchronously (non-blocking)
     this.sendInquiryEmails({
       ...data,
+      email: cleanEmail,
       type: finalType,
     }).catch((mailError) => {
       console.error('Failed to send inquiry emails:', mailError);
@@ -440,8 +451,19 @@ export class UniversityInquiryService implements OnModuleInit {
     `;
 
     try {
-      await this.emailService.sendMail(data.email, `Inquiry Received: ${data.universityName}`, userHtml);
-      await this.emailService.sendMail(process.env.ADMIN_EMAIL || 'admin@vidyaloan.com', `NEW LEAD: ${data.name} - ${typeLabel}`, adminHtml);
+      const recipientEmail = (data.email || '').trim();
+      const isPlaceholder = !recipientEmail || recipientEmail.endsWith('@callback.vidyaloans.com') || !recipientEmail.includes('@');
+
+      // Only send confirmation email to student if an actual student email was provided
+      if (!isPlaceholder) {
+        await this.emailService.sendMail(recipientEmail, `Inquiry Received: ${data.universityName}`, userHtml);
+      }
+
+      // Always notify admin
+      const adminEmail = (process.env.ADMIN_EMAIL || 'admin@vidyaloan.com').trim();
+      if (adminEmail && adminEmail.includes('@')) {
+        await this.emailService.sendMail(adminEmail, `NEW LEAD: ${data.name} - ${typeLabel}`, adminHtml);
+      }
     } catch (e) {
       console.error('Error sending lead emails', e);
     }

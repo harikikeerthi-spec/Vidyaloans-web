@@ -942,6 +942,29 @@ export class UsersService implements OnModuleInit {
     }
   }
 
+  async updateEmail(userId: string, newEmail: string) {
+    if (!userId || !newEmail) {
+      throw new BadRequestException('User ID and new email are required');
+    }
+    const cleanEmail = newEmail.trim().toLowerCase();
+    const existing = await this.findOne(cleanEmail);
+    if (existing && existing.id !== userId) {
+      throw new BadRequestException('Email address is already in use by another account');
+    }
+    const { data, error } = await this.db
+      .from('User')
+      .update({ email: cleanEmail })
+      .eq('id', userId)
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      console.error('[UsersService.updateEmail] Error updating email:', error);
+      throw error;
+    }
+    return data;
+  }
+
   async updateUserDetails(
     email: string,
     firstName?: string,
@@ -971,7 +994,8 @@ export class UsersService implements OnModuleInit {
     isResigned?: boolean,
     role?: string,
     department?: string,
-    designation?: string
+    designation?: string,
+    allowEmailUpdate?: boolean
   ) {
     const dobDate = dateOfBirth ? this.parseDate(dateOfBirth) : null;
 
@@ -1015,8 +1039,9 @@ export class UsersService implements OnModuleInit {
     }
 
     // Prepare update payload for User table
+    // Security [C9]: Only update email if explicitly permitted (e.g. from admin or email-change verification)
     const updatePayload: any = {};
-    if (email && email.trim() && targetUser.email !== email.trim().toLowerCase()) {
+    if (allowEmailUpdate && email && email.trim() && targetUser.email !== email.trim().toLowerCase()) {
       updatePayload.email = email.trim().toLowerCase();
     }
     if (firstName !== undefined && firstName !== null && firstName !== '') updatePayload.firstName = firstName;

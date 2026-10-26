@@ -2,7 +2,9 @@ import { Controller, Get, Post, Body, UseGuards, Param, Put, Delete, Query, Req 
 import { UsersService } from './users.service';
 import { AdminGuard } from '../auth/admin.guard';
 import { SuperAdminGuard } from '../auth/super-admin.guard';
+import { StaffGuard } from '../auth/staff.guard';
 import { EmailService } from '../auth/email.service';
+import { AuditLogService } from '../auth/audit-log.service';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -42,6 +44,7 @@ export class UsersController {
     constructor(
         private readonly usersService: UsersService,
         private readonly emailService: EmailService,
+        private readonly auditLogService: AuditLogService,
     ) { }
 
     @Post('profile')
@@ -515,11 +518,20 @@ export class UsersController {
 
     @UseGuards(AdminGuard)
     @Post('admin/update-details')
-    async adminUpdateUser(@Body() body: any) {
+    async adminUpdateUser(@Req() req: any, @Body() body: any) {
         try {
             if (!body || (!body.email && !body.userId)) {
                 return { success: false, message: 'Email or userId is required' };
             }
+
+            let targetUser: any = null;
+            if (body.userId) {
+                targetUser = await this.usersService.findById(body.userId);
+            }
+            if (!targetUser && body.email) {
+                targetUser = await this.usersService.findOne(body.email);
+            }
+
             const updated = await this.usersService.updateUserDetails(
                 body.email,
                 body.firstName,
@@ -549,12 +561,135 @@ export class UsersController {
                 body.isResigned,
                 body.role,
                 body.department,
-                body.designation
+                body.designation,
+                true // allowEmailUpdate is true for administrators
             );
+
+            if (this.auditLogService && req.user) {
+                await this.auditLogService.logAction(
+                    'USER_DETAILS_UPDATED_BY_ADMIN',
+                    'User',
+                    targetUser?.id || body.userId || updated?.id,
+                    req.user,
+                    {
+                        targetUserId: targetUser?.id || body.userId,
+                        targetEmail: targetUser?.email || body.email,
+                        updated: {
+                            firstName: body.firstName,
+                            lastName: body.lastName,
+                            phoneNumber: body.phoneNumber,
+                            email: body.email,
+                            role: body.role,
+                        },
+                    },
+                    req
+                );
+            }
+
             return { success: true, message: 'User updated successfully', user: updated };
         } catch (error: any) {
             console.error('[adminUpdateUser] Error updating user details:', error);
             return { success: false, message: error?.message || 'Failed to update user details' };
+        }
+    }
+
+    /**
+     * Staff updating student details with audit logging
+     * POST /users/staff/update-student
+     */
+    @UseGuards(StaffGuard)
+    @Post('staff/update-student')
+    async staffUpdateStudent(@Req() req: any, @Body() body: any) {
+        try {
+            if (!body || (!body.email && !body.userId)) {
+                return { success: false, message: 'Email or userId is required' };
+            }
+
+            let targetStudent: any = null;
+            if (body.userId) {
+                targetStudent = await this.usersService.findById(body.userId);
+            }
+            if (!targetStudent && body.email) {
+                targetStudent = await this.usersService.findOne(body.email);
+            }
+
+            if (!targetStudent) {
+                return { success: false, message: 'Student user not found' };
+            }
+
+            const previousDetails = {
+                firstName: targetStudent.firstName,
+                lastName: targetStudent.lastName,
+                phoneNumber: targetStudent.phoneNumber,
+                dateOfBirth: targetStudent.dateOfBirth,
+                targetUniversity: targetStudent.targetUniversity,
+                studyDestination: targetStudent.studyDestination,
+                fatherName: targetStudent.fatherName,
+                motherName: targetStudent.motherName,
+            };
+
+            const updated = await this.usersService.updateUserDetails(
+                targetStudent.email,
+                body.firstName,
+                body.lastName,
+                body.phoneNumber,
+                body.dateOfBirth,
+                body.intakeSeason,
+                body.profileImage,
+                body.pincode,
+                body.targetUniversity,
+                body.studyDestination,
+                body.fatherName,
+                body.motherName,
+                body.family,
+                body.coApplicant,
+                body.academic,
+                targetStudent.id,
+                body.passport,
+                body.officeId,
+                body.officeLocation || body.office,
+                body.bank,
+                body.mailboxEmail,
+                body.mailboxPrefix,
+                body.canAccessSupport,
+                body.staffId,
+                body.isOnLeave,
+                body.isResigned,
+                body.role,
+                body.department,
+                body.designation,
+                false // allowEmailUpdate is false: staff cannot directly change email without verification
+            );
+
+            if (this.auditLogService && req.user) {
+                await this.auditLogService.logAction(
+                    'STUDENT_UPDATED_BY_STAFF',
+                    'User',
+                    targetStudent.id,
+                    req.user,
+                    {
+                        targetUserId: targetStudent.id,
+                        targetEmail: targetStudent.email,
+                        previous: previousDetails,
+                        updated: {
+                            firstName: body.firstName,
+                            lastName: body.lastName,
+                            phoneNumber: body.phoneNumber,
+                            dateOfBirth: body.dateOfBirth,
+                            targetUniversity: body.targetUniversity,
+                            studyDestination: body.studyDestination,
+                            fatherName: body.fatherName,
+                            motherName: body.motherName,
+                        },
+                    },
+                    req
+                );
+            }
+
+            return { success: true, message: 'Student details updated successfully by staff', user: updated };
+        } catch (error: any) {
+            console.error('[staffUpdateStudent] Error updating student details:', error);
+            return { success: false, message: error?.message || 'Failed to update student details' };
         }
     }
 

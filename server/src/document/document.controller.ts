@@ -244,21 +244,28 @@ export class DocumentController {
       }
 
       // ── 2. Verified! Save locally & upload to S3 ───────
-      const fileExt = path.extname(file.originalname);
-      const s3Key = `vault/${userId}/${docType}${fileExt}`;
-      const previewUrl = `/api/documents/view/${userId}/${docType}`;
+      const rawExt = path.extname(file.originalname || '').toLowerCase();
+      const safeExt = /^\.[a-z0-9]{1,10}$/i.test(rawExt) ? rawExt : '.bin';
+      const randomDiskName = `${crypto.randomUUID()}${safeExt}`;
+      const safeUserId = String(userId).replace(/[^a-zA-Z0-9_-]/g, '');
+      const safeDocType = String(docType).replace(/[^a-zA-Z0-9_-]/g, '');
+      const s3Key = `vault/${safeUserId}/${safeDocType}${safeExt}`;
+      const previewUrl = `/api/documents/view/${safeUserId}/${safeDocType}`;
 
       // ALWAYS save original uploaded file buffer to local disk
       try {
-        const localDir = path.join(process.cwd(), 'uploads', userId, docType);
-        await fs.promises.mkdir(localDir, { recursive: true });
-        const existingFiles = await fs.promises.readdir(localDir).catch(() => []);
-        for (const existing of existingFiles) {
-          await fs.promises.unlink(path.join(localDir, existing)).catch(() => { });
+        const baseUploads = path.resolve(process.cwd(), 'uploads');
+        const localDir = path.resolve(baseUploads, safeUserId, safeDocType);
+        if (localDir.startsWith(baseUploads + path.sep)) {
+          await fs.promises.mkdir(localDir, { recursive: true });
+          const existingFiles = await fs.promises.readdir(localDir).catch(() => []);
+          for (const existing of existingFiles) {
+            await fs.promises.unlink(path.join(localDir, existing)).catch(() => { });
+          }
+          const localFilePath = path.join(localDir, randomDiskName);
+          await fs.promises.writeFile(localFilePath, file.buffer);
+          console.log(`[UPLOAD] Original uploaded file saved locally at: ${localFilePath}`);
         }
-        const localFilePath = path.join(localDir, `file${fileExt}`);
-        await fs.promises.writeFile(localFilePath, file.buffer);
-        console.log(`[UPLOAD] Original uploaded file saved locally at: ${localFilePath}`);
       } catch (localWriteError: any) {
         console.error('[UPLOAD] Local write failed:', localWriteError.message);
       }

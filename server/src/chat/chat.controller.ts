@@ -1,4 +1,4 @@
-import { Controller, Get, Param, UseGuards, Post, Req, Body, Query, UseInterceptors, UploadedFile, BadRequestException, Res, NotFoundException, Put, Delete } from '@nestjs/common';
+import { Controller, Get, Param, UseGuards, Post, Req, Body, Query, UseInterceptors, UploadedFile, BadRequestException, Res, NotFoundException, Put, Delete, ForbiddenException } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ChatService } from './chat.service';
@@ -7,6 +7,9 @@ import { S3Service } from '../document/s3.service';
 import { KycService } from '../ai/services/kyc.service';
 import { memoryStorage } from 'multer';
 import type { Response } from 'express';
+import * as crypto from 'crypto';
+import * as path from 'path';
+import * as fs from 'fs';
 
 const storage = memoryStorage();
 
@@ -303,12 +306,69 @@ export class ChatController {
     if (!file) throw new BadRequestException('File is required');
     if (!conversationId) throw new BadRequestException('conversationId is required');
 
+    // 1. Validate conversationId format (UUID check)
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!UUID_REGEX.test(conversationId)) {
+      throw new BadRequestException('Invalid conversationId: must be a valid UUID');
+    }
+
+    // 2. Validate conversation existence and user membership
+    const conv = await this.chatService.getConversationById(conversationId);
+    if (!conv) {
+      throw new NotFoundException('Conversation not found');
+    }
+
     const user = req.user;
+    const role = (user?.role || '').toLowerCase();
+    const isAdmin = ['admin', 'super_admin', 'superadmin'].includes(role);
+    const isStaffUser = ['staff', 'support'].includes(role);
+
+    let userBelongs = false;
+    if (isAdmin || isStaffUser) {
+      userBelongs = true;
+    } else if (role === 'bank' || role === 'partner_bank') {
+      const bankName = (user.bankName || user.bank || user.firstName || '').toLowerCase();
+      const convBank = (conv.metadata?.bank || '').toLowerCase();
+      userBelongs =
+        conv.metadata?.type === 'bank' ||
+        conv.metadata?.type === 'support_to_bank' ||
+        (bankName && convBank.includes(bankName));
+    } else if (role === 'agent' || role === 'partner_agent') {
+      const agentPhone = this.chatService.normalizePhone(user.phoneNumber || '');
+      userBelongs =
+        conv.metadata?.type === 'agent' ||
+        conv.metadata?.type === 'agent_to_staff' ||
+        conv.metadata?.agentEmail === user.email ||
+        (agentPhone && conv.metadata?.agentPhone === agentPhone) ||
+        (agentPhone && conv.customerPhone?.includes(agentPhone));
+    } else {
+      // Customer / Student
+      const userPhone = this.chatService.normalizePhone(user.phoneNumber || user.mobile || '');
+      const convPhone = this.chatService.normalizePhone(conv.customerPhone || '');
+      const userEmail = (user.email || '').toLowerCase().trim();
+      const convEmail = (conv.customerEmail || conv.metadata?.studentEmail || '').toLowerCase().trim();
+
+      userBelongs =
+        (userEmail && convEmail === userEmail) ||
+        (userPhone && convPhone === userPhone) ||
+        conv.metadata?.userId === user.id ||
+        conv.metadata?.studentId === user.id;
+    }
+
+    if (!userBelongs) {
+      throw new ForbiddenException('Access denied: You do not belong to this conversation');
+    }
+
     const senderType = user.role || 'staff';
     const senderId = user.email || user.sub;
     const senderName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || undefined;
 
-    const s3Key = `chat_attachments/${conversationId}/${Date.now()}_${file.originalname}`;
+    // 3. Generate safe random filename (crypto.randomUUID + safe extension) to prevent path traversal
+    const rawExt = path.extname(file.originalname || '').toLowerCase();
+    const safeExt = /^\.[a-z0-9]{1,10}$/i.test(rawExt) ? rawExt : '';
+    const randomFileName = `${crypto.randomUUID()}${safeExt}`;
+
+    const s3Key = `chat_attachments/${conversationId}/${Date.now()}_${randomFileName}`;
     let attachmentUrl = '';
 
     try {
@@ -317,13 +377,24 @@ export class ChatController {
     } catch (s3Error: any) {
       console.warn(`[CHAT UPLOAD] S3 Upload failed: ${s3Error.message}. Falling back to local storage.`);
       try {
-        const fs = require('fs');
-        const path = require('path');
-        const localDir = path.join(process.cwd(), 'uploads', 'chat', conversationId);
+        const uploadBaseDir = path.resolve(process.cwd(), 'uploads', 'chat');
+        const localDir = path.resolve(uploadBaseDir, conversationId);
+
+        // Security check: ensure target directory is strictly within uploads/chat
+        if (!localDir.startsWith(uploadBaseDir + path.sep)) {
+          throw new BadRequestException('Invalid target directory path');
+        }
+
         fs.mkdirSync(localDir, { recursive: true });
-        fs.writeFileSync(path.join(localDir, file.originalname), file.buffer);
-        attachmentUrl = `local:${conversationId}/${file.originalname}`;
+        const filePath = path.resolve(localDir, randomFileName);
+        if (!filePath.startsWith(localDir + path.sep)) {
+          throw new BadRequestException('Invalid target file path');
+        }
+
+        fs.writeFileSync(filePath, file.buffer);
+        attachmentUrl = `local:${conversationId}/${randomFileName}`;
       } catch (err) {
+        if (err instanceof BadRequestException) throw err;
         throw new BadRequestException('Failed to store file');
       }
     }
@@ -445,13 +516,18 @@ export class ChatController {
 
     if (msg.attachmentUrl.startsWith('local:')) {
       const [, relativePath] = msg.attachmentUrl.split('local:');
-      targetPath = path.join(process.cwd(), 'uploads', 'chat', relativePath);
+      const baseDir = path.resolve(process.cwd(), 'uploads', 'chat');
+      const resolved = path.resolve(baseDir, relativePath);
+      if (resolved.startsWith(baseDir + path.sep) && fs.existsSync(resolved) && fs.statSync(resolved).isFile()) {
+        targetPath = resolved;
+      }
     } else {
       // Check if it exists as a local file path on server's disk
+      const baseDir = path.resolve(process.cwd(), 'uploads');
       const possiblePath = path.isAbsolute(msg.attachmentUrl)
-        ? msg.attachmentUrl
-        : path.join(process.cwd(), msg.attachmentUrl);
-      if (fs.existsSync(possiblePath) && fs.statSync(possiblePath).isFile()) {
+        ? path.resolve(msg.attachmentUrl)
+        : path.resolve(process.cwd(), msg.attachmentUrl);
+      if (possiblePath.startsWith(baseDir + path.sep) && fs.existsSync(possiblePath) && fs.statSync(possiblePath).isFile()) {
         targetPath = possiblePath;
       }
     }

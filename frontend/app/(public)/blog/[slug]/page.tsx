@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import type { BlogPost } from "@/types";
 import BlogShareBar from "@/components/BlogShareBar";
 import BlogRegistrationHandler from "@/components/BlogRegistrationHandler";
+import { sanitizeHtml, safeJsonLd } from "@/lib/sanitize";
 
 interface Props {
   params: Promise<{
@@ -247,16 +248,16 @@ export default async function BlogPostPage({ params }: Props) {
       {/* Schema.org Structured Data */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdArticle) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLdArticle) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdBreadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLdBreadcrumb) }}
       />
       {jsonLdFaq && (
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdFaq) }}
+          dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLdFaq) }}
         />
       )}
       <BlogRegistrationHandler />
@@ -343,7 +344,7 @@ export default async function BlogPostPage({ params }: Props) {
               prose-strong:text-slate-900 prose-strong:font-bold
               prose-img:rounded-2xl prose-img:shadow-md
               prose-a:text-indigo-600 prose-a:font-bold prose-a:no-underline hover:prose-a:underline"
-            dangerouslySetInnerHTML={{ __html: blog.content || "" }}
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(blog.content || "") }}
           />
 
           {/* Tag Badges */}

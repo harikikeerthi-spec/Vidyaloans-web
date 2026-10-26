@@ -20,6 +20,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname, resolve } from 'path';
+import { randomUUID } from 'crypto';
 import { existsSync, mkdirSync, unlinkSync } from 'fs';
 import type { Response } from 'express';
 import { JwtService } from '@nestjs/jwt';
@@ -42,9 +43,9 @@ const storage = diskStorage({
         cb(null, uploadPath);
     },
     filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-        const ext = extname(file.originalname);
-        cb(null, `app-doc-${uniqueSuffix}${ext}`);
+        const rawExt = extname(file.originalname || '').toLowerCase();
+        const safeExt = /^\.[a-z0-9]{1,10}$/i.test(rawExt) ? rawExt : '';
+        cb(null, `${randomUUID()}${safeExt}`);
     },
 });
 

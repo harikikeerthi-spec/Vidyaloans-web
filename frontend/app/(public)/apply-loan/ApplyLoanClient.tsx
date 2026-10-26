@@ -717,7 +717,7 @@ export default function ApplyLoanPage() {
                         </div>
                     </div>
 
-                    <div className="bg-[#F8FAFC]/50 backdrop-blur-2xl rounded-[3rem] p-8 md:p-14 shadow-xl border border-white relative overflow-hidden">
+                    <form id="apply-loan-form" onSubmit={(e) => { e.preventDefault(); }} className="bg-[#F8FAFC]/50 backdrop-blur-2xl rounded-[3rem] p-8 md:p-14 shadow-xl border border-white relative overflow-hidden">
                         <div className="absolute -top-32 -left-32 w-64 h-64 bg-[#3A2EAB]/5 rounded-full blur-3xl opacity-50" />
 
                         {/* Step 1: Loan Details */}
@@ -734,9 +734,9 @@ export default function ApplyLoanPage() {
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                    <SelectField label="Field of Study" icon="category" value={formData.loanType} onChange={(v) => update("loanType", v)}
+                                    <SelectField name="loanType" id="apply-loanType" label="Field of Study" icon="category" value={formData.loanType} onChange={(v) => update("loanType", v)}
                                         options={loanTypes.map((t) => ({ value: t, label: t }))} error={stepErrors.loanType} />
-                                    <SelectField label="Destination Country" icon="public" value={formData.country} onChange={(v) => {
+                                    <SelectField name="country" id="apply-country" autoComplete="country-name" label="Destination Country" icon="public" value={formData.country} onChange={(v) => {
                                         update("country", v);
                                         if (v !== "Other") {
                                             update("otherCountry", "");
@@ -785,6 +785,8 @@ export default function ApplyLoanPage() {
                                                 <div className="flex items-center gap-1.5 bg-purple-50 border border-purple-100 px-4 py-2 rounded-2xl shadow-sm">
                                                     <span className="text-base font-black text-[#6605c7]">₹</span>
                                                     <input
+                                                        id="apply-amount"
+                                                        name="amount"
                                                         type="text"
                                                         value={formData.amount}
                                                         onChange={(e) => {
@@ -838,7 +840,7 @@ export default function ApplyLoanPage() {
                                     </div>
 
                                     <div className="grid grid-cols-1 gap-8">
-                                        <SelectField label="Admission Status" icon="verified" value={formData.admissionStatus} onChange={(v) => update("admissionStatus", v)}
+                                        <SelectField name="admissionStatus" id="apply-admissionStatus" label="Admission Status" icon="verified" value={formData.admissionStatus} onChange={(v) => update("admissionStatus", v)}
                                             options={[
                                                 { value: "confirmed", label: "Confirmed Admission" },
                                                 { value: "conditional", label: "Conditional Offer" },
@@ -879,12 +881,15 @@ export default function ApplyLoanPage() {
                                     </div>
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                        <InputField label="Given Name" icon="person" value={formData.firstName} onChange={(v) => update("firstName", v.replace(/[^A-Za-z]/g, "").slice(0, 30))} placeholder="Rahul" error={stepErrors.firstName} required />
-                                        <InputField label="Surname" icon="person" value={formData.lastName} onChange={(v) => update("lastName", v.replace(/[^A-Za-z]/g, "").slice(0, 30))} placeholder="Sharma" error={stepErrors.lastName} required />
+                                        <InputField name="firstName" id="apply-firstName" autoComplete="given-name" label="Given Name" icon="person" value={formData.firstName} onChange={(v) => update("firstName", v.replace(/[^A-Za-z]/g, "").slice(0, 30))} placeholder="Rahul" error={stepErrors.firstName} required />
+                                        <InputField name="lastName" id="apply-lastName" autoComplete="family-name" label="Surname" icon="person" value={formData.lastName} onChange={(v) => update("lastName", v.replace(/[^A-Za-z]/g, "").slice(0, 30))} placeholder="Sharma" error={stepErrors.lastName} required />
                                     </div>
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                         <InputField
+                                            name="email"
+                                            id="apply-email"
+                                            autoComplete="email"
                                             label="Email Address"
                                             icon="mail"
                                             value={formData.email}
@@ -897,7 +902,7 @@ export default function ApplyLoanPage() {
                                             disabled={isEmailLocked}
                                         />
                                         <div className="space-y-3">
-                                            <label className="text-[10px] uppercase tracking-[0.2em] font-black text-gray-500 flex items-center justify-between">
+                                            <label htmlFor="apply-phone" className="text-[10px] uppercase tracking-[0.2em] font-black text-gray-500 flex items-center justify-between cursor-pointer">
                                                 <span>Mobile Number <span className="text-red-500 ml-1">*</span></span>
                                                 {isPhoneLocked && (
                                                     <span className="text-[9px] font-extrabold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 flex items-center gap-1">
@@ -912,6 +917,9 @@ export default function ApplyLoanPage() {
                                                     <span className="text-xs font-bold text-gray-500">+91</span>
                                                 </div>
                                                 <input
+                                                    id="apply-phone"
+                                                    name="phone"
+                                                    autoComplete="tel"
                                                     type="tel"
                                                     disabled={isPhoneLocked}
                                                     readOnly={isPhoneLocked}
@@ -941,6 +949,9 @@ export default function ApplyLoanPage() {
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                         <div className="relative">
                                             <DatePicker
+                                                name="dateOfBirth"
+                                                id="apply-dateOfBirth"
+                                                autoComplete="bday"
                                                 label="Date of Birth"
                                                 value={formData.dateOfBirth}
                                                 onChange={(v) => update("dateOfBirth", v)}
@@ -951,6 +962,9 @@ export default function ApplyLoanPage() {
                                         </div>
                                         <div className="relative">
                                             <InputField
+                                                name="pincode"
+                                                id="apply-pincode"
+                                                autoComplete="postal-code"
                                                 label="Residential Pincode"
                                                 icon="pin_drop"
                                                 value={formData.pincode}
@@ -983,7 +997,7 @@ export default function ApplyLoanPage() {
                                     </div>
 
                                     <div className="grid grid-cols-1 gap-8">
-                                        <InputField label="Residential Address" icon="location_on" value={formData.address} onChange={(v) => update("address", v)} placeholder="e.g. Flat No, Street, Locality, City, State" error={stepErrors.address} required />
+                                        <InputField name="address" id="apply-address" autoComplete="street-address" label="Residential Address" icon="location_on" value={formData.address} onChange={(v) => update("address", v)} placeholder="e.g. Flat No, Street, Locality, City, State" error={stepErrors.address} required />
                                     </div>
                                 </div>
 
@@ -996,6 +1010,9 @@ export default function ApplyLoanPage() {
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                         <InputField
+                                            name="coApplicantName"
+                                            id="apply-coApplicantName"
+                                            autoComplete="name"
                                             label="Co-Applicant Full Name"
                                             icon="person"
                                             value={formData.coApplicantName}
@@ -1004,7 +1021,7 @@ export default function ApplyLoanPage() {
                                             error={stepErrors.coApplicantName}
                                             required
                                         />
-                                        <SelectField label="Relationship" icon="family_history" value={formData.coApplicant} onChange={(v) => {
+                                        <SelectField name="coApplicant" id="apply-coApplicant" label="Relationship" icon="family_history" value={formData.coApplicant} onChange={(v) => {
                                             update("coApplicant", v);
                                             if (v !== "other") {
                                                 update("otherRelation", "");
@@ -1020,6 +1037,8 @@ export default function ApplyLoanPage() {
                                             ]} error={stepErrors.coApplicant} required />
                                         {formData.coApplicant === "other" && (
                                             <InputField
+                                                name="otherRelation"
+                                                id="apply-otherRelation"
                                                 label="If Other, Specify Relation"
                                                 icon="people"
                                                 value={formData.otherRelation}
@@ -1032,6 +1051,9 @@ export default function ApplyLoanPage() {
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                         <InputField
+                                            name="coApplicantPhone"
+                                            id="apply-coApplicantPhone"
+                                            autoComplete="tel"
                                             label="Co-Applicant Phone Number"
                                             icon="call"
                                             value={formData.coApplicantPhone}
@@ -1041,6 +1063,9 @@ export default function ApplyLoanPage() {
                                             required
                                         />
                                         <InputField
+                                            name="coApplicantEmail"
+                                            id="apply-coApplicantEmail"
+                                            autoComplete="email"
                                             label="Co-Applicant Email / Gmail"
                                             icon="mail"
                                             type="email"
@@ -1057,7 +1082,7 @@ export default function ApplyLoanPage() {
 
                                     <div className="grid grid-cols-1 gap-8">
                                         <div className="space-y-3">
-                                            <label className="text-[10px] uppercase tracking-[0.2em] font-black text-gray-500">
+                                            <label htmlFor="apply-income" className="text-[10px] uppercase tracking-[0.2em] font-black text-gray-500 cursor-pointer">
                                                 Co-Applicant Gross Annual Income <span className="text-red-500 ml-1">*</span>
                                             </label>
                                             <div className="relative group">
@@ -1065,6 +1090,8 @@ export default function ApplyLoanPage() {
                                                     ₹
                                                 </div>
                                                 <input
+                                                    id="apply-income"
+                                                    name="income"
                                                     type="text"
                                                     value={formData.income}
                                                     onChange={(e) => update("income", formatIndianCurrency(e.target.value, 8))}
@@ -1232,7 +1259,7 @@ export default function ApplyLoanPage() {
                                 )}
                             </div>
                         </div>
-                    </div>
+                    </form>
 
                     {/* Footer Info */}
                     <div className="mt-12 flex flex-col md:flex-row items-center justify-center gap-8 text-[10px] font-black text-gray-500 uppercase tracking-widest relative z-10 select-none">
@@ -1257,14 +1284,16 @@ export default function ApplyLoanPage() {
     );
 }
 
-function InputField({ label, icon, value, onChange, placeholder, type = "text", error, required, onFocus, onBlur, maxLength, disabled }: {
+function InputField({ label, icon, value, onChange, placeholder, type = "text", error, required, onFocus, onBlur, maxLength, disabled, name, id, autoComplete }: {
     label: string; icon?: string; value: string; onChange: (v: string) => void;
     placeholder?: string; type?: string; error?: string; required?: boolean;
     onFocus?: () => void; onBlur?: () => void; maxLength?: number; disabled?: boolean;
+    name?: string; id?: string; autoComplete?: string;
 }) {
+    const inputId = id || (name ? `apply-${name}` : undefined);
     return (
         <div className="space-y-3">
-            <label className="text-[10px] uppercase tracking-[0.2em] font-black text-gray-500 flex items-center justify-between">
+            <label htmlFor={inputId} className="text-[10px] uppercase tracking-[0.2em] font-black text-gray-500 flex items-center justify-between cursor-pointer">
                 <span>{label} {required && <span className="text-red-500 ml-1">*</span>}</span>
                 {disabled && (
                     <span className="text-[9px] font-extrabold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 flex items-center gap-1">
@@ -1280,6 +1309,9 @@ function InputField({ label, icon, value, onChange, placeholder, type = "text", 
                     </div>
                 )}
                 <input
+                    id={inputId}
+                    name={name}
+                    autoComplete={autoComplete}
                     type={type}
                     value={value}
                     onChange={(e) => !disabled && onChange(e.target.value)}
@@ -1296,16 +1328,18 @@ function InputField({ label, icon, value, onChange, placeholder, type = "text", 
     );
 }
 
-function SelectField({ label, icon, value, onChange, options, error, required }: {
+function SelectField({ label, icon, value, onChange, options, error, required, name, id, autoComplete }: {
     label: string; icon?: string; value: string; onChange: (v: string) => void;
     options: { value: string; label: string }[]; error?: string; required?: boolean;
+    name?: string; id?: string; autoComplete?: string;
 }) {
+    const selectId = id || (name ? `apply-${name}` : undefined);
     // Deduplicate options by value to prevent React duplicate key warnings
     const uniqueOptions = options.filter((o, idx, arr) => arr.findIndex((x) => x.value === o.value) === idx);
 
     return (
         <div className="space-y-3">
-            <label className="text-[10px] uppercase tracking-[0.2em] font-black text-gray-500">
+            <label htmlFor={selectId} className="text-[10px] uppercase tracking-[0.2em] font-black text-gray-500 cursor-pointer">
                 {label} {required && <span className="text-red-500 ml-1">*</span>}
             </label>
             <div className="relative group">
@@ -1315,6 +1349,9 @@ function SelectField({ label, icon, value, onChange, options, error, required }:
                     </div>
                 )}
                 <select
+                    id={selectId}
+                    name={name}
+                    autoComplete={autoComplete}
                     value={value}
                     onChange={(e) => onChange(e.target.value)}
                     className={`w-full ${icon ? 'pl-12' : 'px-6'} pr-10 py-4 bg-white/70 border rounded-2xl shadow-sm appearance-none outline-none text-sm font-bold text-gray-900 focus:bg-white transition-all cursor-pointer ${error ? "border-red-300 ring-2 ring-red-100" : "border-gray-200 focus:border-[#6605c7]/50 focus:ring-4 focus:ring-purple-100 hover:border-gray-300"}`}

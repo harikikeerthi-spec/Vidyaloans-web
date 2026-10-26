@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { blogApi } from "@/lib/api";
+import { sanitizeHtml } from "@/lib/sanitize";
 
 export type BlockType =
   | "heading"
@@ -5049,7 +5050,7 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
               {/* LIVE RENDERED ARTICLE CONTENT */}
               <div
                 className="prose prose-lg prose-indigo max-w-none space-y-4"
-                dangerouslySetInnerHTML={{ __html: generateCompleteHtml() }}
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(generateCompleteHtml()) }}
               />
 
               {/* TAGS FOOTER */}

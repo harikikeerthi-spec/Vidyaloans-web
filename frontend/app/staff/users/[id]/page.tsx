@@ -794,7 +794,7 @@ export default function ProfileTab() {
 
             await Promise.allSettled([
                 documentApi.updateProfile(userData.id, updates),
-                adminApi.updateUserDetails({
+                adminApi.staffUpdateStudent({
                     userId: userData.id,
                     email: editForm.email || userData.email,
                     firstName: editForm.firstName,
@@ -809,14 +809,6 @@ export default function ProfileTab() {
                     coApplicant: updates.coApplicant,
                     academic: updates.academic,
                     passport: updates.passport,
-                }),
-                authApi.updateDetails(userData.email || editForm.email, {
-                    firstName: editForm.firstName,
-                    lastName: editForm.lastName,
-                    phoneNumber: editForm.phoneNumber,
-                    dateOfBirth: editForm.dateOfBirth,
-                    targetUniversity: editForm.targetUniversity,
-                    studyDestination: editForm.studyDestination,
                 }),
                 ...(userApplications || []).map((app: any) =>
                     adminApi.updateApplication(app.id || app._id, {

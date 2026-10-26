@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PhoneNumberUtil } from 'google-libphonenumber';
 import { SiteSettingsService } from '../site-settings/site-settings.service';
+import { AuditLogService } from './audit-log.service';
 
 const phoneUtil = PhoneNumberUtil.getInstance();
 
@@ -18,10 +19,22 @@ interface OtpEntry {
   lockedUntil?: number;
 }
 
+interface EmailChangeEntry {
+  userId: string;
+  currentEmail: string;
+  newEmail: string;
+  currentEmailOtp: string;
+  newEmailOtp: string;
+  expiresAt: number;
+  attempts: number;
+  lockedUntil?: number;
+}
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
   private otps = new Map<string, OtpEntry>();
+  private emailChangeRequests = new Map<string, EmailChangeEntry>();
   private sendRateLimits = new Map<string, { lastSentAt: number; count: number; windowStart: number }>();
 
   private checkSendRateLimit(email: string): { allowed: boolean; message?: string } {
@@ -183,6 +196,7 @@ export class AuthService {
     private eventEmitter: EventEmitter2,
     private firebaseAuthService: FirebaseAuthService,
     private siteSettingsService: SiteSettingsService,
+    private auditLogService: AuditLogService,
   ) { }
 
   public async checkDisposableEmail(email: string) {
@@ -434,6 +448,12 @@ export class AuthService {
     this.otps.set(cleanEmail, { otp, expiresAt: Date.now() + 120000, attempts: 0 });
     this.logger.log(`[AuthService] New OTP generated for ${cleanEmail}`);
 
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`\x1b[33m\x1b[1m\n======================================================`);
+      console.log(`🔑 [DEV MODE] OTP for ${cleanEmail}: >>> ${otp} <<<`);
+      console.log(`======================================================\x1b[0m\n`);
+    }
+
     // Store signup data for registration - ONLY update if fields are provided
     // This prevents overwriting existing data with 'undefined' during resend
     if (isSignup && signupInfo) {
@@ -671,6 +691,13 @@ export class AuthService {
       this.otps.set(cleanEmail, { otp, expiresAt: Date.now() + 120000, attempts: 0 });
       this.logger.log(`[AuthService] OTP generated for ${cleanEmail}`);
 
+      // ── LOCAL DEVELOPMENT: Output OTP directly to Terminal ─────────────────────
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`\x1b[33m\x1b[1m\n======================================================`);
+        console.log(`🔑 [DEV MODE] OTP for ${cleanEmail}: >>> ${otp} <<<`);
+        console.log(`======================================================\x1b[0m\n`);
+      }
+
       // Send OTP via email with target portal context
       try {
         await this.emailService.sendOtp(cleanEmail, otp, targetPortal);
@@ -696,7 +723,7 @@ export class AuthService {
         userExists: !!existingUser, // Return whether user exists or not
         bankId: bankInfo?.bankId || null,
         bankName: bankInfo?.bankName || null,
-        bankLogo: bankInfo?.bankLogo || null
+        bankLogo: bankInfo?.bankLogo || null,
       };
     } catch (error) {
       console.error('[AuthService] Database or Email error in sendOtpUnified:', error);
@@ -1359,6 +1386,195 @@ export class AuthService {
       applicationNumber: application?.applicationNumber || application?.id,
       applicationId: application?.id,
       application,
+    };
+  }
+
+  /**
+   * Step 1 of Email Change: Validate new email, generate two OTPs, and email both current and new addresses.
+   */
+  async requestEmailChange(currentUser: any, newEmail: string) {
+    if (!currentUser?.id || !currentUser?.email) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    if (!newEmail || typeof newEmail !== 'string') {
+      throw new BadRequestException('A valid new email address is required');
+    }
+
+    const cleanNewEmail = newEmail.trim().toLowerCase();
+    const cleanCurrentEmail = currentUser.email.trim().toLowerCase();
+
+    if (cleanNewEmail === cleanCurrentEmail) {
+      throw new BadRequestException('New email address must be different from your current email address');
+    }
+
+    if (!cleanNewEmail.includes('@') || !cleanNewEmail.includes('.')) {
+      throw new BadRequestException('Invalid email address format');
+    }
+
+    // Check disposable email
+    const disposableCheck = await this.siteSettingsService.checkDisposableEmail(cleanNewEmail);
+    if (disposableCheck.blocked) {
+      throw new BadRequestException(
+        disposableCheck.reason || 'Temporary or disposable email addresses are not allowed. Please use your official personal email.'
+      );
+    }
+
+    // Check if new email is already in use by another user
+    const existingUser = await this.usersService.findOne(cleanNewEmail);
+    if (existingUser && existingUser.id !== currentUser.id) {
+      throw new BadRequestException('An account with this email address already exists');
+    }
+
+    // Rate limiting check
+    const rateCheck = this.checkSendRateLimit(cleanCurrentEmail);
+    if (!rateCheck.allowed) {
+      return { success: false, message: rateCheck.message };
+    }
+
+    // Generate two cryptographically random 6-digit OTPs
+    const currentEmailOtp = randomInt(100000, 1000000).toString();
+    const newEmailOtp = randomInt(100000, 1000000).toString();
+
+    // Store in active email change requests (10 min expiry)
+    this.emailChangeRequests.set(currentUser.id, {
+      userId: currentUser.id,
+      currentEmail: cleanCurrentEmail,
+      newEmail: cleanNewEmail,
+      currentEmailOtp,
+      newEmailOtp,
+      expiresAt: Date.now() + 10 * 60 * 1000,
+      attempts: 0,
+    });
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`\x1b[33m\x1b[1m\n======================================================`);
+      console.log(`🔑 [DEV MODE] Email Change OTPs for User ${currentUser.id}:`);
+      console.log(`   Current email (${cleanCurrentEmail}): >>> ${currentEmailOtp} <<<`);
+      console.log(`   New email (${cleanNewEmail}):         >>> ${newEmailOtp} <<<`);
+      console.log(`======================================================\x1b[0m\n`);
+    }
+
+    // Send security confirmation code to current email
+    try {
+      await this.emailService.sendEmailChangeOtp(cleanCurrentEmail, currentEmailOtp, 'current', cleanNewEmail);
+    } catch (err) {
+      this.logger.warn(`Failed to send email change OTP to current address ${cleanCurrentEmail}:`, err);
+    }
+
+    // Send verification code to new email
+    try {
+      await this.emailService.sendEmailChangeOtp(cleanNewEmail, newEmailOtp, 'new', cleanCurrentEmail);
+    } catch (err) {
+      this.logger.warn(`Failed to send email change OTP to new address ${cleanNewEmail}:`, err);
+    }
+
+    return {
+      success: true,
+      message: 'Verification codes have been sent to both your current and new email addresses.',
+    };
+  }
+
+  /**
+   * Step 2 of Email Change: Verify dual OTPs (both old and new addresses) and switch email.
+   */
+  async confirmEmailChange(
+    currentUser: any,
+    newEmail: string,
+    currentEmailOtp: string,
+    newEmailOtp: string,
+    request?: any
+  ) {
+    if (!currentUser?.id) {
+      throw new UnauthorizedException('Authentication required');
+    }
+
+    const cleanNewEmail = (newEmail || '').trim().toLowerCase();
+    const cleanCurrentOtp = (currentEmailOtp || '').trim();
+    const cleanNewOtp = (newEmailOtp || '').trim();
+
+    if (!cleanNewEmail || !cleanCurrentOtp || !cleanNewOtp) {
+      throw new BadRequestException('Target new email and both verification codes (current and new) are required.');
+    }
+
+    const pending = this.emailChangeRequests.get(currentUser.id);
+    if (!pending) {
+      throw new BadRequestException('No active email change request found. Please request a new verification code.');
+    }
+
+    const now = Date.now();
+    if (pending.lockedUntil && now < pending.lockedUntil) {
+      const waitMins = Math.ceil((pending.lockedUntil - now) / 60000);
+      throw new UnauthorizedException(`Account email verification is locked due to repeated incorrect attempts. Please try again in ${waitMins} minute(s).`);
+    }
+
+    if (now > pending.expiresAt) {
+      this.emailChangeRequests.delete(currentUser.id);
+      throw new BadRequestException('Verification codes have expired. Please request a new email change.');
+    }
+
+    if (pending.newEmail !== cleanNewEmail) {
+      throw new BadRequestException('The email provided does not match the pending email change request.');
+    }
+
+    const isCurrentMatch = pending.currentEmailOtp === cleanCurrentOtp;
+    const isNewMatch = pending.newEmailOtp === cleanNewOtp;
+
+    if (!isCurrentMatch || !isNewMatch) {
+      pending.attempts = (pending.attempts || 0) + 1;
+      if (pending.attempts >= 5) {
+        pending.lockedUntil = now + 15 * 60 * 1000;
+        throw new UnauthorizedException('Too many incorrect OTP attempts (5/5). Email change locked for 15 minutes.');
+      }
+      const remaining = 5 - pending.attempts;
+      throw new BadRequestException(
+        `Invalid verification code(s). Please check both codes and try again. (${remaining} attempt${remaining === 1 ? '' : 's'} remaining)`
+      );
+    }
+
+    // Both OTPs matched! Consume request
+    this.emailChangeRequests.delete(currentUser.id);
+
+    // Update email in DB safely
+    const updatedUser = await this.usersService.updateEmail(currentUser.id, cleanNewEmail);
+
+    // Audit log
+    if (this.auditLogService) {
+      await this.auditLogService.logAction(
+        'EMAIL_CHANGED_WITH_DUAL_OTP',
+        'User',
+        currentUser.id,
+        currentUser,
+        {
+          previousEmail: pending.currentEmail,
+          newEmail: cleanNewEmail,
+        },
+        request
+      );
+    }
+
+    // Issue new JWT token with updated email
+    const payload = {
+      sub: currentUser.id,
+      id: currentUser.id,
+      email: cleanNewEmail,
+      role: updatedUser?.role || currentUser.role,
+      firstName: updatedUser?.firstName || currentUser.firstName,
+      lastName: updatedUser?.lastName || currentUser.lastName,
+    };
+    const newToken = await this.jwtService.signAsync(payload);
+
+    return {
+      success: true,
+      message: 'Email address updated successfully.',
+      newEmail: cleanNewEmail,
+      token: newToken,
+      user: {
+        id: currentUser.id,
+        email: cleanNewEmail,
+        firstName: updatedUser?.firstName || currentUser.firstName,
+        lastName: updatedUser?.lastName || currentUser.lastName,
+        role: updatedUser?.role || currentUser.role,
+      }
     };
   }
 }

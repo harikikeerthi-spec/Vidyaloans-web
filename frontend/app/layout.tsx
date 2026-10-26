@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Script from "next/script";
 import { Plus_Jakarta_Sans, Noto_Serif } from "next/font/google";
+import "@phosphor-icons/web/regular";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SiteSettingsProvider } from "@/contexts/SiteSettingsContext";
@@ -10,7 +11,6 @@ import SelectedUniversityWidget from "@/components/SelectedUniversityWidget";
 import ReferralTracker from "@/components/ReferralTracker";
 import CookieConsentBanner from "@/components/CookieConsentBanner";
 import MobileAppDownloadBanner from "@/components/MobileAppDownloadBanner";
-import ProfileGate from "@/components/ProfileGate";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -231,12 +231,10 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
               <DialogProvider>
                 <ReferralTracker />
                 <UniversityProvider>
-                  <ProfileGate>
-                    {children}
-                    <SelectedUniversityWidget />
-                    <CookieConsentBanner />
-                    <MobileAppDownloadBanner />
-                  </ProfileGate>
+                  {children}
+                  <SelectedUniversityWidget />
+                  <CookieConsentBanner />
+                  <MobileAppDownloadBanner />
                 </UniversityProvider>
               </DialogProvider>
             </AuthProvider>

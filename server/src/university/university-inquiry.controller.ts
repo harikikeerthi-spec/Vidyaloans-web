@@ -9,10 +9,12 @@ export class UniversityInquiryController {
     async create(@Body() body: {
         userId?: string;
         name: string;
-        email: string;
-        mobile: string;
-        universityName: string;
-        type: string;
+        email?: string;
+        mobile?: string;
+        phone?: string;
+        universityName?: string;
+        intake?: string;
+        type?: string;
     }) {
         return this.inquiryService.createInquiry(body);
     }

@@ -51,7 +51,7 @@ function AdminLoginContent() {
         setLoading(true);
         setError("");
         try {
-            const res = await authApi.sendOtp(email.trim(), "admin") as { success: boolean; message?: string; otp?: string; userExists: boolean };
+            const res = await authApi.sendOtp(email.trim(), "admin") as { success: boolean; message?: string; userExists: boolean };
             if (res && res.success === false) {
                 setError(res.message || "Access Denied: You do not have administrator access.");
                 setLoading(false);
@@ -199,7 +199,9 @@ function AdminLoginContent() {
 
                         {step === "otp" && (
                             <div className="animate-fade-in">
-                                <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4 ml-1">Secure OTP</label>
+                                <div className="flex items-center justify-between mb-3 ml-1">
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400">Secure OTP</label>
+                                </div>
                                 <div className="flex gap-2 justify-between" onPaste={handleOtpPaste}>
                                     {otp.map((digit, i) => (
                                         <input

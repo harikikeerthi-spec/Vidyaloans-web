@@ -5,6 +5,7 @@ import Navbar from "@/components/Navbar";
 import { aiApi } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter, usePathname } from "next/navigation";
+import { sanitizeHtml } from "@/lib/sanitize";
 
 export default function SOPWriterPage() {
     const { isAuthenticated } = useAuth();
@@ -259,7 +260,7 @@ export default function SOPWriterPage() {
                                     {!showAnalysis ? (
                                         <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
                                             <div className="p-10 h-[650px] overflow-y-auto custom-scrollbar font-serif text-gray-800">
-                                                <div dangerouslySetInnerHTML={{ __html: result.sop }} className="sop-preview-content" />
+                                                <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(result.sop) }} className="sop-preview-content" />
                                             </div>
                                         </div>
                                     ) : (

@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Param, Delete, Req, Res, Inject, forwardRef, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, Delete, Req, Res, Inject, forwardRef, UseGuards, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { ReferralService } from '../referral/referral.service';
@@ -370,39 +370,55 @@ export class AuthController {
   }
 
   /**
-   * Update user details (first name, last name, email, phone/mobile, DOB, passport, academic, etc.)
+   * Update user details (first name, last name, phone/mobile, DOB, passport, academic, etc.)
+   * Security [C9]: Guarded with UserGuard. Strictly binds to request.user (ignores body.userId/email for students).
    * POST /auth/update-details
    */
+  @UseGuards(UserGuard)
   @Post('update-details')
-  async updateUserDetails(@Body() body: {
-    email?: string;
-    newEmail?: string;
-    firstName?: string;
-    lastName?: string;
-    phoneNumber?: string;
-    mobile?: string;
-    dateOfBirth?: string;
-    dob?: string;
-    profileImage?: string;
-    pincode?: string;
-    targetUniversity?: string;
-    studyDestination?: string;
-    fatherName?: string;
-    motherName?: string;
-    family?: any;
-    coApplicant?: any;
-    coApplicantName?: string;
-    coApplicantPhone?: string;
-    coApplicantEmail?: string;
-    coApplicantRelation?: string;
-    academic?: any;
-    userId?: string;
-    passport?: any;
-  }) {
-    if (!body || (!body.email && !body.userId && !body.newEmail)) {
+  async updateUserDetails(
+    @Req() req: any,
+    @Body() body: {
+      email?: string;
+      newEmail?: string;
+      firstName?: string;
+      lastName?: string;
+      phoneNumber?: string;
+      mobile?: string;
+      dateOfBirth?: string;
+      dob?: string;
+      profileImage?: string;
+      pincode?: string;
+      targetUniversity?: string;
+      studyDestination?: string;
+      fatherName?: string;
+      motherName?: string;
+      family?: any;
+      coApplicant?: any;
+      coApplicantName?: string;
+      coApplicantPhone?: string;
+      coApplicantEmail?: string;
+      coApplicantRelation?: string;
+      academic?: any;
+      userId?: string;
+      passport?: any;
+    }
+  ) {
+    const currentUser = req.user;
+    if (!currentUser || !currentUser.id) {
+      throw new UnauthorizedException('Authentication required');
+    }
+
+    // Security fix [C9]: Ensure update operates strictly on request.user.
+    // For students and regular users, ignore userId, email, and newEmail from request body.
+    const targetUserId = currentUser.id;
+    const targetEmail = (currentUser.email || '').trim().toLowerCase();
+
+    // Prevent bypassing the dual-OTP email change workflow
+    if (body.newEmail && body.newEmail.trim().toLowerCase() !== targetEmail) {
       return {
         success: false,
-        message: 'Email or userId is required',
+        message: 'Email address cannot be changed directly via this endpoint. Please use the dual OTP email verification process (/auth/request-email-change).',
       };
     }
 
@@ -419,15 +435,15 @@ export class AuthController {
 
     const phone = body.phoneNumber || body.mobile;
     const dob = body.dateOfBirth || body.dob;
-    const targetEmail = (body.newEmail || body.email || '').trim().toLowerCase();
 
     // Check if this is the user's first profile completion BEFORE updating
     let existingUser: any = null;
     try {
-      if (targetEmail) {
+      if (targetUserId) {
+        existingUser = await this.usersService.findById(targetUserId);
+      }
+      if (!existingUser && targetEmail) {
         existingUser = await this.usersService.findOne(targetEmail);
-      } else if (body.userId) {
-        existingUser = await this.usersService.findById(body.userId);
       }
     } catch (e: any) {
       console.warn('[AuthController.updateUserDetails] Failed to lookup existing user before update:', e?.message || e);
@@ -456,7 +472,7 @@ export class AuthController {
       body.family,
       Object.keys(coApplicantPayload).length > 0 ? coApplicantPayload : body.coApplicant,
       body.academic,
-      body.userId,
+      targetUserId,
       body.passport
     );
 
@@ -474,6 +490,41 @@ export class AuthController {
     }
 
     return result;
+  }
+
+  /**
+   * Step 1 of Email Change: Send OTP to both current and new email addresses
+   * POST /auth/request-email-change
+   */
+  @UseGuards(UserGuard)
+  @Post('request-email-change')
+  async requestEmailChange(
+    @Req() req: any,
+    @Body() body: { newEmail: string }
+  ) {
+    return this.authService.requestEmailChange(req.user, body?.newEmail);
+  }
+
+  /**
+   * Step 2 of Email Change: Verify OTPs from both addresses and switch email
+   * POST /auth/confirm-email-change
+   */
+  @UseGuards(UserGuard)
+  @Post('confirm-email-change')
+  async confirmEmailChange(
+    @Req() req: any,
+    @Body() body: {
+      newEmail: string;
+      currentEmailOtp?: string;
+      oldOtp?: string;
+      currentOtp?: string;
+      newEmailOtp?: string;
+      newOtp?: string;
+    }
+  ) {
+    const currentOtp = body?.currentEmailOtp || body?.oldOtp || body?.currentOtp || '';
+    const newOtp = body?.newEmailOtp || body?.newOtp || '';
+    return this.authService.confirmEmailChange(req.user, body?.newEmail, currentOtp, newOtp, req);
   }
 
   // ==================== LOAN APPLICATIONS ====================

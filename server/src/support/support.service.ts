@@ -815,7 +815,9 @@ export class SupportService {
       if (!existsSync(uploadsDir)) {
         mkdirSync(uploadsDir, { recursive: true });
       }
-      const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}${extname(file.originalname)}`;
+      const rawExt = extname(file.originalname || '').toLowerCase();
+      const safeExt = /^\.[a-z0-9]{1,10}$/i.test(rawExt) ? rawExt : '';
+      const filename = `${randomUUID()}${safeExt}`;
       writeFileSync(join(uploadsDir, filename), file.buffer);
       filePath = `/uploads/support/${filename}`;
       // Build full URL so it's always resolvable from the frontend

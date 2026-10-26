@@ -4,6 +4,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../auth/email.service';
 import { randomUUID } from 'crypto';
+import { sanitizeBlogContentWithMetadata } from '../common/utils/html-sanitizer.util';
 
 @Injectable()
 export class BlogService {
@@ -1196,6 +1197,9 @@ export class BlogService {
       htmlContent = data.content || '';
     }
 
+    // Sanitize rich text HTML content on save
+    htmlContent = sanitizeBlogContentWithMetadata(htmlContent);
+
     // Append metadata blocks & SEO JSON
     const seoObj = {
       metaTitle: data.metaTitle || '',
@@ -1322,6 +1326,9 @@ export class BlogService {
       } else {
         htmlContent = data.content || '';
       }
+
+      // Sanitize rich text HTML content on save
+      htmlContent = sanitizeBlogContentWithMetadata(htmlContent);
       const seoObj = {
         metaTitle: data.metaTitle !== undefined ? data.metaTitle : (existingBlog.metaTitle || ''),
         metaDescription: data.metaDescription !== undefined ? data.metaDescription : (existingBlog.metaDescription || ''),

@@ -426,10 +426,21 @@ export default function ConnectedPage() {
                         </Link>
 
                         <div className="flex flex-wrap justify-center gap-12">
-                            {["Instagram", "LinkedIn", "YouTube", "Discord"].map(social => (
-                                <Link key={social} href="#" className="text-[11px] font-black uppercase tracking-[0.4em] text-black/30 hover:text-black transition-colors">
-                                    {social}
-                                </Link>
+                            {[
+                                { name: "Instagram", href: "https://www.instagram.com/vidya_loans/" },
+                                { name: "LinkedIn", href: "https://www.linkedin.com/company/vidyaloans/" },
+                                { name: "YouTube", href: "https://youtube.com/@vidyaloans" },
+                                { name: "Discord", href: "https://discord.gg/vidyaloans" },
+                            ].map(social => (
+                                <a
+                                    key={social.name}
+                                    href={social.href}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-[11px] font-black uppercase tracking-[0.4em] text-black/50 hover:text-black transition-colors"
+                                >
+                                    {social.name}
+                                </a>
                             ))}
                         </div>
 
@@ -561,16 +572,19 @@ function CohortApplicationForm() {
             whileInView={{ opacity: 1, x: 0 }}
             className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-3xl p-10 rounded-[3.5rem] border border-white/10 shadow-2xl"
         >
-            <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+            <form onSubmit={handleSubmit} className="space-y-6">
                 {/* Full Name */}
                 <FormField
-                    label="Your Identity"
+                    label="Name"
                     error={errors.fullName}
                     inputId="connected-fullname"
                 >
                     <input
                         id="connected-fullname"
+                        name="fullName"
                         type="text"
+                        autoComplete="name"
+                        required
                         placeholder="Johnathan Doe"
                         value={form.fullName}
                         onChange={e => handleChange("fullName", e.target.value)}
@@ -580,13 +594,16 @@ function CohortApplicationForm() {
 
                 {/* Email */}
                 <FormField
-                    label="Digital Address"
+                    label="Email"
                     error={errors.email}
                     inputId="connected-email"
                 >
                     <input
                         id="connected-email"
+                        name="email"
                         type="email"
+                        autoComplete="email"
+                        required
                         placeholder="hello@aspirant.com"
                         value={form.email}
                         onChange={e => handleChange("email", e.target.value)}
@@ -596,10 +613,13 @@ function CohortApplicationForm() {
 
                 {/* Phone + Intake */}
                 <div className="grid grid-cols-2 gap-4">
-                    <FormField label="Calling Code" error={errors.phone} inputId="connected-phone">
+                    <FormField label="Phone" error={errors.phone} inputId="connected-phone">
                         <input
                             id="connected-phone"
+                            name="phone"
                             type="tel"
+                            autoComplete="tel"
+                            required
                             placeholder="+91 98765 43210"
                             value={form.phone}
                             onChange={e => handleChange("phone", e.target.value)}
@@ -609,6 +629,8 @@ function CohortApplicationForm() {
                     <FormField label="Target Intake" error={errors.targetIntake} inputId="connected-intake">
                         <select
                             id="connected-intake"
+                            name="targetIntake"
+                            required
                             value={form.targetIntake}
                             onChange={e => handleChange("targetIntake", e.target.value)}
                             className={formSelectClass(!!errors.targetIntake)}
@@ -625,6 +647,7 @@ function CohortApplicationForm() {
                     <FormField label="Destination" inputId="connected-destination">
                         <select
                             id="connected-destination"
+                            name="destination"
                             value={form.destination}
                             onChange={e => handleChange("destination", e.target.value)}
                             className={formSelectClass(false)}
@@ -638,6 +661,7 @@ function CohortApplicationForm() {
                     <FormField label="Target Course" inputId="connected-course">
                         <input
                             id="connected-course"
+                            name="course"
                             type="text"
                             placeholder="e.g. MS CS"
                             value={form.course}
@@ -651,6 +675,7 @@ function CohortApplicationForm() {
                 <FormField label="Why This Cohort?" inputId="connected-message">
                     <textarea
                         id="connected-message"
+                        name="message"
                         placeholder="Tell us about your goals in 2-3 sentences..."
                         rows={3}
                         value={form.message}

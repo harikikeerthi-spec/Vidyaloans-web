@@ -103,8 +103,9 @@ export default function LoanEligibilityPage() {
 
                         <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-5 bg-white border border-gray-100 rounded-xl p-8 shadow-sm">
                             <div className="space-y-2">
-                                <label className="text-[11px] font-bold uppercase tracking-widest text-gray-400">Age</label>
+                                <label htmlFor="eligibility-age" className="text-xs font-bold uppercase tracking-wider text-gray-700 block">Age (Years)</label>
                                 <input
+                                    id="eligibility-age"
                                     name="age"
                                     type="number"
                                     min={18}
@@ -122,8 +123,9 @@ export default function LoanEligibilityPage() {
                                 )}
                             </div>
                             <div className="space-y-2">
-                                <label className="text-[11px] font-bold uppercase tracking-widest text-gray-400">CIBIL Score</label>
+                                <label htmlFor="eligibility-credit" className="text-xs font-bold uppercase tracking-wider text-gray-700 block">CIBIL Score</label>
                                 <input
+                                    id="eligibility-credit"
                                     name="credit"
                                     type="number"
                                     min={300}
@@ -146,16 +148,39 @@ export default function LoanEligibilityPage() {
                                 ) : null}
                             </div>
                             <div className="space-y-2">
-                                <label className="text-[11px] font-bold uppercase tracking-widest text-gray-400">Annual Income (₹)</label>
-                                <input name="income" type="number" value={formData.income} onChange={handleChange} required className="w-full px-4 py-3 rounded-xl border-gray-100 focus:border-[#6605c7] focus:ring-0 transition-all font-medium text-gray-900 bg-gray-50/50 text-[13px]" />
+                                <label htmlFor="eligibility-income" className="text-xs font-bold uppercase tracking-wider text-gray-700 block">Annual Income (₹)</label>
+                                <input
+                                    id="eligibility-income"
+                                    name="income"
+                                    type="number"
+                                    value={formData.income}
+                                    onChange={handleChange}
+                                    required
+                                    className="w-full px-4 py-3 rounded-xl border-gray-100 focus:border-[#6605c7] focus:ring-0 transition-all font-medium text-gray-900 bg-gray-50/50 text-[13px]"
+                                />
                             </div>
                             <div className="space-y-2">
-                                <label className="text-[11px] font-bold uppercase tracking-widest text-gray-400">Loan Amount (₹)</label>
-                                <input name="loan" type="number" value={formData.loan} onChange={handleChange} required className="w-full px-4 py-3 rounded-xl border-gray-100 focus:border-[#6605c7] focus:ring-0 transition-all font-medium text-gray-900 bg-gray-50/50 text-[13px]" />
+                                <label htmlFor="eligibility-loan" className="text-xs font-bold uppercase tracking-wider text-gray-700 block">Loan Amount (₹)</label>
+                                <input
+                                    id="eligibility-loan"
+                                    name="loan"
+                                    type="number"
+                                    value={formData.loan}
+                                    onChange={handleChange}
+                                    required
+                                    className="w-full px-4 py-3 rounded-xl border-gray-100 focus:border-[#6605c7] focus:ring-0 transition-all font-medium text-gray-900 bg-gray-50/50 text-[13px]"
+                                />
                             </div>
                             <div className="space-y-2">
-                                <label className="text-[11px] font-bold uppercase tracking-widest text-gray-400">Employment</label>
-                                <select name="employment" value={formData.employment} onChange={handleChange} required className="w-full px-4 py-3 rounded-xl border-gray-100 focus:border-[#6605c7] focus:ring-0 transition-all font-medium text-gray-900 bg-gray-50/50 text-[13px]">
+                                <label htmlFor="eligibility-employment" className="text-xs font-bold uppercase tracking-wider text-gray-700 block">Employment Status</label>
+                                <select
+                                    id="eligibility-employment"
+                                    name="employment"
+                                    value={formData.employment}
+                                    onChange={handleChange}
+                                    required
+                                    className="w-full px-4 py-3 rounded-xl border-gray-100 focus:border-[#6605c7] focus:ring-0 transition-all font-medium text-gray-900 bg-gray-50/50 text-[13px]"
+                                >
                                     <option value="employed">Employed</option>
                                     <option value="self">Self-employed</option>
                                     <option value="student">Student</option>
@@ -163,8 +188,15 @@ export default function LoanEligibilityPage() {
                                 </select>
                             </div>
                             <div className="space-y-2">
-                                <label className="text-[11px] font-bold uppercase tracking-widest text-gray-400">Study Level</label>
-                                <select name="study" value={formData.study} onChange={handleChange} required className="w-full px-4 py-3 rounded-xl border-gray-100 focus:border-[#6605c7] focus:ring-0 transition-all font-medium text-gray-900 bg-gray-50/50 text-[13px]">
+                                <label htmlFor="eligibility-study" className="text-xs font-bold uppercase tracking-wider text-gray-700 block">Target Study Level</label>
+                                <select
+                                    id="eligibility-study"
+                                    name="study"
+                                    value={formData.study}
+                                    onChange={handleChange}
+                                    required
+                                    className="w-full px-4 py-3 rounded-xl border-gray-100 focus:border-[#6605c7] focus:ring-0 transition-all font-medium text-gray-900 bg-gray-50/50 text-[13px]"
+                                >
                                     <option value="undergrad">Undergraduate</option>
                                     <option value="masters">Masters</option>
                                     <option value="doctoral">Doctoral</option>
@@ -172,15 +204,29 @@ export default function LoanEligibilityPage() {
                                 </select>
                             </div>
                             <div className="space-y-2">
-                                <label className="text-[11px] font-bold uppercase tracking-widest text-gray-400">Co-applicant</label>
-                                <select name="coApplicant" value={formData.coApplicant} onChange={handleChange} required className="w-full px-4 py-3 rounded-xl border-gray-100 focus:border-[#6605c7] focus:ring-0 transition-all font-medium text-gray-900 bg-gray-50/50 text-[13px]">
+                                <label htmlFor="eligibility-coApplicant" className="text-xs font-bold uppercase tracking-wider text-gray-700 block">Co-Applicant Available?</label>
+                                <select
+                                    id="eligibility-coApplicant"
+                                    name="coApplicant"
+                                    value={formData.coApplicant}
+                                    onChange={handleChange}
+                                    required
+                                    className="w-full px-4 py-3 rounded-xl border-gray-100 focus:border-[#6605c7] focus:ring-0 transition-all font-medium text-gray-900 bg-gray-50/50 text-[13px]"
+                                >
                                     <option value="yes">Yes</option>
                                     <option value="no">No</option>
                                 </select>
                             </div>
                             <div className="space-y-2">
-                                <label className="text-[11px] font-bold uppercase tracking-widest text-gray-400">Collateral</label>
-                                <select name="collateral" value={formData.collateral} onChange={handleChange} required className="w-full px-4 py-3 rounded-xl border-gray-100 focus:border-[#6605c7] focus:ring-0 transition-all font-medium text-gray-900 bg-gray-50/50 text-[13px]">
+                                <label htmlFor="eligibility-collateral" className="text-xs font-bold uppercase tracking-wider text-gray-700 block">Collateral Available?</label>
+                                <select
+                                    id="eligibility-collateral"
+                                    name="collateral"
+                                    value={formData.collateral}
+                                    onChange={handleChange}
+                                    required
+                                    className="w-full px-4 py-3 rounded-xl border-gray-100 focus:border-[#6605c7] focus:ring-0 transition-all font-medium text-gray-900 bg-gray-50/50 text-[13px]"
+                                >
                                     <option value="yes">Yes</option>
                                     <option value="no">No</option>
                                 </select>

@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import ProfileGate from "@/components/ProfileGate";
 
 export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
     const { isAuthenticated, isLoading, isAdmin, isStaff, isBank, user } = useAuth();
@@ -51,5 +52,5 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
 
     if (!isAuthenticated || isAdmin || isStaff || isBank) return null;
 
-    return <>{children}</>;
+    return <ProfileGate>{children}</ProfileGate>;
 }

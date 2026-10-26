@@ -549,7 +549,7 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
                             )}
                         </div>
 
-                        {/* Right: Notifications + Time + User Profile */}
+                        {/* Right: Time + User Profile + Notifications */}
                         <div className="flex items-center gap-3.5">
                             {/* Real-time IST Clock */}
                             <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-200/80 rounded-xl">
@@ -557,14 +557,6 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
                                     {format(nowTime, 'MMM dd, HH:mm:ss')}
                                 </span>
                             </div>
-
-                            <NotificationsPanel
-                                staffId={user?.id}
-                                maxDisplay={8}
-                                showUnreadBadge={true}
-                            />
-
-                            <div className="h-5 w-px bg-slate-200" />
 
                             <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => router.push('/staff/my-profile')}>
                                 <img
@@ -578,13 +570,14 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
                                 </div>
                             </div>
 
-                            <button
-                                onClick={handleLogout}
-                                title="Sign Out"
-                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all border-0 bg-transparent cursor-pointer"
-                            >
-                                <span className="material-symbols-outlined text-[20px]">logout</span>
-                            </button>
+                            <div className="h-5 w-px bg-slate-200" />
+
+                            {/* Notifications Panel in place of top header logout */}
+                            <NotificationsPanel
+                                staffId={user?.id}
+                                maxDisplay={8}
+                                showUnreadBadge={true}
+                            />
                         </div>
                     </header>
 

@@ -163,14 +163,16 @@ export default function ContactUsPage() {
                                         {/* Name input */}
                                         <div className="space-y-2">
                                             <div className="flex items-center justify-between">
-                                                <label className="text-[10px] font-extrabold uppercase tracking-widest text-[#6605c7]">Full Name</label>
+                                                <label htmlFor="contact-name" className="text-xs font-bold uppercase tracking-wider text-[#6605c7] block">Full Name</label>
                                                 <span className="text-[9.5px] text-gray-400 font-extrabold">{formData.name.length}/30</span>
                                             </div>
                                             <div className="relative">
                                                 <span className="material-symbols-outlined text-gray-400 absolute left-4 top-1/2 -translate-y-1/2 text-lg">person</span>
                                                 <input
+                                                    id="contact-name"
                                                     type="text"
                                                     name="name"
+                                                    autoComplete="name"
                                                     required
                                                     value={formData.name}
                                                     onChange={handleChange}
@@ -189,12 +191,14 @@ export default function ContactUsPage() {
 
                                         {/* Email input */}
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-extrabold uppercase tracking-widest text-[#6605c7]">Email Address</label>
+                                            <label htmlFor="contact-email" className="text-xs font-bold uppercase tracking-wider text-[#6605c7] block">Email Address</label>
                                             <div className="relative">
                                                 <span className="material-symbols-outlined text-gray-400 absolute left-4 top-1/2 -translate-y-1/2 text-lg">mail</span>
                                                 <input
+                                                    id="contact-email"
                                                     type="email"
                                                     name="email"
+                                                    autoComplete="email"
                                                     required
                                                     value={formData.email}
                                                     onChange={handleChange}
@@ -216,14 +220,16 @@ export default function ContactUsPage() {
                                         {/* Phone input */}
                                         <div className="space-y-2">
                                             <div className="flex items-center justify-between">
-                                                <label className="text-[10px] font-extrabold uppercase tracking-widest text-[#6605c7]">Phone Number</label>
+                                                <label htmlFor="contact-phone" className="text-xs font-bold uppercase tracking-wider text-[#6605c7] block">Phone Number</label>
                                                 <span className="text-[9.5px] text-gray-400 font-extrabold">{formData.phone.length}/10</span>
                                             </div>
                                             <div className="relative">
                                                 <span className="material-symbols-outlined text-gray-400 absolute left-4 top-1/2 -translate-y-1/2 text-lg">call</span>
                                                 <input
+                                                    id="contact-phone"
                                                     type="tel"
                                                     name="phone"
+                                                    autoComplete="tel"
                                                     required
                                                     value={formData.phone}
                                                     onChange={handleChange}
@@ -242,10 +248,11 @@ export default function ContactUsPage() {
 
                                         {/* Subject selector */}
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-extrabold uppercase tracking-widest text-[#6605c7]">Primary Inquiry</label>
+                                            <label htmlFor="contact-subject" className="text-xs font-bold uppercase tracking-wider text-[#6605c7] block">Primary Inquiry</label>
                                             <div className="relative">
                                                 <span className="material-symbols-outlined text-gray-400 absolute left-4 top-1/2 -translate-y-1/2 text-lg">help</span>
                                                 <select
+                                                    id="contact-subject"
                                                     name="subject"
                                                     value={formData.subject}
                                                     onChange={handleChange}
@@ -265,12 +272,13 @@ export default function ContactUsPage() {
                                     {/* Message textarea */}
                                     <div className="space-y-2">
                                         <div className="flex items-center justify-between">
-                                            <label className="text-[10px] font-extrabold uppercase tracking-widest text-[#6605c7]">Your Message</label>
+                                            <label htmlFor="contact-message" className="text-xs font-bold uppercase tracking-wider text-[#6605c7] block">Your Message</label>
                                             <span className="text-[9.5px] text-gray-400 font-extrabold">{formData.message.length} chars (min 20)</span>
                                         </div>
                                         <div className="relative">
                                             <span className="material-symbols-outlined text-gray-400 absolute left-4 top-4 text-lg">chat</span>
                                             <textarea
+                                                id="contact-message"
                                                 name="message"
                                                 required
                                                 rows={5}

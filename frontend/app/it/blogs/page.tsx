@@ -7,6 +7,7 @@ import { blogApi } from "@/lib/api";
 import Link from "next/link";
 import DynamicBlogEditor from "@/components/DynamicBlogEditor";
 import AdminBlogBuilder from "@/components/AdminBlogBuilder";
+import { sanitizeHtml } from "@/lib/sanitize";
 
 type BlockType =
   | "heading"
@@ -3152,7 +3153,7 @@ export default function ITBlogsPage() {
                                 ) : (
                                   <div
                                     className="prose prose-sm max-w-none text-slate-700"
-                                    dangerouslySetInnerHTML={{ __html: bA.content || "<p class='italic text-slate-400'>No content available</p>" }}
+                                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(bA.content) || "<p class='italic text-slate-400'>No content available</p>" }}
                                   />
                                 )}
                               </div>
@@ -3191,7 +3192,7 @@ export default function ITBlogsPage() {
                                 ) : (
                                   <div
                                     className="prose prose-sm max-w-none text-slate-700"
-                                    dangerouslySetInnerHTML={{ __html: bB.content || "<p class='italic text-slate-400'>No content available</p>" }}
+                                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(bB.content) || "<p class='italic text-slate-400'>No content available</p>" }}
                                   />
                                 )}
                               </div>

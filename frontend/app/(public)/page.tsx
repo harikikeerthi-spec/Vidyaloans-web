@@ -11,6 +11,7 @@ import MobileStepSlider from "../../components/MobileStepSlider";
 import MobileTestimonialsSlider from "../../components/MobileTestimonialsSlider";
 import MobileFloatingActionBar from "../../components/MobileFloatingActionBar";
 import LenderLogo from "../../components/LenderLogo";
+import HomepageCallbackForm from "../../components/HomepageCallbackForm";
 import { lenders, features } from "../../data/home";
 import { fetchTopGoogleReviews } from "../../lib/googleReviews";
 import { SITE_STATS } from "../../lib/siteStats";
@@ -148,7 +149,7 @@ function buildActiveLenders(dbBanks: any[] | null) {
 async function getDynamicBanks() {
     try {
         const backendUrl = process.env.BACKEND_URL || "http://127.0.0.1:5000";
-        const res = await fetch(`${backendUrl}/api/reference/banks`, { cache: 'no-store' });
+        const res = await fetch(`${backendUrl}/api/reference/banks`, { next: { revalidate: 300 } });
         const json = await res.json();
         if (json?.success && Array.isArray(json.data) && json.data.length > 0) {
             return json.data;
@@ -364,16 +365,6 @@ export default async function HomePage() {
                                 </div>
                             </div>
                         </div>
-                        {/* Refer Now below the hero card */}
-                        {/* <div className="mt-6 flex justify-center lg:justify-start">
-                            <Link
-                                href="/referral"
-                                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg font-black text-sm uppercase tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-amber-500 to-orange-600"
-                            >
-                                Refer Now
-                                <span className="material-symbols-outlined text-sm" aria-hidden="true">arrow_forward</span>
-                            </Link>
-                        </div> */}
                     </div>
                 </section>
 
@@ -913,8 +904,15 @@ export default async function HomePage() {
                     </section>
                 )}
 
+                {/* Get a Call Back from a Loan Expert */}
+                <section className="pt-20 pb-4 bg-transparent relative z-10">
+                    <div className="max-w-5xl mx-auto px-6">
+                        <HomepageCallbackForm />
+                    </div>
+                </section>
+
                 {/* Final CTA */}
-                <section className="pt-24 pb-28 bg-transparent">
+                <section className="pt-16 pb-28 bg-transparent">
                     <div className="max-w-5xl mx-auto px-6">
                         <div className="bg-[#6605c7] rounded-xl p-12 md:p-20 text-center text-white relative overflow-hidden shadow-2xl">
                             <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-32 -mt-32" />

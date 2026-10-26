@@ -9,6 +9,7 @@ import UniDetailModal from "@/components/UniDetailModal";
 import { aiApi, onboardingApi, documentApi, authApi, referenceApi } from '@/lib/api';
 import { useAuth } from "@/contexts/AuthContext";
 import { useSiteSettings } from "@/contexts/SiteSettingsContext";
+import { sanitizeHtml } from "@/lib/sanitize";
 
 const COUNTRY_FLAGS: Record<string, string> = {
     'USA': '🇺🇸', 'UK': '🇬🇧', 'Canada': '🇨🇦', 'Australia': '🇦🇺', 'Germany': '🇩🇪', 'Ireland': '🇮🇪', 'Singapore': '🇸🇬', 'Other': '🌍'
@@ -3863,7 +3864,7 @@ export default function OnboardingPage() {
                         <div className="sp-avatar"><span style={{ color: '#fff', fontWeight: 800 }}>{toastData.letter}</span></div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                             <div className="sp-name">{toastData.name}</div>
-                            <div className="sp-msg" dangerouslySetInnerHTML={{ __html: toastData.msg }} />
+                            <div className="sp-msg" dangerouslySetInnerHTML={{ __html: sanitizeHtml(toastData.msg) }} />
                             <div style={{ fontSize: 10, color: '#c4b5d4', marginTop: 2 }}>{toastData.time}</div>
                         </div>
                         <div className="sp-check">✓</div>
