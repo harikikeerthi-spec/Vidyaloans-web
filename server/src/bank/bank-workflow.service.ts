@@ -46,7 +46,7 @@ export class BankWorkflowService {
   private generateDocumentToken(applicationId: string, documentId: string): string {
     return this.jwtService.sign(
       { applicationId, documentId },
-      { secret: process.env.JWT_SECRET || 'secretKey', expiresIn: '7d' },
+      { secret: process.env.JWT_SECRET, expiresIn: '7d' },
     );
   }
 

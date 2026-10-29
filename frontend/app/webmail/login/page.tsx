@@ -39,7 +39,7 @@ export default function WebmailLoginPage() {
         const csrfRes = await fetch("/api/csrf-token");
         const csrfJson = await csrfRes.json();
         if (csrfJson?.csrfToken) csrfToken = csrfJson.csrfToken;
-      } catch (e) {}
+      } catch (e) { }
 
       const res = await fetch("/api/webmail/login", {
         method: "POST",
@@ -74,7 +74,7 @@ export default function WebmailLoginPage() {
 
   return (
     <div className="min-h-screen bg-transparent text-slate-900 flex flex-col justify-between relative selection:bg-purple-100 selection:text-purple-900 overflow-hidden font-sans">
-      
+
       {/* Signature VidyaLoans Multi-Radial Background */}
       <div className="fixed inset-0 -z-10 bg-white pointer-events-none overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(at_0%_0%,rgba(102,5,199,0.38)_0px,transparent_50%),radial-gradient(at_100%_0%,rgba(224,195,137,0.45)_0px,transparent_50%),radial-gradient(at_100%_100%,rgba(139,192,232,0.38)_0px,transparent_50%),radial-gradient(at_0%_100%,rgba(102,5,199,0.28)_0px,transparent_50%)] opacity-95" />
@@ -119,7 +119,7 @@ export default function WebmailLoginPage() {
         <div className="flex items-center gap-3">
           <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-white/80 text-emerald-700 border border-emerald-200/60 shadow-xs backdrop-blur-md">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            AWS SES Encrypted Mailbox
+            Encrypted Corporate Mailbox
           </span>
 
           <Link
@@ -135,14 +135,14 @@ export default function WebmailLoginPage() {
       {/* Main Login Card */}
       <main className="relative z-10 w-full max-w-md mx-auto px-6 py-8 my-auto">
         <div className="bg-white/92 backdrop-blur-2xl rounded-3xl p-8 sm:p-9 border border-white/80 shadow-[0_20px_60px_rgba(102,5,199,0.09)] transition-all">
-          
+
           {/* Badge */}
-          <div className="flex items-center justify-center mb-5">
+          {/* <div className="flex items-center justify-center mb-5">
             <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold bg-purple-50 text-[#6605c7] border border-purple-200/80 shadow-xs">
               <ShieldCheck className="w-4 h-4 text-[#6605c7]" />
               <span>Higher Officials Portal</span>
             </div>
-          </div>
+          </div> */}
 
           <div className="text-center mb-7">
             <h1 className="text-2xl font-black tracking-tight text-[#1a1626]">

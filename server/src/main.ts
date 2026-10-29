@@ -7,6 +7,11 @@ try {
   // ignore if unsupported
 }
 
+// Validate security-critical secrets before anything else starts.
+// In production this will throw and abort; in dev it prints a warning.
+import { validateRequiredSecrets } from './common/env-validation';
+validateRequiredSecrets();
+
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';

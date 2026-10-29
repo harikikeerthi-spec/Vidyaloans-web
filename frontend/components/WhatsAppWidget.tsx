@@ -11,12 +11,11 @@ export default function WhatsAppWidget() {
     const [showTooltip, setShowTooltip] = useState(false);
 
     useEffect(() => {
-        const timer = setTimeout(() => setIsVisible(true), 1500);
-        const tooltipTimer = setTimeout(() => setShowTooltip(true), 4000);
+        setIsVisible(true);
+        const tooltipTimer = setTimeout(() => setShowTooltip(true), 3000);
         const hideTooltipTimer = setTimeout(() => setShowTooltip(false), 9000);
 
         return () => {
-            clearTimeout(timer);
             clearTimeout(tooltipTimer);
             clearTimeout(hideTooltipTimer);
         };
@@ -30,14 +29,23 @@ export default function WhatsAppWidget() {
         window.open(`https://wa.me/${cleanNumber}?text=${message}`, '_blank');
     };
 
-    // Hide on dashboards and home page
-    const isDashboard = pathname.startsWith('/staff') || pathname.startsWith('/admin') || pathname.startsWith('/bank');
-    const isHomePage = pathname === '/';
+    // Hide on internal portals / dashboards and the home page
+    const isDashboard = Boolean(
+        pathname && (
+            pathname.startsWith('/staff') || 
+            pathname.startsWith('/admin') || 
+            pathname.startsWith('/bank') || 
+            pathname.startsWith('/agent') ||
+            pathname.startsWith('/it') || 
+            pathname.startsWith('/webmail')
+        )
+    );
+    const isHomePage = !pathname || pathname === '/';
 
     if (!isVisible || isDashboard || isHomePage) return null;
 
     return (
-        <div className="fixed bottom-8 right-8 z-[100] flex flex-col items-end gap-3 group">
+        <div className="fixed bottom-5 right-5 sm:bottom-8 sm:right-8 z-[100] flex flex-col items-end gap-3 group">
             {/* Tooltip/Prompt */}
             <div 
                 className={`transition-all duration-500 transform ${showTooltip ? 'translate-x-0 opacity-100' : 'translate-x-10 opacity-0 pointer-events-none'}`}
@@ -71,8 +79,10 @@ export default function WhatsAppWidget() {
 
             {/* Main Button */}
             <button
+                id="floating-whatsapp-btn"
+                aria-label="Chat with VidyaLoans on WhatsApp"
                 onClick={openWhatsApp}
-                className="relative flex items-center justify-center w-16 h-16 rounded-[2rem] bg-[#25D366] text-white shadow-[0_10px_40px_rgba(37,211,102,0.4)] hover:shadow-[0_15px_50px_rgba(37,211,102,0.5)] transition-all hover:-translate-y-1 hover:scale-105 active:scale-95 overflow-hidden"
+                className="relative flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-[2rem] bg-[#25D366] text-white shadow-[0_10px_40px_rgba(37,211,102,0.4)] hover:shadow-[0_15px_50px_rgba(37,211,102,0.5)] transition-all hover:-translate-y-1 hover:scale-105 active:scale-95 overflow-hidden"
             >
                 {/* Shine Animation */}
                 <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/20 to-white/0 -translate-x-full animate-[shimmer_3s_infinite]" />

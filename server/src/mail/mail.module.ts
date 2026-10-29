@@ -16,7 +16,7 @@ import { PrismaModule } from '../prisma/prisma.module';
     AuthModule,
     PrismaModule,
     JwtModule.register({
-      secret: process.env.JWT_SECRET || 'vidyaloans_jwt_secret_key_2026',
+      secret: process.env.JWT_SECRET,
       signOptions: { expiresIn: '7d' },
     }),
   ],

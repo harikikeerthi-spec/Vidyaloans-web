@@ -32,7 +32,7 @@ import { SiteSettingsModule } from '../site-settings/site-settings.module';
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
-        secret: (configService.get<string>('JWT_SECRET') || 'secretKey') as any,
+        secret: configService.get<string>('JWT_SECRET'),
         signOptions: {
           expiresIn: (configService.get<string>('JWT_ACCESS_TOKEN_EXPIRATION') || configService.get<string>('JWT_EXPIRATION') || '24h') as any,
         },

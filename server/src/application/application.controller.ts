@@ -78,7 +78,7 @@ export class ApplicationController {
         let payload: any;
         try {
             payload = this.jwtService.verify(token, {
-                secret: process.env.JWT_SECRET || 'secretKey',
+                secret: process.env.JWT_SECRET,
             });
         } catch {
             res.status(401).json({ error: 'Invalid or expired document token' });

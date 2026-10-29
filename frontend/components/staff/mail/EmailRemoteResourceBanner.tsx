@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { ShieldCheck, ShieldAlert, AlertCircle } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 
 export interface EmailRemoteResourceBannerProps {
     isBlocked: boolean;
@@ -12,7 +12,6 @@ export interface EmailRemoteResourceBannerProps {
 export function EmailRemoteResourceBanner({
     isBlocked,
     onAllow,
-    senderEmail,
 }: EmailRemoteResourceBannerProps) {
     if (!isBlocked) {
         return (

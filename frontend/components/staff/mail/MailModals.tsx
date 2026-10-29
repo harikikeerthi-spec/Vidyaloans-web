@@ -14,23 +14,16 @@ import {
     ZoomOut,
     Filter,
     ArrowRight,
-    ExternalLink,
     Ban,
     Clock,
     PenTool,
     Sliders,
     Palette,
-    Plus,
     Trash2,
-    Calendar,
-    CheckCircle2,
-    AlertCircle,
     Cloud,
-    HardDrive,
     Database,
     Inbox,
-    Send,
-    Server
+    Send
 } from "lucide-react";
 import { MailItemBase, generateEmailSummary } from "./mailUtils";
 
@@ -394,6 +387,7 @@ export function ImageLightboxModal({
 
                 {/* Image display */}
                 <div className="overflow-auto max-h-[80vh] flex items-center justify-center rounded-2xl bg-black/40 p-2">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                         src={imageUrl}
                         alt={filename || "Image"}
@@ -724,12 +718,9 @@ export function OutOfOfficeModal({
     onClose: () => void;
     onSave: (config: { isEnabled: boolean; startDate: string; endDate: string; subject: string; message: string }) => void;
 }) {
-    const today = new Date().toISOString().split("T")[0];
-    const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-
     const [isEnabled, setIsEnabled] = useState(false);
-    const [startDate, setStartDate] = useState(today);
-    const [endDate, setEndDate] = useState(nextWeek);
+    const [startDate, setStartDate] = useState(() => new Date().toISOString().split("T")[0]);
+    const [endDate, setEndDate] = useState(() => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]);
     const [subject, setSubject] = useState("Automatic Reply: I am currently Out of Office");
     const [message, setMessage] = useState(
         "Thank you for contacting VidyaLoans. I am currently out of the office with limited access to email. If your inquiry is urgent regarding a pending education loan application, please contact support@vidyaloans.in or our escalation desk.\n\nWarm regards,\nVidyaLoans Team"
@@ -858,7 +849,7 @@ export function SignaturesModal({
     onClose: () => void;
     onSaveSignature?: (signature: { name: string; html: string; isDefault: boolean }) => void;
 }) {
-    const [name, setName] = useState("Primary Official Signature");
+    const [name] = useState("Primary Official Signature");
     const [title, setTitle] = useState("Relationship Manager");
     const [phone, setPhone] = useState("+91 98765 43210");
     const [department, setDepartment] = useState("Student Lending Desk");
@@ -971,7 +962,7 @@ export function MailRulesModal({
     isOpen: boolean;
     onClose: () => void;
 }) {
-    const [rules, setRules] = useState([
+    const [rules] = useState([
         { id: "1", name: "Flag Disbursal Confirmations", field: "Subject contains 'DISBURSAL'", action: "Star & Apply Green Tag", active: true },
         { id: "2", name: "Route DigiLocker Verifications", field: "From contains 'digilocker'", action: "Move to Dossier/ Folder", active: true },
         { id: "3", name: "Filter Promotional Newsletters", field: "Subject contains 'discount' or 'deal'", action: "Move to Archive", active: true },

@@ -3,6 +3,7 @@ import { UsersService } from './users.service';
 import { AdminGuard } from '../auth/admin.guard';
 import { SuperAdminGuard } from '../auth/super-admin.guard';
 import { StaffGuard } from '../auth/staff.guard';
+import { OwnershipOrStaffGuard } from '../auth/ownership.guard';
 import { EmailService } from '../auth/email.service';
 import { AuditLogService } from '../auth/audit-log.service';
 import * as fs from 'fs';
@@ -48,6 +49,7 @@ export class UsersController {
     ) { }
 
     @Post('profile')
+    @UseGuards(OwnershipOrStaffGuard)
     async getProfile(@Body() body: { email: string }) {
         if (!body || !body.email) {
             return {

@@ -12,8 +12,15 @@ export class EncryptionStorageService {
   private readonly encryptionKey: Buffer;
 
   constructor() {
-    // 32-byte key derived from env or generated for fallback
-    const keyEnv = process.env.STATEMENT_ENCRYPTION_KEY || 'vidya_loans_statement_secure_vault_key_2026_aes256';
+    // 32-byte key derived from env (validated at startup by env-validation.ts)
+    const keyEnv = process.env.STATEMENT_ENCRYPTION_KEY;
+    if (!keyEnv || keyEnv.trim() === '') {
+      throw new Error(
+        'FATAL: STATEMENT_ENCRYPTION_KEY environment variable is missing. ' +
+        'Set it in your .env file or environment before starting the server. ' +
+        'Generate with: openssl rand -base64 48',
+      );
+    }
     this.encryptionKey = crypto.createHash('sha256').update(keyEnv).digest();
 
     // Ensure storage directories exist with restricted permissions

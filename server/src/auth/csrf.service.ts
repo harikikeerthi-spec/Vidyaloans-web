@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { doubleCsrf, DoubleCsrfUtilities } from 'csrf-csrf';
 import { Request, Response } from 'express';
 
-const csrfSecret = process.env.CSRF_SECRET || 'vidyaloans_secure_csrf_secret_key_change_in_prod_2026';
+const csrfSecret = process.env.CSRF_SECRET;
 
 export const doubleCsrfUtilities: DoubleCsrfUtilities = doubleCsrf({
   getSecret: () => csrfSecret,

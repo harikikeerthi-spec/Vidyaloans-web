@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
+import { useSiteSettings } from "@/contexts/SiteSettingsContext";
 
 interface FAQItem {
     id: string;
@@ -98,9 +99,16 @@ const CATEGORIES = [
 ];
 
 export default function FAQPage() {
+    const { settings } = useSiteSettings();
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedCategory, setSelectedCategory] = useState("all");
     const [expandedId, setExpandedId] = useState<string | null>("gen-1");
+
+    const rawNumber = settings?.whatsappNumber || process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || process.env.NEXT_PUBLIC_AWS_WHATSAPP_NUMBER || '+918143797779';
+    const cleanNumber = rawNumber.replace(/[^0-9]/g, '');
+    const siteName = settings?.siteName || "VidyaLoans";
+    const prefilledMessage = encodeURIComponent(`Hi ${siteName} team! I have a question regarding education loans and would like to speak with an advisor.`);
+    const whatsappUrl = `https://wa.me/${cleanNumber}?text=${prefilledMessage}`;
 
     // Filter FAQs based on category and search query
     const filteredFAQs = useMemo(() => {
@@ -255,7 +263,7 @@ export default function FAQPage() {
                         </Link>
                         
                         <a
-                            href="https://wa.me/14155238886"
+                            href={whatsappUrl}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="px-8 py-3.5 bg-white text-emerald-600 border border-gray-100 rounded-full font-extrabold text-[11px] uppercase tracking-widest shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all flex items-center gap-2 cursor-pointer select-none"

@@ -24,7 +24,7 @@ import { AssignmentModule } from '../assignment/assignment.module';
     AuthModule,
     AssignmentModule,
     JwtModule.register({
-      secret: process.env.JWT_SECRET || 'secretKey',
+      secret: process.env.JWT_SECRET,
       signOptions: { expiresIn: '7d' },
     }),
   ],
