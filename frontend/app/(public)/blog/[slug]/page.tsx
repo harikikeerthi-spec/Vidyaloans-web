@@ -337,13 +337,52 @@ export default async function BlogPostPage({ params }: Props) {
 
         {/* Article Body Content */}
         <div className="max-w-3xl mx-auto px-6">
+          <style dangerouslySetInnerHTML={{ __html: `
+            .blog-prose-content a:not(.blog-btn):not(.btn-submit-inquiry):not(.btn-reset-inquiry) {
+              color: #2563eb !important;
+              font-weight: 700 !important;
+              text-decoration: underline !important;
+              text-underline-offset: 4px !important;
+              text-decoration-thickness: 2px !important;
+              text-decoration-color: #60a5fa !important;
+              background-color: rgba(239, 246, 255, 0.9) !important;
+              padding: 2px 7px !important;
+              border-radius: 6px !important;
+              box-shadow: 0 1px 2px rgba(37, 99, 235, 0.08) !important;
+              transition: all 0.2s ease !important;
+              display: inline !important;
+            }
+            .blog-prose-content a:not(.blog-btn):not(.btn-submit-inquiry):not(.btn-reset-inquiry):hover {
+              color: #1d4ed8 !important;
+              text-decoration-color: #2563eb !important;
+              background-color: #dbeafe !important;
+              box-shadow: 0 2px 4px rgba(37, 99, 235, 0.16) !important;
+            }
+            .blog-prose-content a:not(.blog-btn):not(.btn-submit-inquiry):not(.btn-reset-inquiry)::after {
+              content: " \\2197";
+              font-size: 0.8em;
+              font-weight: 900;
+              opacity: 0.85;
+              display: inline-block;
+              margin-left: 2px;
+            }
+            .blog-toc a::after {
+              content: none !important;
+            }
+            .blog-toc a {
+              background-color: transparent !important;
+              padding: 0 !important;
+              box-shadow: none !important;
+              display: flex !important;
+            }
+          `}} />
           <div
-            className="prose prose-lg prose-indigo max-w-none 
+            className="prose prose-lg prose-indigo max-w-none blog-prose-content
               prose-headings:font-display prose-headings:font-black prose-headings:tracking-tight
               prose-p:text-slate-700 prose-p:leading-relaxed
               prose-strong:text-slate-900 prose-strong:font-bold
               prose-img:rounded-2xl prose-img:shadow-md
-              prose-a:text-indigo-600 prose-a:font-bold prose-a:no-underline hover:prose-a:underline"
+              prose-a:text-blue-600 prose-a:font-bold prose-a:underline prose-a:underline-offset-4 prose-a:decoration-2 prose-a:decoration-blue-400 hover:prose-a:decoration-blue-700 hover:prose-a:text-blue-800 prose-a:bg-blue-50/90 prose-a:px-1.5 prose-a:py-0.5 prose-a:rounded-md hover:prose-a:bg-blue-100 prose-a:transition-all prose-a:shadow-2xs"
             dangerouslySetInnerHTML={{ __html: sanitizeHtml(blog.content || "") }}
           />
 

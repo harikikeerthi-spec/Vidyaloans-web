@@ -375,7 +375,7 @@ export const RichTextBlock = React.memo(function RichTextBlock({
         textAlign: block.style?.textAlign,
         color: block.style?.color,
       }}
-      className="min-h-[80px] text-base leading-relaxed text-slate-800 focus:outline-none p-3.5 rounded-xl border border-slate-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 bg-white transition-all shadow-2xs [&_*[style*='255, 255, 255']]:!text-slate-800 [&_*[style*='255,255,255']]:!text-slate-800 [&_*[style*='#ffffff']]:!text-slate-800 [&_*[style*='#fff']]:!text-slate-800"
+      className="min-h-[80px] text-base leading-relaxed text-slate-800 focus:outline-none p-3.5 rounded-xl border border-slate-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 bg-white transition-all shadow-2xs [&_*[style*='255, 255, 255']]:!text-slate-800 [&_*[style*='255,255,255']]:!text-slate-800 [&_*[style*='#ffffff']]:!text-slate-800 [&_*[style*='#fff']]:!text-slate-800 [&_a]:text-blue-600 [&_a]:font-bold [&_a]:underline [&_a]:underline-offset-4 [&_a]:decoration-2 [&_a]:decoration-blue-500 [&_a]:bg-blue-50/90 [&_a]:px-1.5 [&_a]:py-0.5 [&_a]:rounded-md hover:[&_a]:bg-blue-100 hover:[&_a]:text-blue-800 hover:[&_a]:decoration-blue-700 [&_a]:transition-all [&_a]:shadow-2xs"
     />
   );
 });

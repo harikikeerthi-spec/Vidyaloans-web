@@ -12,7 +12,7 @@ export default function Footer() {
     const tagline = settings?.tagline || "Empowering students with transparent, flexible, and accessible education financing solutions worldwide.";
     const supportEmail = settings?.supportEmail || "support@vidyaloans.in";
     const phone = settings?.phone || "+91 8143797779";
-    const copyrightText = settings?.copyrightText || `© ${new Date().getFullYear()} ${siteName} Inc. All rights reserved.`;
+    const copyrightText = settings?.copyrightText || `© ${new Date().getFullYear()} ${siteName}® Inc. All rights reserved.`;
 
     return (
         <footer className="bg-[#0c0714] text-white relative overflow-hidden">
@@ -34,7 +34,10 @@ export default function Footer() {
                                 height={40}
                                 className="w-10 h-10 object-contain"
                             />
-                            <span className="text-xl font-bold font-display tracking-tight text-white">{siteName}</span>
+                            <span className="text-xl font-bold font-display tracking-tight text-white flex items-center">
+                                {siteName}
+                                <sup className="text-[10px] font-semibold text-purple-400 ml-0.5">®</sup>
+                            </span>
                         </Link>
                         <p className="text-gray-400 text-[13px] leading-relaxed mb-8 max-w-xs font-normal">
                             {tagline}
@@ -71,7 +74,7 @@ export default function Footer() {
 
                     {/* About VidyaLoans */}
                     <div className="lg:col-span-2">
-                        <h4 className="text-[11px] font-bold uppercase tracking-[0.1em] text-white mb-4">About VidyaLoans</h4>
+                        <h4 className="text-[11px] font-bold uppercase tracking-[0.1em] text-white mb-4">About VidyaLoans®</h4>
                         <ul className="space-y-0.5 text-[13px]">
                             <FooterLink href="/about-us" label="Our Story" />
                             <FooterLink href="/how-it-works" label="How It Works" />
@@ -132,12 +135,12 @@ export default function Footer() {
                 {/* Bottom Bar */}
                 <div className="pt-8 border-t border-white/[0.06]">
                     <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-                        <p className="text-[11px] text-gray-500 order-3 md:order-1 font-normal opacity-80">
-                            {copyrightText}
-                        </p>
+                            <p suppressHydrationWarning className="text-[11px] text-gray-500 order-3 md:order-1 font-normal opacity-80">
+                                {copyrightText}
+                            </p>
 
-                        {/* Made in India */}
-                        {/* <p className="text-[11px] text-gray-400 order-2 md:order-3 flex items-center gap-1.5 font-normal opacity-80">
+                            {/* Made in India */}
+                            {/* <p className="text-[11px] text-gray-400 order-2 md:order-3 flex items-center gap-1.5 font-normal opacity-80">
                             Made with <span className="text-red-400/80">❤</span> in India for students worldwide
                         </p> */}
                     </div>

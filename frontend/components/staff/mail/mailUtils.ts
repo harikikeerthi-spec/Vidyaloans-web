@@ -131,6 +131,28 @@ export function formatOutlookDate(dateStr: string): string {
     }
 }
 
+/** Get dynamic relative time (e.g. "Just now", "5m ago", "2h ago", "Yesterday", "3d ago") */
+export function getRelativeTimeAgo(dateStr: string): string {
+    if (!dateStr) return "";
+    try {
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return "";
+        const now = new Date();
+        const diffSec = Math.floor((now.getTime() - d.getTime()) / 1000);
+        if (diffSec < 60) return "Just now";
+        const diffMin = Math.floor(diffSec / 60);
+        if (diffMin < 60) return `${diffMin}m ago`;
+        const diffHours = Math.floor(diffMin / 60);
+        if (diffHours < 24) return `${diffHours}h ago`;
+        const diffDays = Math.floor(diffHours / 24);
+        if (diffDays === 1) return "Yesterday";
+        if (diffDays < 7) return `${diffDays}d ago`;
+        return format(d, "d MMM yyyy");
+    } catch {
+        return "";
+    }
+}
+
 /** Export email as standard RFC 822 .eml file */
 export function exportEmailToEml(email: MailItemBase) {
     try {

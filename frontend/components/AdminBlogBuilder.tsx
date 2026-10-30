@@ -5,9 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { adminApi, blogApi } from "@/lib/api";
-import { cleanHtmlContent, RichTextBlock, TEXT_COLORS, FONT_SIZES, FONT_FAMILIES } from "./DynamicBlogEditor";
+import { cleanHtmlContent, RichTextBlock, TEXT_COLORS, FONT_SIZES, FONT_FAMILIES, TableData } from "./DynamicBlogEditor";
 
-type BlockType = "heading" | "container" | "split_content" | "registration_form" | "text" | "image" | "video" | "button" | "list" | "quote" | "code" | "divider" | "spacer" | "tags";
+type BlockType = "heading" | "container" | "split_content" | "registration_form" | "text" | "image" | "video" | "button" | "list" | "quote" | "code" | "divider" | "spacer" | "tags" | "table" | "table_of_contents";
 
 export interface FormFieldConfig {
     id: string;
@@ -69,6 +69,7 @@ interface Block {
     id: string;
     type: BlockType;
     content: string;
+    title?: string;
     level?: 1 | 2 | 3 | 4 | 5 | 6;
     // List specific
     listType?: "unordered" | "ordered";
@@ -82,6 +83,7 @@ interface Block {
     buttonIcon?: string;
     splitConfig?: SplitConfig;
     formConfig?: FormConfig;
+    tableData?: TableData;
     // Media specific (Image / Video)
     mediaMode?: "url" | "upload";
     fileName?: string;
@@ -156,6 +158,7 @@ export const HEADING_LEVELS: HeadingLevelInfo[] = [
 
 const ELEMENT_TYPES: { type: BlockType; label: string; icon: string; color: string; desc: string; defaultLayout?: SplitConfig["layoutType"]; defaultListType?: "unordered" | "ordered" }[] = [
     { type: "heading", label: "Heading (H1 - H6)", icon: "title", color: "blue", desc: "Add H1, H2, H3, H4, H5, or H6" },
+    { type: "table_of_contents", label: "Table of Contents", icon: "toc", color: "indigo", desc: "Dynamic jump-links generated from headings" },
     { type: "registration_form", label: "Separate Register Form", icon: "how_to_reg", color: "emerald", desc: "Standalone customizable student inquiry/lead form" },
     { type: "split_content", label: "Split 2-Column", icon: "view_column", color: "indigo", desc: "Left/right matter or image & text" },
     { type: "split_content", label: "Content + Register Form", icon: "contact_mail", color: "purple", desc: "One side content, one side form", defaultLayout: "content_form" },
@@ -170,6 +173,7 @@ const ELEMENT_TYPES: { type: BlockType; label: string; icon: string; color: stri
     { type: "code", label: "Code Block", icon: "code", color: "gray", desc: "Drag to add code" },
     { type: "divider", label: "Divider", icon: "horizontal_rule", color: "pink", desc: "Drag to add divider" },
     { type: "spacer", label: "Spacer", icon: "unfold_more", color: "cyan", desc: "Drag to add spacing" },
+    { type: "table", label: "Data Table / Grid", icon: "table_chart", color: "indigo", desc: "Interactive comparison table with rows & columns" },
     { type: "tags", label: "Tags Cloud", icon: "label", color: "purple", desc: "Drag to add tags" },
 ];
 
@@ -192,6 +196,7 @@ const TEMPLATES = [
     { id: "basic", name: "Basic Article", desc: "Title + Image + Text" },
     { id: "multimedia", name: "Multimedia", desc: "Images + Videos + CTA" },
     { id: "tutorial", name: "Tutorial", desc: "Steps + Screenshots" },
+    { id: "comparison", name: "Comparison Matrix", desc: "Headings + Table + CTA" },
 ];
 
 interface AdminBlogBuilderProps {
@@ -417,6 +422,50 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                     } else if (tag === "video" || el.querySelector("video")) {
                         const vid = tag === "video" ? (el as HTMLVideoElement) : (el.querySelector("video") as HTMLVideoElement);
                         parsedBlocks.push({ id: bId, type: "video", content: vid?.getAttribute("src") || "" });
+                    } else if (tag === "table" || el.querySelector("table")) {
+                        const tbl = tag === "table" ? (el as HTMLTableElement) : (el.querySelector("table") as HTMLTableElement);
+                        const thEls = Array.from(tbl.querySelectorAll("thead th"));
+                        let headers = thEls.map((th) => th.textContent?.trim() || "");
+                        const trEls = Array.from(tbl.querySelectorAll("tbody tr"));
+                        let rows: string[][] = [];
+                        if (trEls.length > 0) {
+                            rows = trEls.map((tr) => Array.from(tr.querySelectorAll("td")).map((td) => td.textContent?.trim() || ""));
+                        } else {
+                            const allTrs = Array.from(tbl.querySelectorAll("tr"));
+                            if (headers.length === 0 && allTrs.length > 0) {
+                                const firstTr = allTrs[0];
+                                const ths = Array.from(firstTr.querySelectorAll("th"));
+                                if (ths.length > 0) {
+                                    headers = ths.map((th) => th.textContent?.trim() || "");
+                                    rows = allTrs.slice(1).map((tr) => Array.from(tr.querySelectorAll("td")).map((td) => td.textContent?.trim() || ""));
+                                } else {
+                                    rows = allTrs.map((tr) => Array.from(tr.querySelectorAll("td")).map((td) => td.textContent?.trim() || ""));
+                                }
+                            }
+                        }
+                        if (headers.length === 0 && rows.length > 0) {
+                            headers = rows[0].map((_, i) => `Column ${i + 1}`);
+                        }
+                        parsedBlocks.push({
+                            id: bId,
+                            type: "table",
+                            content: "Data Table",
+                            tableData: {
+                                headers: headers.length > 0 ? headers : ["Column 1", "Column 2"],
+                                rows: rows.length > 0 ? rows : [["", ""]],
+                                hasHeader: headers.length > 0,
+                                isStriped: true,
+                            },
+                        });
+                    } else if (tag === "nav" || el.classList.contains("blog-toc") || el.querySelector(".blog-toc")) {
+                        const navEl = tag === "nav" ? el : el.querySelector("nav") || el;
+                        const headingText = navEl.querySelector("span:last-child")?.textContent?.trim() || "In This Comprehensive Guide";
+                        parsedBlocks.push({
+                            id: bId,
+                            type: "table_of_contents",
+                            content: headingText,
+                            title: headingText,
+                        });
                     } else {
                         parsedBlocks.push({ id: bId, type: "text", content: el.innerHTML || el.textContent || "" });
                     }
@@ -459,6 +508,8 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                 bodyText += " " + (b.content || "");
             } else if (b.type === "image") {
                 imageCount++;
+            } else if (b.type === "table" && b.tableData) {
+                bodyText += ` ${(b.tableData.headers || []).join(" ")} ${(b.tableData.rows || []).flat().join(" ")}`;
             } else if (b.type === "split_content" && b.splitConfig) {
                 bodyText += ` ${b.splitConfig.leftTitle || ""} ${b.splitConfig.leftContent || ""} ${b.splitConfig.rightTitle || ""} ${b.splitConfig.rightContent || ""}`;
                 if (b.splitConfig.leftImageUrl) imageCount++;
@@ -1272,6 +1323,19 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
             divider: "",
             spacer: "",
             tags: "EducationLoan, StudyAbroad, FastApproval",
+            table: "Data Table",
+            table_of_contents: "In This Comprehensive Guide",
+        };
+
+        const defaultTableData: TableData = {
+            headers: ["Parameter", "Public Sector Banks", "Private NBFCs"],
+            rows: [
+                ["Max Collateral-Free", "Up to ₹7.5 Lakhs", "Up to ₹75 Lakhs"],
+                ["Interest Rate Range", "8.25% - 9.50%", "9.75% - 11.50%"],
+                ["Turnaround Time", "15 - 25 Days", "3 - 5 Days"],
+            ],
+            hasHeader: true,
+            isStriped: true,
         };
 
         const defaultSplitConfig: SplitConfig = {
@@ -1328,8 +1392,10 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
             buttonSize: type === "button" ? "md" : undefined,
             buttonAlign: type === "button" ? "center" : undefined,
             content: defaults[type],
+            title: type === "table_of_contents" ? "In This Comprehensive Guide" : undefined,
             splitConfig: (type === "split_content" || type === "container") ? defaultSplitConfig : undefined,
             formConfig: type === "registration_form" ? defaultFormConfig : undefined,
+            tableData: type === "table" ? defaultTableData : undefined,
             style: type === "image" ? {
                 aspectRatio: "16/9",
                 maxHeight: "380px",
@@ -2077,6 +2143,13 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                 createBlock("divider"),
                 createBlock("text"),
             ];
+        } else if (templateId === "comparison") {
+            templateBlocks = [
+                createBlock("heading", undefined, 2),
+                createBlock("text"),
+                createBlock("table"),
+                createBlock("button"),
+            ];
         }
         setBlocks(templateBlocks);
         setSaveStatus("Unsaved");
@@ -2206,19 +2279,49 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                     switch (b.type) {
                         case "heading": {
                             const lvl = (b.level || 2) as 1 | 2 | 3 | 4 | 5 | 6;
+                            const hId = (b.content || "")
+                                .toLowerCase()
+                                .replace(/[^a-z0-9]+/g, "-")
+                                .replace(/(^-|-$)/g, "");
                             const levelStyles: Record<number, string> = {
-                                1: "text-4xl font-black mt-8 mb-4 tracking-tight text-slate-900",
-                                2: "text-3xl font-extrabold mt-8 mb-4 tracking-tight text-slate-900",
-                                3: "text-2xl font-bold mt-6 mb-3 tracking-tight text-slate-800",
-                                4: "text-xl font-bold mt-5 mb-2 text-slate-800",
-                                5: "text-lg font-semibold mt-4 mb-2 text-slate-700",
-                                6: "text-base font-semibold mt-4 mb-2 uppercase tracking-wider text-slate-600",
+                                1: "text-4xl font-black mt-8 mb-4 tracking-tight text-slate-900 scroll-mt-24",
+                                2: "text-3xl font-extrabold mt-8 mb-4 tracking-tight text-slate-900 scroll-mt-24",
+                                3: "text-2xl font-bold mt-6 mb-3 tracking-tight text-slate-800 scroll-mt-24",
+                                4: "text-xl font-bold mt-5 mb-2 text-slate-800 scroll-mt-24",
+                                5: "text-lg font-semibold mt-4 mb-2 text-slate-700 scroll-mt-24",
+                                6: "text-base font-semibold mt-4 mb-2 uppercase tracking-wider text-slate-600 scroll-mt-24",
                             };
                             const cls = levelStyles[lvl] || levelStyles[2];
-                            return `<h${lvl} class="${cls}">${b.content}</h${lvl}>`;
+                            return `<h${lvl} id="${hId}" class="${cls}">${b.content}</h${lvl}>`;
                         }
-                        case "text":
-                            return `<p class="text-lg leading-relaxed text-gray-700 mb-4">${b.content}</p>`;
+                        case "table_of_contents": {
+                            const headings = blocks
+                                .filter((item) => item.type === "heading" && item.content?.trim())
+                                .map((item) => {
+                                    const lvl = item.level || 2;
+                                    const hId = (item.content || "")
+                                        .toLowerCase()
+                                        .replace(/[^a-z0-9]+/g, "-")
+                                        .replace(/(^-|-$)/g, "");
+                                    return { title: item.content, level: lvl, id: hId };
+                                });
+
+                            const itemsHtml = headings.length > 0
+                                ? headings
+                                    .map(
+                                        (h, idx) =>
+                                            `<li class="py-1.5" style="padding-left: ${(h.level - 1) * 16}px"><a href="#${h.id}" class="text-indigo-600 hover:text-indigo-800 font-semibold text-sm transition-colors flex items-center gap-2 group"><span class="text-xs text-slate-400 font-mono group-hover:text-indigo-600">${idx + 1}.</span><span class="group-hover:underline underline-offset-2">${h.title}</span></a></li>`
+                                    )
+                                    .join("")
+                                : `<li class="text-xs text-slate-400 italic">No headings yet. Add section headings to populate this Table of Contents.</li>`;
+
+                            return `<nav class="blog-toc my-8 p-6 md:p-8 bg-gradient-to-br from-indigo-50/70 via-slate-50 to-purple-50/40 rounded-3xl border border-indigo-100 shadow-sm not-prose"><div class="flex items-center gap-2.5 text-indigo-950 font-black text-sm uppercase tracking-wider mb-4 pb-3 border-b border-indigo-100/80"><span class="material-symbols-outlined text-indigo-600 text-xl">toc</span><span>${b.title || b.content || "In This Comprehensive Guide"}</span></div><ul class="space-y-1 list-none pl-0 mb-0">${itemsHtml}</ul></nav>`;
+                        }
+                        case "text": {
+                            let textContent = b.content || "";
+                            textContent = textContent.replace(/<a\b(?![^>]*class=)([^>]*)>/gi, '<a class="blog-hyperlink text-blue-600 font-bold underline underline-offset-4 decoration-2 decoration-blue-500 bg-blue-50/80 px-1.5 py-0.5 rounded-md hover:bg-blue-100 hover:text-blue-800 transition-all" target="_blank" rel="noopener noreferrer"$1>');
+                            return `<div class="text-lg leading-relaxed text-slate-700 my-4">${textContent}</div>`;
+                        }
                         case "image": {
                             const st = b.style || {};
                             const aspect = st.aspectRatio && st.aspectRatio !== "auto" ? `aspect-ratio: ${st.aspectRatio};` : "";
@@ -2279,6 +2382,28 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                 .map((item) => `<li class="py-0.5 leading-relaxed">${item}</li>`)
                                 .join("");
                             return `<${tag} class="${listClass} my-4">${items}</${tag}>`;
+                        }
+                        case "table": {
+                            const td = b.tableData || {
+                                headers: ["Parameter", "Public Sector Banks", "Private NBFCs"],
+                                rows: [
+                                    ["Max Collateral-Free", "Up to ₹7.5 Lakhs", "Up to ₹75 Lakhs"],
+                                    ["Interest Rate Range", "8.25% - 9.50%", "9.75% - 11.50%"],
+                                    ["Turnaround Time", "15 - 25 Days", "3 - 5 Days"],
+                                ],
+                                hasHeader: true,
+                                isStriped: true,
+                            };
+                            const headerMarkup = td.hasHeader
+                                ? `<thead class="bg-slate-100 text-slate-800 text-xs font-bold uppercase tracking-wider"><tr>${td.headers.map((h) => `<th class="px-5 py-3.5 text-left border-b border-slate-200">${h}</th>`).join("")}</tr></thead>`
+                                : "";
+                            const rowsMarkup = td.rows
+                                .map((row, rIdx) => {
+                                    const bg = td.isStriped && rIdx % 2 === 1 ? "bg-slate-50/60" : "bg-white";
+                                    return `<tr class="${bg} hover:bg-slate-50 transition-colors">${row.map((c) => `<td class="px-5 py-3.5 text-slate-700 text-sm border-b border-slate-100 font-medium">${c}</td>`).join("")}</tr>`;
+                                })
+                                .join("");
+                            return `<div class="my-8 overflow-x-auto rounded-2xl border border-slate-200 shadow-xs"><table class="min-w-full text-left border-collapse">${headerMarkup}<tbody>${rowsMarkup}</tbody></table></div>`;
                         }
                         case "quote":
                             return `<blockquote class="border-l-4 border-purple-500 pl-6 py-4 text-xl text-gray-600 my-8 bg-purple-50 rounded-r-xl">"${b.content}"</blockquote>`;
@@ -2913,19 +3038,26 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                     onMouseDown={(e) => e.preventDefault()}
                                     onClick={() => {
                                         saveSelection();
-                                        const url = prompt("Enter hyperlink URL:", "https://");
+                                        const url = prompt("Enter hyperlink destination URL (e.g. https://example.com):", "https://");
                                         if (url) {
                                             restoreSelection(block.id);
                                             document.execCommand("createLink", false, url);
                                             if (editorRefs.current[block.id]) {
+                                                const anchors = editorRefs.current[block.id]?.querySelectorAll("a");
+                                                anchors?.forEach((a) => {
+                                                    a.setAttribute("target", "_blank");
+                                                    a.setAttribute("rel", "noopener noreferrer");
+                                                    a.setAttribute("title", `Navigate to: ${a.getAttribute("href") || url}`);
+                                                    a.classList.add("blog-hyperlink");
+                                                });
                                                 updateBlock(block.id, editorRefs.current[block.id]?.innerHTML || "");
                                             }
                                         }
                                     }}
-                                    className="px-2.5 py-1 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg cursor-pointer border border-indigo-200 shadow-2xs transition-colors flex items-center gap-1"
-                                    title="Add Hyperlink"
+                                    className="px-2.5 py-1 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg cursor-pointer border border-blue-200 shadow-2xs transition-colors flex items-center gap-1"
+                                    title="Add Clickable Hyperlink"
                                 >
-                                    <span>🔗 Link</span>
+                                    <span>🔗 Hyperlink</span>
                                 </button>
 
                                 {/* Clean Formatting Button */}
@@ -2947,35 +3079,37 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                         </div>
 
                         {/* ContentEditable Live Dynamic Editor with Cursor Jump Protection & Live Range Sync */}
-                        <RichTextBlock
-                            block={block as any}
-                            onUpdateContent={(content) => updateBlock(block.id, content)}
-                            onPaste={(e) => {
-                                e.preventDefault();
-                                const html = e.clipboardData.getData("text/html");
-                                const text = e.clipboardData.getData("text/plain");
-                                if (html) {
-                                    const cleaned = cleanHtmlContent(html);
-                                    if (cleaned) {
-                                        try {
-                                            document.execCommand("insertHTML", false, cleaned);
-                                        } catch (_) {
+                        <div className="[&_a]:text-blue-600 [&_a]:font-bold [&_a]:underline [&_a]:underline-offset-4 [&_a]:decoration-2 [&_a]:decoration-blue-500 [&_a]:bg-blue-50/90 [&_a]:px-1.5 [&_a]:py-0.5 [&_a]:rounded-md hover:[&_a]:bg-blue-100 hover:[&_a]:text-blue-800 [&_a]:transition-all [&_a]:inline-block [&_a:after]:content-['\00a0↗'] [&_a:after]:text-[11px] [&_a:after]:font-bold [&_a:after]:opacity-85">
+                            <RichTextBlock
+                                block={block as any}
+                                onUpdateContent={(content) => updateBlock(block.id, content)}
+                                onPaste={(e) => {
+                                    e.preventDefault();
+                                    const html = e.clipboardData.getData("text/html");
+                                    const text = e.clipboardData.getData("text/plain");
+                                    if (html) {
+                                        const cleaned = cleanHtmlContent(html);
+                                        if (cleaned) {
+                                            try {
+                                                document.execCommand("insertHTML", false, cleaned);
+                                            } catch (_) {
+                                                document.execCommand("insertText", false, text);
+                                            }
+                                        } else {
                                             document.execCommand("insertText", false, text);
                                         }
-                                    } else {
+                                    } else if (text) {
                                         document.execCommand("insertText", false, text);
                                     }
-                                } else if (text) {
-                                    document.execCommand("insertText", false, text);
-                                }
-                                const target = e.currentTarget;
-                                setTimeout(() => {
-                                    updateBlock(block.id, target.innerHTML || "");
-                                }, 0);
-                            }}
-                            registerRef={(el) => { editorRefs.current[block.id] = el; }}
-                            onSaveSelection={saveSelection}
-                        />
+                                    const target = e.currentTarget;
+                                    setTimeout(() => {
+                                        updateBlock(block.id, target.innerHTML || "");
+                                    }, 0);
+                                }}
+                                registerRef={(el) => { editorRefs.current[block.id] = el; }}
+                                onSaveSelection={saveSelection}
+                            />
+                        </div>
                     </div>
                 );
             }
@@ -4207,6 +4341,578 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                             onChange={(e) => updateBlock(block.id, e.target.value)}
                             className="w-full text-xs px-3 py-1.5 bg-white border border-purple-200 rounded-lg text-slate-800 focus:outline-none"
                         />
+                    </div>
+                );
+            }
+            case "table": {
+                const td = block.tableData || {
+                    headers: ["Feature / Parameter", "Public Sector Banks", "Private NBFCs"],
+                    rows: [
+                        ["Collateral-Free Limit", "Up to ₹7.5 Lakhs", "Up to ₹75 Lakhs"],
+                        ["Interest Rate Range", "8.25% - 9.50%", "9.75% - 11.50%"],
+                        ["Turnaround Time", "15 - 25 Days", "3 - 5 Days"],
+                    ],
+                    hasHeader: true,
+                    isStriped: true,
+                };
+
+                const headers = Array.isArray(td.headers) && td.headers.length > 0 ? td.headers : ["Column 1", "Column 2"];
+                const rows = Array.isArray(td.rows) ? td.rows : [["", ""]];
+                const hasHeader = td.hasHeader !== false;
+                const isStriped = !!td.isStriped;
+
+                const addColumn = (insertAfterIdx?: number) => {
+                    const newColName = `Column ${headers.length + 1}`;
+                    let newHeaders: string[];
+                    let newRows: string[][];
+
+                    if (typeof insertAfterIdx === "number" && insertAfterIdx >= 0) {
+                        newHeaders = [...headers];
+                        newHeaders.splice(insertAfterIdx + 1, 0, newColName);
+                        newRows = rows.map((r) => {
+                            const newR = Array.isArray(r) ? [...r] : [];
+                            newR.splice(insertAfterIdx + 1, 0, "");
+                            return newR;
+                        });
+                    } else {
+                        newHeaders = [...headers, newColName];
+                        newRows = rows.map((r) => [...(Array.isArray(r) ? r : []), ""]);
+                    }
+
+                    updateBlockProperties(block.id, {
+                        tableData: { ...td, headers: newHeaders, rows: newRows },
+                    });
+                };
+
+                const removeColumn = (colIdx: number) => {
+                    if (headers.length <= 1) {
+                        alert("Table must have at least 1 column.");
+                        return;
+                    }
+                    const newHeaders = headers.filter((_, idx) => idx !== colIdx);
+                    const newRows = rows.map((r) => (Array.isArray(r) ? r.filter((_, idx) => idx !== colIdx) : []));
+                    updateBlockProperties(block.id, {
+                        tableData: { ...td, headers: newHeaders, rows: newRows },
+                    });
+                };
+
+                const moveColumn = (colIdx: number, direction: "left" | "right") => {
+                    const targetIdx = direction === "left" ? colIdx - 1 : colIdx + 1;
+                    if (targetIdx < 0 || targetIdx >= headers.length) return;
+                    const newHeaders = [...headers];
+                    const tempH = newHeaders[colIdx];
+                    newHeaders[colIdx] = newHeaders[targetIdx];
+                    newHeaders[targetIdx] = tempH;
+
+                    const newRows = rows.map((r) => {
+                        const newR = Array.isArray(r) ? [...r] : [];
+                        while (newR.length < headers.length) newR.push("");
+                        const tempC = newR[colIdx];
+                        newR[colIdx] = newR[targetIdx];
+                        newR[targetIdx] = tempC;
+                        return newR;
+                    });
+
+                    updateBlockProperties(block.id, {
+                        tableData: { ...td, headers: newHeaders, rows: newRows },
+                    });
+                };
+
+                const addRow = (insertIdx?: number) => {
+                    const newRow = new Array(headers.length).fill("");
+                    const newRows = [...rows];
+                    if (typeof insertIdx === "number") {
+                        newRows.splice(insertIdx + 1, 0, newRow);
+                    } else {
+                        newRows.push(newRow);
+                    }
+                    updateBlockProperties(block.id, {
+                        tableData: { ...td, rows: newRows },
+                    });
+                };
+
+                const duplicateRow = (rIdx: number) => {
+                    const source = Array.isArray(rows[rIdx]) ? [...rows[rIdx]] : new Array(headers.length).fill("");
+                    const newRows = [...rows];
+                    newRows.splice(rIdx + 1, 0, source);
+                    updateBlockProperties(block.id, {
+                        tableData: { ...td, rows: newRows },
+                    });
+                };
+
+                const removeRow = (rIdx: number) => {
+                    if (rows.length <= 1) {
+                        alert("Table must have at least 1 row.");
+                        return;
+                    }
+                    const newRows = rows.filter((_, idx) => idx !== rIdx);
+                    updateBlockProperties(block.id, {
+                        tableData: { ...td, rows: newRows },
+                    });
+                };
+
+                const moveRow = (rIdx: number, direction: "up" | "down") => {
+                    const targetIdx = direction === "up" ? rIdx - 1 : rIdx + 1;
+                    if (targetIdx < 0 || targetIdx >= rows.length) return;
+                    const newRows = [...rows];
+                    const temp = newRows[rIdx];
+                    newRows[rIdx] = newRows[targetIdx];
+                    newRows[targetIdx] = temp;
+                    updateBlockProperties(block.id, {
+                        tableData: { ...td, rows: newRows },
+                    });
+                };
+
+                const applyPreset = (preset: "comparison" | "fees" | "eligibility" | "documents") => {
+                    if (preset === "comparison") {
+                        updateBlockProperties(block.id, {
+                            tableData: {
+                                headers: ["Lender / Bank", "Max Collateral-Free", "Floating Rate", "Sanction Speed"],
+                                rows: [
+                                    ["HDFC Credila", "Up to ₹75 Lakhs", "9.75% - 11.25%", "3 - 5 Working Days"],
+                                    ["IDFC FIRST Bank", "Up to ₹50 Lakhs", "9.25% - 10.50%", "48-Hour Fast Track"],
+                                    ["Avanse Financial", "Up to ₹75 Lakhs", "10.25% - 12.00%", "3 Working Days"],
+                                    ["SBI Global Ed-Vantage", "Up to ₹1.5 Cr (Secured)", "8.50% - 9.15%", "10 - 14 Days"],
+                                ],
+                                hasHeader: true,
+                                isStriped: true,
+                            },
+                        });
+                    } else if (preset === "fees") {
+                        updateBlockProperties(block.id, {
+                            tableData: {
+                                headers: ["Fee Component", "Public Sector Banks", "Private NBFCs", "VidyaLoan Advantage"],
+                                rows: [
+                                    ["Processing Fee", "1.0% - 1.5%", "1.5% - 2.0%", "Up to 50% Concession"],
+                                    ["Origination Charges", "Nil", "₹5,000 - ₹10,000", "Zero Upfront"],
+                                    ["Prepayment Penalty", "0% (Floating Rate)", "0% (Float)", "Zero Charges"],
+                                ],
+                                hasHeader: true,
+                                isStriped: true,
+                            },
+                        });
+                    } else if (preset === "eligibility") {
+                        updateBlockProperties(block.id, {
+                            tableData: {
+                                headers: ["Eligibility Criterion", "Mandatory Requirement", "Acceptable Alternatives"],
+                                rows: [
+                                    ["Target Country", "US, UK, Canada, Australia, Germany, Ireland", "All top-500 global ranked institutions"],
+                                    ["Co-Applicant Income", "Minimum ₹35,000 / month salary", "ITR returns with 2-year profit statements"],
+                                    ["Academic Baseline", "Minimum 55% in undergraduate degree", "GRE > 300 or relevant work experience"],
+                                ],
+                                hasHeader: true,
+                                isStriped: true,
+                            },
+                        });
+                    } else {
+                        updateBlockProperties(block.id, {
+                            tableData: {
+                                headers: ["Document Name", "Primary Student", "Salaried Co-Applicant", "Self-Employed Co-Applicant"],
+                                rows: [
+                                    ["Proof of Identity & Address", "Aadhaar Card / Passport", "Aadhaar Card / Voter ID", "Aadhaar Card / Passport"],
+                                    ["Academic Transcripts", "10th, 12th, Degree Marksheets", "N/A", "N/A"],
+                                    ["Admission Offer Letter", "Conditional / Unconditional I-20", "N/A", "N/A"],
+                                    ["Income Proof", "N/A", "Last 3 Months Salary Slips", "2 Years ITR with Computation"],
+                                    ["Bank Statement", "Savings Account (6 Months)", "Salary Account (6 Months)", "Current Account (12 Months)"],
+                                ],
+                                hasHeader: true,
+                                isStriped: true,
+                            },
+                        });
+                    }
+                };
+
+                return (
+                    <div className="space-y-3.5 p-4 bg-slate-50/70 rounded-2xl border border-slate-200">
+                        {/* Table Controls Toolbar */}
+                        <div className="flex flex-wrap items-center justify-between gap-2.5 pb-2 border-b border-slate-200/80">
+                            <div className="flex items-center gap-2">
+                                <span className="material-symbols-outlined text-indigo-600 text-[18px]">table_chart</span>
+                                <span className="text-xs font-black uppercase tracking-wider text-slate-800">
+                                    Data Table / Grid ({headers.length} Cols × {rows.length} Rows)
+                                </span>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                                {/* Toggle Header */}
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        updateBlockProperties(block.id, {
+                                            tableData: { ...td, hasHeader: !hasHeader },
+                                        })
+                                    }
+                                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                        hasHeader
+                                            ? "bg-indigo-600 text-white shadow-2xs"
+                                            : "bg-slate-200 text-slate-700 hover:bg-slate-300"
+                                    }`}
+                                >
+                                    Header Row: {hasHeader ? "ON" : "OFF"}
+                                </button>
+
+                                {/* Toggle Striped */}
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        updateBlockProperties(block.id, {
+                                            tableData: { ...td, isStriped: !isStriped },
+                                        })
+                                    }
+                                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                        isStriped
+                                            ? "bg-purple-600 text-white shadow-2xs"
+                                            : "bg-slate-200 text-slate-700 hover:bg-slate-300"
+                                    }`}
+                                >
+                                    Zebra Stripes: {isStriped ? "ON" : "OFF"}
+                                </button>
+
+                                {/* Add Column */}
+                                <button
+                                    type="button"
+                                    onClick={() => addColumn()}
+                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-2xs cursor-pointer"
+                                    title="Add column at the end"
+                                >
+                                    <span className="material-symbols-outlined text-[14px]">add</span>
+                                    <span>Add Column</span>
+                                </button>
+
+                                {/* Add Row */}
+                                <button
+                                    type="button"
+                                    onClick={() => addRow()}
+                                    className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-2xs cursor-pointer"
+                                    title="Add row at the end"
+                                >
+                                    <span className="material-symbols-outlined text-[14px]">add</span>
+                                    <span>Add Row</span>
+                                </button>
+
+                                {/* Presets */}
+                                <div className="flex items-center gap-1 border-l border-slate-200 pl-2">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase">Presets:</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => applyPreset("comparison")}
+                                        className="px-2 py-0.5 bg-white border border-slate-200 hover:bg-indigo-50 text-[11px] font-bold text-slate-700 rounded cursor-pointer"
+                                        title="Load Bank Comparison template"
+                                    >
+                                        Comparison
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => applyPreset("fees")}
+                                        className="px-2 py-0.5 bg-white border border-slate-200 hover:bg-indigo-50 text-[11px] font-bold text-slate-700 rounded cursor-pointer"
+                                        title="Load Fees Breakdown template"
+                                    >
+                                        Fees
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => applyPreset("eligibility")}
+                                        className="px-2 py-0.5 bg-white border border-slate-200 hover:bg-indigo-50 text-[11px] font-bold text-slate-700 rounded cursor-pointer"
+                                        title="Load Eligibility Criteria template"
+                                    >
+                                        Eligibility
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => applyPreset("documents")}
+                                        className="px-2 py-0.5 bg-white border border-slate-200 hover:bg-indigo-50 text-[11px] font-bold text-slate-700 rounded cursor-pointer"
+                                        title="Load Document Checklist template"
+                                    >
+                                        Docs
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Interactive Responsive Grid Table */}
+                        <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white shadow-2xs">
+                            <table className="min-w-full text-left border-collapse text-xs">
+                                {hasHeader ? (
+                                    <thead>
+                                        <tr className="bg-slate-100 border-b border-slate-200">
+                                            <th className="w-12 px-3 py-2 text-[10px] font-mono text-slate-400 text-center uppercase tracking-wider">
+                                                #
+                                            </th>
+                                            {headers.map((h, colIdx) => (
+                                                <th key={colIdx} className="p-2 border-r border-slate-200 last:border-r-0 min-w-[150px] group/col">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <input
+                                                            type="text"
+                                                            value={h}
+                                                            onChange={(e) => {
+                                                                const newH = [...headers];
+                                                                newH[colIdx] = e.target.value;
+                                                                updateBlockProperties(block.id, {
+                                                                    tableData: { ...td, headers: newH },
+                                                                });
+                                                            }}
+                                                            placeholder={`Header ${colIdx + 1}`}
+                                                            className="flex-1 bg-white font-black text-slate-900 border border-slate-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 px-2 py-1 rounded text-xs"
+                                                        />
+
+                                                        {/* Column Controls: Move Left, Move Right, Insert Right, Remove */}
+                                                        <div className="flex items-center gap-0.5">
+                                                            <button
+                                                                type="button"
+                                                                disabled={colIdx === 0}
+                                                                onClick={() => moveColumn(colIdx, "left")}
+                                                                className="w-5 h-5 rounded hover:bg-slate-200 text-slate-500 flex items-center justify-center disabled:opacity-20 cursor-pointer"
+                                                                title="Move column left"
+                                                            >
+                                                                ‹
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                disabled={colIdx === headers.length - 1}
+                                                                onClick={() => moveColumn(colIdx, "right")}
+                                                                className="w-5 h-5 rounded hover:bg-slate-200 text-slate-500 flex items-center justify-center disabled:opacity-20 cursor-pointer"
+                                                                title="Move column right"
+                                                            >
+                                                                ›
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => addColumn(colIdx)}
+                                                                className="w-5 h-5 rounded bg-emerald-50 hover:bg-emerald-600 text-emerald-600 hover:text-white flex items-center justify-center text-[10px] font-bold transition-colors cursor-pointer"
+                                                                title="Insert column to the right"
+                                                            >
+                                                                +
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => removeColumn(colIdx)}
+                                                                className="w-5 h-5 rounded bg-rose-50 hover:bg-rose-600 text-rose-500 hover:text-white flex items-center justify-center text-[11px] font-bold transition-colors cursor-pointer"
+                                                                title={`Remove column: "${h}"`}
+                                                            >
+                                                                ✕
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </th>
+                                            ))}
+                                            <th className="w-20 p-2 text-center text-[10px] font-mono text-slate-400 uppercase">
+                                                Actions
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                ) : (
+                                    /* Lightweight column management strip when header is OFF */
+                                    <thead>
+                                        <tr className="bg-slate-50 border-b border-slate-200">
+                                            <th className="w-12 px-2 py-1 text-[9px] font-mono text-slate-400 text-center uppercase tracking-wider">
+                                                Col
+                                            </th>
+                                            {headers.map((h, colIdx) => (
+                                                <th key={colIdx} className="p-1.5 border-r border-slate-200 last:border-r-0 min-w-[150px]">
+                                                    <div className="flex items-center justify-between gap-1 text-[11px] text-slate-600 font-semibold px-1">
+                                                        <span className="truncate" title={h}>Col {colIdx + 1} ({h || "Untitled"})</span>
+                                                        <div className="flex items-center gap-0.5">
+                                                            <button
+                                                                type="button"
+                                                                disabled={colIdx === 0}
+                                                                onClick={() => moveColumn(colIdx, "left")}
+                                                                className="w-4 h-4 rounded hover:bg-slate-200 text-slate-500 flex items-center justify-center disabled:opacity-20 cursor-pointer text-[10px]"
+                                                                title="Move column left"
+                                                            >
+                                                                ‹
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                disabled={colIdx === headers.length - 1}
+                                                                onClick={() => moveColumn(colIdx, "right")}
+                                                                className="w-4 h-4 rounded hover:bg-slate-200 text-slate-500 flex items-center justify-center disabled:opacity-20 cursor-pointer text-[10px]"
+                                                                title="Move column right"
+                                                            >
+                                                                ›
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => addColumn(colIdx)}
+                                                                className="w-4 h-4 rounded bg-emerald-50 hover:bg-emerald-600 text-emerald-600 hover:text-white flex items-center justify-center text-[9px] font-bold cursor-pointer"
+                                                                title="Insert column"
+                                                            >
+                                                                +
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => removeColumn(colIdx)}
+                                                                className="w-4 h-4 rounded bg-rose-50 hover:bg-rose-600 text-rose-500 hover:text-white flex items-center justify-center text-[9px] font-bold cursor-pointer"
+                                                                title="Remove column"
+                                                            >
+                                                                ✕
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </th>
+                                            ))}
+                                            <th className="w-20 p-1 text-center text-[9px] font-mono text-slate-400">
+                                                (No Header)
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                )}
+
+                                <tbody>
+                                    {rows.map((row, rIdx) => {
+                                        const rowBg = isStriped && rIdx % 2 === 1 ? "bg-slate-50/70" : "bg-white";
+                                        return (
+                                            <tr key={rIdx} className={`${rowBg} hover:bg-indigo-50/20 border-b border-slate-100 last:border-b-0 transition-colors group/row`}>
+                                                {/* Row Index Badge */}
+                                                <td className="px-3 py-2 text-center text-[11px] font-mono text-slate-400 font-bold">
+                                                    {rIdx + 1}
+                                                </td>
+
+                                                {/* Row Cells */}
+                                                {headers.map((_, colIdx) => {
+                                                    const cellVal = Array.isArray(row) && row[colIdx] !== undefined ? row[colIdx] : "";
+                                                    return (
+                                                        <td key={colIdx} className="p-2 border-r border-slate-100 last:border-r-0">
+                                                            <input
+                                                                type="text"
+                                                                value={cellVal}
+                                                                onChange={(e) => {
+                                                                    const newRows = rows.map((r, i) => {
+                                                                        if (i !== rIdx) return Array.isArray(r) ? [...r] : [];
+                                                                        const updatedRow = Array.isArray(r) ? [...r] : [];
+                                                                        while (updatedRow.length < headers.length) updatedRow.push("");
+                                                                        updatedRow[colIdx] = e.target.value;
+                                                                        return updatedRow;
+                                                                    });
+                                                                    updateBlockProperties(block.id, {
+                                                                        tableData: { ...td, rows: newRows },
+                                                                    });
+                                                                }}
+                                                                placeholder="Enter data..."
+                                                                className="w-full bg-transparent hover:bg-white focus:bg-white text-slate-800 font-medium border border-transparent hover:border-slate-200 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 px-2 py-1 rounded text-xs transition-colors"
+                                                            />
+                                                        </td>
+                                                    );
+                                                })}
+
+                                                {/* Row Action Buttons: Move Up, Move Down, Insert Below, Duplicate, Delete */}
+                                                <td className="p-2 text-center">
+                                                    <div className="flex items-center justify-center gap-1">
+                                                        <button
+                                                            type="button"
+                                                            disabled={rIdx === 0}
+                                                            onClick={() => moveRow(rIdx, "up")}
+                                                            className="w-5 h-5 rounded hover:bg-slate-200 text-slate-500 flex items-center justify-center disabled:opacity-20 cursor-pointer text-[10px]"
+                                                            title="Move row up"
+                                                        >
+                                                            ▲
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            disabled={rIdx === rows.length - 1}
+                                                            onClick={() => moveRow(rIdx, "down")}
+                                                            className="w-5 h-5 rounded hover:bg-slate-200 text-slate-500 flex items-center justify-center disabled:opacity-20 cursor-pointer text-[10px]"
+                                                            title="Move row down"
+                                                        >
+                                                            ▼
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => addRow(rIdx)}
+                                                            className="w-5 h-5 rounded bg-blue-50 hover:bg-blue-600 text-blue-600 hover:text-white flex items-center justify-center text-[10px] font-bold cursor-pointer"
+                                                            title="Insert row below"
+                                                        >
+                                                            +
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => duplicateRow(rIdx)}
+                                                            className="w-5 h-5 rounded bg-indigo-50 hover:bg-indigo-600 text-indigo-600 hover:text-white flex items-center justify-center text-[9px] font-bold cursor-pointer"
+                                                            title="Duplicate row"
+                                                        >
+                                                            ⎘
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => removeRow(rIdx)}
+                                                            className="w-5 h-5 rounded bg-rose-50 hover:bg-rose-600 text-rose-500 hover:text-white flex items-center justify-center text-[10px] font-bold cursor-pointer"
+                                                            title="Delete row"
+                                                        >
+                                                            ✕
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                );
+            }
+            case "table_of_contents": {
+                const headings = blocks
+                    .filter((b) => b.type === "heading" && b.content?.trim())
+                    .map((b) => {
+                        const lvl = b.level || 2;
+                        const hId = (b.content || "")
+                            .toLowerCase()
+                            .replace(/[^a-z0-9]+/g, "-")
+                            .replace(/(^-|-$)/g, "");
+                        return { title: b.content, level: lvl, id: hId };
+                    });
+
+                return (
+                    <div className="p-5 bg-gradient-to-br from-indigo-50/70 via-slate-50 to-purple-50/40 rounded-2xl border border-indigo-200/90 shadow-2xs space-y-3">
+                        <div className="flex items-center justify-between gap-3 pb-2.5 border-b border-indigo-100 flex-wrap">
+                            <div className="flex items-center gap-2">
+                                <div className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center shadow-xs">
+                                    <span className="material-symbols-outlined text-[17px]">toc</span>
+                                </div>
+                                <input
+                                    type="text"
+                                    value={block.title || block.content || "In This Comprehensive Guide"}
+                                    onChange={(e) => {
+                                        updateBlockProperties(block.id, {
+                                            title: e.target.value,
+                                            content: e.target.value,
+                                        });
+                                    }}
+                                    placeholder="Table of Contents Title"
+                                    className="font-black text-sm text-indigo-950 bg-transparent border-b border-transparent hover:border-indigo-300 focus:border-indigo-600 focus:bg-white px-2 py-0.5 rounded transition-all focus:outline-none"
+                                />
+                            </div>
+                            <span className="text-[10px] font-bold text-indigo-600 bg-indigo-100/80 px-2.5 py-1 rounded-full uppercase tracking-wider">
+                                {headings.length} {headings.length === 1 ? "Section" : "Sections"} Indexed
+                            </span>
+                        </div>
+
+                        {/* Heading Jump Links Preview */}
+                        <div className="space-y-1.5 pt-1">
+                            {headings.length > 0 ? (
+                                headings.map((h, idx) => (
+                                    <div
+                                        key={idx}
+                                        className="text-xs text-indigo-800 font-medium flex items-center gap-2 py-1 px-2 rounded-lg hover:bg-white/80 transition-colors"
+                                        style={{ paddingLeft: `${((h.level || 2) - 1) * 14 + 8}px` }}
+                                    >
+                                        <span className="text-[11px] font-mono text-slate-400 font-bold">{idx + 1}.</span>
+                                        <span className="font-semibold text-slate-800">{h.title}</span>
+                                        <span className="text-[10px] font-mono text-indigo-500/70 ml-auto bg-white border border-indigo-100 px-1.5 py-0.5 rounded shadow-2xs">
+                                            #{h.id}
+                                        </span>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="text-center py-5 bg-white/60 rounded-xl border border-dashed border-indigo-200">
+                                    <span className="material-symbols-outlined text-indigo-400 text-2xl mb-1 block">format_list_bulleted</span>
+                                    <p className="text-xs font-bold text-slate-700">No Section Headings Detected</p>
+                                    <p className="text-[11px] text-slate-400 mt-0.5 max-w-sm mx-auto">
+                                        Add H1, H2, or H3 heading elements to your blog. They will automatically be indexed here with clickable jump-links!
+                                    </p>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 );
             }
@@ -5974,6 +6680,197 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                             </div>
                                         </div>
                                     )}
+                                </div>
+                            ) : editingBlock.type === "table" ? (
+                                <div className="space-y-4">
+                                    <div className="p-3 bg-indigo-50/70 border border-indigo-200 rounded-xl text-xs text-indigo-900 flex items-start gap-2.5">
+                                        <span className="material-symbols-outlined text-indigo-600 text-lg shrink-0 mt-0.5">info</span>
+                                        <div>
+                                            <p className="font-bold">Interactive Table Grid</p>
+                                            <p className="text-[11px] text-indigo-700 mt-0.5 leading-relaxed">
+                                                You can edit headers and cell contents directly in the builder canvas! Use the toggles below to configure table appearance or apply templates.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Table Configuration */}
+                                    {(() => {
+                                        const td = editingBlock.tableData || {
+                                            headers: ["Column 1", "Column 2"],
+                                            rows: [["", ""]],
+                                            hasHeader: true,
+                                            isStriped: true,
+                                        };
+                                        const hasHeader = td.hasHeader !== false;
+                                        const isStriped = !!td.isStriped;
+
+                                        return (
+                                            <div className="space-y-3">
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div className="p-3 border border-slate-200 rounded-xl bg-slate-50 flex items-center justify-between">
+                                                        <div>
+                                                            <div className="text-xs font-bold text-slate-800">Header Row</div>
+                                                            <div className="text-[10px] text-slate-500">Show styled top column headers</div>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                setEditingBlock({
+                                                                    ...editingBlock,
+                                                                    tableData: { ...td, hasHeader: !hasHeader },
+                                                                })
+                                                            }
+                                                            className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-all ${
+                                                                hasHeader ? "bg-indigo-600 text-white shadow-2xs" : "bg-slate-200 text-slate-700"
+                                                            }`}
+                                                        >
+                                                            {hasHeader ? "Enabled" : "Disabled"}
+                                                        </button>
+                                                    </div>
+
+                                                    <div className="p-3 border border-slate-200 rounded-xl bg-slate-50 flex items-center justify-between">
+                                                        <div>
+                                                            <div className="text-xs font-bold text-slate-800">Zebra Striping</div>
+                                                            <div className="text-[10px] text-slate-500">Alternate row background colors</div>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                setEditingBlock({
+                                                                    ...editingBlock,
+                                                                    tableData: { ...td, isStriped: !isStriped },
+                                                                })
+                                                            }
+                                                            className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-all ${
+                                                                isStriped ? "bg-purple-600 text-white shadow-2xs" : "bg-slate-200 text-slate-700"
+                                                            }`}
+                                                        >
+                                                            {isStriped ? "Enabled" : "Disabled"}
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                <div className="p-3 border border-slate-200 rounded-xl">
+                                                    <div className="text-xs font-bold text-slate-700 mb-2">Apply Quick Template</div>
+                                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                setEditingBlock({
+                                                                    ...editingBlock,
+                                                                    tableData: {
+                                                                        headers: ["Lender / Bank", "Max Collateral-Free", "Floating Rate", "Sanction Speed"],
+                                                                        rows: [
+                                                                            ["HDFC Credila", "Up to ₹75 Lakhs", "9.75% - 11.25%", "3 - 5 Working Days"],
+                                                                            ["IDFC FIRST Bank", "Up to ₹50 Lakhs", "9.25% - 10.50%", "48-Hour Fast Track"],
+                                                                            ["Avanse Financial", "Up to ₹75 Lakhs", "10.25% - 12.00%", "3 Working Days"],
+                                                                            ["SBI Global Ed-Vantage", "Up to ₹1.5 Cr (Secured)", "8.50% - 9.15%", "10 - 14 Days"],
+                                                                        ],
+                                                                        hasHeader: true,
+                                                                        isStriped: true,
+                                                                    },
+                                                                })
+                                                            }
+                                                            className="p-2 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:border-indigo-300 text-center transition-all cursor-pointer"
+                                                        >
+                                                            Bank Comparison
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                setEditingBlock({
+                                                                    ...editingBlock,
+                                                                    tableData: {
+                                                                        headers: ["Fee Component", "Public Sector Banks", "Private NBFCs", "VidyaLoan Advantage"],
+                                                                        rows: [
+                                                                            ["Processing Fee", "1.0% - 1.5%", "1.5% - 2.0%", "Up to 50% Concession"],
+                                                                            ["Origination Charges", "Nil", "₹5,000 - ₹10,000", "Zero Upfront"],
+                                                                            ["Prepayment Penalty", "0% (Floating Rate)", "0% (Float)", "Zero Charges"],
+                                                                        ],
+                                                                        hasHeader: true,
+                                                                        isStriped: true,
+                                                                    },
+                                                                })
+                                                            }
+                                                            className="p-2 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:border-indigo-300 text-center transition-all cursor-pointer"
+                                                        >
+                                                            Fees Structure
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                setEditingBlock({
+                                                                    ...editingBlock,
+                                                                    tableData: {
+                                                                        headers: ["Eligibility Criterion", "Mandatory Requirement", "Acceptable Alternatives"],
+                                                                        rows: [
+                                                                            ["Target Country", "US, UK, Canada, Australia, Germany, Ireland", "All top-500 global ranked institutions"],
+                                                                            ["Co-Applicant Income", "Minimum ₹35,000 / month salary", "ITR returns with 2-year profit statements"],
+                                                                            ["Academic Baseline", "Minimum 55% in undergraduate degree", "GRE > 300 or relevant work experience"],
+                                                                        ],
+                                                                        hasHeader: true,
+                                                                        isStriped: true,
+                                                                    },
+                                                                })
+                                                            }
+                                                            className="p-2 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:border-indigo-300 text-center transition-all cursor-pointer"
+                                                        >
+                                                            Eligibility Matrix
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                setEditingBlock({
+                                                                    ...editingBlock,
+                                                                    tableData: {
+                                                                        headers: ["Document Name", "Primary Student", "Salaried Co-Applicant", "Self-Employed Co-Applicant"],
+                                                                        rows: [
+                                                                            ["Proof of Identity & Address", "Aadhaar Card / Passport", "Aadhaar Card / Voter ID", "Aadhaar Card / Passport"],
+                                                                            ["Academic Transcripts", "10th, 12th, Degree Marksheets", "N/A", "N/A"],
+                                                                            ["Admission Offer Letter", "Conditional / Unconditional I-20", "N/A", "N/A"],
+                                                                            ["Income Proof", "N/A", "Last 3 Months Salary Slips", "2 Years ITR with Computation"],
+                                                                            ["Bank Statement", "Savings Account (6 Months)", "Salary Account (6 Months)", "Current Account (12 Months)"],
+                                                                        ],
+                                                                        hasHeader: true,
+                                                                        isStriped: true,
+                                                                    },
+                                                                })
+                                                            }
+                                                            className="p-2 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:border-indigo-300 text-center transition-all cursor-pointer"
+                                                        >
+                                                            Documents List
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                <div className="text-[11px] text-slate-400">
+                                                    Current Table: <span className="font-bold text-slate-600">{td.headers.length}</span> columns × <span className="font-bold text-slate-600">{td.rows.length}</span> rows
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+                                </div>
+                            ) : editingBlock.type === "table_of_contents" ? (
+                                <div className="space-y-4">
+                                    <div className="p-3 bg-indigo-50/70 border border-indigo-200 rounded-xl text-xs text-indigo-900 flex items-start gap-2.5">
+                                        <span className="material-symbols-outlined text-indigo-600 text-lg shrink-0 mt-0.5">toc</span>
+                                        <div>
+                                            <p className="font-bold">Automatic Table of Contents</p>
+                                            <p className="text-[11px] text-indigo-700 mt-0.5 leading-relaxed">
+                                                This component dynamically indexes all section headings (H1, H2, H3) across your blog and generates clickable anchor jump-links.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-700 mb-2 block">Table of Contents Title / Header</label>
+                                        <input
+                                            type="text"
+                                            value={editingBlock.title || editingBlock.content || "In This Comprehensive Guide"}
+                                            onChange={(e) => setEditingBlock({ ...editingBlock, title: e.target.value, content: e.target.value })}
+                                            className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-200 outline-none"
+                                            placeholder="Enter TOC title (e.g. Table of Contents, In This Article)..."
+                                        />
+                                    </div>
                                 </div>
                             ) : editingBlock.type === "divider" || editingBlock.type === "spacer" ? (
                                 <p className="text-xs text-slate-500">This element has no editable content.</p>

@@ -51,22 +51,44 @@ import {
   ShieldAlert,
   Info,
   Image as ImageIcon,
+  Calendar,
+  Ban,
+  Filter,
 } from "lucide-react";
 
-import { EmailRemoteResourceBanner } from "@/components/staff/mail/EmailRemoteResourceBanner";
+import { OutlookToolbar } from "@/components/staff/mail/OutlookToolbar";
 import {
   ShowSourceModal,
   SummaryModal,
   HeadersModal,
   ImageLightboxModal,
+  CreateFilterModal,
+  BlockSenderModal,
+  SafeSenderModal,
+  OutOfOfficeModal,
+  SignaturesModal,
+  MailRulesModal,
+  ConditionalFormattingModal,
 } from "@/components/staff/mail/MailModals";
 import {
   MailItemBase,
   exportEmailToEml,
+  saveEmailAsCalendarEvent,
   formatOutlookDate,
+  getRelativeTimeAgo,
+  parseEmailContact,
+  getAvatarPalette,
 } from "@/components/staff/mail/mailUtils";
 
 type MailFolder = "inbox" | "sent" | "drafts" | "starred" | "trash";
+
+const foldersList = [
+  { name: "Inbox", prefix: "inbox" },
+  { name: "Sent Mail", prefix: "sent" },
+  { name: "Drafts", prefix: "drafts" },
+  { name: "Starred", prefix: "starred" },
+  { name: "Trash", prefix: "trash" },
+];
 
 interface WebmailMessage {
   id: string;
@@ -139,6 +161,12 @@ export default function ExecutiveWebmailPage() {
   const [filterTab, setFilterTab] = useState<"all" | "unread" | "attachments">("all");
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
 
+  // Multi-Select & View Controls (from Staff Inbox)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isCompactView, setIsCompactView] = useState(false);
+  const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
+  const [, setSavedSignature] = useState<string>("");
+
   // Selected Message for Reading
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
   const [messageDetail, setMessageDetail] = useState<MessageDetail | null>(null);
@@ -146,7 +174,6 @@ export default function ExecutiveWebmailPage() {
 
   // Staff Inbox Reading Pane Features
   const [viewMode, setViewMode] = useState<"html" | "text">("html");
-  const [remoteResourcesBlocked, setRemoteResourcesBlocked] = useState(true);
   const [activeAttachmentMenu, setActiveAttachmentMenu] = useState<number | null>(null);
   const [isMarkedSpam, setIsMarkedSpam] = useState(false);
 
@@ -155,6 +182,13 @@ export default function ExecutiveWebmailPage() {
   const [showSummaryModal, setShowSummaryModal] = useState(false);
   const [showHeadersModal, setShowHeadersModal] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<{ url: string; filename?: string } | null>(null);
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [showBlockSenderModal, setShowBlockSenderModal] = useState(false);
+  const [showSafeSenderModal, setShowSafeSenderModal] = useState(false);
+  const [showOutOfOfficeModal, setShowOutOfOfficeModal] = useState(false);
+  const [showSignaturesModal, setShowSignaturesModal] = useState(false);
+  const [showMailRulesModal, setShowMailRulesModal] = useState(false);
+  const [showConditionalFormattingModal, setShowConditionalFormattingModal] = useState(false);
 
   // Compose Modal State
   const [isComposeOpen, setIsComposeOpen] = useState(false);
@@ -327,7 +361,6 @@ export default function ExecutiveWebmailPage() {
     setSelectedEmailId(id);
     setLoadingDetail(true);
     setMessageDetail(null);
-    setRemoteResourcesBlocked(true);
     setViewMode("html");
     setActiveAttachmentMenu(null);
 
@@ -899,7 +932,7 @@ export default function ExecutiveWebmailPage() {
     setTimeout(() => setToastMsg(null), 4200);
   };
 
-  // Filtered emails based on search query and tabs
+  // Filtered emails based on search query, tabs, and sortOrder
   const filteredEmails = useMemo(() => {
     let list = emails;
 
@@ -922,8 +955,310 @@ export default function ExecutiveWebmailPage() {
       );
     }
 
+    // Sort order
+    if (sortOrder === "oldest") {
+      list = [...list].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    } else {
+      list = [...list].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }
+
     return list;
-  }, [emails, searchQuery, filterTab]);
+  }, [emails, searchQuery, filterTab, sortOrder]);
+
+  // Multi-Selection Controls (Staff Inbox)
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredEmails.length && filteredEmails.length > 0) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredEmails.map((e) => e.id)));
+    }
+  };
+
+  const toggleSelectOne = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  // Bulk / Toolbar Actions
+  const handleToolbarDelete = async () => {
+    const idsToDelete = selectedIds.size > 0 ? Array.from(selectedIds) : selectedEmailId ? [selectedEmailId] : [];
+    if (idsToDelete.length === 0) return;
+
+    try {
+      let csrfToken = "";
+      try {
+        const csrfRes = await fetch("/api/csrf-token");
+        const csrfJson = await csrfRes.json();
+        if (csrfJson?.csrfToken) csrfToken = csrfJson.csrfToken;
+      } catch { }
+
+      await Promise.all(
+        idsToDelete.map((id) =>
+          fetch(`/api/webmail/message/${encodeURIComponent(id)}`, {
+            method: "DELETE",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
+            },
+          })
+        )
+      );
+
+      setEmails((prev) => prev.filter((item) => !idsToDelete.includes(item.id)));
+      if (selectedEmailId && idsToDelete.includes(selectedEmailId)) {
+        setSelectedEmailId(null);
+        setMessageDetail(null);
+      }
+      setSelectedIds(new Set());
+      showToast(idsToDelete.length > 1 ? `${idsToDelete.length} messages moved to Trash.` : "Message moved to Trash.", "info");
+      fetchStats();
+    } catch (err) {
+      console.error("Bulk delete failed:", err);
+      showToast("Failed to delete selected messages.", "error");
+    }
+  };
+
+  const handleToolbarMarkRead = async () => {
+    const idsToUpdate = selectedIds.size > 0 ? Array.from(selectedIds) : selectedEmailId ? [selectedEmailId] : [];
+    if (idsToUpdate.length === 0) return;
+
+    try {
+      let csrfToken = "";
+      try {
+        const csrfRes = await fetch("/api/csrf-token");
+        const csrfJson = await csrfRes.json();
+        if (csrfJson?.csrfToken) csrfToken = csrfJson.csrfToken;
+      } catch { }
+
+      await Promise.all(
+        idsToUpdate.map((id) =>
+          fetch(`/api/webmail/message/${encodeURIComponent(id)}/state`, {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+              ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
+            },
+            body: JSON.stringify({ isRead: true }),
+          })
+        )
+      );
+
+      setEmails((prev) =>
+        prev.map((item) => (idsToUpdate.includes(item.id) ? { ...item, isRead: true } : item))
+      );
+      if (messageDetail && idsToUpdate.includes(messageDetail.id)) {
+        setMessageDetail((prev) => (prev ? { ...prev, isRead: true } : null));
+      }
+      setSelectedIds(new Set());
+      showToast("Marked as read.", "success");
+      fetchStats();
+    } catch (err) {
+      console.error("Mark read failed:", err);
+    }
+  };
+
+  const handleToolbarMarkUnread = async () => {
+    const idsToUpdate = selectedIds.size > 0 ? Array.from(selectedIds) : selectedEmailId ? [selectedEmailId] : [];
+    if (idsToUpdate.length === 0) return;
+
+    try {
+      let csrfToken = "";
+      try {
+        const csrfRes = await fetch("/api/csrf-token");
+        const csrfJson = await csrfRes.json();
+        if (csrfJson?.csrfToken) csrfToken = csrfJson.csrfToken;
+      } catch { }
+
+      await Promise.all(
+        idsToUpdate.map((id) =>
+          fetch(`/api/webmail/message/${encodeURIComponent(id)}/state`, {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+              ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
+            },
+            body: JSON.stringify({ isRead: false }),
+          })
+        )
+      );
+
+      setEmails((prev) =>
+        prev.map((item) => (idsToUpdate.includes(item.id) ? { ...item, isRead: false } : item))
+      );
+      if (messageDetail && idsToUpdate.includes(messageDetail.id)) {
+        setMessageDetail((prev) => (prev ? { ...prev, isRead: false } : null));
+      }
+      setSelectedIds(new Set());
+      showToast("Marked as unread.", "info");
+      fetchStats();
+    } catch (err) {
+      console.error("Mark unread failed:", err);
+    }
+  };
+
+  const handleToolbarToggleStar = async () => {
+    const idsToUpdate = selectedIds.size > 0 ? Array.from(selectedIds) : selectedEmailId ? [selectedEmailId] : [];
+    if (idsToUpdate.length === 0) return;
+
+    const firstItem = emails.find((e) => idsToUpdate.includes(e.id));
+    const targetStarred = !firstItem?.isStarred;
+
+    try {
+      let csrfToken = "";
+      try {
+        const csrfRes = await fetch("/api/csrf-token");
+        const csrfJson = await csrfRes.json();
+        if (csrfJson?.csrfToken) csrfToken = csrfJson.csrfToken;
+      } catch { }
+
+      await Promise.all(
+        idsToUpdate.map((id) =>
+          fetch(`/api/webmail/message/${encodeURIComponent(id)}/state`, {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+              ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
+            },
+            body: JSON.stringify({ isStarred: targetStarred }),
+          })
+        )
+      );
+
+      setEmails((prev) =>
+        prev.map((item) => (idsToUpdate.includes(item.id) ? { ...item, isStarred: targetStarred } : item))
+      );
+      if (messageDetail && idsToUpdate.includes(messageDetail.id)) {
+        setMessageDetail((prev) => (prev ? { ...prev, isStarred: targetStarred } : null));
+      }
+      setSelectedIds(new Set());
+      showToast(targetStarred ? "Messages starred." : "Messages unstarred.", "success");
+      fetchStats();
+    } catch (err) {
+      console.error("Toggle star failed:", err);
+    }
+  };
+
+  const handleBulkRestore = async () => {
+    const idsToRestore = selectedIds.size > 0 ? Array.from(selectedIds) : selectedEmailId ? [selectedEmailId] : [];
+    if (idsToRestore.length === 0) return;
+
+    try {
+      let csrfToken = "";
+      try {
+        const csrfRes = await fetch("/api/csrf-token");
+        const csrfJson = await csrfRes.json();
+        if (csrfJson?.csrfToken) csrfToken = csrfJson.csrfToken;
+      } catch { }
+
+      await Promise.all(
+        idsToRestore.map((id) =>
+          fetch(`/api/webmail/message/${encodeURIComponent(id)}/state`, {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+              ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
+            },
+            body: JSON.stringify({ isTrash: false }),
+          })
+        )
+      );
+
+      setEmails((prev) => prev.filter((item) => !idsToRestore.includes(item.id)));
+      if (selectedEmailId && idsToRestore.includes(selectedEmailId)) {
+        setSelectedEmailId(null);
+        setMessageDetail(null);
+      }
+      setSelectedIds(new Set());
+      showToast("Restored to Inbox.", "success");
+      fetchStats();
+    } catch (err) {
+      console.error("Restore failed:", err);
+    }
+  };
+
+  const handleToolbarPrint = () => {
+    if (typeof window !== "undefined") {
+      window.print();
+    }
+  };
+
+  const handleToolbarExport = () => {
+    if (messageDetail) {
+      exportEmailToEml(messageDetail);
+    } else if (selectedEmailId) {
+      const found = emails.find((e) => e.id === selectedEmailId);
+      if (found) exportEmailToEml(found as MailItemBase);
+    }
+  };
+
+  const handleSaveAsEvent = () => {
+    if (messageDetail) {
+      saveEmailAsCalendarEvent(messageDetail);
+      showToast("Saved as Calendar Event (.ics)", "success");
+    } else if (selectedEmailId) {
+      const found = emails.find((e) => e.id === selectedEmailId);
+      if (found) {
+        saveEmailAsCalendarEvent(found as MailItemBase);
+        showToast("Saved as Calendar Event (.ics)", "success");
+      }
+    }
+  };
+
+  const handleOpenInNewWindow = () => {
+    if (messageDetail && typeof window !== "undefined") {
+      const w = window.open("", "_blank", "width=850,height=720");
+      if (w) {
+        w.document.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>${messageDetail.subject || "Email View"}</title>
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <style>
+                body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 28px; color: #1e293b; background: #fff; margin: 0; }
+                h1 { font-size: 20px; font-weight: 800; margin-top: 0; color: #0f172a; }
+                .meta { font-size: 13px; color: #64748b; margin-bottom: 20px; border-bottom: 1px solid #e2e8f0; padding-bottom: 16px; line-height: 1.6; }
+                .meta strong { color: #334155; }
+                .body-content { font-size: 14px; line-height: 1.65; }
+              </style>
+            </head>
+            <body>
+              <h1>${messageDetail.subject || "(No Subject)"}</h1>
+              <div class="meta">
+                <div><strong>From:</strong> ${messageDetail.from}</div>
+                <div><strong>To:</strong> ${messageDetail.to}</div>
+                <div><strong>Date:</strong> ${messageDetail.date}</div>
+              </div>
+              <div class="body-content">
+                ${messageDetail.html || `<pre style="white-space: pre-wrap; font-family: inherit;">${messageDetail.text || messageDetail.snippet || ""}</pre>`}
+              </div>
+            </body>
+          </html>
+        `);
+        w.document.close();
+      }
+    }
+  };
+
+  const handleBlockSender = async (target: string, type: "sender" | "domain", moveToJunk: boolean) => {
+    showToast(`Blocked ${type === "domain" ? "domain" : "sender"} ${target}${moveToJunk ? " and moved emails to Junk" : ""}.`, "info");
+    if (moveToJunk && messageDetail) {
+      handleToggleSpam(messageDetail.id, false);
+    }
+  };
+
+  const handleSafeSender = async (target: string, type: "sender" | "domain") => {
+    showToast(`Added ${type === "domain" ? "domain" : "sender"} ${target} to Safe Senders whitelist.`, "success");
+  };
 
   // Reply handler pre-populating Compose modal
   const handleReply = () => {
@@ -955,26 +1290,6 @@ export default function ExecutiveWebmailPage() {
       }`
     );
     setIsComposeOpen(true);
-  };
-
-  // Helper to format date string
-  const formatEmailDate = (dateStr?: string) => {
-    if (!dateStr) return "";
-    try {
-      const d = new Date(dateStr);
-      const now = new Date();
-      const isToday =
-        d.getDate() === now.getDate() &&
-        d.getMonth() === now.getMonth() &&
-        d.getFullYear() === now.getFullYear();
-
-      if (isToday) {
-        return d.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" });
-      }
-      return d.toLocaleDateString("en-IN", { month: "short", day: "numeric" });
-    } catch {
-      return dateStr;
-    }
   };
 
   if (authChecking) {
@@ -1077,9 +1392,7 @@ export default function ExecutiveWebmailPage() {
             title="Refresh All Mail Folders"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin text-[#6605c7]" : "text-slate-600"}`} />
-            <span suppressHydrationWarning className="hidden xl:inline text-[11px] text-slate-500">
-              Updated {lastRefreshed.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })}
-            </span>
+
           </button>
 
           {/* User Profile Dropdown Pill */}
@@ -1148,6 +1461,64 @@ export default function ExecutiveWebmailPage() {
           </div>
         </div>
       </header>
+
+      {/* ── TOP OUTLOOK ACTION RIBBON (FROM STAFF INBOX) ── */}
+      <OutlookToolbar
+        selectedCount={selectedIds.size}
+        totalCount={filteredEmails.length}
+        onSelectAll={toggleSelectAll}
+        onSelectNone={() => setSelectedIds(new Set())}
+        onSelectRead={() => setSelectedIds(new Set(filteredEmails.filter((e) => e.isRead).map((e) => e.id)))}
+        onSelectUnread={() => setSelectedIds(new Set(filteredEmails.filter((e) => !e.isRead).map((e) => e.id)))}
+        onSelectStarred={() => setSelectedIds(new Set(filteredEmails.filter((e) => e.isStarred).map((e) => e.id)))}
+        isCompactView={isCompactView}
+        onToggleCompactView={() => setIsCompactView(!isCompactView)}
+        sortOrder={sortOrder}
+        onToggleSortOrder={() => setSortOrder(sortOrder === "newest" ? "oldest" : "newest")}
+        refreshing={refreshing}
+        onRefresh={() => {
+          fetchEmails(true);
+          fetchStats();
+        }}
+        hasActiveEmail={Boolean(messageDetail || selectedEmailId)}
+        onReply={handleReply}
+        onReplyAll={handleReply}
+        onForward={handleForward}
+        onDelete={handleToolbarDelete}
+        onArchive={handleToolbarDelete}
+        onJunk={() => {
+          if (messageDetail) {
+            handleToggleSpam(messageDetail.id, isMarkedSpam);
+          }
+        }}
+        isSpamActive={isMarkedSpam}
+        isTrashActive={activeFolder === "trash"}
+        onRestore={handleBulkRestore}
+        onDeletePermanently={handleToolbarDelete}
+        onMarkRead={handleToolbarMarkRead}
+        onMarkUnread={handleToolbarMarkUnread}
+        onToggleStar={handleToolbarToggleStar}
+        onPrint={handleToolbarPrint}
+        onExport={handleToolbarExport}
+        onEditAsNew={handleReply}
+        onShowSource={() => setShowSourceModal(true)}
+        onMoveToFolder={(f) => {
+          showToast(`Moved to ${f}.`, "info");
+        }}
+        onCopyToFolder={(f) => {
+          showToast(`Copied to ${f}.`, "info");
+        }}
+        onOpenInNewWindow={handleOpenInNewWindow}
+        onCreateFilter={() => setShowFilterModal(true)}
+        onSaveAsEvent={handleSaveAsEvent}
+        onBlockSender={() => setShowBlockSenderModal(true)}
+        onSafeSender={() => setShowSafeSenderModal(true)}
+        onOutOfOffice={() => setShowOutOfOfficeModal(true)}
+        onSignatures={() => setShowSignaturesModal(true)}
+        onMailRules={() => setShowMailRulesModal(true)}
+        onConditionalFormatting={() => setShowConditionalFormattingModal(true)}
+        availableFolders={foldersList}
+      />
 
       {/* ==================== WORKSPACE (SIDEBAR + EMAIL LIST + DETAIL) ==================== */}
       <div className="flex-1 flex overflow-hidden">
@@ -1383,90 +1754,133 @@ export default function ExecutiveWebmailPage() {
                   : isSentFolder
                     ? `To: ${email.to}`
                     : email.from;
+                const contact = parseEmailContact(displayTitle);
+                const palette = getAvatarPalette(contact.displayName);
 
                 return (
                   <div
                     key={email.id}
                     onClick={() => handleSelectEmail(email.id)}
-                    className={`p-4 cursor-pointer transition-all border-l-4 group relative ${isSelected
-                      ? "bg-purple-50/90 border-l-[#6605c7] shadow-2xs"
-                      : email.isRead
-                        ? "bg-white hover:bg-slate-50/80 border-l-transparent"
-                        : "bg-purple-50/30 hover:bg-purple-50/60 border-l-purple-400"
+                    className={`cursor-pointer transition-all border-l-4 group relative flex items-start gap-3 ${isCompactView ? "p-2.5" : "p-3.5"
+                      } ${isSelected
+                        ? "bg-purple-50/90 border-l-[#6605c7] shadow-2xs"
+                        : email.isRead
+                          ? "bg-white hover:bg-slate-50/80 border-l-transparent"
+                          : "bg-purple-50/30 hover:bg-purple-50/60 border-l-purple-400 font-bold"
                       }`}
                   >
-                    <div className="flex items-start justify-between gap-2 mb-1">
-                      <div className="flex items-center gap-1.5 truncate">
-                        {!email.isRead && !isSentFolder && !isDraftFolder && (
-                          <span className="w-2 h-2 rounded-full bg-[#6605c7] shrink-0" />
-                        )}
-                        <span
-                          className={`text-xs truncate ${email.isRead
-                            ? "font-semibold text-slate-700"
-                            : "font-black text-[#1a1626]"
-                            }`}
-                        >
-                          {displayTitle}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        {isDraftFolder && (
-                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-sm bg-purple-100 text-[#6605c7] border border-purple-200">
-                            Draft
-                          </span>
-                        )}
-                        {isSentFolder && (
-                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-sm bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            Sent
-                          </span>
-                        )}
-                        <span suppressHydrationWarning className="text-[10px] text-slate-400 font-medium">
-                          {formatEmailDate(email.date)}
-                        </span>
-                      </div>
+                    {/* Selection Checkbox */}
+                    <div className="pt-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(email.id)}
+                        onChange={() => { }}
+                        onClick={(e) => toggleSelectOne(e, email.id)}
+                        className="rounded text-[#6605c7] focus:ring-purple-500 cursor-pointer w-3.5 h-3.5 accent-[#6605c7]"
+                      />
                     </div>
 
+                    {/* Sender Avatar */}
+                    {!isCompactView && (
+                      <div
+                        className={`w-8 h-8 rounded-full bg-gradient-to-tr ${palette.bg} ${palette.text} flex items-center justify-center font-bold text-[11px] shrink-0 shadow-2xs mt-0.5`}
+                      >
+                        {contact.initials}
+                      </div>
+                    )}
+
+                    {/* Email Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2 mb-0.5">
+                        <div className="flex items-center gap-1.5 truncate">
+                          {!email.isRead && !isSentFolder && !isDraftFolder && (
+                            <span className="w-2 h-2 rounded-full bg-[#6605c7] shrink-0" />
+                          )}
+                          <span
+                            className={`text-xs truncate ${email.isRead
+                              ? "font-semibold text-slate-700"
+                              : "font-black text-[#1a1626]"
+                              }`}
+                          >
+                            {contact.displayName}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {isDraftFolder && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-sm bg-purple-100 text-[#6605c7] border border-purple-200">
+                              Draft
+                            </span>
+                          )}
+                          {isSentFolder && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-sm bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              Sent
+                            </span>
+                          )}
+                          <span suppressHydrationWarning className="text-[10px] text-slate-400 font-medium">
+                            {formatOutlookDate(email.date)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div
+                        className={`text-xs truncate mb-1 ${email.isRead ? "text-slate-600 font-medium" : "text-[#1a1626] font-bold"
+                          }`}
+                      >
+                        {email.subject || "(No Subject)"}
+                      </div>
+
+                      {!isCompactView && (
+                        <div className="flex items-center justify-between text-[11px] text-slate-400">
+                          <span className="truncate max-w-[240px] text-slate-500">
+                            {email.snippet || "No text preview available."}
+                          </span>
+
+                          <div className="flex items-center gap-1 shrink-0 ml-1">
+                            {email.hasAttachments && (
+                              <Paperclip className="w-3.5 h-3.5 text-purple-600" />
+                            )}
+                            {email.isSpam && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-rose-50 border border-rose-200 text-[9px] font-bold text-rose-700">
+                                <ShieldAlert className="w-2.5 h-2.5 text-rose-500" />
+                                SPAM
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Micro-Interaction: Hover Quick Action Icons (Reply, Star, Delete) */}
                     <div
-                      className={`text-xs truncate mb-1 ${email.isRead ? "text-slate-600 font-medium" : "text-[#1a1626] font-bold"
-                        }`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="absolute right-3 top-3 flex items-center gap-0.5 bg-white/95 backdrop-blur-xs px-1.5 py-1 rounded-xl shadow-md border border-slate-200/80 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"
                     >
-                      {email.subject || "(No Subject)"}
-                    </div>
-
-                    <div className="flex items-center justify-between text-[11px] text-slate-400">
-                      <span className="truncate max-w-[240px] text-slate-500">
-                        {email.snippet || "No text preview available."}
-                      </span>
-
-                      <div className="flex items-center gap-1 shrink-0 ml-1">
-                        {email.hasAttachments && (
-                          <Paperclip className="w-3.5 h-3.5 text-purple-600" />
-                        )}
-
-                        {/* Inline Star Action */}
-                        <button
-                          onClick={(e) => handleToggleStar(email.id, !!email.isStarred, e)}
-                          className={`p-1 rounded-md transition-colors ${email.isStarred
-                            ? "text-amber-500"
-                            : "text-slate-300 hover:text-amber-500 opacity-0 group-hover:opacity-100"
-                            }`}
-                          title={email.isStarred ? "Unstar" : "Star"}
-                        >
-                          <Star
-                            className={`w-3.5 h-3.5 ${email.isStarred ? "fill-amber-400" : ""}`}
-                          />
-                        </button>
-
-                        {/* Inline Trash Action */}
-                        <button
-                          onClick={(e) => handleDeleteEmail(email.id, e)}
-                          className="p-1 rounded-md text-slate-300 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => {
+                          setSelectedEmailId(email.id);
+                          handleReply();
+                        }}
+                        className="p-1 text-slate-400 hover:text-purple-600 rounded-lg hover:bg-purple-50 transition-colors"
+                        title="Reply"
+                      >
+                        <Reply className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={(e) => handleToggleStar(email.id, !!email.isStarred, e)}
+                        className={`p-1 rounded-lg hover:bg-slate-50 transition-colors ${email.isStarred ? "text-amber-500" : "text-slate-400 hover:text-amber-500"
+                          }`}
+                        title={email.isStarred ? "Unstar" : "Star"}
+                      >
+                        <Star className={`w-3.5 h-3.5 ${email.isStarred ? "fill-amber-400" : ""}`} />
+                      </button>
+                      <button
+                        onClick={(e) => handleDeleteEmail(email.id, e)}
+                        className="p-1 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
                 );
@@ -1516,9 +1930,8 @@ export default function ExecutiveWebmailPage() {
 
                     <button
                       onClick={() => handleToggleStar(messageDetail.id, !!messageDetail.isStarred)}
-                      className={`p-1.5 rounded-xl text-slate-400 hover:text-amber-500 hover:bg-slate-100 transition-colors cursor-pointer ${
-                        messageDetail.isStarred ? "text-amber-500" : ""
-                      }`}
+                      className={`p-1.5 rounded-xl text-slate-400 hover:text-amber-500 hover:bg-slate-100 transition-colors cursor-pointer ${messageDetail.isStarred ? "text-amber-500" : ""
+                        }`}
                       title={messageDetail.isStarred ? "Unstar" : "Star"}
                     >
                       <Star
@@ -1530,11 +1943,10 @@ export default function ExecutiveWebmailPage() {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleToggleSpam(messageDetail.id, isMarkedSpam)}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
-                        isMarkedSpam
-                          ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
-                          : "bg-slate-100 text-slate-600 border-slate-200 hover:text-rose-600 hover:bg-rose-50"
-                      }`}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${isMarkedSpam
+                        ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                        : "bg-slate-100 text-slate-600 border-slate-200 hover:text-rose-600 hover:bg-rose-50"
+                        }`}
                     >
                       {isMarkedSpam ? (
                         <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
@@ -1617,7 +2029,7 @@ export default function ExecutiveWebmailPage() {
                       {messageDetail.subject || "(No Subject)"}
                     </h1>
 
-                    <div className="flex items-center gap-2">
+                    {/* <div className="flex items-center gap-2">
                       <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
                         <CheckCircle2 className="w-3 h-3" />
                         <span>Verified & Secure</span>
@@ -1625,7 +2037,7 @@ export default function ExecutiveWebmailPage() {
                       <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-purple-50 text-[#6605c7] border border-purple-200">
                         TLS 1.3
                       </span>
-                    </div>
+                    </div> */}
                   </div>
 
                   {/* Sender & Recipient Metadata Card */}
@@ -1703,14 +2115,53 @@ export default function ExecutiveWebmailPage() {
                             <Search className="w-3.5 h-3.5" />
                             <span>Show Source</span>
                           </button>
+
+                          <button
+                            type="button"
+                            onClick={handleSaveAsEvent}
+                            className="inline-flex items-center gap-1.5 text-indigo-600 hover:text-indigo-800 font-bold transition-colors cursor-pointer"
+                            title="Export email as iCal (.ics) event"
+                          >
+                            <Calendar className="w-3.5 h-3.5" />
+                            <span>Save as Event</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setShowFilterModal(true)}
+                            className="inline-flex items-center gap-1.5 text-slate-600 hover:text-slate-900 font-bold transition-colors cursor-pointer"
+                          >
+                            <Filter className="w-3.5 h-3.5" />
+                            <span>Create Filter</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setShowBlockSenderModal(true)}
+                            className="inline-flex items-center gap-1.5 text-rose-600 hover:text-rose-800 font-bold transition-colors cursor-pointer"
+                          >
+                            <Ban className="w-3.5 h-3.5" />
+                            <span>Block Sender</span>
+                          </button>
                         </div>
                       </div>
                     </div>
 
-                    <div className="text-left sm:text-right text-xs text-slate-500 font-medium shrink-0">
-                      <span className="text-[10px] text-slate-400 font-mono">
-                        ID: {messageDetail.id.slice(0, 16)}...
-                      </span>
+                    <div className="flex flex-col sm:items-end gap-1.5 shrink-0">
+                      <div className="flex items-center gap-1.5 flex-wrap sm:justify-end">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-purple-100 text-[#6605c7] border border-purple-200/80 flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#6605c7]"></span>
+                          <span>{activeFolder === "inbox" ? "Inbox" : activeFolder === "sent" ? "Sent Mail" : activeFolder === "trash" ? "Trash" : activeFolder === "drafts" ? "Drafts" : "Starred"}</span>
+                        </span>
+                        {/* <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                          <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                          <span>TLS 1.3 Verified</span>
+                        </span> */}
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-semibold sm:justify-end">
+                        <Clock className="w-3.5 h-3.5 text-slate-400" />
+                        <span>{getRelativeTimeAgo(messageDetail.date) || formatOutlookDate(messageDetail.date)}</span>
+                      </div>
                     </div>
                   </div>
 
@@ -1772,22 +2223,13 @@ export default function ExecutiveWebmailPage() {
                     </div>
                   )}
 
-                  {/* Remote Resources Privacy Banner */}
-                  <EmailRemoteResourceBanner
-                    isBlocked={remoteResourcesBlocked}
-                    onAllow={() => {
-                      setRemoteResourcesBlocked(false);
-                      showToast("Remote images & external content allowed.", "success");
-                    }}
-                  />
-
                   {/* Message Body Renderer */}
                   <div className="pt-2">
                     {viewMode === "html" && messageDetail.html ? (
                       <div className="rounded-2xl border border-slate-100 bg-white p-2 min-h-[300px]">
                         <iframe
                           title="Email HTML Preview"
-                          srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"/><style>body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;color:#1e293b;line-height:1.6;padding:12px;margin:0;word-break:break-word;}img{max-width:100%;height:auto;${remoteResourcesBlocked ? "filter:blur(2px);opacity:0.6;" : ""}}</style></head><body>${messageDetail.html}</body></html>`}
+                          srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"/><style>body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;color:#1e293b;line-height:1.6;padding:12px;margin:0;word-break:break-word;}img{max-width:100%;height:auto;}</style></head><body>${messageDetail.html}</body></html>`}
                           className="w-full min-h-[480px] border-none rounded-xl"
                           sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin"
                         />
@@ -2369,6 +2811,61 @@ export default function ExecutiveWebmailPage() {
         filename={lightboxImage?.filename}
         isOpen={Boolean(lightboxImage)}
         onClose={() => setLightboxImage(null)}
+      />
+
+      <CreateFilterModal
+        senderEmail={messageDetail?.from ? parseEmailContact(messageDetail.from).email : ""}
+        isOpen={showFilterModal}
+        onClose={() => setShowFilterModal(false)}
+        onSaveFilter={(rule) => {
+          showToast(`Filter created for ${rule.sender}.`, "success");
+        }}
+      />
+
+      <BlockSenderModal
+        senderEmail={messageDetail?.from ? parseEmailContact(messageDetail.from).email : ""}
+        isOpen={showBlockSenderModal}
+        onClose={() => setShowBlockSenderModal(false)}
+        onConfirmBlock={handleBlockSender}
+      />
+
+      <SafeSenderModal
+        senderEmail={messageDetail?.from ? parseEmailContact(messageDetail.from).email : ""}
+        isOpen={showSafeSenderModal}
+        onClose={() => setShowSafeSenderModal(false)}
+        onConfirmSafe={handleSafeSender}
+      />
+
+      <OutOfOfficeModal
+        isOpen={showOutOfOfficeModal}
+        onClose={() => setShowOutOfOfficeModal(false)}
+        onSave={(cfg) => {
+          showToast(
+            cfg.isEnabled
+              ? `Auto-reply enabled from ${cfg.startDate} to ${cfg.endDate}`
+              : "Auto-reply disabled.",
+            "success"
+          );
+        }}
+      />
+
+      <SignaturesModal
+        isOpen={showSignaturesModal}
+        onClose={() => setShowSignaturesModal(false)}
+        onSaveSignature={(sig) => {
+          setSavedSignature(sig.html);
+          showToast("Email signature saved.", "success");
+        }}
+      />
+
+      <MailRulesModal
+        isOpen={showMailRulesModal}
+        onClose={() => setShowMailRulesModal(false)}
+      />
+
+      <ConditionalFormattingModal
+        isOpen={showConditionalFormattingModal}
+        onClose={() => setShowConditionalFormattingModal(false)}
       />
 
       {/* Global Toast Alert */}
