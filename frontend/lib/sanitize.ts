@@ -37,7 +37,32 @@ function serverSanitizeHtml(dirty: string): string {
   clean = clean.replace(/(href|src|action|formaction)\s*=\s*(['"])\s*(?:javascript|vbscript|data\s*:\s*text\/html):[\s\S]*?\2/gi, '$1="#"');
   clean = clean.replace(/(href|src|action|formaction)\s*=\s*(?:javascript|vbscript|data\s*:\s*text\/html):[^\s>]+/gi, '$1="#"');
 
+  // 5. Strip clipboard fragment markers and metadata comments
+  clean = clean.replace(/<!--StartFragment-->/gi, "");
+  clean = clean.replace(/<!--EndFragment-->/gi, "");
+  clean = clean.replace(/<!--BLOCKS_JSON_START-->[\s\S]*?<!--BLOCKS_JSON_END-->/gi, "");
+  clean = clean.replace(/<!--SEO_JSON_START-->[\s\S]*?<!--SEO_JSON_END-->/gi, "");
+  clean = clean.replace(/<!--BLOCKS_JSON_(?:START|END)-->/gi, "");
+  clean = clean.replace(/<!--SEO_JSON_(?:START|END)-->/gi, "");
+
   return clean;
+}
+
+export function cleanBlogMetadata(rawHtml: string): string {
+  if (!rawHtml || typeof rawHtml !== "string") return "";
+  return rawHtml
+    .replace(/<!--BLOCKS_JSON_START-->[\s\S]*?<!--BLOCKS_JSON_END-->/gi, "")
+    .replace(/<!--SEO_JSON_START-->[\s\S]*?<!--SEO_JSON_END-->/gi, "")
+    .replace(/<!--\s*BLOCKS_DATA:[\s\S]*?-->/gi, "")
+    .replace(/<!--\s*SEO_DATA:[\s\S]*?-->/gi, "")
+    .replace(/<!--StartFragment-->/gi, "")
+    .replace(/<!--EndFragment-->/gi, "")
+    .replace(/<!--BLOCKS_JSON_(?:START|END)-->/gi, "")
+    .replace(/<!--SEO_JSON_(?:START|END)-->/gi, "")
+    .replace(/(?:\[\s*\]|\{\s*\})?\s*\{[\s\S]*?"metaTitle"[\s\S]*?\}/gi, "")
+    .replace(/&lt;!--StartFragment--&gt;/gi, "")
+    .replace(/&lt;!--EndFragment--&gt;/gi, "")
+    .trim();
 }
 
 /**
@@ -48,13 +73,15 @@ function serverSanitizeHtml(dirty: string): string {
 export function sanitizeHtml(dirtyHtml: string | null | undefined): string {
   if (!dirtyHtml || typeof dirtyHtml !== "string") return "";
 
+  const preCleaned = cleanBlogMetadata(dirtyHtml);
+
   // If in browser, use DOMPurify directly
   if (typeof window !== "undefined" && DOMPurify && typeof DOMPurify.sanitize === "function") {
-    return DOMPurify.sanitize(dirtyHtml, SANITIZE_CONFIG);
+    return DOMPurify.sanitize(preCleaned, SANITIZE_CONFIG);
   }
 
   // On server (SSR / Turbopack / Node runtime), sanitize safely without jsdom
-  return serverSanitizeHtml(dirtyHtml);
+  return serverSanitizeHtml(preCleaned);
 }
 
 /**

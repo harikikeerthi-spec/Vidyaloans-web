@@ -14,6 +14,52 @@ interface Props {
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://www.vidyaloans.in";
 
+/**
+ * Strip clipboard fragments (<!--StartFragment-->, etc.), HTML tags, and clean plain text
+ * for excerpts, subtitles, and SEO meta descriptions.
+ */
+export function cleanExcerptText(raw: string | null | undefined): string {
+  if (!raw || typeof raw !== "string") return "";
+  return raw
+    .replace(/<!--StartFragment-->/gi, "")
+    .replace(/<!--EndFragment-->/gi, "")
+    .replace(/&lt;!--StartFragment--&gt;/gi, "")
+    .replace(/&lt;!--EndFragment--&gt;/gi, "")
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&lt;[^&gt;]+&gt;/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Strips internal builder metadata comments, blocks JSON, and SEO JSON objects
+ * so that internal JSON structures are never rendered inside the public blog article body.
+ */
+export function cleanBlogContent(rawHtml: string | null | undefined): string {
+  if (!rawHtml || typeof rawHtml !== "string") return "";
+  return rawHtml
+    .replace(/<!--BLOCKS_JSON_START-->[\s\S]*?<!--BLOCKS_JSON_END-->/gi, "")
+    .replace(/<!--SEO_JSON_START-->[\s\S]*?<!--SEO_JSON_END-->/gi, "")
+    .replace(/<!--\s*BLOCKS_DATA:[\s\S]*?-->/gi, "")
+    .replace(/<!--\s*SEO_DATA:[\s\S]*?-->/gi, "")
+    .replace(/<!--StartFragment-->/gi, "")
+    .replace(/<!--EndFragment-->/gi, "")
+    .replace(/&lt;!--StartFragment--&gt;/gi, "")
+    .replace(/&lt;!--EndFragment--&gt;/gi, "")
+    .replace(/<!--BLOCKS_JSON_(?:START|END)-->/gi, "")
+    .replace(/<!--SEO_JSON_(?:START|END)-->/gi, "")
+    .replace(/<div[^>]*class="[^"]*blog-cover-page[^"]*"[\s\S]*?<\/div>\s*<\/div>/gi, "")
+    .replace(/(?:\[\s*\]|\{\s*\})?\s*\{[\s\S]*?"metaTitle"[\s\S]*?\}/gi, "")
+    .trim();
+}
+
 async function fetchBlogBySlug(slug: string): Promise<BlogPost | null> {
   const backendUrl = process.env.BACKEND_URL || "http://127.0.0.1:5000";
   const cleanSlug = decodeURIComponent(slug).trim();
@@ -81,9 +127,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     (blog as any).metaTitle ||
     blog.title;
   const metaDescription =
-    (blog as any).metaDescription ||
-    blog.subtitle ||
-    (blog as any).excerpt ||
+    cleanExcerptText((blog as any).metaDescription) ||
+    cleanExcerptText(blog.subtitle) ||
+    cleanExcerptText((blog as any).excerpt) ||
     "Read comprehensive education loan guidance, interest rates, and university funding tips on VidyaLoans.";
   const canonicalUrl =
     (blog as any).canonicalUrl || `${SITE_URL}/blog/${blog.slug || slug}`;
@@ -165,7 +211,7 @@ export default async function BlogPostPage({ params }: Props) {
       "@id": canonicalUrl,
     },
     headline: blog.title,
-    description: blog.subtitle || (blog as any).excerpt || "",
+    description: cleanExcerptText(blog.subtitle || (blog as any).excerpt || ""),
     image: [coverImg],
     datePublished: blog.publishedAt || (blog as any).createdAt,
     dateModified: (blog as any).updatedAt || blog.publishedAt || (blog as any).createdAt,
@@ -294,7 +340,7 @@ export default async function BlogPostPage({ params }: Props) {
 
           {(blog.subtitle || (blog as any).excerpt) && (
             <p className="text-base sm:text-lg md:text-xl text-slate-600 font-normal leading-relaxed mb-8">
-              {blog.subtitle || (blog as any).excerpt}
+              {cleanExcerptText(blog.subtitle || (blog as any).excerpt)}
             </p>
           )}
 
@@ -323,22 +369,12 @@ export default async function BlogPostPage({ params }: Props) {
           </div>
         </div>
 
-        {/* Featured Hero Image */}
-        <div className="max-w-5xl mx-auto px-6 mb-16">
-          <div className="relative aspect-[21/9] rounded-3xl overflow-hidden shadow-xl bg-slate-100 border border-slate-100">
-            <img
-              src={coverImg}
-              alt={blog.title}
-              className="w-full h-full object-cover"
-              loading="eager"
-            />
-          </div>
-        </div>
+
 
         {/* Article Body Content */}
         <div className="max-w-3xl mx-auto px-6">
           <style dangerouslySetInnerHTML={{ __html: `
-            .blog-prose-content a:not(.blog-btn):not(.btn-submit-inquiry):not(.btn-reset-inquiry) {
+            .blog-prose-content a:not(.blog-btn):not(.btn-submit-inquiry):not(.btn-reset-inquiry):not(.blog-cta-card a) {
               color: #2563eb !important;
               font-weight: 700 !important;
               text-decoration: underline !important;
@@ -352,13 +388,13 @@ export default async function BlogPostPage({ params }: Props) {
               transition: all 0.2s ease !important;
               display: inline !important;
             }
-            .blog-prose-content a:not(.blog-btn):not(.btn-submit-inquiry):not(.btn-reset-inquiry):hover {
+            .blog-prose-content a:not(.blog-btn):not(.btn-submit-inquiry):not(.btn-reset-inquiry):not(.blog-cta-card a):hover {
               color: #1d4ed8 !important;
               text-decoration-color: #2563eb !important;
               background-color: #dbeafe !important;
               box-shadow: 0 2px 4px rgba(37, 99, 235, 0.16) !important;
             }
-            .blog-prose-content a:not(.blog-btn):not(.btn-submit-inquiry):not(.btn-reset-inquiry)::after {
+            .blog-prose-content a:not(.blog-btn):not(.btn-submit-inquiry):not(.btn-reset-inquiry):not(.blog-cta-card a)::after {
               content: " \\2197";
               font-size: 0.8em;
               font-weight: 900;
@@ -366,7 +402,8 @@ export default async function BlogPostPage({ params }: Props) {
               display: inline-block;
               margin-left: 2px;
             }
-            .blog-toc a::after {
+            .blog-toc a::after,
+            .blog-cta-card a::after {
               content: none !important;
             }
             .blog-toc a {
@@ -374,6 +411,84 @@ export default async function BlogPostPage({ params }: Props) {
               padding: 0 !important;
               box-shadow: none !important;
               display: flex !important;
+            }
+            .blog-cta-card a {
+              background-color: transparent !important;
+              box-shadow: none !important;
+              text-decoration: none !important;
+            }
+            .blog-prose-content ul:not(.blog-toc ul) {
+              list-style-type: disc !important;
+              padding-left: 1.5rem !important;
+              margin-top: 0.75rem !important;
+              margin-bottom: 0.75rem !important;
+            }
+            .blog-prose-content ol {
+              list-style-type: decimal !important;
+              padding-left: 1.5rem !important;
+              margin-top: 0.75rem !important;
+              margin-bottom: 0.75rem !important;
+            }
+            .blog-prose-content li {
+              display: list-item !important;
+              padding-left: 0.25rem !important;
+              margin-bottom: 0.35rem !important;
+            }
+            .blog-prose-content h1 {
+              font-size: 2.25rem !important;
+              font-weight: 900 !important;
+              line-height: 1.2 !important;
+              margin-top: 2.25rem !important;
+              margin-bottom: 1rem !important;
+              color: #0f172a !important;
+              display: block !important;
+            }
+            .blog-prose-content h2 {
+              font-size: 1.875rem !important;
+              font-weight: 800 !important;
+              line-height: 1.25 !important;
+              margin-top: 2rem !important;
+              margin-bottom: 0.75rem !important;
+              color: #0f172a !important;
+              display: block !important;
+            }
+            .blog-prose-content h3 {
+              font-size: 1.5rem !important;
+              font-weight: 700 !important;
+              line-height: 1.3 !important;
+              margin-top: 1.75rem !important;
+              margin-bottom: 0.5rem !important;
+              color: #1e293b !important;
+              display: block !important;
+            }
+            .blog-prose-content h4 {
+              font-size: 1.25rem !important;
+              font-weight: 700 !important;
+              line-height: 1.35 !important;
+              margin-top: 1.5rem !important;
+              margin-bottom: 0.5rem !important;
+              color: #1e293b !important;
+              display: block !important;
+            }
+            .blog-prose-content h5 {
+              font-size: 1.125rem !important;
+              font-weight: 600 !important;
+              line-height: 1.4 !important;
+              margin-top: 1.25rem !important;
+              margin-bottom: 0.5rem !important;
+              color: #334155 !important;
+              display: block !important;
+            }
+            .blog-prose-content h6 {
+              font-size: 0.875rem !important;
+              font-weight: 600 !important;
+              text-transform: uppercase !important;
+              letter-spacing: 0.05em !important;
+              line-height: 1.4 !important;
+              margin-top: 1rem !important;
+              margin-bottom: 0.25rem !important;
+              color: #475569 !important;
+              display: block !important;
             }
           `}} />
           <div
@@ -383,7 +498,7 @@ export default async function BlogPostPage({ params }: Props) {
               prose-strong:text-slate-900 prose-strong:font-bold
               prose-img:rounded-2xl prose-img:shadow-md
               prose-a:text-blue-600 prose-a:font-bold prose-a:underline prose-a:underline-offset-4 prose-a:decoration-2 prose-a:decoration-blue-400 hover:prose-a:decoration-blue-700 hover:prose-a:text-blue-800 prose-a:bg-blue-50/90 prose-a:px-1.5 prose-a:py-0.5 prose-a:rounded-md hover:prose-a:bg-blue-100 prose-a:transition-all prose-a:shadow-2xs"
-            dangerouslySetInnerHTML={{ __html: sanitizeHtml(blog.content || "") }}
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(cleanBlogContent(blog.content || "")) }}
           />
 
           {/* Tag Badges */}

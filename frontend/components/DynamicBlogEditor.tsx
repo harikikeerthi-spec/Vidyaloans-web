@@ -9,6 +9,8 @@ export type BlockType =
   | "heading"
   | "text"
   | "image"
+  | "cover_image"
+  | "cta_card"
   | "split_content"
   | "table"
   | "table_of_contents"
@@ -71,6 +73,8 @@ export interface Block {
   tableData?: TableData;
   caption?: string;
   authorCitation?: string;
+  cardTheme?: "navy" | "indigo" | "emerald" | "dark" | "purple";
+  cardBadge?: string;
   buttonText?: string;
   buttonUrl?: string;
   buttonNewTab?: boolean;
@@ -118,7 +122,7 @@ const SUGGESTED_TAGS = [
   "FastApproval",
 ];
 
-const CURATED_COVERS = [
+export const CURATED_COVERS = [
   {
     label: "Global Campus",
     url: "https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=1200&q=80",
@@ -375,10 +379,27 @@ export const RichTextBlock = React.memo(function RichTextBlock({
         textAlign: block.style?.textAlign,
         color: block.style?.color,
       }}
-      className="min-h-[80px] text-base leading-relaxed text-slate-800 focus:outline-none p-3.5 rounded-xl border border-slate-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 bg-white transition-all shadow-2xs [&_*[style*='255, 255, 255']]:!text-slate-800 [&_*[style*='255,255,255']]:!text-slate-800 [&_*[style*='#ffffff']]:!text-slate-800 [&_*[style*='#fff']]:!text-slate-800 [&_a]:text-blue-600 [&_a]:font-bold [&_a]:underline [&_a]:underline-offset-4 [&_a]:decoration-2 [&_a]:decoration-blue-500 [&_a]:bg-blue-50/90 [&_a]:px-1.5 [&_a]:py-0.5 [&_a]:rounded-md hover:[&_a]:bg-blue-100 hover:[&_a]:text-blue-800 hover:[&_a]:decoration-blue-700 [&_a]:transition-all [&_a]:shadow-2xs"
+      className="min-h-[80px] text-base leading-relaxed text-slate-800 focus:outline-none p-3.5 rounded-xl border border-slate-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 bg-white transition-all shadow-2xs [&_*[style*='255, 255, 255']]:!text-slate-800 [&_*[style*='255,255,255']]:!text-slate-800 [&_*[style*='#ffffff']]:!text-slate-800 [&_*[style*='#fff']]:!text-slate-800 [&_a]:text-blue-600 [&_a]:font-bold [&_a]:underline [&_a]:underline-offset-4 [&_a]:decoration-2 [&_a]:decoration-blue-500 [&_a]:bg-blue-50/90 [&_a]:px-1.5 [&_a]:py-0.5 [&_a]:rounded-md hover:[&_a]:bg-blue-100 hover:[&_a]:text-blue-800 hover:[&_a]:decoration-blue-700 [&_a]:transition-all [&_a]:shadow-2xs [&_ul]:list-disc [&_ul]:list-outside [&_ul]:pl-6 [&_ul]:my-3 [&_ul]:space-y-1.5 [&_ol]:list-decimal [&_ol]:list-outside [&_ol]:pl-6 [&_ol]:my-3 [&_ol]:space-y-1.5 [&_li]:text-slate-800 [&_li]:leading-relaxed"
     />
   );
 });
+
+const cleanPlainText = (text: string | null | undefined): string => {
+  if (!text || typeof text !== "string") return "";
+  return text
+    .replace(/<!--StartFragment-->/gi, "")
+    .replace(/<!--EndFragment-->/gi, "")
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+};
 
 export default function DynamicBlogEditor({
   initialBlog,
@@ -390,13 +411,13 @@ export default function DynamicBlogEditor({
   const [title, setTitle] = useState(initialBlog?.title || "");
   const [slug, setSlug] = useState(initialBlog?.slug || "");
   const [subtitle, setSubtitle] = useState(
-    initialBlog?.subtitle || initialBlog?.excerpt || ""
+    cleanPlainText(initialBlog?.subtitle || initialBlog?.excerpt || "")
   );
   const [category, setCategory] = useState(
     initialBlog?.category || "Loan Guidance"
   );
   const [coverImage, setCoverImage] = useState(
-    initialBlog?.coverImage || initialBlog?.featuredImage || CURATED_COVERS[0].url
+    initialBlog?.coverImage || initialBlog?.featuredImage || ""
   );
   const [tags, setTags] = useState<string[]>(
     Array.isArray(initialBlog?.tags)
@@ -445,11 +466,16 @@ export default function DynamicBlogEditor({
   const initialSeoData = useMemo(() => {
     if (!initialBlog?.content) return null;
     const match = initialBlog.content.match(
-      /<!--SEO_JSON_START-->([\s\S]*?)<!--SEO_JSON_END-->/
+      /<!--(?:SEO_JSON_START-->([\s\S]*?)<!--SEO_JSON_END|SEO_DATA:\s*([\s\S]*?))\s*-->/
     );
-    if (match && match[1]) {
+    const raw = match?.[1] || match?.[2];
+    if (raw) {
       try {
-        return JSON.parse(match[1]);
+        const parsed = JSON.parse(raw);
+        if (parsed.metaDescription) {
+          parsed.metaDescription = cleanPlainText(parsed.metaDescription);
+        }
+        return parsed;
       } catch (_) {
         return null;
       }
@@ -866,11 +892,12 @@ export default function DynamicBlogEditor({
       if (initialBlog.content) {
         // Parse embedded JSON comments or fallback
         const match = initialBlog.content.match(
-          /<!--BLOCKS_JSON_START-->([\s\S]*?)<!--BLOCKS_JSON_END-->/
+          /<!--(?:BLOCKS_JSON_START-->([\s\S]*?)<!--BLOCKS_JSON_END|BLOCKS_DATA:\s*([\s\S]*?))\s*-->/
         );
-        if (match && match[1]) {
+        const rawJson = match?.[1] || match?.[2];
+        if (rawJson) {
           try {
-            const parsed = JSON.parse(match[1]);
+            const parsed = JSON.parse(rawJson);
             if (Array.isArray(parsed) && parsed.length > 0) {
               setBlocks(sanitizeBlocks(parsed));
               return;
@@ -1181,6 +1208,27 @@ export default function DynamicBlogEditor({
           type: "video",
           content: "https://www.youtube.com/embed/dQw4w9WgXcQ",
           caption: "Video: Step-by-step education loan guide",
+        };
+        break;
+      case "cover_image":
+        newBlock = {
+          id: newId,
+          type: "cover_image",
+          title: "Blog Cover Banner",
+          content: "https://images.unsplash.com/photo-1523240795612-9a054b0db644?q=80&w=1200",
+        };
+        break;
+      case "cta_card":
+        newBlock = {
+          id: newId,
+          type: "cta_card",
+          title: "Start Your Education Loan Journey",
+          content: "Explore education financing assistance through VidyaLoans.",
+          buttonText: "Visit VidyaLoans →",
+          buttonUrl: "https://vidyaloans.com",
+          buttonNewTab: true,
+          cardTheme: "navy",
+          cardBadge: "Official Guidance",
         };
         break;
       case "button":
@@ -1494,6 +1542,60 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
             }
             return `<div class="my-8 aspect-video rounded-3xl overflow-hidden shadow-lg border border-slate-200 bg-slate-950"><iframe src="${block.content || ""}" class="w-full h-full" frameborder="0" allowfullscreen></iframe></div>`;
           }
+          case "cover_image": {
+            const covUrl = block.content || "";
+            if (!covUrl) return "";
+            return `<figure class="blog-cover-page my-8 not-prose overflow-hidden rounded-3xl shadow-xl border border-slate-200/80 relative"><img src="${covUrl}" alt="${block.title || 'Blog Cover Banner'}" class="w-full object-cover max-h-[460px] block" /><div class="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent pointer-events-none"></div></figure>`;
+          }
+          case "cta_card": {
+            const cardTitle = block.title || "Start Your Education Loan Journey";
+            const cardContent = block.content || "Explore education financing assistance through VidyaLoans.";
+            const btnText = block.buttonText || "Visit VidyaLoans →";
+            const btnUrl = block.buttonUrl || "https://vidyaloans.com";
+            const isNewTab = block.buttonNewTab !== false;
+            const theme = block.cardTheme || "navy";
+            const badge = block.cardBadge?.trim();
+
+            const themeStyles: Record<string, { bg: string; border: string; textAccent: string; customCss: string }> = {
+              navy: {
+                bg: "bg-[#0A1E36]",
+                border: "border border-sky-900/60",
+                textAccent: "text-sky-400 hover:text-sky-300",
+                customCss: "background: linear-gradient(135deg, #0A1E36 0%, #0F2A4A 100%); color: #ffffff;",
+              },
+              indigo: {
+                bg: "bg-indigo-950",
+                border: "border border-indigo-800/60",
+                textAccent: "text-indigo-400 hover:text-indigo-300",
+                customCss: "background: linear-gradient(135deg, #1E1B4B 0%, #312E81 100%); color: #ffffff;",
+              },
+              emerald: {
+                bg: "bg-emerald-950",
+                border: "border border-emerald-800/60",
+                textAccent: "text-emerald-400 hover:text-emerald-300",
+                customCss: "background: linear-gradient(135deg, #064E3B 0%, #065F46 100%); color: #ffffff;",
+              },
+              dark: {
+                bg: "bg-slate-900",
+                border: "border border-slate-800",
+                textAccent: "text-blue-400 hover:text-blue-300",
+                customCss: "background: #0f172a; color: #ffffff;",
+              },
+              purple: {
+                bg: "bg-purple-950",
+                border: "border border-purple-800/60",
+                textAccent: "text-purple-400 hover:text-purple-300",
+                customCss: "background: linear-gradient(135deg, #3B0764 0%, #581C87 100%); color: #ffffff;",
+              },
+            };
+
+            const currentTheme = themeStyles[theme] || themeStyles.navy;
+            const badgeHtml = badge
+              ? `<span class="inline-block px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-white/10 text-white/90 border border-white/20 mb-3">${badge}</span>`
+              : "";
+
+            return `<div class="blog-cta-card my-8 p-6 md:p-8 rounded-2xl shadow-xl not-prose relative overflow-hidden transition-all text-white ${currentTheme.bg} ${currentTheme.border}" data-theme="${theme}" style="${currentTheme.customCss}"><div class="relative z-10">${badgeHtml}<h3 class="text-xl md:text-2xl font-bold text-white mb-2 tracking-tight">${cardTitle}</h3><p class="text-slate-200 text-sm md:text-base leading-relaxed mb-4">${cardContent}</p><a href="${btnUrl}" target="${isNewTab ? '_blank' : '_self'}" ${isNewTab ? 'rel="noopener noreferrer"' : ''} class="inline-flex items-center gap-1.5 font-bold ${currentTheme.textAccent} transition-colors group"><span class="font-bold underline underline-offset-4">${btnText}</span></a></div></div>`;
+          }
           case "button": {
             const btnText = block.buttonText || block.content || "Explore Loan Options";
             const btnUrl = block.buttonUrl || "/apply-loan";
@@ -1524,16 +1626,9 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
       })
       .join("\n");
 
-    // Embed blocks JSON and SEO metadata comments for lossless round-trip reloading
-    const jsonComment = `\n<!--BLOCKS_JSON_START-->${JSON.stringify(blocks)}<!--BLOCKS_JSON_END-->`;
-    const seoComment = `\n<!--SEO_JSON_START-->${JSON.stringify({
-      metaTitle: metaTitle.trim(),
-      metaDescription: metaDescription.trim(),
-      focusKeyword: focusKeyword.trim(),
-      canonicalUrl: canonicalUrl.trim(),
-      noIndex: Boolean(noIndex),
-    })}<!--SEO_JSON_END-->`;
-    return bodyHtml + jsonComment + seoComment;
+    // Embed blocks JSON comment for lossless round-trip reloading
+    const jsonComment = `\n<!--BLOCKS_DATA: ${JSON.stringify(blocks).replace(/-->/g, '-- >')} -->`;
+    return bodyHtml + jsonComment;
   };
 
   // Save / Publish action
@@ -1553,11 +1648,14 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
           .replace(/(^-|-$)/g, "");
 
       const htmlContent = generateCompleteHtml();
+      const cleanSub = cleanPlainText(subtitle);
+      const cleanMeta = cleanPlainText(metaDescription);
 
       const payload = {
         title: title.trim(),
         slug: finalSlug,
-        subtitle: subtitle.trim(),
+        subtitle: cleanSub,
+        excerpt: cleanSub,
         category,
         coverImage,
         featuredImage: coverImage,
@@ -1567,7 +1665,7 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
         readTime: readingTime,
         authorName,
         metaTitle: metaTitle.trim() || undefined,
-        metaDescription: metaDescription.trim() || undefined,
+        metaDescription: cleanMeta || undefined,
         focusKeyword: focusKeyword.trim() || undefined,
         canonicalUrl: canonicalUrl.trim() || undefined,
         noIndex: Boolean(noIndex),
@@ -1652,6 +1750,69 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
       const newHtml = editorRefs.current[blockId]?.innerHTML || "";
       updateBlock(blockId, { content: newHtml });
     }
+    saveSelection();
+  };
+
+  // Specialized list formatting helper for selected text or current paragraph
+  const applyListFormat = (type: "unordered" | "ordered", blockId: string) => {
+    const el = editorRefs.current[blockId];
+    if (!el) return;
+
+    el.focus();
+    const sel = window.getSelection();
+
+    // Check if selection is already inside this editor
+    let isInside = false;
+    if (sel && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      if (el.contains(range.commonAncestorContainer)) {
+        isInside = true;
+      }
+    }
+    if (!isInside && savedRangeRef.current && el.contains(savedRangeRef.current.commonAncestorContainer)) {
+      sel?.removeAllRanges();
+      sel?.addRange(savedRangeRef.current);
+      isInside = true;
+    }
+
+    const cmd = type === "ordered" ? "insertOrderedList" : "insertUnorderedList";
+
+    try {
+      document.execCommand(cmd, false);
+    } catch (_) { }
+
+    // Normalize any <br> tags inside <li> so that each line becomes a separate list item
+    const listItems = el.querySelectorAll("li");
+    listItems.forEach((li) => {
+      if (li.innerHTML.includes("<br>")) {
+        const parts = li.innerHTML.split(/<br\s*\/?>/i).map((s) => s.trim()).filter(Boolean);
+        if (parts.length > 1) {
+          const parent = li.parentNode;
+          if (parent) {
+            parts.forEach((p) => {
+              const newLi = document.createElement("li");
+              newLi.innerHTML = p;
+              parent.insertBefore(newLi, li);
+            });
+            parent.removeChild(li);
+          }
+        }
+      }
+    });
+
+    // Ensure list elements have explicit list classes so they are always visible
+    const lists = el.querySelectorAll("ul, ol");
+    lists.forEach((list) => {
+      list.classList.add("my-2", "pl-6");
+      if (list.tagName.toLowerCase() === "ol") {
+        list.classList.add("list-decimal");
+      } else {
+        list.classList.add("list-disc");
+      }
+    });
+
+    const newHtml = el.innerHTML;
+    updateBlock(blockId, { content: newHtml });
     saveSelection();
   };
 
@@ -2317,17 +2478,52 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
                 {/* Cover Image Picker Drawer */}
                 {showCoverPicker && (
                   <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3 animate-fade-in">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-black uppercase text-slate-600">
-                        Select Hero Cover Photo
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setShowCoverPicker(false)}
-                        className="text-slate-400 hover:text-slate-700 text-xs"
-                      >
-                        ✕ Close
-                      </button>
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black uppercase text-slate-700">
+                          Hero Cover Image
+                        </span>
+                        <label className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold cursor-pointer transition-all shadow-xs flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[14px]">upload</span>
+                          <span>Upload File from Device</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onload = (re) => {
+                                  if (typeof re.target?.result === "string") {
+                                    setCoverImage(re.target.result);
+                                  }
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                          />
+                        </label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {coverImage && (
+                          <button
+                            type="button"
+                            onClick={() => setCoverImage("")}
+                            className="text-rose-600 hover:text-rose-700 text-xs font-bold flex items-center gap-0.5 cursor-pointer"
+                          >
+                            <span className="material-symbols-outlined text-[13px]">delete</span>
+                            <span>Remove</span>
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setShowCoverPicker(false)}
+                          className="text-slate-400 hover:text-slate-700 text-xs cursor-pointer ml-2"
+                        >
+                          ✕ Close
+                        </button>
+                      </div>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                       {CURATED_COVERS.map((cov) => (
@@ -2824,19 +3020,104 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
                   </div>
                 )}
 
-                {/* Hero Cover Image Preview */}
-                <div className="relative aspect-[21/9] rounded-2xl overflow-hidden shadow-sm border border-slate-100 bg-slate-100 group">
-                  <img
-                    src={coverImage}
-                    alt={title || "Cover Image"}
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent flex items-end p-4 text-white">
-                    <span className="px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-xs font-bold uppercase tracking-wider text-white">
-                      {category}
-                    </span>
+                {/* Hero Cover Image Preview with Dynamic Controls */}
+                {coverImage ? (
+                  <div className="relative aspect-[21/9] rounded-2xl overflow-hidden shadow-md border border-slate-200 bg-slate-900 group/hero">
+                    <img
+                      src={coverImage}
+                      alt={title || "Cover Image"}
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent flex items-end justify-between p-4 text-white">
+                      <span className="px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-xs font-bold uppercase tracking-wider text-white">
+                        {category}
+                      </span>
+                    </div>
+                    {/* Action buttons floating top right */}
+                    <div className="absolute top-3 right-3 flex items-center gap-1.5 opacity-90 group-hover/hero:opacity-100 transition-opacity">
+                      <label className="px-2.5 py-1 bg-black/70 hover:bg-black text-white text-[11px] font-bold rounded-lg cursor-pointer backdrop-blur-xs flex items-center gap-1 shadow-sm">
+                        <span className="material-symbols-outlined text-[13px]">upload</span>
+                        <span>Upload Photo</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onload = (re) => {
+                                if (typeof re.target?.result === "string") {
+                                  setCoverImage(re.target.result);
+                                }
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowCoverPicker(!showCoverPicker)}
+                        className="px-2.5 py-1 bg-black/70 hover:bg-black text-white text-[11px] font-bold rounded-lg cursor-pointer backdrop-blur-xs flex items-center gap-1 shadow-sm"
+                      >
+                        <span className="material-symbols-outlined text-[13px]">photo_library</span>
+                        <span>Presets</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCoverImage("")}
+                        className="px-2.5 py-1 bg-rose-600/80 hover:bg-rose-700 text-white text-[11px] font-bold rounded-lg cursor-pointer backdrop-blur-xs flex items-center gap-1 shadow-sm"
+                      >
+                        <span className="material-symbols-outlined text-[13px]">delete</span>
+                        <span>Remove</span>
+                      </button>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="p-6 rounded-2xl border-2 border-dashed border-indigo-200 bg-indigo-50/40 hover:bg-indigo-50/70 transition-all flex items-center justify-between gap-4 flex-wrap">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center shadow-2xs">
+                        <span className="material-symbols-outlined text-2xl">wallpaper</span>
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-extrabold text-slate-900">Cover Page / Hero Image</h4>
+                        <p className="text-[11px] text-slate-500">Upload a custom banner image or choose from presets</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold cursor-pointer transition-colors shadow-xs flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[15px]">upload</span>
+                        <span>Upload File</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onload = (re) => {
+                                if (typeof re.target?.result === "string") {
+                                  setCoverImage(re.target.result);
+                                }
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowCoverPicker(true)}
+                        className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold cursor-pointer transition-colors shadow-2xs flex items-center gap-1.5"
+                      >
+                        <span className="material-symbols-outlined text-[15px] text-indigo-600">photo_library</span>
+                        <span>Choose Preset</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Dynamic Title Input (Editorial Style) */}
                 <div>
@@ -2932,6 +3213,14 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
                   Quick Add:
                 </span>
                 <div className="flex items-center gap-1.5 overflow-x-auto py-1">
+                  <button
+                    type="button"
+                    onClick={() => addBlock("cover_image", 0)}
+                    className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-xs font-bold flex items-center gap-1 shrink-0 cursor-pointer shadow-2xs"
+                  >
+                    <span className="material-symbols-outlined text-[15px] text-amber-600">wallpaper</span>
+                    <span>Cover Banner</span>
+                  </button>
                   <button
                     type="button"
                     onClick={() => addBlock("heading")}
@@ -3554,18 +3843,18 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
                               <button
                                 type="button"
                                 onMouseDown={(e) => e.preventDefault()}
-                                onClick={() => applyInlineFormat("insertUnorderedList", "", block.id)}
+                                onClick={() => applyListFormat("unordered", block.id)}
                                 className="w-7 h-7 rounded-lg hover:bg-white text-slate-700 flex items-center justify-center cursor-pointer transition-colors border border-transparent hover:border-slate-200 shadow-2xs"
-                                title="Bullet List"
+                                title="Bullet List (•)"
                               >
                                 <span className="material-symbols-outlined text-[15px]">format_list_bulleted</span>
                               </button>
                               <button
                                 type="button"
                                 onMouseDown={(e) => e.preventDefault()}
-                                onClick={() => applyInlineFormat("insertOrderedList", "", block.id)}
+                                onClick={() => applyListFormat("ordered", block.id)}
                                 className="w-7 h-7 rounded-lg hover:bg-white text-slate-700 flex items-center justify-center cursor-pointer transition-colors border border-transparent hover:border-slate-200 shadow-2xs"
-                                title="Numbered List"
+                                title="Numbered List (1, 2, 3)"
                               >
                                 <span className="material-symbols-outlined text-[15px]">format_list_numbered</span>
                               </button>
@@ -4843,6 +5132,163 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
                         })()}
 
                         {/* 11. BUTTON CTA */}
+                        {block.type === "cover_image" && (
+                          <div className="space-y-3 group/coverblock">
+                            {/* Toolbar */}
+                            <div className="flex items-center justify-between gap-2 flex-wrap pb-2 border-b border-slate-200 text-xs">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-amber-50 text-amber-900 font-extrabold text-[11px] border border-amber-200/90 shadow-2xs">
+                                  <span className="material-symbols-outlined text-[14px] text-amber-600">wallpaper</span>
+                                  <span>Cover Page / Hero Banner</span>
+                                </span>
+                              </div>
+                              <label className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold cursor-pointer transition-all shadow-xs">
+                                <span className="material-symbols-outlined text-[15px]">upload</span>
+                                <span>Upload Image</span>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                      const reader = new FileReader();
+                                      reader.onload = (re) => {
+                                        if (typeof re.target?.result === "string") {
+                                          updateBlock(block.id, { content: re.target.result });
+                                        }
+                                      };
+                                      reader.readAsDataURL(file);
+                                    }
+                                  }}
+                                />
+                              </label>
+                            </div>
+
+                            {/* Live Hero Banner */}
+                            <div className="relative rounded-2xl overflow-hidden shadow-lg border border-slate-200 max-h-[380px] bg-slate-900 group/cov">
+                              <img
+                                src={block.content || "https://images.unsplash.com/photo-1523240795612-9a054b0db644?q=80&w=1200"}
+                                alt="Cover Banner"
+                                className="w-full h-full object-cover max-h-[380px] block"
+                              />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-6 text-white pointer-events-none">
+                                <span className="inline-block px-2.5 py-0.5 bg-amber-500 text-slate-950 text-[10px] font-black uppercase tracking-wider rounded-md mb-1.5 w-fit">
+                                  Cover Banner
+                                </span>
+                                <h3 className="text-xl md:text-2xl font-bold text-white mb-1">
+                                  {block.title || "Main Blog Cover Story"}
+                                </h3>
+                              </div>
+                            </div>
+
+                            {/* Inputs */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              <input
+                                type="text"
+                                value={block.content || ""}
+                                onChange={(e) => updateBlock(block.id, { content: e.target.value })}
+                                placeholder="Paste image URL (https://...)"
+                                className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs font-mono"
+                              />
+                              <input
+                                type="text"
+                                value={block.title || ""}
+                                onChange={(e) => updateBlock(block.id, { title: e.target.value })}
+                                placeholder="Optional cover headline or caption..."
+                                className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs"
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {block.type === "cta_card" && (
+                          <div className="space-y-3 group/ctacard">
+                            {/* Theme toolbar */}
+                            <div className="flex items-center gap-1.5 flex-wrap pb-1 border-b border-slate-200 text-xs">
+                              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">CTA Journey Card Theme:</span>
+                              {(["navy", "indigo", "emerald", "dark", "purple"] as const).map((t) => (
+                                <button
+                                  key={t}
+                                  type="button"
+                                  onClick={() => updateBlock(block.id, { cardTheme: t })}
+                                  className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-all ${
+                                    (block.cardTheme || "navy") === t
+                                      ? "bg-slate-900 text-white shadow-xs scale-105"
+                                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                  }`}
+                                >
+                                  {t}
+                                </button>
+                              ))}
+                            </div>
+
+                            {/* Card Display matching screenshot */}
+                            <div className={`p-6 sm:p-8 rounded-2xl text-white relative overflow-hidden transition-all ${
+                              block.cardTheme === "indigo"
+                                ? "bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-900 border border-indigo-800/60"
+                                : block.cardTheme === "emerald"
+                                ? "bg-gradient-to-br from-emerald-950 via-slate-900 to-teal-950 border border-emerald-800/60"
+                                : block.cardTheme === "dark"
+                                ? "bg-slate-900 border border-slate-800"
+                                : block.cardTheme === "purple"
+                                ? "bg-gradient-to-br from-purple-950 via-slate-900 to-fuchsia-950 border border-purple-800/60"
+                                : "bg-[#0A1E36] border border-sky-900/60"
+                            }`}>
+                              <div className="mb-2">
+                                <input
+                                  type="text"
+                                  value={block.cardBadge || ""}
+                                  placeholder="Optional Badge (e.g. Official Guidance)..."
+                                  onChange={(e) => updateBlock(block.id, { cardBadge: e.target.value })}
+                                  className="text-[10px] uppercase tracking-wider font-extrabold px-2.5 py-0.5 rounded-full border bg-white/10 text-white/90 placeholder:text-white/40 focus:outline-none focus:ring-1 focus:ring-sky-400 inline-block"
+                                />
+                              </div>
+
+                              <h3
+                                contentEditable
+                                suppressContentEditableWarning
+                                onBlur={(e) => updateBlock(block.id, { title: e.currentTarget.textContent || "" })}
+                                className="text-xl sm:text-2xl font-extrabold text-white mb-2 tracking-tight outline-none focus:ring-2 focus:ring-sky-400/50 rounded px-1"
+                              >
+                                {block.title || "Start Your Education Loan Journey"}
+                              </h3>
+
+                              <p
+                                contentEditable
+                                suppressContentEditableWarning
+                                onBlur={(e) => updateBlock(block.id, { content: e.currentTarget.textContent || "" })}
+                                className="text-slate-300 text-sm sm:text-base leading-relaxed mb-4 outline-none focus:ring-2 focus:ring-sky-400/50 rounded px-1"
+                              >
+                                {block.content || "Explore education financing assistance through VidyaLoans."}
+                              </p>
+
+                              <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-white/10">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[11px] text-white/60 font-semibold">Link Text:</span>
+                                  <input
+                                    type="text"
+                                    value={block.buttonText || "Visit VidyaLoans →"}
+                                    onChange={(e) => updateBlock(block.id, { buttonText: e.target.value })}
+                                    className="text-xs font-bold text-sky-400 bg-white/10 border border-white/20 rounded-lg px-2.5 py-1 focus:outline-none focus:border-sky-400"
+                                    placeholder="Visit VidyaLoans →"
+                                  />
+                                </div>
+                                <div className="flex items-center gap-1.5 flex-1 min-w-[200px]">
+                                  <span className="text-[11px] text-white/60 font-semibold">URL:</span>
+                                  <input
+                                    type="text"
+                                    value={block.buttonUrl || "https://vidyaloans.com"}
+                                    onChange={(e) => updateBlock(block.id, { buttonUrl: e.target.value })}
+                                    className="text-xs text-white bg-white/10 border border-white/20 rounded-lg px-2.5 py-1 w-full focus:outline-none focus:border-sky-400"
+                                    placeholder="https://vidyaloans.com"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
                         {block.type === "button" && (
                           <div className="space-y-4">
                             {/* Live Button Display in Editor UI */}

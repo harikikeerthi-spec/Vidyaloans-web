@@ -391,6 +391,38 @@ export class BlogService {
               </table>
             </div>`;
           }
+          case 'cover_image': {
+            const aspect = block.style?.aspectRatio || '21/9';
+            const maxH = block.style?.maxHeight || '380px';
+            const rad = block.style?.borderRadius || '20px';
+            const overlay = block.title ? `<div class="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-900/30 to-transparent flex items-end p-6"><h2 class="text-white text-xl sm:text-2xl font-bold">${block.title}</h2></div>` : '';
+            return `<div class="blog-cover-page my-8 not-prose"><div class="relative overflow-hidden shadow-xl" style="border-radius: ${rad};"><img src="${block.content || ''}" class="w-full block object-cover" style="aspect-ratio: ${aspect}; max-height: ${maxH};" alt="${block.title || 'Cover'}" />${overlay}</div></div>`;
+          }
+          case 'journey_card': {
+            const cardTitle = block.title || 'Start Your Education Loan Journey';
+            const cardDesc = block.content || 'Explore education financing assistance through VidyaLoans.';
+            const btnText = block.buttonText || 'Visit VidyaLoans →';
+            const btnUrl = block.buttonUrl || '/apply-loan';
+            const refs = Array.isArray(block.items) && block.items.length > 0 ? block.items : [
+              'Reserve Bank of India|https://www.rbi.org.in',
+              'Ministry of Education|https://www.education.gov.in',
+              'PM-Vidyalaxmi Scheme|https://www.vidyalakshmi.co.in'
+            ];
+            const refsHtml = refs.map((ref: string) => {
+              const [name, url] = ref.includes('|') ? ref.split('|') : [ref, 'https://www.vidyaloans.in'];
+              return `<li class="flex items-center gap-2"><a href="${url.trim()}" target="_blank" rel="noopener noreferrer" style="color: #60a5fa !important; font-weight: 600; text-decoration: none;"><span>•</span> <span>${name.trim()}</span> <span style="font-size: 11px;">↗</span></a></li>`;
+            }).join('');
+            return `<div class="blog-cta-card not-prose my-10 rounded-2xl p-6 md:p-8 shadow-xl" style="background: linear-gradient(135deg, #0d213f 0%, #152e55 100%); border: 1px solid rgba(255, 255, 255, 0.08); color: #ffffff;">
+              <h3 class="text-xl md:text-2xl font-bold tracking-tight mb-2" style="color: #ffffff !important; margin-top: 0;">${cardTitle}</h3>
+              <p class="text-sm md:text-base leading-relaxed mb-6" style="color: #cbd5e1 !important;">${cardDesc}</p>
+              <div class="mb-6">
+                <a href="${btnUrl}" target="_blank" rel="noopener noreferrer" style="color: #38bdf8 !important; font-weight: 700; text-decoration: none;">
+                  <span>${btnText}</span>
+                </a>
+              </div>
+              ${refs.length > 0 ? `<div class="pt-5 mt-4 border-t" style="border-color: rgba(255, 255, 255, 0.12);"><p class="text-xs font-bold uppercase tracking-wider mb-2.5" style="color: #94a3b8 !important;">Official References</p><ul class="space-y-1.5 list-none pl-0 text-sm mb-0">${refsHtml}</ul></div>` : ''}
+            </div>`;
+          }
           case 'image': {
             const linkAttrs = getLinkAttrs(block.url || block.link, block.openInNewTab, block.addNofollow);
             const imgTag = `<img src="${block.content || ''}" alt="Blog Image"${styleAttr} />`;
@@ -888,7 +920,6 @@ export class BlogService {
     if (match) {
       try {
         mapped.blocks = JSON.parse(match[1]);
-        content = content.replace(/<!--BLOCKS_JSON_START-->[\s\S]*?<!--BLOCKS_JSON_END-->/, '').trim();
       } catch (e) {
         mapped.blocks = [];
       }
@@ -906,7 +937,6 @@ export class BlogService {
         mapped.focusKeyword = seoData.focusKeyword || blog.focusKeyword || '';
         mapped.canonicalUrl = seoData.canonicalUrl || blog.canonicalUrl || '';
         mapped.noIndex = seoData.noIndex !== undefined ? seoData.noIndex : !!blog.noIndex;
-        content = content.replace(/<!--SEO_JSON_START-->[\s\S]*?<!--SEO_JSON_END-->/, '').trim();
       } catch (e) {
         // Fallback
       }
@@ -917,11 +947,33 @@ export class BlogService {
       mapped.canonicalUrl = blog.canonicalUrl || '';
       mapped.noIndex = !!blog.noIndex;
     }
+
+    // Strip ALL embedded metadata comments, fragments, and trailing JSON
+    content = content
+      .replace(/<!--BLOCKS_JSON_START-->[\s\S]*?<!--BLOCKS_JSON_END-->/g, '')
+      .replace(/<!--SEO_JSON_START-->[\s\S]*?<!--SEO_JSON_END-->/g, '')
+      .replace(/<!--\s*BLOCKS_DATA:[\s\S]*?-->/g, '')
+      .replace(/<!--\s*SEO_DATA:[\s\S]*?-->/g, '')
+      .replace(/<!--StartFragment-->/gi, '')
+      .replace(/<!--EndFragment-->/gi, '')
+      .replace(/<!--BLOCKS_JSON_(?:START|END)-->/gi, '')
+      .replace(/<!--SEO_JSON_(?:START|END)-->/gi, '')
+      .replace(/(?:\[\s*\]|\{\s*\})?\s*\{[\s\S]*?"metaTitle"[\s\S]*?\}/gi, '')
+      .trim();
+
     mapped.content = content;
 
+    const cleanExcerpt = (blog.excerpt || '')
+      .replace(/<!--StartFragment-->/gi, '')
+      .replace(/<!--EndFragment-->/gi, '')
+      .replace(/<[^>]+>/g, '')
+      .trim();
+
     // Set subtitle/coverImage for compatibility with IT dashboard
-    mapped.subtitle = blog.excerpt || '';
-    mapped.coverImage = blog.featuredImage || '';
+    mapped.excerpt = cleanExcerpt;
+    mapped.subtitle = cleanExcerpt;
+    mapped.coverImage = blog.featuredImage || blog.coverImage || '';
+    mapped.featuredImage = blog.featuredImage || blog.coverImage || '';
 
     return mapped;
   }
@@ -1183,19 +1235,46 @@ export class BlogService {
     // Map coverImage to featuredImage
     dbData.featuredImage = data.coverImage || data.featuredImage || '';
 
-    // Map subtitle to excerpt, guarantee non-empty
-    dbData.excerpt = (data.excerpt || data.subtitle || data.title || 'Educational loan guide').trim();
+    // Map subtitle to excerpt, guarantee non-empty and strip clipboard fragments
+    const rawExcerpt = data.excerpt || data.subtitle || data.title || 'Educational loan guide';
+    dbData.excerpt = (typeof rawExcerpt === 'string' ? rawExcerpt : '')
+      .replace(/<!--StartFragment-->/gi, '')
+      .replace(/<!--EndFragment-->/gi, '')
+      .replace(/&lt;!--StartFragment--&gt;/gi, '')
+      .replace(/&lt;!--EndFragment--&gt;/gi, '')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&lt;[^&gt;]+&gt;/g, '')
+      .trim();
     if (!dbData.excerpt) dbData.excerpt = 'Educational loan guidance article';
 
     // Map blocks/content
     let htmlContent = '';
-    let blocksArr = [];
-    if (data.blocks) {
+    let blocksArr: any[] = [];
+    if (data.blocks && Array.isArray(data.blocks) && data.blocks.length > 0) {
       blocksArr = data.blocks;
       htmlContent = this.convertBlocksToHtml(blocksArr);
     } else {
       htmlContent = data.content || '';
+      const bMatch = htmlContent.match(/<!--BLOCKS_JSON_START-->([\s\S]*?)<!--BLOCKS_JSON_END-->/);
+      if (bMatch) {
+        try {
+          blocksArr = JSON.parse(bMatch[1]);
+        } catch (_) {}
+      }
     }
+
+    // Strip pre-existing metadata comments and clipboard artifacts from htmlContent
+    htmlContent = htmlContent
+      .replace(/<!--BLOCKS_JSON_START-->[\s\S]*?<!--BLOCKS_JSON_END-->/g, '')
+      .replace(/<!--SEO_JSON_START-->[\s\S]*?<!--SEO_JSON_END-->/g, '')
+      .replace(/<!--\s*BLOCKS_DATA:[\s\S]*?-->/g, '')
+      .replace(/<!--\s*SEO_DATA:[\s\S]*?-->/g, '')
+      .replace(/<!--StartFragment-->/gi, '')
+      .replace(/<!--EndFragment-->/gi, '')
+      .replace(/&lt;!--StartFragment--&gt;/gi, '')
+      .replace(/&lt;!--EndFragment--&gt;/gi, '')
+      .replace(/(?:\[\s*\]|\{\s*\})?\s*\{[\s\S]*?"metaTitle"[\s\S]*?\}/gi, '')
+      .trim();
 
     // Sanitize rich text HTML content on save
     htmlContent = sanitizeBlogContentWithMetadata(htmlContent);
@@ -1311,21 +1390,49 @@ export class BlogService {
       dbData.featuredImage = data.coverImage !== undefined ? data.coverImage : data.featuredImage;
     }
 
-    // Map subtitle to excerpt
+    // Map subtitle to excerpt, stripping any clipboard fragment markers
     if (data.subtitle !== undefined || data.excerpt !== undefined) {
-      dbData.excerpt = (data.excerpt !== undefined ? data.excerpt : data.subtitle) || 'Educational loan guide';
+      const rawExcerpt = (data.excerpt !== undefined ? data.excerpt : data.subtitle) || 'Educational loan guide';
+      dbData.excerpt = (typeof rawExcerpt === 'string' ? rawExcerpt : '')
+        .replace(/<!--StartFragment-->/gi, '')
+        .replace(/<!--EndFragment-->/gi, '')
+        .replace(/&lt;!--StartFragment--&gt;/gi, '')
+        .replace(/&lt;!--EndFragment--&gt;/gi, '')
+        .replace(/<[^>]+>/g, '')
+        .replace(/&lt;[^&gt;]+&gt;/g, '')
+        .trim();
+      if (!dbData.excerpt) dbData.excerpt = 'Educational loan guidance article';
     }
 
     // Map blocks/content
     if (data.blocks !== undefined || data.content !== undefined || data.metaTitle !== undefined || data.metaDescription !== undefined) {
       let htmlContent = '';
-      let blocksArr = [];
-      if (data.blocks !== undefined) {
+      let blocksArr: any[] = [];
+      if (data.blocks !== undefined && Array.isArray(data.blocks) && data.blocks.length > 0) {
         blocksArr = data.blocks;
         htmlContent = this.convertBlocksToHtml(blocksArr);
       } else {
         htmlContent = data.content || '';
+        const bMatch = htmlContent.match(/<!--BLOCKS_JSON_START-->([\s\S]*?)<!--BLOCKS_JSON_END-->/);
+        if (bMatch) {
+          try {
+            blocksArr = JSON.parse(bMatch[1]);
+          } catch (_) {}
+        }
       }
+
+      // Strip pre-existing metadata comments and clipboard artifacts from htmlContent
+      htmlContent = htmlContent
+        .replace(/<!--BLOCKS_JSON_START-->[\s\S]*?<!--BLOCKS_JSON_END-->/g, '')
+        .replace(/<!--SEO_JSON_START-->[\s\S]*?<!--SEO_JSON_END-->/g, '')
+        .replace(/<!--\s*BLOCKS_DATA:[\s\S]*?-->/g, '')
+        .replace(/<!--\s*SEO_DATA:[\s\S]*?-->/g, '')
+        .replace(/<!--StartFragment-->/gi, '')
+        .replace(/<!--EndFragment-->/gi, '')
+        .replace(/&lt;!--StartFragment--&gt;/gi, '')
+        .replace(/&lt;!--EndFragment--&gt;/gi, '')
+        .replace(/(?:\[\s*\]|\{\s*\})?\s*\{[\s\S]*?"metaTitle"[\s\S]*?\}/gi, '')
+        .trim();
 
       // Sanitize rich text HTML content on save
       htmlContent = sanitizeBlogContentWithMetadata(htmlContent);

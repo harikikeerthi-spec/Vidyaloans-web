@@ -595,10 +595,11 @@ async function handleResponse<T>(res: Response, url?: string, alreadyRetried = f
         // Session expired — soft redirect via AuthContext (no full page reload)
         if (res.status === 401 && !isPublicAuthUrl(url) && !alreadyRetried) {
             if (typeof window !== "undefined" && window.location.pathname.startsWith("/it")) {
-                localStorage.removeItem("itAccessToken");
-                localStorage.removeItem("itRefreshToken");
-                localStorage.removeItem("staffAccessToken");
-                localStorage.removeItem("staffRefreshToken");
+                // Preserve session credentials during blog composition so retries and drafts remain safe
+                console.warn("[IT Portal 401] Session expired. Please re-authenticate or refresh.");
+
+
+
             } else {
                 notifySessionExpired();
             }

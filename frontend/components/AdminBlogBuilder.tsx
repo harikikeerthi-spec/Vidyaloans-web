@@ -5,9 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { adminApi, blogApi } from "@/lib/api";
-import { cleanHtmlContent, RichTextBlock, TEXT_COLORS, FONT_SIZES, FONT_FAMILIES, TableData } from "./DynamicBlogEditor";
+import { cleanHtmlContent, RichTextBlock, TEXT_COLORS, FONT_SIZES, FONT_FAMILIES, TableData, CURATED_COVERS } from "./DynamicBlogEditor";
 
-type BlockType = "heading" | "container" | "split_content" | "registration_form" | "text" | "image" | "video" | "button" | "list" | "quote" | "code" | "divider" | "spacer" | "tags" | "table" | "table_of_contents";
+type BlockType = "cover_image" | "heading" | "container" | "split_content" | "registration_form" | "text" | "image" | "video" | "button" | "list" | "quote" | "code" | "divider" | "spacer" | "tags" | "table" | "table_of_contents" | "journey_card";
 
 export interface FormFieldConfig {
     id: string;
@@ -73,6 +73,7 @@ interface Block {
     level?: 1 | 2 | 3 | 4 | 5 | 6;
     // List specific
     listType?: "unordered" | "ordered";
+    items?: string[];
     // Button specific (Dynamic Button)
     buttonText?: string;
     buttonUrl?: string;
@@ -84,6 +85,10 @@ interface Block {
     splitConfig?: SplitConfig;
     formConfig?: FormConfig;
     tableData?: TableData;
+    // Journey Card specific
+    bgGradient?: string;
+    _bgC1?: string;
+    _bgC2?: string;
     // Media specific (Image / Video)
     mediaMode?: "url" | "upload";
     fileName?: string;
@@ -157,18 +162,18 @@ export const HEADING_LEVELS: HeadingLevelInfo[] = [
 ];
 
 const ELEMENT_TYPES: { type: BlockType; label: string; icon: string; color: string; desc: string; defaultLayout?: SplitConfig["layoutType"]; defaultListType?: "unordered" | "ordered" }[] = [
+    { type: "cover_image", label: "Cover Page / Hero Banner", icon: "wallpaper", color: "orange", desc: "Top article cover banner with presets & upload" },
     { type: "heading", label: "Heading (H1 - H6)", icon: "title", color: "blue", desc: "Add H1, H2, H3, H4, H5, or H6" },
     { type: "table_of_contents", label: "Table of Contents", icon: "toc", color: "indigo", desc: "Dynamic jump-links generated from headings" },
     { type: "registration_form", label: "Separate Register Form", icon: "how_to_reg", color: "emerald", desc: "Standalone customizable student inquiry/lead form" },
     { type: "split_content", label: "Split 2-Column", icon: "view_column", color: "indigo", desc: "Left/right matter or image & text" },
     { type: "split_content", label: "Content + Register Form", icon: "contact_mail", color: "purple", desc: "One side content, one side form", defaultLayout: "content_form" },
-    { type: "container", label: "Container", icon: "view_agenda", color: "purple", desc: "Drag to add container" },
     { type: "text", label: "Text & Live Editor", icon: "text_fields", color: "green", desc: "Drag to add rich text" },
     { type: "image", label: "Image (Crop & Fit)", icon: "crop", color: "orange", desc: "Crop, aspect ratio & sizing" },
     { type: "video", label: "Video", icon: "videocam", color: "red", desc: "Drag to add video" },
     { type: "button", label: "Dynamic Button / CTA", icon: "smart_button", color: "indigo", desc: "Custom URL, colors, alignment & size" },
-    { type: "list", label: "Bullet List (Unordered)", icon: "format_list_bulleted", color: "teal", desc: "Bullet point list (•)", defaultListType: "unordered" },
-    { type: "list", label: "Numbered List (Ordered)", icon: "format_list_numbered", color: "cyan", desc: "Numbered sequence (1, 2, 3)", defaultListType: "ordered" },
+    { type: "journey_card", label: "Loan Journey Card", icon: "explore", color: "blue", desc: "Customizable CTA card with financing link & color theme picker" },
+    { type: "list", label: "List (Bullets & Numbered)", icon: "format_list_bulleted", color: "teal", desc: "Bulleted (•) or numbered (1, 2, 3) with switch", defaultListType: "unordered" },
     { type: "quote", label: "Quote", icon: "format_quote", color: "yellow", desc: "Drag to add quote" },
     { type: "code", label: "Code Block", icon: "code", color: "gray", desc: "Drag to add code" },
     { type: "divider", label: "Divider", icon: "horizontal_rule", color: "pink", desc: "Drag to add divider" },
@@ -220,6 +225,7 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
             ? initialBlog.tags.map((t: any) => (typeof t === "string" ? t : t?.name || "")).filter(Boolean).join(", ")
             : (initialBlog?.tags || "")
     );
+    const [coverImage, setCoverImage] = useState(initialBlog?.coverImage || initialBlog?.featuredImage || "");
     const [excerpt, setExcerpt] = useState(initialBlog?.excerpt || "");
     const [isFeatured, setIsFeatured] = useState(initialBlog?.isFeatured ?? false);
     const [isPublished, setIsPublished] = useState(initialBlog?.isPublished ?? true);
@@ -359,7 +365,7 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                     if (parsedSeo.canonicalUrl) setCanonicalUrl(parsedSeo.canonicalUrl);
                     if (typeof parsedSeo.noIndex === "boolean") setNoIndex(parsedSeo.noIndex);
                     if (Array.isArray(parsedSeo.faqSchema)) setFaqSchema(parsedSeo.faqSchema);
-                } catch (_) {}
+                } catch (_) { }
             }
         }
 
@@ -370,10 +376,10 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                 try {
                     const parsed = JSON.parse(jsonMatch[1]);
                     if (Array.isArray(parsed) && parsed.length > 0) {
-                        setBlocks(parsed);
+                        setBlocks(parsed.filter((b: any) => b.type !== "cover_image"));
                         return;
                     }
-                } catch (e) {}
+                } catch (e: any) { }
             }
 
             try {
@@ -457,6 +463,8 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                 isStriped: true,
                             },
                         });
+                    } else if (el.classList.contains("blog-cover-page") || el.querySelector(".blog-cover-page")) {
+                        // Skip cover page block when opening blog
                     } else if (tag === "nav" || el.classList.contains("blog-toc") || el.querySelector(".blog-toc")) {
                         const navEl = tag === "nav" ? el : el.querySelector("nav") || el;
                         const headingText = navEl.querySelector("span:last-child")?.textContent?.trim() || "In This Comprehensive Guide";
@@ -473,7 +481,7 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                 if (parsedBlocks.length > 0) {
                     setBlocks(parsedBlocks);
                 }
-            } catch (e) {
+            } catch (e: any) {
                 setBlocks([{ id: "init_1", type: "text", content: initialBlog.content }]);
             }
         }
@@ -1307,6 +1315,7 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
             6: "H6 Micro Heading",
         };
         const defaults: Record<BlockType, string> = {
+            cover_image: "https://images.unsplash.com/photo-1523240795612-9a054b0db644?q=80&w=1200",
             heading: headingDefaults[headingLevel] || "New Heading",
             container: "",
             split_content: "",
@@ -1325,6 +1334,7 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
             tags: "EducationLoan, StudyAbroad, FastApproval",
             table: "Data Table",
             table_of_contents: "In This Comprehensive Guide",
+            journey_card: "Explore education financing assistance through VidyaLoans.",
         };
 
         const defaultTableData: TableData = {
@@ -1385,18 +1395,27 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
             type,
             level: type === "heading" ? headingLevel : undefined,
             listType: type === "list" ? listType : undefined,
-            buttonText: type === "button" ? "Explore Loan Options" : undefined,
-            buttonUrl: type === "button" ? "/apply-loan" : undefined,
+            buttonText: type === "journey_card" ? "Visit VidyaLoans →" : (type === "button" ? "Explore Loan Options" : undefined),
+            items: type === "journey_card" ? [
+                "Reserve Bank of India|https://www.rbi.org.in",
+                "Ministry of Education|https://www.education.gov.in",
+                "PM-Vidyalaxmi Scheme|https://www.vidyalakshmi.co.in"
+            ] : undefined,
+            buttonUrl: (type === "button" || type === "journey_card") ? "/apply-loan" : undefined,
             buttonNewTab: type === "button" ? true : undefined,
             buttonVariant: type === "button" ? "gradient" : undefined,
             buttonSize: type === "button" ? "md" : undefined,
             buttonAlign: type === "button" ? "center" : undefined,
             content: defaults[type],
-            title: type === "table_of_contents" ? "In This Comprehensive Guide" : undefined,
+            title: type === "journey_card" ? "Start Your Education Loan Journey" : (type === "cover_image" ? (title || "Your Blog Cover") : (type === "table_of_contents" ? "In This Comprehensive Guide" : undefined)),
             splitConfig: (type === "split_content" || type === "container") ? defaultSplitConfig : undefined,
             formConfig: type === "registration_form" ? defaultFormConfig : undefined,
             tableData: type === "table" ? defaultTableData : undefined,
-            style: type === "image" ? {
+            style: type === "cover_image" ? {
+                aspectRatio: "21/9",
+                maxHeight: "380px",
+                borderRadius: "20px",
+            } : type === "image" ? {
                 aspectRatio: "16/9",
                 maxHeight: "380px",
                 objectFit: "cover",
@@ -2001,12 +2020,12 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                 prev.map((b) =>
                     b.id === blockId
                         ? {
-                              ...b,
-                              content: dataUrl,
-                              fileName: file.name,
-                              fileSize: formatMediaFileSize(file.size),
-                              mediaMode: "upload",
-                          }
+                            ...b,
+                            content: dataUrl,
+                            fileName: file.name,
+                            fileSize: formatMediaFileSize(file.size),
+                            mediaMode: "upload",
+                        }
                         : b
                 )
             );
@@ -2028,12 +2047,12 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                 prev.map((b) =>
                     b.id === blockId
                         ? {
-                              ...b,
-                              content: dataUrl,
-                              fileName: file.name,
-                              fileSize: formatMediaFileSize(file.size),
-                              mediaMode: "upload",
-                          }
+                            ...b,
+                            content: dataUrl,
+                            fileName: file.name,
+                            fileSize: formatMediaFileSize(file.size),
+                            mediaMode: "upload",
+                        }
                         : b
                 )
             );
@@ -2177,6 +2196,21 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
             return;
         }
 
+        // Backup draft to local storage so work is never lost
+        try {
+            localStorage.setItem("it_blog_draft_backup", JSON.stringify({
+                title,
+                slug,
+                category,
+                author,
+                coverImage,
+                excerpt,
+                blocks,
+                tags,
+                savedAt: new Date().toISOString(),
+            }));
+        } catch (_) { }
+
         setLoading(true);
         try {
             const generateFormHtml = (formCfg: {
@@ -2277,6 +2311,24 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
             const htmlContent = blocks
                 .map((b) => {
                     switch (b.type) {
+                        case "journey_card": {
+                            const cardTitle = b.title || "Start Your Education Loan Journey";
+                            const cardDesc = b.content || "Explore education financing assistance through VidyaLoans.";
+                            const btnText = b.buttonText || "Visit VidyaLoans →";
+                            const btnUrl = b.buttonUrl || "/apply-loan";
+                            const bgGradient = b.bgGradient || "linear-gradient(135deg, #0d213f 0%, #152e55 100%)";
+
+                            return `
+                            <div class="blog-cta-card not-prose my-10 rounded-2xl p-6 md:p-8 shadow-xl" style="background: ${bgGradient}; border: 1px solid rgba(255, 255, 255, 0.08); color: #ffffff;">
+                                <h3 class="text-xl md:text-2xl font-bold tracking-tight mb-2" style="color: #ffffff !important; margin-top: 0;">${cardTitle}</h3>
+                                <p class="text-sm md:text-base leading-relaxed mb-6" style="color: #cbd5e1 !important;">${cardDesc}</p>
+                                <div class="mb-2">
+                                    <a href="${btnUrl}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 font-bold text-sm md:text-base transition-all group" style="color: #38bdf8 !important; text-decoration: none;">
+                                        <span class="group-hover:underline">${btnText}</span>
+                                    </a>
+                                </div>
+                            </div>`;
+                        }
                         case "heading": {
                             const lvl = (b.level || 2) as 1 | 2 | 3 | 4 | 5 | 6;
                             const hId = (b.content || "")
@@ -2291,8 +2343,17 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                 5: "text-lg font-semibold mt-4 mb-2 text-slate-700 scroll-mt-24",
                                 6: "text-base font-semibold mt-4 mb-2 uppercase tracking-wider text-slate-600 scroll-mt-24",
                             };
+                            const inlineHeadingStyles: Record<number, string> = {
+                                1: "font-size: 2.25rem; font-weight: 900; line-height: 1.2; margin-top: 2rem; margin-bottom: 1rem; color: #0f172a; display: block;",
+                                2: "font-size: 1.875rem; font-weight: 800; line-height: 1.25; margin-top: 1.75rem; margin-bottom: 0.75rem; color: #0f172a; display: block;",
+                                3: "font-size: 1.5rem; font-weight: 700; line-height: 1.3; margin-top: 1.5rem; margin-bottom: 0.5rem; color: #1e293b; display: block;",
+                                4: "font-size: 1.25rem; font-weight: 700; line-height: 1.35; margin-top: 1.25rem; margin-bottom: 0.5rem; color: #1e293b; display: block;",
+                                5: "font-size: 1.125rem; font-weight: 600; line-height: 1.4; margin-top: 1rem; margin-bottom: 0.5rem; color: #334155; display: block;",
+                                6: "font-size: 0.875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; line-height: 1.4; margin-top: 0.75rem; margin-bottom: 0.25rem; color: #475569; display: block;",
+                            };
                             const cls = levelStyles[lvl] || levelStyles[2];
-                            return `<h${lvl} id="${hId}" class="${cls}">${b.content}</h${lvl}>`;
+                            const styleStr = inlineHeadingStyles[lvl] || inlineHeadingStyles[2];
+                            return `<h${lvl} id="${hId}" class="${cls}" style="${styleStr}">${b.content}</h${lvl}>`;
                         }
                         case "table_of_contents": {
                             const headings = blocks
@@ -2316,6 +2377,14 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                 : `<li class="text-xs text-slate-400 italic">No headings yet. Add section headings to populate this Table of Contents.</li>`;
 
                             return `<nav class="blog-toc my-8 p-6 md:p-8 bg-gradient-to-br from-indigo-50/70 via-slate-50 to-purple-50/40 rounded-3xl border border-indigo-100 shadow-sm not-prose"><div class="flex items-center gap-2.5 text-indigo-950 font-black text-sm uppercase tracking-wider mb-4 pb-3 border-b border-indigo-100/80"><span class="material-symbols-outlined text-indigo-600 text-xl">toc</span><span>${b.title || b.content || "In This Comprehensive Guide"}</span></div><ul class="space-y-1 list-none pl-0 mb-0">${itemsHtml}</ul></nav>`;
+                        }
+                        case "cover_image": {
+                            const st = b.style || {};
+                            const aspect = st.aspectRatio && st.aspectRatio !== "auto" ? `aspect-ratio: ${st.aspectRatio};` : "aspect-ratio: 21/9;";
+                            const maxH = st.maxHeight ? `max-height: ${st.maxHeight};` : "max-height: 460px;";
+                            const rad = st.borderRadius || "20px";
+                            const titleOverlay = b.title ? `<div class="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-900/30 to-transparent flex items-end p-6 md:p-8"><h2 class="text-white text-xl sm:text-2xl md:text-3xl font-extrabold tracking-tight drop-shadow-md">${b.title}</h2></div>` : "";
+                            return `<div class="blog-cover-page my-8 not-prose"><div class="relative overflow-hidden shadow-xl border border-slate-200/80" style="border-radius: ${rad};"><img src="${b.content}" class="w-full block object-cover" style="${aspect} ${maxH}" alt="${b.title || 'Article Cover'}" />${titleOverlay}</div></div>`;
                         }
                         case "text": {
                             let textContent = b.content || "";
@@ -2507,7 +2576,23 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                 faqSchema: faqSchema.filter((f) => f.question?.trim() && f.answer?.trim()),
             };
 
+            const cleanText = (str: string) => {
+                return (str || "")
+                    .replace(/<!--StartFragment-->/gi, "")
+                    .replace(/<!--EndFragment-->/gi, "")
+                    .replace(/&lt;!--StartFragment--&gt;/gi, "")
+                    .replace(/&lt;!--EndFragment--&gt;/gi, "")
+                    .replace(/<[^>]+>/g, "")
+                    .trim();
+            };
+
+            // Strip internal UI-only helper fields before serialising
+            const cleanBlocks = blocks.map(({ _bgC1: _c1, _bgC2: _c2, ...rest }) => rest);
+
             const blogData = {
+                blocks: cleanBlocks,
+                coverImage: blocks.find((b) => b.type === "cover_image")?.content || coverImage || initialBlog?.coverImage || "",
+                subtitle: cleanText(excerpt || metaDescription || ""),
                 title,
                 slug: slug || title.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
                 category,
@@ -2515,8 +2600,8 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                 content: `${htmlContent}\n<!--BLOCKS_JSON_START-->${JSON.stringify(blocks)}<!--BLOCKS_JSON_END-->\n<!--SEO_JSON_START-->${JSON.stringify(seoData)}<!--SEO_JSON_END-->`,
                 isPublished,
                 isFeatured,
-                featuredImage: blocks.find((b) => b.type === "image")?.content || initialBlog?.coverImage || initialBlog?.featuredImage || "",
-                excerpt: excerpt || metaDescription || blocks.find((b) => b.type === "text")?.content?.substring(0, 150) + "...",
+                featuredImage: blocks.find((b) => b.type === "cover_image")?.content || blocks.find((b) => b.type === "image")?.content || coverImage || initialBlog?.coverImage || initialBlog?.featuredImage || "",
+                excerpt: cleanText(excerpt || metaDescription || blocks.find((b) => b.type === "text")?.content?.substring(0, 150) || ""),
                 tags: typeof tags === "string" ? tags.split(",").map((t: string) => t.trim()).filter(Boolean) : [],
                 metaTitle: metaTitle.trim() || title.trim(),
                 metaDescription: metaDescription.trim() || excerpt.trim(),
@@ -2540,6 +2625,7 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
             }
 
             if (res?.success || res?.data || res?._id || res?.id) {
+                try { localStorage.removeItem("it_blog_draft_backup"); } catch (_) { }
                 alert(isEditing ? "Blog updated successfully!" : "Blog published successfully!");
                 if (onPublished) {
                     onPublished();
@@ -2547,11 +2633,24 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                     router.push(backHref);
                 }
             } else {
-                alert(res?.message || "Failed to publish blog");
+                const errMsg = res?.message || res?.error || "Failed to publish blog. Please try again.";
+                const isDbDown = errMsg.toLowerCase().includes("connect") || errMsg.toLowerCase().includes("network") || errMsg.toLowerCase().includes("database") || errMsg.toLowerCase().includes("enotfound");
+                if (isDbDown) {
+                    alert("⚠️ The database server is temporarily unavailable. Your draft has been backed up in your browser — please try publishing again in a few moments.");
+                } else {
+                    alert(errMsg);
+                }
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
-            alert("An error occurred while publishing.");
+            const errStr = e?.message || String(e);
+            if (errStr.toLowerCase().includes("token") || errStr.toLowerCase().includes("unauthor") || errStr.toLowerCase().includes("expired")) {
+                alert("Your session token had expired, but your draft is safely backed up in browser storage! Please click Publish once more.");
+            } else if (errStr.toLowerCase().includes("enotfound") || errStr.toLowerCase().includes("network") || errStr.toLowerCase().includes("fetch") || errStr.toLowerCase().includes("connect") || errStr.toLowerCase().includes("tls") || errStr.toLowerCase().includes("socket")) {
+                alert("⚠️ Network / database connectivity issue. Your draft is safely backed up in your browser. Please check your connection and try again.");
+            } else {
+                alert("An error occurred while publishing: " + (e?.message || "Please try again."));
+            }
         } finally {
             setLoading(false);
         }
@@ -2560,6 +2659,406 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
     // Render block content for canvas
     const renderBlockContent = (block: Block) => {
         switch (block.type) {
+            case "cover_image": {
+                const st = block.style || {};
+                const currentRatio = st.aspectRatio || "21/9";
+                const currentMaxH = st.maxHeight || "380px";
+                const currentRadius = st.borderRadius || "20px";
+
+                return (
+                    <div className="space-y-3 group/coverblock">
+                        {/* Dynamic Cover Toolbar */}
+                        <div className="flex items-center justify-between gap-2 flex-wrap pb-2 border-b border-slate-200 text-xs">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-amber-50 text-amber-900 font-extrabold text-[11px] border border-amber-200/90 shadow-2xs">
+                                    <span className="material-symbols-outlined text-[14px] text-amber-600">wallpaper</span>
+                                    <span>Cover Page / Hero Banner</span>
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-semibold hidden sm:inline">| Aspect:</span>
+                                {(["21/9", "16/9", "3/1"] as const).map((r) => (
+                                    <button
+                                        key={r}
+                                        type="button"
+                                        onClick={() => {
+                                            updateBlockStyle(block.id, { aspectRatio: r });
+                                        }}
+                                        className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-all ${currentRatio === r
+                                                ? "bg-amber-600 text-white shadow-xs"
+                                                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                            }`}
+                                    >
+                                        {r === "21/9" ? "21:9 Hero" : r === "16/9" ? "16:9 Classic" : "3:1 Panoramic"}
+                                    </button>
+                                ))}
+                                <span className="text-[10px] text-slate-400 font-semibold hidden sm:inline">| Height:</span>
+                                {(["280px", "380px", "460px"] as const).map((h) => (
+                                    <button
+                                        key={h}
+                                        type="button"
+                                        onClick={() => {
+                                            updateBlockStyle(block.id, { maxHeight: h });
+                                        }}
+                                        className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-all ${currentMaxH === h
+                                                ? "bg-slate-900 text-white shadow-xs"
+                                                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                            }`}
+                                    >
+                                        {h === "280px" ? "Compact" : h === "380px" ? "Standard" : "Tall"}
+                                    </button>
+                                ))}
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <label className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold cursor-pointer transition-all shadow-xs active:scale-95">
+                                    <span className="material-symbols-outlined text-[15px]">upload</span>
+                                    <span>Upload Image</span>
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={(e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                                const reader = new FileReader();
+                                                reader.onload = (re) => {
+                                                    if (typeof re.target?.result === "string") {
+                                                        const dataUrl = re.target.result;
+                                                        updateBlock(block.id, dataUrl);
+                                                        setCoverImage(dataUrl);
+                                                        setSaveStatus("Unsaved");
+                                                    }
+                                                };
+                                                reader.readAsDataURL(file);
+                                            }
+                                        }}
+                                    />
+                                </label>
+                            </div>
+                        </div>
+
+                        {/* Curated Presets Bar */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Presets:</span>
+                            {CURATED_COVERS.map((cov) => (
+                                <button
+                                    key={cov.label}
+                                    type="button"
+                                    onClick={() => {
+                                        updateBlock(block.id, cov.url);
+                                        setCoverImage(cov.url);
+                                        setSaveStatus("Unsaved");
+                                    }}
+                                    className={`px-2 py-0.5 text-[10px] font-semibold rounded-md border text-left truncate cursor-pointer transition-colors ${block.content === cov.url
+                                            ? "bg-amber-50 border-amber-300 text-amber-800 font-bold"
+                                            : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                                        }`}
+                                >
+                                    {cov.label}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Interactive Hero Visual Container */}
+                        <div
+                            className="relative overflow-hidden shadow-lg border border-slate-200/90 bg-slate-900 group/heroimg"
+                            style={{
+                                borderRadius: currentRadius,
+                                maxHeight: currentMaxH,
+                                aspectRatio: currentRatio !== "auto" ? currentRatio : undefined,
+                            }}
+                        >
+                            {block.content ? (
+                                <>
+                                    <img
+                                        src={block.content}
+                                        alt={block.title || title || "Cover Banner"}
+                                        className="w-full h-full object-cover block transition-transform duration-500 group-hover/heroimg:scale-105"
+                                        style={{ maxHeight: currentMaxH }}
+                                    />
+                                    {/* Bottom gradient overlay with headline */}
+                                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent flex flex-col justify-end p-6 md:p-8 text-white pointer-events-none">
+                                        <span className="inline-block px-2.5 py-0.5 bg-amber-500 text-slate-950 text-[10px] font-black uppercase tracking-wider rounded-md mb-1.5 w-fit">
+                                            Cover Story
+                                        </span>
+                                        <h2 className="text-xl md:text-3xl font-extrabold tracking-tight text-white mb-1 line-clamp-2">
+                                            {block.title || title || "Your Blog Article Headline"}
+                                        </h2>
+                                        <p className="text-xs md:text-sm text-slate-300 line-clamp-1">
+                                            {author || "Author"} • {currentDate} • VidyaLoans Intelligence
+                                        </p>
+                                    </div>
+                                    {/* Quick change actions floating top right */}
+                                    <div className="absolute top-3 right-3 flex items-center gap-1.5 opacity-90 group-hover/heroimg:opacity-100 transition-opacity">
+                                        <label className="px-2.5 py-1 bg-black/70 hover:bg-black text-white text-[11px] font-bold rounded-lg cursor-pointer backdrop-blur-xs flex items-center gap-1 shadow-sm">
+                                            <span className="material-symbols-outlined text-[13px]">photo_camera</span>
+                                            <span>Change Photo</span>
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                className="hidden"
+                                                onChange={(e) => {
+                                                    const file = e.target.files?.[0];
+                                                    if (file) {
+                                                        const reader = new FileReader();
+                                                        reader.onload = (re) => {
+                                                            if (typeof re.target?.result === "string") {
+                                                                const dataUrl = re.target.result;
+                                                                updateBlock(block.id, dataUrl);
+                                                                setCoverImage(dataUrl);
+                                                                setSaveStatus("Unsaved");
+                                                            }
+                                                        };
+                                                        reader.readAsDataURL(file);
+                                                    }
+                                                }}
+                                            />
+                                        </label>
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="p-12 text-center text-slate-400 flex flex-col items-center justify-center h-full min-h-[220px]">
+                                    <span className="material-symbols-outlined text-5xl text-slate-400 mb-2">add_photo_alternate</span>
+                                    <p className="text-sm font-bold text-slate-200">No cover image selected</p>
+                                    <p className="text-xs text-slate-400 mt-1">Upload a photo or choose from presets above</p>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* URL and Title Configuration Inputs */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-1">
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                                    Direct Image URL (or paste link):
+                                </label>
+                                <input
+                                    type="text"
+                                    value={block.content || ""}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        updateBlock(block.id, val);
+                                        setCoverImage(val);
+                                        setSaveStatus("Unsaved");
+                                    }}
+                                    placeholder="https://images.unsplash.com/... or image link"
+                                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-mono focus:ring-2 focus:ring-amber-200 outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                                    Cover Overlay Headline / Caption:
+                                </label>
+                                <input
+                                    type="text"
+                                    value={block.title || ""}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setBlocks((prev) =>
+                                            prev.map((b) => (b.id === block.id ? { ...b, title: val } : b))
+                                        );
+                                        setSaveStatus("Unsaved");
+                                    }}
+                                    placeholder={title || "Optional custom headline over cover photo..."}
+                                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-amber-200 outline-none"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+            case "journey_card": {
+                const cardTitle = block.title || "Start Your Education Loan Journey";
+                const cardDesc = block.content || "Explore education financing assistance through VidyaLoans.";
+                const btnText = block.buttonText || "Visit VidyaLoans →";
+                const btnUrl = block.buttonUrl || "/apply-loan";
+                const bgGradient = block.bgGradient || "linear-gradient(135deg, #0d213f 0%, #152e55 100%)";
+
+                return (
+                    <div className="space-y-4">
+                        {/* Live Journey Card Container */}
+                        <div
+                            className="rounded-2xl p-6 md:p-8 shadow-xl text-white relative overflow-hidden"
+                            style={{
+                                background: bgGradient,
+                                border: "1px solid rgba(255, 255, 255, 0.12)",
+                            }}
+                        >
+                            <div className="flex items-center justify-between gap-2 mb-3">
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-500/20 text-blue-300 border border-blue-400/30">
+                                    <span className="material-symbols-outlined text-[13px]">explore</span>
+                                    <span>Loan Journey Card</span>
+                                </span>
+                                <span className="text-[10px] text-slate-400/60 font-mono">preview</span>
+                            </div>
+
+                            <h3 className="text-xl md:text-2xl font-bold tracking-tight text-white mb-2">
+                                {cardTitle}
+                            </h3>
+
+                            <p className="text-sm md:text-base text-slate-300 leading-relaxed mb-5">
+                                {cardDesc}
+                            </p>
+
+                            <div className="mb-4">
+                                <a
+                                    href={btnUrl}
+                                    onClick={(e) => e.preventDefault()}
+                                    className="inline-flex items-center gap-2 font-bold text-sm text-sky-400 hover:text-sky-300 transition-colors"
+                                >
+                                    <span>{btnText}</span>
+                                </a>
+                            </div>
+
+                        </div>
+
+                        {/* Interactive Editor Controls */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+                            <div>
+                                <label className="font-bold text-slate-700 block mb-1">Headline:</label>
+                                <input
+                                    type="text"
+                                    value={block.title || ""}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setBlocks((prev) => prev.map((b) => b.id === block.id ? { ...b, title: val } : b));
+                                        setSaveStatus("Unsaved");
+                                    }}
+                                    placeholder="Start Your Education Loan Journey"
+                                    className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-200"
+                                />
+                            </div>
+                            <div>
+                                <label className="font-bold text-slate-700 block mb-1">Button / Link Text:</label>
+                                <input
+                                    type="text"
+                                    value={block.buttonText || ""}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setBlocks((prev) => prev.map((b) => b.id === block.id ? { ...b, buttonText: val } : b));
+                                        setSaveStatus("Unsaved");
+                                    }}
+                                    placeholder="Visit VidyaLoans →"
+                                    className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-200"
+                                />
+                            </div>
+                            <div>
+                                <label className="font-bold text-slate-700 block mb-1">Description / Subtext:</label>
+                                <textarea
+                                    rows={2}
+                                    value={block.content || ""}
+                                    onChange={(e) => {
+                                        updateBlock(block.id, e.target.value);
+                                        setSaveStatus("Unsaved");
+                                    }}
+                                    placeholder="Explore education financing assistance through VidyaLoans."
+                                    className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs resize-none outline-none focus:ring-2 focus:ring-blue-200"
+                                />
+                            </div>
+                            <div>
+                                <label className="font-bold text-slate-700 block mb-1">Target Link URL:</label>
+                                <input
+                                    type="text"
+                                    value={block.buttonUrl || ""}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setBlocks((prev) => prev.map((b) => b.id === block.id ? { ...b, buttonUrl: val } : b));
+                                        setSaveStatus("Unsaved");
+                                    }}
+                                    placeholder="/apply-loan"
+                                    className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-200"
+                                />
+                            </div>
+                            <div className="md:col-span-2 space-y-3">
+                                <label className="font-bold text-slate-700 block">Background Color:</label>
+
+                                {/* Quick preset swatches */}
+                                <div className="flex flex-wrap gap-2">
+                                    {[
+                                        { label: "Dark Navy", c1: "#0d213f", c2: "#152e55" },
+                                        { label: "Deep Indigo", c1: "#1e1b4b", c2: "#312e81" },
+                                        { label: "Forest Green", c1: "#052e16", c2: "#14532d" },
+                                        { label: "Deep Slate", c1: "#0f172a", c2: "#1e293b" },
+                                        { label: "Teal", c1: "#042f2e", c2: "#134e4a" },
+                                        { label: "Royal Purple", c1: "#2e1065", c2: "#4c1d95" },
+                                        { label: "Crimson", c1: "#450a0a", c2: "#7f1d1d" },
+                                        { label: "Amber Dark", c1: "#451a03", c2: "#78350f" },
+                                    ].map((theme) => {
+                                        const gradVal = `linear-gradient(135deg, ${theme.c1} 0%, ${theme.c2} 100%)`;
+                                        const isActive = (block.bgGradient || "linear-gradient(135deg, #0d213f 0%, #152e55 100%)") === gradVal;
+                                        return (
+                                            <button
+                                                key={theme.label}
+                                                type="button"
+                                                title={theme.label}
+                                                onClick={() => {
+                                                    setBlocks((prev) => prev.map((b) => b.id === block.id ? { ...b, bgGradient: gradVal, _bgC1: theme.c1, _bgC2: theme.c2 } : b));
+                                                    setSaveStatus("Unsaved");
+                                                }}
+                                                className={`w-8 h-8 rounded-lg border-2 transition-all cursor-pointer shadow-sm hover:scale-110 ${isActive ? "border-white ring-2 ring-blue-400 scale-110" : "border-transparent hover:border-white/60"}`}
+                                                style={{ background: gradVal }}
+                                                aria-label={theme.label}
+                                            />
+                                        );
+                                    })}
+                                </div>
+
+                                {/* Custom gradient pickers */}
+                                <div className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-xl">
+                                    <div className="flex items-center gap-2 flex-1">
+                                        <label className="text-[11px] font-bold text-slate-600 whitespace-nowrap">Start color</label>
+                                        <div className="relative">
+                                            <input
+                                                type="color"
+                                                value={block._bgC1 || "#0d213f"}
+                                                onChange={(e) => {
+                                                    const c1 = e.target.value;
+                                                    const c2 = block._bgC2 || "#152e55";
+                                                    const grad = `linear-gradient(135deg, ${c1} 0%, ${c2} 100%)`;
+                                                    setBlocks((prev) => prev.map((b) => b.id === block.id ? { ...b, bgGradient: grad, _bgC1: c1, _bgC2: c2 } : b));
+                                                    setSaveStatus("Unsaved");
+                                                }}
+                                                className="w-9 h-9 rounded-lg border border-slate-300 cursor-pointer p-0.5 bg-transparent"
+                                                title="Pick start color"
+                                            />
+                                        </div>
+                                        <span className="text-[10px] font-mono text-slate-400">{block._bgC1 || "#0d213f"}</span>
+                                    </div>
+
+                                    <div className="flex items-center gap-1.5 text-slate-300">
+                                        <span className="text-[10px] font-bold">→</span>
+                                    </div>
+
+                                    <div className="flex items-center gap-2 flex-1">
+                                        <label className="text-[11px] font-bold text-slate-600 whitespace-nowrap">End color</label>
+                                        <div className="relative">
+                                            <input
+                                                type="color"
+                                                value={block._bgC2 || "#152e55"}
+                                                onChange={(e) => {
+                                                    const c2 = e.target.value;
+                                                    const c1 = block._bgC1 || "#0d213f";
+                                                    const grad = `linear-gradient(135deg, ${c1} 0%, ${c2} 100%)`;
+                                                    setBlocks((prev) => prev.map((b) => b.id === block.id ? { ...b, bgGradient: grad, _bgC1: c1, _bgC2: c2 } : b));
+                                                    setSaveStatus("Unsaved");
+                                                }}
+                                                className="w-9 h-9 rounded-lg border border-slate-300 cursor-pointer p-0.5 bg-transparent"
+                                                title="Pick end color"
+                                            />
+                                        </div>
+                                        <span className="text-[10px] font-mono text-slate-400">{block._bgC2 || "#152e55"}</span>
+                                    </div>
+
+                                    {/* Live gradient preview strip */}
+                                    <div
+                                        className="w-16 h-9 rounded-lg border border-white/20 shadow-inner flex-shrink-0"
+                                        style={{ background: block.bgGradient || "linear-gradient(135deg, #0d213f 0%, #152e55 100%)" }}
+                                        title="Current gradient preview"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
             case "heading": {
                 const lvl = (block.level || 2) as 1 | 2 | 3 | 4 | 5 | 6;
                 const Tag = `h${lvl}` as any;
@@ -2600,11 +3099,10 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                                 updateBlockLevel(block.id, l);
                                             }}
                                             title={`Switch to H${l} Heading`}
-                                            className={`px-2 py-0.5 rounded text-[11px] font-black cursor-pointer transition-all ${
-                                                lvl === l
+                                            className={`px-2 py-0.5 rounded text-[11px] font-black cursor-pointer transition-all ${lvl === l
                                                     ? "bg-indigo-600 text-white shadow-xs scale-105"
                                                     : "text-slate-600 hover:text-slate-900 hover:bg-white"
-                                            }`}
+                                                }`}
                                         >
                                             H{l}
                                         </button>
@@ -2625,6 +3123,13 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                             }}
                             onBlur={(e: any) => updateBlock(block.id, e.currentTarget.textContent || "")}
                             className={`${headingStyles[lvl] || headingStyles[2]} outline-none focus:ring-2 focus:ring-indigo-200 rounded px-1 transition-all`}
+                            style={{
+                                display: "block",
+                                fontSize: lvl === 1 ? "2.25rem" : lvl === 2 ? "1.875rem" : lvl === 3 ? "1.5rem" : lvl === 4 ? "1.25rem" : lvl === 5 ? "1.125rem" : "0.875rem",
+                                fontWeight: lvl === 1 ? 900 : lvl === 2 ? 800 : lvl === 3 ? 700 : lvl === 4 ? 700 : 600,
+                                lineHeight: 1.25,
+                                color: lvl <= 2 ? "#0f172a" : lvl <= 4 ? "#1e293b" : "#334155",
+                            }}
                         >
                             {block.content}
                         </Tag>
@@ -3212,7 +3717,7 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                             {/* Focus Position Alignment */}
                             <div className="flex items-center gap-1">
                                 <span className="text-[10px] font-black uppercase text-slate-500 mr-1">Focus:</span>
-                                {([ "top", "center", "bottom"] as const).map((pos) => (
+                                {(["top", "center", "bottom"] as const).map((pos) => (
                                     <button
                                         key={pos}
                                         type="button"
@@ -3324,9 +3829,8 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                     />
                                 </label>
 
-                                <span className={`px-2 py-0.5 rounded text-[11px] font-bold flex items-center gap-1 ${
-                                    isDirect ? "bg-emerald-100 text-emerald-800 border border-emerald-300" : "bg-blue-100 text-blue-800 border border-blue-300"
-                                }`}>
+                                <span className={`px-2 py-0.5 rounded text-[11px] font-bold flex items-center gap-1 ${isDirect ? "bg-emerald-100 text-emerald-800 border border-emerald-300" : "bg-blue-100 text-blue-800 border border-blue-300"
+                                    }`}>
                                     <span className="material-symbols-outlined text-[13px]">{isDirect ? "play_circle" : "smart_display"}</span>
                                     {isDirect ? "Direct Video File (HTML5)" : "Embed Video (YouTube / Vimeo)"}
                                 </span>
@@ -3474,11 +3978,10 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                                 updateBlockButton(block.id, { buttonAlign: al });
                                             }}
                                             title={`Align ${al}`}
-                                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold cursor-pointer capitalize transition-all ${
-                                                align === al
+                                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold cursor-pointer capitalize transition-all ${align === al
                                                     ? "bg-indigo-600 text-white shadow-xs"
                                                     : "text-slate-500 hover:text-slate-900"
-                                            }`}
+                                                }`}
                                         >
                                             {al === "full" ? "Full" : al}
                                         </button>
@@ -3497,14 +4000,13 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                                 updateBlockButton(block.id, { buttonVariant: v });
                                             }}
                                             title={`Style: ${v}`}
-                                            className={`w-3.5 h-3.5 rounded-full border cursor-pointer transition-transform ${
-                                                v === "gradient" ? "bg-gradient-to-r from-purple-600 to-indigo-600" :
-                                                v === "emerald" ? "bg-emerald-600" :
-                                                v === "dark" ? "bg-slate-900" :
-                                                v === "outline" ? "bg-white border-indigo-600" :
-                                                v === "amber" ? "bg-amber-500" :
-                                                "bg-rose-600"
-                                            } ${variant === v ? "scale-125 ring-2 ring-indigo-400 border-white" : "border-slate-300"}`}
+                                            className={`w-3.5 h-3.5 rounded-full border cursor-pointer transition-transform ${v === "gradient" ? "bg-gradient-to-r from-purple-600 to-indigo-600" :
+                                                    v === "emerald" ? "bg-emerald-600" :
+                                                        v === "dark" ? "bg-slate-900" :
+                                                            v === "outline" ? "bg-white border-indigo-600" :
+                                                                v === "amber" ? "bg-amber-500" :
+                                                                    "bg-rose-600"
+                                                } ${variant === v ? "scale-125 ring-2 ring-indigo-400 border-white" : "border-slate-300"}`}
                                         />
                                     ))}
                                 </div>
@@ -3520,11 +4022,10 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                                 updateBlockButton(block.id, { buttonSize: sz });
                                             }}
                                             title={`Size: ${sz}`}
-                                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold cursor-pointer uppercase transition-all ${
-                                                size === sz
+                                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold cursor-pointer uppercase transition-all ${size === sz
                                                     ? "bg-indigo-600 text-white shadow-xs"
                                                     : "text-slate-500 hover:text-slate-900"
-                                            }`}
+                                                }`}
                                         >
                                             {sz}
                                         </button>
@@ -3602,11 +4103,10 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                             e.stopPropagation();
                                             updateBlockListType(block.id, "unordered");
                                         }}
-                                        className={`px-2 py-0.5 rounded text-[11px] font-bold cursor-pointer transition-all flex items-center gap-1 ${
-                                            !isOrdered
+                                        className={`px-2 py-0.5 rounded text-[11px] font-bold cursor-pointer transition-all flex items-center gap-1 ${!isOrdered
                                                 ? "bg-teal-600 text-white shadow-xs"
                                                 : "text-slate-600 hover:text-slate-900 hover:bg-white"
-                                        }`}
+                                            }`}
                                     >
                                         <span className="material-symbols-outlined text-[12px]">format_list_bulleted</span>
                                         Bullets (&bull;)
@@ -3617,11 +4117,10 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                             e.stopPropagation();
                                             updateBlockListType(block.id, "ordered");
                                         }}
-                                        className={`px-2 py-0.5 rounded text-[11px] font-bold cursor-pointer transition-all flex items-center gap-1 ${
-                                            isOrdered
+                                        className={`px-2 py-0.5 rounded text-[11px] font-bold cursor-pointer transition-all flex items-center gap-1 ${isOrdered
                                                 ? "bg-teal-600 text-white shadow-xs"
                                                 : "text-slate-600 hover:text-slate-900 hover:bg-white"
-                                        }`}
+                                            }`}
                                     >
                                         <span className="material-symbols-outlined text-[12px]">format_list_numbered</span>
                                         Numbered (1, 2, 3)
@@ -4542,11 +5041,10 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                             tableData: { ...td, hasHeader: !hasHeader },
                                         })
                                     }
-                                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                                        hasHeader
+                                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${hasHeader
                                             ? "bg-indigo-600 text-white shadow-2xs"
                                             : "bg-slate-200 text-slate-700 hover:bg-slate-300"
-                                    }`}
+                                        }`}
                                 >
                                     Header Row: {hasHeader ? "ON" : "OFF"}
                                 </button>
@@ -4559,11 +5057,10 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                             tableData: { ...td, isStriped: !isStriped },
                                         })
                                     }
-                                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                                        isStriped
+                                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${isStriped
                                             ? "bg-purple-600 text-white shadow-2xs"
                                             : "bg-slate-200 text-slate-700 hover:bg-slate-300"
-                                    }`}
+                                        }`}
                                 >
                                     Zebra Stripes: {isStriped ? "ON" : "OFF"}
                                 </button>
@@ -4950,13 +5447,12 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                     <button
                         type="button"
                         onClick={() => setSidebarTab("seo")}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
-                            seoAnalysis.score >= 80
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${seoAnalysis.score >= 80
                                 ? "bg-emerald-500/20 text-emerald-100 border-emerald-400/50 hover:bg-emerald-500/30"
                                 : seoAnalysis.score >= 50
-                                ? "bg-amber-500/20 text-amber-100 border-amber-400/50 hover:bg-amber-500/30"
-                                : "bg-rose-500/20 text-rose-100 border-rose-400/50 hover:bg-rose-500/30"
-                        }`}
+                                    ? "bg-amber-500/20 text-amber-100 border-amber-400/50 hover:bg-amber-500/30"
+                                    : "bg-rose-500/20 text-rose-100 border-rose-400/50 hover:bg-rose-500/30"
+                            }`}
                         title="Click to view SEO analysis & SERP preview"
                     >
                         <span className="material-symbols-outlined text-[15px]">manage_search</span>
@@ -4996,11 +5492,10 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                         <button
                             type="button"
                             onClick={() => setSidebarTab("content")}
-                            className={`flex-1 py-3 text-xs font-bold flex items-center justify-center gap-1.5 border-b-2 transition-all cursor-pointer ${
-                                sidebarTab === "content"
+                            className={`flex-1 py-3 text-xs font-bold flex items-center justify-center gap-1.5 border-b-2 transition-all cursor-pointer ${sidebarTab === "content"
                                     ? "border-indigo-600 text-indigo-700 bg-white shadow-2xs"
                                     : "border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-100"
-                            }`}
+                                }`}
                         >
                             <span className="material-symbols-outlined text-[16px]">widgets</span>
                             <span>Content</span>
@@ -5008,22 +5503,20 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                         <button
                             type="button"
                             onClick={() => setSidebarTab("seo")}
-                            className={`flex-1 py-3 text-xs font-bold flex items-center justify-center gap-1.5 border-b-2 transition-all cursor-pointer ${
-                                sidebarTab === "seo"
+                            className={`flex-1 py-3 text-xs font-bold flex items-center justify-center gap-1.5 border-b-2 transition-all cursor-pointer ${sidebarTab === "seo"
                                     ? "border-indigo-600 text-indigo-700 bg-white shadow-2xs"
                                     : "border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-100"
-                            }`}
+                                }`}
                         >
                             <span className="material-symbols-outlined text-[16px]">manage_search</span>
                             <span>SEO & SERP</span>
                             <span
-                                className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
-                                    seoAnalysis.score >= 80
+                                className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${seoAnalysis.score >= 80
                                         ? "bg-emerald-100 text-emerald-800"
                                         : seoAnalysis.score >= 50
-                                        ? "bg-amber-100 text-amber-800"
-                                        : "bg-rose-100 text-rose-800"
-                                }`}
+                                            ? "bg-amber-100 text-amber-800"
+                                            : "bg-rose-100 text-rose-800"
+                                    }`}
                             >
                                 {seoAnalysis.score}
                             </span>
@@ -5296,26 +5789,24 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                         <span className="text-xs font-bold tracking-wide uppercase text-indigo-200">SEO Score</span>
                                     </div>
                                     <span
-                                        className={`px-2.5 py-0.5 rounded-full text-xs font-black shadow-xs ${
-                                            seoAnalysis.score >= 80
+                                        className={`px-2.5 py-0.5 rounded-full text-xs font-black shadow-xs ${seoAnalysis.score >= 80
                                                 ? "bg-emerald-500 text-white"
                                                 : seoAnalysis.score >= 50
-                                                ? "bg-amber-500 text-white"
-                                                : "bg-rose-500 text-white"
-                                        }`}
+                                                    ? "bg-amber-500 text-white"
+                                                    : "bg-rose-500 text-white"
+                                            }`}
                                     >
                                         {seoAnalysis.score} / 100
                                     </span>
                                 </div>
                                 <div className="w-full bg-white/20 rounded-full h-2 mb-3 overflow-hidden">
                                     <div
-                                        className={`h-2 rounded-full transition-all duration-500 ${
-                                            seoAnalysis.score >= 80
+                                        className={`h-2 rounded-full transition-all duration-500 ${seoAnalysis.score >= 80
                                                 ? "bg-emerald-400"
                                                 : seoAnalysis.score >= 50
-                                                ? "bg-amber-400"
-                                                : "bg-rose-400"
-                                        }`}
+                                                    ? "bg-amber-400"
+                                                    : "bg-rose-400"
+                                            }`}
                                         style={{ width: `${Math.max(5, seoAnalysis.score)}%` }}
                                     />
                                 </div>
@@ -5340,36 +5831,32 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                 <button
                                     type="button"
                                     onClick={() => setSeoTabMode("serp")}
-                                    className={`py-1.5 rounded-lg transition-all cursor-pointer text-center ${
-                                        seoTabMode === "serp" ? "bg-white text-indigo-700 shadow-2xs font-extrabold" : "text-slate-500 hover:text-slate-800"
-                                    }`}
+                                    className={`py-1.5 rounded-lg transition-all cursor-pointer text-center ${seoTabMode === "serp" ? "bg-white text-indigo-700 shadow-2xs font-extrabold" : "text-slate-500 hover:text-slate-800"
+                                        }`}
                                 >
                                     Google SERP
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => setSeoTabMode("social")}
-                                    className={`py-1.5 rounded-lg transition-all cursor-pointer text-center ${
-                                        seoTabMode === "social" ? "bg-white text-indigo-700 shadow-2xs font-extrabold" : "text-slate-500 hover:text-slate-800"
-                                    }`}
+                                    className={`py-1.5 rounded-lg transition-all cursor-pointer text-center ${seoTabMode === "social" ? "bg-white text-indigo-700 shadow-2xs font-extrabold" : "text-slate-500 hover:text-slate-800"
+                                        }`}
                                 >
                                     Social Card
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => setSeoTabMode("checklist")}
-                                    className={`py-1.5 rounded-lg transition-all cursor-pointer text-center ${
-                                        seoTabMode === "checklist" ? "bg-white text-indigo-700 shadow-2xs font-extrabold" : "text-slate-500 hover:text-slate-800"
-                                    }`}
+                                    className={`py-1.5 rounded-lg transition-all cursor-pointer text-center ${seoTabMode === "checklist" ? "bg-white text-indigo-700 shadow-2xs font-extrabold" : "text-slate-500 hover:text-slate-800"
+                                        }`}
                                 >
                                     Audit
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => setSeoTabMode("faq")}
-                                    className={`py-1.5 rounded-lg transition-all cursor-pointer text-center ${
-                                        seoTabMode === "faq" ? "bg-white text-indigo-700 shadow-2xs font-extrabold" : "text-slate-500 hover:text-slate-800"
-                                    }`}
+                                    className={`py-1.5 rounded-lg transition-all cursor-pointer text-center ${seoTabMode === "faq" ? "bg-white text-indigo-700 shadow-2xs font-extrabold" : "text-slate-500 hover:text-slate-800"
+                                        }`}
                                 >
                                     FAQ ({faqSchema.length})
                                 </button>
@@ -5430,9 +5917,8 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                             <label className="text-xs font-bold text-slate-700">Focus Keyword *</label>
                                             {focusKeyword && (
                                                 <span
-                                                    className={`text-[10px] font-bold px-2 py-0.2 rounded-full ${
-                                                        seoAnalysis.kwCount > 0 ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"
-                                                    }`}
+                                                    className={`text-[10px] font-bold px-2 py-0.2 rounded-full ${seoAnalysis.kwCount > 0 ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"
+                                                        }`}
                                                 >
                                                     {seoAnalysis.kwCount} in content ({seoAnalysis.kwDensity}%)
                                                 </span>
@@ -5465,13 +5951,12 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                                     Auto-Fill
                                                 </button>
                                                 <span
-                                                    className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
-                                                        (metaTitle.length || title.length) >= 40 && (metaTitle.length || title.length) <= 65
+                                                    className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${(metaTitle.length || title.length) >= 40 && (metaTitle.length || title.length) <= 65
                                                             ? "bg-emerald-100 text-emerald-800"
                                                             : (metaTitle.length || title.length) > 65
-                                                            ? "bg-rose-100 text-rose-800"
-                                                            : "bg-slate-100 text-slate-600"
-                                                    }`}
+                                                                ? "bg-rose-100 text-rose-800"
+                                                                : "bg-slate-100 text-slate-600"
+                                                        }`}
                                                 >
                                                     {metaTitle.length || title.length} / 60
                                                 </span>
@@ -5504,13 +5989,12 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                                     Auto-Extract
                                                 </button>
                                                 <span
-                                                    className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
-                                                        (metaDescription.length || excerpt.length) >= 120 && (metaDescription.length || excerpt.length) <= 160
+                                                    className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${(metaDescription.length || excerpt.length) >= 120 && (metaDescription.length || excerpt.length) <= 160
                                                             ? "bg-emerald-100 text-emerald-800"
                                                             : (metaDescription.length || excerpt.length) > 160
-                                                            ? "bg-rose-100 text-rose-800"
-                                                            : "bg-slate-100 text-slate-600"
-                                                    }`}
+                                                                ? "bg-rose-100 text-rose-800"
+                                                                : "bg-slate-100 text-slate-600"
+                                                        }`}
                                                 >
                                                     {metaDescription.length || excerpt.length} / 155
                                                 </span>
@@ -5647,13 +6131,12 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                         {seoAnalysis.checks.map((chk) => (
                                             <div
                                                 key={chk.id}
-                                                className={`p-2.5 rounded-xl border text-left transition-all ${
-                                                    chk.status === "pass"
+                                                className={`p-2.5 rounded-xl border text-left transition-all ${chk.status === "pass"
                                                         ? "bg-emerald-50/50 border-emerald-200 text-emerald-950"
                                                         : chk.status === "warn"
-                                                        ? "bg-amber-50/50 border-amber-200 text-amber-950"
-                                                        : "bg-rose-50/50 border-rose-200 text-rose-950"
-                                                }`}
+                                                            ? "bg-amber-50/50 border-amber-200 text-amber-950"
+                                                            : "bg-rose-50/50 border-rose-200 text-rose-950"
+                                                    }`}
                                             >
                                                 <div className="flex items-center justify-between mb-0.5">
                                                     <span className="text-xs font-bold flex items-center gap-1.5">
@@ -5663,13 +6146,12 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                                         {chk.label}
                                                     </span>
                                                     <span
-                                                        className={`text-[9px] font-black uppercase px-1.5 py-0.2 rounded-full ${
-                                                            chk.status === "pass"
+                                                        className={`text-[9px] font-black uppercase px-1.5 py-0.2 rounded-full ${chk.status === "pass"
                                                                 ? "bg-emerald-200 text-emerald-900"
                                                                 : chk.status === "warn"
-                                                                ? "bg-amber-200 text-amber-900"
-                                                                : "bg-rose-200 text-rose-900"
-                                                        }`}
+                                                                    ? "bg-amber-200 text-amber-900"
+                                                                    : "bg-rose-200 text-rose-900"
+                                                            }`}
                                                     >
                                                         {chk.status === "pass" ? "Pass" : chk.status === "warn" ? "Improve" : "Issue"}
                                                     </span>
@@ -5856,16 +6338,14 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                                         key={hl.level}
                                                         type="button"
                                                         onClick={() => setEditingBlock({ ...editingBlock, level: hl.level })}
-                                                        className={`p-2.5 rounded-xl border text-left transition-all flex flex-col justify-between ${
-                                                            isSelected
+                                                        className={`p-2.5 rounded-xl border text-left transition-all flex flex-col justify-between ${isSelected
                                                                 ? "border-indigo-600 bg-indigo-50/70 ring-2 ring-indigo-200"
                                                                 : "border-slate-200 hover:border-slate-300 hover:bg-slate-50 bg-white"
-                                                        }`}
+                                                            }`}
                                                     >
                                                         <div className="flex items-center justify-between mb-1">
-                                                            <span className={`px-2 py-0.5 rounded text-xs font-black ${
-                                                                isSelected ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-700"
-                                                            }`}>
+                                                            <span className={`px-2 py-0.5 rounded text-xs font-black ${isSelected ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-700"
+                                                                }`}>
                                                                 H{hl.level}
                                                             </span>
                                                             {isSelected && (
@@ -5900,17 +6380,17 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                         </span>
                                         <div className={
                                             (editingBlock.level || 2) === 1 ? "text-2xl font-black text-slate-900" :
-                                            (editingBlock.level || 2) === 2 ? "text-xl font-extrabold text-slate-900" :
-                                            (editingBlock.level || 2) === 3 ? "text-lg font-bold text-slate-800" :
-                                            (editingBlock.level || 2) === 4 ? "text-base font-bold text-slate-800" :
-                                            (editingBlock.level || 2) === 5 ? "text-sm font-semibold text-slate-700" :
-                                            "text-xs font-bold text-slate-600 uppercase tracking-wider"
+                                                (editingBlock.level || 2) === 2 ? "text-xl font-extrabold text-slate-900" :
+                                                    (editingBlock.level || 2) === 3 ? "text-lg font-bold text-slate-800" :
+                                                        (editingBlock.level || 2) === 4 ? "text-base font-bold text-slate-800" :
+                                                            (editingBlock.level || 2) === 5 ? "text-sm font-semibold text-slate-700" :
+                                                                "text-xs font-bold text-slate-600 uppercase tracking-wider"
                                         }>
                                             {editingBlock.content || "Empty heading text"}
                                         </div>
                                     </div>
                                 </div>
-                            ) : editingBlock.type === "image" ? (
+                            ) : (editingBlock.type === "image" || editingBlock.type === "cover_image") ? (
                                 <div className="space-y-4">
                                     {/* Source Mode Switcher */}
                                     <div>
@@ -5919,11 +6399,10 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                             <button
                                                 type="button"
                                                 onClick={() => setEditingBlock({ ...editingBlock, mediaMode: "upload" })}
-                                                className={`py-2 px-3 rounded-xl text-xs font-bold border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                                                    editingBlock.mediaMode !== "url"
+                                                className={`py-2 px-3 rounded-xl text-xs font-bold border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${editingBlock.mediaMode !== "url"
                                                         ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
                                                         : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                                                }`}
+                                                    }`}
                                             >
                                                 <span className="material-symbols-outlined text-sm">upload_file</span>
                                                 <span>Upload from Device</span>
@@ -5931,11 +6410,10 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                             <button
                                                 type="button"
                                                 onClick={() => setEditingBlock({ ...editingBlock, mediaMode: "url" })}
-                                                className={`py-2 px-3 rounded-xl text-xs font-bold border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                                                    editingBlock.mediaMode === "url"
+                                                className={`py-2 px-3 rounded-xl text-xs font-bold border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${editingBlock.mediaMode === "url"
                                                         ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
                                                         : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                                                }`}
+                                                    }`}
                                             >
                                                 <span className="material-symbols-outlined text-sm">link</span>
                                                 <span>Image Web URL</span>
@@ -6021,8 +6499,8 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                                         style: { ...editingBlock.style, aspectRatio: r.val },
                                                     })}
                                                     className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${(editingBlock.style?.aspectRatio || "16/9") === r.val
-                                                            ? "bg-indigo-600 text-white border-indigo-600 shadow-2xs"
-                                                            : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                                                        ? "bg-indigo-600 text-white border-indigo-600 shadow-2xs"
+                                                        : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
                                                         }`}
                                                 >
                                                     {r.label}
@@ -6049,8 +6527,8 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                                         style: { ...editingBlock.style, objectFit: f.val },
                                                     })}
                                                     className={`flex-1 px-3 py-2 rounded-xl text-xs font-bold border text-center transition-all cursor-pointer ${(editingBlock.style?.objectFit || "cover") === f.val
-                                                            ? "bg-indigo-600 text-white border-indigo-600 shadow-2xs"
-                                                            : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                                                        ? "bg-indigo-600 text-white border-indigo-600 shadow-2xs"
+                                                        : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
                                                         }`}
                                                 >
                                                     {f.label}
@@ -6139,8 +6617,8 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                                         },
                                                     })}
                                                     className={`p-2.5 rounded-xl text-left border transition-all cursor-pointer ${(editingBlock.splitConfig?.layoutType || "content_form") === m.id
-                                                            ? "bg-indigo-50 border-indigo-600 text-indigo-900 font-bold shadow-2xs"
-                                                            : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                                                        ? "bg-indigo-50 border-indigo-600 text-indigo-900 font-bold shadow-2xs"
+                                                        : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
                                                         }`}
                                                 >
                                                     <p className="text-xs font-bold">{m.label}</p>
@@ -6436,27 +6914,24 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                     {/* Live Preview */}
                                     <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
                                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Live Button Preview:</span>
-                                        <div className={`flex ${
-                                            editingBlock.buttonAlign === "left" ? "justify-start" :
-                                            editingBlock.buttonAlign === "right" ? "justify-end" :
-                                            editingBlock.buttonAlign === "full" ? "w-full justify-center" :
-                                            "justify-center"
-                                        }`}>
+                                        <div className={`flex ${editingBlock.buttonAlign === "left" ? "justify-start" :
+                                                editingBlock.buttonAlign === "right" ? "justify-end" :
+                                                    editingBlock.buttonAlign === "full" ? "w-full justify-center" :
+                                                        "justify-center"
+                                            }`}>
                                             <a
                                                 href={editingBlock.buttonUrl || "#"}
                                                 onClick={(e) => e.preventDefault()}
-                                                className={`inline-flex items-center justify-center gap-2 font-bold cursor-pointer transition-all shadow-md ${
-                                                    editingBlock.buttonVariant === "emerald" ? "bg-gradient-to-r from-emerald-600 to-teal-600 text-white" :
-                                                    editingBlock.buttonVariant === "dark" ? "bg-slate-900 text-white" :
-                                                    editingBlock.buttonVariant === "outline" ? "bg-transparent text-indigo-600 border-2 border-indigo-600" :
-                                                    editingBlock.buttonVariant === "amber" ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white" :
-                                                    editingBlock.buttonVariant === "rose" ? "bg-gradient-to-r from-rose-600 to-pink-600 text-white" :
-                                                    "bg-gradient-to-r from-purple-600 to-indigo-600 text-white"
-                                                } ${
-                                                    editingBlock.buttonSize === "sm" ? "px-4 py-2 text-xs rounded-lg" :
-                                                    editingBlock.buttonSize === "lg" ? "px-8 py-4 text-base rounded-2xl" :
-                                                    "px-6 py-2.5 text-xs rounded-xl"
-                                                } ${editingBlock.buttonAlign === "full" ? "w-full" : ""}`}
+                                                className={`inline-flex items-center justify-center gap-2 font-bold cursor-pointer transition-all shadow-md ${editingBlock.buttonVariant === "emerald" ? "bg-gradient-to-r from-emerald-600 to-teal-600 text-white" :
+                                                        editingBlock.buttonVariant === "dark" ? "bg-slate-900 text-white" :
+                                                            editingBlock.buttonVariant === "outline" ? "bg-transparent text-indigo-600 border-2 border-indigo-600" :
+                                                                editingBlock.buttonVariant === "amber" ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white" :
+                                                                    editingBlock.buttonVariant === "rose" ? "bg-gradient-to-r from-rose-600 to-pink-600 text-white" :
+                                                                        "bg-gradient-to-r from-purple-600 to-indigo-600 text-white"
+                                                    } ${editingBlock.buttonSize === "sm" ? "px-4 py-2 text-xs rounded-lg" :
+                                                        editingBlock.buttonSize === "lg" ? "px-8 py-4 text-base rounded-2xl" :
+                                                            "px-6 py-2.5 text-xs rounded-xl"
+                                                    } ${editingBlock.buttonAlign === "full" ? "w-full" : ""}`}
                                             >
                                                 <span>{editingBlock.buttonText || editingBlock.content || "Click Here"}</span>
                                                 <span className="material-symbols-outlined text-sm font-bold">arrow_forward</span>
@@ -6479,11 +6954,10 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                                         content: raw.map((l) => `• ${l}`).join("\n"),
                                                     });
                                                 }}
-                                                className={`p-3 rounded-xl border text-left transition-all flex items-center gap-3 ${
-                                                    editingBlock.listType !== "ordered"
+                                                className={`p-3 rounded-xl border text-left transition-all flex items-center gap-3 ${editingBlock.listType !== "ordered"
                                                         ? "border-teal-600 bg-teal-50/70 ring-2 ring-teal-200"
                                                         : "border-slate-200 hover:border-slate-300 hover:bg-slate-50 bg-white"
-                                                }`}
+                                                    }`}
                                             >
                                                 <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-teal-600 text-white shrink-0">
                                                     <span className="material-symbols-outlined text-xl">format_list_bulleted</span>
@@ -6504,11 +6978,10 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                                         content: raw.map((l, i) => `${i + 1}. ${l}`).join("\n"),
                                                     });
                                                 }}
-                                                className={`p-3 rounded-xl border text-left transition-all flex items-center gap-3 ${
-                                                    editingBlock.listType === "ordered"
+                                                className={`p-3 rounded-xl border text-left transition-all flex items-center gap-3 ${editingBlock.listType === "ordered"
                                                         ? "border-teal-600 bg-teal-50/70 ring-2 ring-teal-200"
                                                         : "border-slate-200 hover:border-slate-300 hover:bg-slate-50 bg-white"
-                                                }`}
+                                                    }`}
                                             >
                                                 <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-teal-600 text-white shrink-0">
                                                     <span className="material-symbols-outlined text-xl">format_list_numbered</span>
@@ -6570,11 +7043,10 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                             <button
                                                 type="button"
                                                 onClick={() => setEditingBlock({ ...editingBlock, mediaMode: "upload" })}
-                                                className={`py-2 px-3 rounded-xl text-xs font-bold border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                                                    editingBlock.mediaMode !== "url"
+                                                className={`py-2 px-3 rounded-xl text-xs font-bold border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${editingBlock.mediaMode !== "url"
                                                         ? "bg-rose-600 text-white border-rose-600 shadow-xs"
                                                         : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                                                }`}
+                                                    }`}
                                             >
                                                 <span className="material-symbols-outlined text-sm">video_file</span>
                                                 <span>Upload Video File</span>
@@ -6582,11 +7054,10 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                             <button
                                                 type="button"
                                                 onClick={() => setEditingBlock({ ...editingBlock, mediaMode: "url" })}
-                                                className={`py-2 px-3 rounded-xl text-xs font-bold border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                                                    editingBlock.mediaMode === "url"
+                                                className={`py-2 px-3 rounded-xl text-xs font-bold border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${editingBlock.mediaMode === "url"
                                                         ? "bg-rose-600 text-white border-rose-600 shadow-xs"
                                                         : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                                                }`}
+                                                    }`}
                                             >
                                                 <span className="material-symbols-outlined text-sm">link</span>
                                                 <span>Video URL / Embed</span>
@@ -6720,9 +7191,8 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                                                     tableData: { ...td, hasHeader: !hasHeader },
                                                                 })
                                                             }
-                                                            className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-all ${
-                                                                hasHeader ? "bg-indigo-600 text-white shadow-2xs" : "bg-slate-200 text-slate-700"
-                                                            }`}
+                                                            className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-all ${hasHeader ? "bg-indigo-600 text-white shadow-2xs" : "bg-slate-200 text-slate-700"
+                                                                }`}
                                                         >
                                                             {hasHeader ? "Enabled" : "Disabled"}
                                                         </button>
@@ -6741,9 +7211,8 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                                                     tableData: { ...td, isStriped: !isStriped },
                                                                 })
                                                             }
-                                                            className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-all ${
-                                                                isStriped ? "bg-purple-600 text-white shadow-2xs" : "bg-slate-200 text-slate-700"
-                                                            }`}
+                                                            className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-all ${isStriped ? "bg-purple-600 text-white shadow-2xs" : "bg-slate-200 text-slate-700"
+                                                                }`}
                                                         >
                                                             {isStriped ? "Enabled" : "Disabled"}
                                                         </button>
