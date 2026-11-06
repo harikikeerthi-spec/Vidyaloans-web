@@ -679,7 +679,8 @@ export class MailService implements OnModuleInit {
       let validEmails = parsedEmails.filter((e): e is MailSummary => e !== null);
 
       // Merge persistent per-user email state from DB if userId is available
-      if (userId) {
+      const isExecutive = Boolean(currentUser?.isExecutive || currentUser?.role === 'executive_official');
+      if (userId && !isExecutive) {
         try {
           // Auto-purge trash emails older than 60 days
           const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
@@ -956,7 +957,8 @@ export class MailService implements OnModuleInit {
       };
 
       // When staff opens the email, record in DB that the mail was viewed and mark as read
-      const effectiveUserId = userId || currentUser?.id || currentUser?.sub;
+      const isExecutive = Boolean(currentUser?.isExecutive || currentUser?.role === 'executive_official');
+      const effectiveUserId = isExecutive ? undefined : (userId || currentUser?.id || currentUser?.sub);
       detail = {
         ...detail,
         read: true,

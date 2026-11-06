@@ -82,12 +82,19 @@ import {
 
 type MailFolder = "inbox" | "sent" | "drafts" | "starred" | "trash";
 
-const foldersList = [
-  { name: "Inbox", prefix: "inbox" },
-  { name: "Sent Mail", prefix: "sent" },
-  { name: "Drafts", prefix: "drafts" },
-  { name: "Starred", prefix: "starred" },
-  { name: "Trash", prefix: "trash" },
+interface FolderConfig {
+  id: MailFolder;
+  name: string;
+  prefix: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+const foldersList: FolderConfig[] = [
+  { id: "inbox", name: "Inbox", prefix: "inbox", icon: Inbox },
+  { id: "sent", name: "Sent Mail", prefix: "sent", icon: Send },
+  { id: "drafts", name: "Drafts", prefix: "drafts", icon: FileText },
+  { id: "starred", name: "Starred", prefix: "starred", icon: Star },
+  { id: "trash", name: "Trash", prefix: "trash", icon: Trash2 },
 ];
 
 interface WebmailMessage {
@@ -376,9 +383,16 @@ export default function ExecutiveWebmailPage() {
         setMessageDetail(json.data);
         setIsMarkedSpam(Boolean(json.data.isSpam));
         // Mark as read in local list
+        const wasUnread = !emails.find((e) => e.id === id)?.isRead;
         setEmails((prev) =>
           prev.map((e) => (e.id === id ? { ...e, isRead: true } : e))
         );
+        if (wasUnread) {
+          setStats((prev) => ({
+            ...prev,
+            unread: Math.max(0, (prev.unread || 0) - 1),
+          }));
+        }
         fetchStats();
       }
     } catch (err) {
@@ -394,13 +408,17 @@ export default function ExecutiveWebmailPage() {
     if (e) e.stopPropagation();
     const nextStarred = !currentStarred;
 
-    // Optimistically update list
+    // Optimistically update list & stats
     setEmails((prev) =>
       prev.map((item) => (item.id === id ? { ...item, isStarred: nextStarred } : item))
     );
     if (messageDetail && messageDetail.id === id) {
       setMessageDetail((prev) => (prev ? { ...prev, isStarred: nextStarred } : null));
     }
+    setStats((prev) => ({
+      ...prev,
+      starred: nextStarred ? (prev.starred || 0) + 1 : Math.max(0, (prev.starred || 0) - 1),
+    }));
 
     try {
       let csrfToken = "";
@@ -462,6 +480,11 @@ export default function ExecutiveWebmailPage() {
           setSelectedEmailId(null);
           setMessageDetail(null);
         }
+        setStats((prev) => ({
+          ...prev,
+          [activeFolder]: Math.max(0, (prev[activeFolder] || 0) - 1),
+          trash: activeFolder === "trash" ? prev.trash : (prev.trash || 0) + 1,
+        }));
         fetchStats();
       } else {
         showToast(json?.message || "Failed to delete message.", "error");
@@ -779,6 +802,11 @@ export default function ExecutiveWebmailPage() {
           setSelectedEmailId(null);
           setMessageDetail(null);
         }
+        setStats((prev) => ({
+          ...prev,
+          trash: Math.max(0, (prev.trash || 0) - 1),
+          inbox: (prev.inbox || 0) + 1,
+        }));
         fetchStats();
       } else {
         showToast(json?.message || "Failed to restore email.", "error");
@@ -1381,20 +1409,6 @@ export default function ExecutiveWebmailPage() {
 
         {/* Action Controls & Profile Menu */}
         <div className="flex items-center gap-2 sm:gap-2.5">
-          {/* Refresh Mailbox Button */}
-          <button
-            onClick={() => {
-              fetchEmails(true);
-              fetchStats();
-            }}
-            disabled={refreshing}
-            className="p-2 sm:px-3 sm:py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 transition-all cursor-pointer flex items-center gap-1.5 text-xs font-semibold"
-            title="Refresh All Mail Folders"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin text-[#6605c7]" : "text-slate-600"}`} />
-
-          </button>
-
           {/* User Profile Dropdown Pill */}
           <div className="relative">
             <button
@@ -1547,49 +1561,24 @@ export default function ExecutiveWebmailPage() {
               <span>Compose Message</span>
             </button>
 
-            {/* Folder Navigation with Dynamic Badge Counts */}
+            {/* Dynamic Folder Navigation */}
             <nav className="space-y-1">
-              {[
-                {
-                  id: "inbox",
-                  label: "Inbox",
-                  icon: Inbox,
-                  count: stats.inbox,
-                  unread: stats.unread,
-                },
-                {
-                  id: "sent",
-                  label: "Sent Mail",
-                  icon: Send,
-                  count: stats.sent,
-                  badgeLabel: "Sent",
-                },
-                {
-                  id: "drafts",
-                  label: "Drafts",
-                  icon: FileText,
-                  count: stats.drafts || 0,
-                },
-                {
-                  id: "starred",
-                  label: "Starred",
-                  icon: Star,
-                  count: stats.starred,
-                },
-                {
-                  id: "trash",
-                  label: "Trash",
-                  icon: Trash2,
-                  count: stats.trash,
-                },
-              ].map((folder) => {
+              {foldersList.map((folder) => {
                 const Icon = folder.icon;
                 const isActive = activeFolder === folder.id;
+                const count =
+                  folder.id === "inbox" ? stats.inbox :
+                  folder.id === "sent" ? stats.sent :
+                  folder.id === "drafts" ? stats.drafts :
+                  folder.id === "starred" ? stats.starred :
+                  stats.trash;
+                const unread = folder.id === "inbox" ? stats.unread : 0;
+
                 return (
                   <button
                     key={folder.id}
                     onClick={() => {
-                      setActiveFolder(folder.id as MailFolder);
+                      setActiveFolder(folder.id);
                       setSelectedEmailId(null);
                       setMessageDetail(null);
                     }}
@@ -1600,13 +1589,13 @@ export default function ExecutiveWebmailPage() {
                   >
                     <div className="flex items-center gap-2.5">
                       <Icon className={`w-4 h-4 ${isActive ? "text-[#6605c7]" : "text-slate-400"}`} />
-                      <span>{folder.label}</span>
+                      <span>{folder.name}</span>
                     </div>
 
                     <div className="flex items-center gap-1.5">
-                      {folder.id === "inbox" && (folder.unread ?? 0) > 0 && (
+                      {unread > 0 && (
                         <span className="px-1.5 py-0.5 rounded-full text-[10px] font-extrabold bg-[#6605c7] text-white shadow-2xs">
-                          {folder.unread}
+                          {unread}
                         </span>
                       )}
                       <span
@@ -1615,7 +1604,7 @@ export default function ExecutiveWebmailPage() {
                           : "bg-slate-100 text-slate-600"
                           }`}
                       >
-                        {folder.count}
+                        {count || 0}
                       </span>
                     </div>
                   </button>
@@ -1903,79 +1892,38 @@ export default function ExecutiveWebmailPage() {
             ) : messageDetail ? (
               <div className="flex-1 flex flex-col overflow-hidden">
 
-                {/* Detail Header / Actions Toolbar */}
-                <div className="p-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70 select-none">
-                  <div className="flex items-center gap-2">
+                {/* Clean Sticky Detail Header with Subject & Actions */}
+                <div className="px-5 py-3.5 border-b border-slate-200/90 bg-white/95 backdrop-blur-md flex items-center justify-between gap-3 select-none shrink-0 shadow-2xs z-10">
+                  <div className="flex items-center gap-2.5 min-w-0">
                     <button
                       onClick={() => setSelectedEmailId(null)}
-                      className="md:hidden p-2 rounded-xl hover:bg-slate-100 text-slate-600 cursor-pointer"
+                      className="md:hidden p-1.5 -ml-1 rounded-xl hover:bg-slate-100 text-slate-600 cursor-pointer shrink-0"
                       title="Back to List"
                     >
                       <ArrowLeft className="w-4 h-4" />
                     </button>
-                    <button
-                      onClick={handleReply}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-[#6605c7] border border-purple-200 text-xs font-bold transition-all cursor-pointer"
-                    >
-                      <Reply className="w-3.5 h-3.5" />
-                      <span>Reply</span>
-                    </button>
-                    <button
-                      onClick={handleForward}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer"
-                    >
-                      <Forward className="w-3.5 h-3.5" />
-                      <span>Forward</span>
-                    </button>
-
-                    <button
-                      onClick={() => handleToggleStar(messageDetail.id, !!messageDetail.isStarred)}
-                      className={`p-1.5 rounded-xl text-slate-400 hover:text-amber-500 hover:bg-slate-100 transition-colors cursor-pointer ${messageDetail.isStarred ? "text-amber-500" : ""
-                        }`}
-                      title={messageDetail.isStarred ? "Unstar" : "Star"}
-                    >
-                      <Star
-                        className={`w-4 h-4 ${messageDetail.isStarred ? "fill-amber-400 text-amber-400" : ""}`}
-                      />
-                    </button>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-purple-100 text-[#6605c7] border border-purple-200 shrink-0">
+                      {activeFolder === "inbox" ? "Inbox" : activeFolder === "sent" ? "Sent Mail" : activeFolder === "trash" ? "Trash" : activeFolder === "drafts" ? "Drafts" : "Starred"}
+                    </span>
+                    <h1 className="text-sm sm:text-base font-extrabold text-[#1a1626] leading-snug truncate">
+                      {messageDetail.subject || "(No Subject)"}
+                    </h1>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 shrink-0">
                     <button
-                      onClick={() => handleToggleSpam(messageDetail.id, isMarkedSpam)}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${isMarkedSpam
-                        ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
-                        : "bg-slate-100 text-slate-600 border-slate-200 hover:text-rose-600 hover:bg-rose-50"
-                        }`}
+                      onClick={() => handleToggleStar(messageDetail.id, !!messageDetail.isStarred)}
+                      className={`p-1.5 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer ${
+                        messageDetail.isStarred ? "text-amber-500" : "text-slate-400 hover:text-amber-500"
+                      }`}
+                      title={messageDetail.isStarred ? "Unstar" : "Star"}
                     >
-                      {isMarkedSpam ? (
-                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                      ) : (
-                        <ShieldAlert className="w-3.5 h-3.5" />
-                      )}
-                      <span>{isMarkedSpam ? "Not Spam" : "Spam"}</span>
+                      <Star className={`w-4 h-4 ${messageDetail.isStarred ? "fill-amber-400 text-amber-400" : ""}`} />
                     </button>
-
-                    <button
-                      onClick={() => exportEmailToEml(messageDetail)}
-                      className="p-2 rounded-xl text-slate-400 hover:text-[#6605c7] hover:bg-slate-100 transition-colors cursor-pointer"
-                      title="Export (.eml)"
-                    >
-                      <Download className="w-4 h-4" />
-                    </button>
-
-                    <button
-                      onClick={() => window.print()}
-                      className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
-                      title="Print Email"
-                    >
-                      <Printer className="w-4 h-4" />
-                    </button>
-
                     {activeFolder === "trash" ? (
                       <button
                         onClick={() => handleRestoreFromTrash(messageDetail.id)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 text-xs font-bold transition-all cursor-pointer"
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 text-xs font-bold transition-all cursor-pointer"
                         title="Restore to Inbox"
                       >
                         <RotateCcw className="w-3.5 h-3.5 text-emerald-600" />
@@ -1984,7 +1932,7 @@ export default function ExecutiveWebmailPage() {
                     ) : (
                       <button
                         onClick={() => handleDeleteEmail(messageDetail.id)}
-                        className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                        className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                         title="Move to Trash"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -2022,23 +1970,6 @@ export default function ExecutiveWebmailPage() {
                       </button>
                     </div>
                   )}
-
-                  {/* Subject and Tags */}
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <h1 className="text-xl lg:text-2xl font-black text-[#1a1626] leading-tight">
-                      {messageDetail.subject || "(No Subject)"}
-                    </h1>
-
-                    {/* <div className="flex items-center gap-2">
-                      <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3" />
-                        <span>Verified & Secure</span>
-                      </span>
-                      <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-purple-50 text-[#6605c7] border border-purple-200">
-                        TLS 1.3
-                      </span>
-                    </div> */}
-                  </div>
 
                   {/* Sender & Recipient Metadata Card */}
                   <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/90 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -2078,30 +2009,12 @@ export default function ExecutiveWebmailPage() {
                           </span>
                         </div>
 
-                        {/* Quick Pills: ✉ Summary  ℹ Headers  📄 Plain text / HTML format  🔍 Show Source */}
-                        <div className="flex flex-wrap items-center gap-3.5 mt-3 text-xs">
-                          <button
-                            type="button"
-                            onClick={() => setShowSummaryModal(true)}
-                            className="inline-flex items-center gap-1.5 text-[#6605c7] hover:text-purple-800 font-bold transition-colors cursor-pointer"
-                          >
-                            <Mail className="w-3.5 h-3.5" />
-                            <span>Summary</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => setShowHeadersModal(true)}
-                            className="inline-flex items-center gap-1.5 text-[#6605c7] hover:text-purple-800 font-bold transition-colors cursor-pointer"
-                          >
-                            <Info className="w-3.5 h-3.5" />
-                            <span>Headers</span>
-                          </button>
-
+                        {/* Content View Controls */}
+                        <div className="flex flex-wrap items-center gap-2 mt-3 text-xs">
                           <button
                             type="button"
                             onClick={() => setViewMode(viewMode === "html" ? "text" : "html")}
-                            className="inline-flex items-center gap-1.5 text-[#6605c7] hover:text-purple-800 font-bold transition-colors cursor-pointer"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-[#6605c7] hover:bg-purple-50 font-semibold transition-colors cursor-pointer shadow-2xs"
                           >
                             <FileText className="w-3.5 h-3.5" />
                             <span>{viewMode === "html" ? "Plain text" : "HTML format"}</span>
@@ -2109,39 +2022,20 @@ export default function ExecutiveWebmailPage() {
 
                           <button
                             type="button"
-                            onClick={() => setShowSourceModal(true)}
-                            className="inline-flex items-center gap-1.5 text-slate-500 hover:text-slate-800 font-bold transition-colors cursor-pointer"
+                            onClick={() => setShowSummaryModal(true)}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 hover:text-purple-800 hover:bg-purple-50 font-semibold transition-colors cursor-pointer shadow-2xs"
                           >
-                            <Search className="w-3.5 h-3.5" />
-                            <span>Show Source</span>
+                            <Mail className="w-3.5 h-3.5 text-purple-600" />
+                            <span>AI Summary</span>
                           </button>
 
                           <button
                             type="button"
-                            onClick={handleSaveAsEvent}
-                            className="inline-flex items-center gap-1.5 text-indigo-600 hover:text-indigo-800 font-bold transition-colors cursor-pointer"
-                            title="Export email as iCal (.ics) event"
+                            onClick={() => setShowHeadersModal(true)}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 hover:text-purple-800 hover:bg-purple-50 font-semibold transition-colors cursor-pointer shadow-2xs"
                           >
-                            <Calendar className="w-3.5 h-3.5" />
-                            <span>Save as Event</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => setShowFilterModal(true)}
-                            className="inline-flex items-center gap-1.5 text-slate-600 hover:text-slate-900 font-bold transition-colors cursor-pointer"
-                          >
-                            <Filter className="w-3.5 h-3.5" />
-                            <span>Create Filter</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => setShowBlockSenderModal(true)}
-                            className="inline-flex items-center gap-1.5 text-rose-600 hover:text-rose-800 font-bold transition-colors cursor-pointer"
-                          >
-                            <Ban className="w-3.5 h-3.5" />
-                            <span>Block Sender</span>
+                            <Info className="w-3.5 h-3.5 text-slate-400" />
+                            <span>Headers</span>
                           </button>
                         </div>
                       </div>
@@ -2241,8 +2135,8 @@ export default function ExecutiveWebmailPage() {
                     )}
                   </div>
 
-                  {/* Bottom Action Footer (Replacing Quick Reply) */}
-                  <div className="pt-6 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
+                  {/* Bottom Quick Response Action Bar */}
+                  <div className="pt-6 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
@@ -2263,26 +2157,8 @@ export default function ExecutiveWebmailPage() {
                       </button>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => exportEmailToEml(messageDetail)}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-slate-600 hover:text-[#6605c7] hover:bg-purple-50 text-xs font-semibold transition-all cursor-pointer"
-                        title="Download .eml file"
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                        <span>Export (.eml)</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => window.print()}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 text-xs font-semibold transition-all cursor-pointer"
-                        title="Print"
-                      >
-                        <Printer className="w-3.5 h-3.5" />
-                        <span>Print</span>
-                      </button>
+                    <div className="text-[11px] text-slate-400 font-medium">
+                      Use the top ribbon for bulk operations, export & printing
                     </div>
                   </div>
                 </div>
