@@ -904,12 +904,12 @@ export default function ApplyLoanPage() {
                                         <div className="space-y-3">
                                             <label htmlFor="apply-phone" className="text-[10px] uppercase tracking-[0.2em] font-black text-gray-500 flex items-center justify-between cursor-pointer">
                                                 <span>Mobile Number <span className="text-red-500 ml-1">*</span></span>
-                                                {isPhoneLocked && (
+                                                {/* {isPhoneLocked && (
                                                     <span className="text-[9px] font-extrabold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 flex items-center gap-1">
                                                         <span className="material-symbols-outlined text-[11px]">lock</span>
                                                         Locked
                                                     </span>
-                                                )}
+                                                )} */}
                                             </label>
                                             <div className="relative group">
                                                 <div className="absolute left-4 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-gray-400 select-none">
@@ -932,14 +932,13 @@ export default function ApplyLoanPage() {
                                                     }}
                                                     placeholder="98237 49821"
                                                     maxLength={10}
-                                                    className={`w-full pl-20 pr-6 py-4 border rounded-2xl shadow-sm outline-none text-sm font-bold transition-all ${
-                                                        isPhoneLocked
-                                                            ? "bg-gray-100/80 cursor-not-allowed text-gray-500 border-gray-200 select-none"
-                                                            : "bg-white/70 focus:bg-white text-gray-900 " +
-                                                              (stepErrors.phone
-                                                                  ? "border-red-300 ring-2 ring-red-100"
-                                                                  : "border-gray-200 focus:border-[#6605c7]/50 focus:ring-4 focus:ring-purple-100 hover:border-gray-300")
-                                                    }`}
+                                                    className={`w-full pl-20 pr-6 py-4 border rounded-2xl shadow-sm outline-none text-sm font-bold transition-all ${isPhoneLocked
+                                                        ? "bg-gray-100/80 cursor-not-allowed text-gray-500 border-gray-200 select-none"
+                                                        : "bg-white/70 focus:bg-white text-gray-900 " +
+                                                        (stepErrors.phone
+                                                            ? "border-red-300 ring-2 ring-red-100"
+                                                            : "border-gray-200 focus:border-[#6605c7]/50 focus:ring-4 focus:ring-purple-100 hover:border-gray-300")
+                                                        }`}
                                                 />
                                             </div>
                                             {stepErrors.phone && <p className="text-red-500 text-[10px] font-black uppercase tracking-wider pl-1">{stepErrors.phone}</p>}
@@ -1295,12 +1294,13 @@ function InputField({ label, icon, value, onChange, placeholder, type = "text", 
         <div className="space-y-3">
             <label htmlFor={inputId} className="text-[10px] uppercase tracking-[0.2em] font-black text-gray-500 flex items-center justify-between cursor-pointer">
                 <span>{label} {required && <span className="text-red-500 ml-1">*</span>}</span>
-                {disabled && (
+                {/* {disabled && (
                     <span className="text-[9px] font-extrabold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 flex items-center gap-1">
                         <span className="material-symbols-outlined text-[11px]">lock</span>
                         Locked
                     </span>
-                )}
+                )
+                } */}
             </label>
             <div className="relative group">
                 {icon && (

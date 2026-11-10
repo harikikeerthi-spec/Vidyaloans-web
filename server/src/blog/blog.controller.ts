@@ -409,7 +409,7 @@ export class BlogController {
      * @returns { success: boolean, message: string }
      */
     @Delete(':id')
-    @UseGuards(AdminGuard)
+    @UseGuards(StaffGuard)
     async deleteBlog(@Param('id') id: string) {
         return this.blogService.deleteBlog(id);
     }
@@ -452,7 +452,7 @@ export class BlogController {
      * @returns { success: boolean, message: string, deleted: number }
      */
     @Post('admin/bulk-delete')
-    @UseGuards(AdminGuard)
+    @UseGuards(StaffGuard)
     async bulkDeleteBlogs(
         @Body() body: { blogIds: string[] }
     ) {
@@ -466,7 +466,7 @@ export class BlogController {
      * @returns { success: boolean, message: string, updated: number }
      */
     @Post('admin/bulk-status')
-    @UseGuards(AdminGuard)
+    @UseGuards(StaffGuard)
     async bulkUpdateStatus(
         @Body() body: { blogIds: string[], isPublished: boolean }
     ) {

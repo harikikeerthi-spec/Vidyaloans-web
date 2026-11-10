@@ -55,8 +55,8 @@ export const DEFAULT_PUBLIC_SETTINGS: PublicSiteSettings = {
   metaTitle: "VidyaLoans - Instant Education Loans for Overseas Studies",
   metaDescription:
     "Compare and apply for top education loans with lowest interest rates, quick approval, and zero hidden charges.",
-  supportEmail: "support@vidyaloans.com",
-  contactEmail: "contact@vidyaloans.com",
+  supportEmail: "support@vidyaloans.in",
+  contactEmail: "contact@vidyaloans.in",
   phone: "+91 8143797779",
   tollFree: "1800-123-4567",
   address: "VidyaLoans Financial Tower, Sector 44, Gurgaon, Haryana 122003, India",
@@ -110,21 +110,7 @@ const SiteSettingsContext = createContext<SiteSettingsContextValue>({
 });
 
 export function SiteSettingsProvider({ children }: { children: React.ReactNode }) {
-  const [settings, setSettings] = useState<PublicSiteSettings>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const cached = localStorage.getItem(STORAGE_KEY);
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          return { ...DEFAULT_PUBLIC_SETTINGS, ...parsed };
-        }
-      } catch (e) {
-        // ignore cache parse error
-      }
-    }
-    return DEFAULT_PUBLIC_SETTINGS;
-  });
-
+  const [settings, setSettings] = useState<PublicSiteSettings>(DEFAULT_PUBLIC_SETTINGS);
   const [loading, setLoading] = useState(true);
   const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
 
@@ -283,7 +269,23 @@ export function SiteSettingsProvider({ children }: { children: React.ReactNode }
   );
 
   useEffect(() => {
-    // Initial fetch on mount
+    // 1. Immediately hydrate cached settings from localStorage post-mount
+    try {
+      const cached = localStorage.getItem(STORAGE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        const merged: PublicSiteSettings = {
+          ...DEFAULT_PUBLIC_SETTINGS,
+          ...parsed,
+        };
+        setSettings(merged);
+        applyDomChanges(merged);
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    // 2. Fetch fresh settings on mount
     fetchSettings();
 
     // Initialize BroadcastChannel for cross-tab instantaneous sync

@@ -4,7 +4,17 @@ import { notFound } from "next/navigation";
 import type { BlogPost } from "@/types";
 import BlogShareBar from "@/components/BlogShareBar";
 import BlogRegistrationHandler from "@/components/BlogRegistrationHandler";
+import BlogTableOfContents from "@/components/BlogTableOfContents";
 import { sanitizeHtml, safeJsonLd } from "@/lib/sanitize";
+import {
+  cleanExcerptText,
+  cleanBlogContent,
+  extractHeadingsAndEnhanceHtml,
+  BlogHeading,
+} from "@/lib/blogUtils";
+
+export { cleanExcerptText, cleanBlogContent, extractHeadingsAndEnhanceHtml };
+export type { BlogHeading, BlogHeading as ExtractedHeading };
 
 interface Props {
   params: Promise<{
@@ -13,52 +23,6 @@ interface Props {
 }
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://www.vidyaloans.in";
-
-/**
- * Strip clipboard fragments (<!--StartFragment-->, etc.), HTML tags, and clean plain text
- * for excerpts, subtitles, and SEO meta descriptions.
- */
-export function cleanExcerptText(raw: string | null | undefined): string {
-  if (!raw || typeof raw !== "string") return "";
-  return raw
-    .replace(/<!--StartFragment-->/gi, "")
-    .replace(/<!--EndFragment-->/gi, "")
-    .replace(/&lt;!--StartFragment--&gt;/gi, "")
-    .replace(/&lt;!--EndFragment--&gt;/gi, "")
-    .replace(/<!--[\s\S]*?-->/g, "")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&lt;[^&gt;]+&gt;/g, "")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&amp;/gi, "&")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-/**
- * Strips internal builder metadata comments, blocks JSON, and SEO JSON objects
- * so that internal JSON structures are never rendered inside the public blog article body.
- */
-export function cleanBlogContent(rawHtml: string | null | undefined): string {
-  if (!rawHtml || typeof rawHtml !== "string") return "";
-  return rawHtml
-    .replace(/<!--BLOCKS_JSON_START-->[\s\S]*?<!--BLOCKS_JSON_END-->/gi, "")
-    .replace(/<!--SEO_JSON_START-->[\s\S]*?<!--SEO_JSON_END-->/gi, "")
-    .replace(/<!--\s*BLOCKS_DATA:[\s\S]*?-->/gi, "")
-    .replace(/<!--\s*SEO_DATA:[\s\S]*?-->/gi, "")
-    .replace(/<!--StartFragment-->/gi, "")
-    .replace(/<!--EndFragment-->/gi, "")
-    .replace(/&lt;!--StartFragment--&gt;/gi, "")
-    .replace(/&lt;!--EndFragment--&gt;/gi, "")
-    .replace(/<!--BLOCKS_JSON_(?:START|END)-->/gi, "")
-    .replace(/<!--SEO_JSON_(?:START|END)-->/gi, "")
-    .replace(/<div[^>]*class="[^"]*blog-cover-page[^"]*"[\s\S]*?<\/div>\s*<\/div>/gi, "")
-    .replace(/(?:\[\s*\]|\{\s*\})?\s*\{[\s\S]*?"metaTitle"[\s\S]*?\}/gi, "")
-    .trim();
-}
 
 async function fetchBlogBySlug(slug: string): Promise<BlogPost | null> {
   const backendUrl = process.env.BACKEND_URL || "http://127.0.0.1:5000";
@@ -289,6 +253,11 @@ export default async function BlogPostPage({ params }: Props) {
     })),
   } : null;
 
+  // Extract headings and enhance HTML with unique IDs and scroll margin for side navigation
+  const cleanedRawContent = cleanBlogContent(blog.content || "");
+  const { headings, enhancedHtml, tocTitle } = extractHeadingsAndEnhanceHtml(cleanedRawContent);
+  const hasHeadings = headings.length >= 2;
+
   return (
     <>
       {/* Schema.org Structured Data */}
@@ -310,7 +279,7 @@ export default async function BlogPostPage({ params }: Props) {
 
       <article className="pt-24 pb-32 bg-white">
         {/* Breadcrumb Navigation & Hero Header */}
-        <div className="max-w-4xl mx-auto px-6 mb-12">
+        <div className="max-w-5xl mx-auto px-6 mb-12">
           {/* Visual Semantic Breadcrumb Trail */}
           <nav aria-label="Breadcrumb" className="mb-6 flex items-center gap-1.5 text-xs text-slate-400 flex-wrap">
             <Link href="/" className="hover:text-indigo-600 transition-colors">
@@ -371,9 +340,25 @@ export default async function BlogPostPage({ params }: Props) {
 
 
 
-        {/* Article Body Content */}
-        <div className="max-w-3xl mx-auto px-6">
+        {/* Article Body Content & Side Table of Contents */}
+        <div className={hasHeadings ? "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" : "max-w-3xl mx-auto px-6"}>
           <style dangerouslySetInnerHTML={{ __html: `
+            html {
+              scroll-behavior: smooth;
+            }
+            .blog-prose-content h1,
+            .blog-prose-content h2,
+            .blog-prose-content h3,
+            .blog-prose-content h4,
+            .blog-prose-content h5,
+            .blog-prose-content h6 {
+              scroll-margin-top: 6.5rem !important;
+            }
+            @media (min-width: 1024px) {
+              .blog-toc {
+                display: none !important;
+              }
+            }
             .blog-prose-content a:not(.blog-btn):not(.btn-submit-inquiry):not(.btn-reset-inquiry):not(.blog-cta-card a) {
               color: #2563eb !important;
               font-weight: 700 !important;
@@ -491,33 +476,87 @@ export default async function BlogPostPage({ params }: Props) {
               display: block !important;
             }
           `}} />
-          <div
-            className="prose prose-lg prose-indigo max-w-none blog-prose-content
-              prose-headings:font-display prose-headings:font-black prose-headings:tracking-tight
-              prose-p:text-slate-700 prose-p:leading-relaxed
-              prose-strong:text-slate-900 prose-strong:font-bold
-              prose-img:rounded-2xl prose-img:shadow-md
-              prose-a:text-blue-600 prose-a:font-bold prose-a:underline prose-a:underline-offset-4 prose-a:decoration-2 prose-a:decoration-blue-400 hover:prose-a:decoration-blue-700 hover:prose-a:text-blue-800 prose-a:bg-blue-50/90 prose-a:px-1.5 prose-a:py-0.5 prose-a:rounded-md hover:prose-a:bg-blue-100 prose-a:transition-all prose-a:shadow-2xs"
-            dangerouslySetInnerHTML={{ __html: sanitizeHtml(cleanBlogContent(blog.content || "")) }}
-          />
 
-          {/* Tag Badges */}
-          {blog.tags && blog.tags.length > 0 && (
-            <div className="mt-16 pt-8 border-t border-slate-100 flex flex-wrap gap-2">
-              <span className="text-xs font-bold text-slate-400 mr-2 self-center">Tags:</span>
-              {blog.tags.map((tag: string) => (
-                <span
-                  key={tag}
-                  className="px-3 py-1 bg-slate-50 hover:bg-slate-100 rounded-full text-xs font-bold text-slate-600 border border-slate-200"
-                >
-                  #{tag}
-                </span>
-              ))}
+          {hasHeadings ? (
+            <div className="lg:grid lg:grid-cols-12 lg:gap-12 xl:gap-16 items-start">
+              {/* Main Content Column */}
+              <div className="lg:col-span-8 min-w-0">
+                {/* Mobile Collapsible TOC (shown on mobile / tablet) */}
+                <BlogTableOfContents
+                  headings={headings}
+                  title={tocTitle}
+                  isMobileOnly
+                  className="lg:hidden"
+                />
+
+                <div
+                  className="prose prose-lg prose-indigo max-w-none blog-prose-content
+                    prose-headings:font-display prose-headings:font-black prose-headings:tracking-tight
+                    prose-p:text-slate-700 prose-p:leading-relaxed
+                    prose-strong:text-slate-900 prose-strong:font-bold
+                    prose-img:rounded-2xl prose-img:shadow-md
+                    prose-a:text-blue-600 prose-a:font-bold prose-a:underline prose-a:underline-offset-4 prose-a:decoration-2 prose-a:decoration-blue-400 hover:prose-a:decoration-blue-700 hover:prose-a:text-blue-800 prose-a:bg-blue-50/90 prose-a:px-1.5 prose-a:py-0.5 prose-a:rounded-md hover:prose-a:bg-blue-100 prose-a:transition-all prose-a:shadow-2xs"
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(enhancedHtml) }}
+                />
+
+                {/* Tag Badges */}
+                {blog.tags && blog.tags.length > 0 && (
+                  <div className="mt-16 pt-8 border-t border-slate-100 flex flex-wrap gap-2">
+                    <span className="text-xs font-bold text-slate-400 mr-2 self-center">Tags:</span>
+                    {blog.tags.map((tag: string) => (
+                      <span
+                        key={tag}
+                        className="px-3 py-1 bg-slate-50 hover:bg-slate-100 rounded-full text-xs font-bold text-slate-600 border border-slate-200"
+                      >
+                        #{tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Social Share Bar */}
+                <BlogShareBar title={blog.title} url={canonicalUrl} />
+              </div>
+
+              {/* Sticky Side Table of Contents (shown on desktop) */}
+              <aside className="hidden lg:block lg:col-span-4 sticky top-28 self-start">
+                <BlogTableOfContents
+                  headings={headings}
+                  title={tocTitle}
+                />
+              </aside>
+            </div>
+          ) : (
+            <div>
+              <div
+                className="prose prose-lg prose-indigo max-w-none blog-prose-content
+                  prose-headings:font-display prose-headings:font-black prose-headings:tracking-tight
+                  prose-p:text-slate-700 prose-p:leading-relaxed
+                  prose-strong:text-slate-900 prose-strong:font-bold
+                  prose-img:rounded-2xl prose-img:shadow-md
+                  prose-a:text-blue-600 prose-a:font-bold prose-a:underline prose-a:underline-offset-4 prose-a:decoration-2 prose-a:decoration-blue-400 hover:prose-a:decoration-blue-700 hover:prose-a:text-blue-800 prose-a:bg-blue-50/90 prose-a:px-1.5 prose-a:py-0.5 prose-a:rounded-md hover:prose-a:bg-blue-100 prose-a:transition-all prose-a:shadow-2xs"
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(enhancedHtml) }}
+              />
+
+              {/* Tag Badges */}
+              {blog.tags && blog.tags.length > 0 && (
+                <div className="mt-16 pt-8 border-t border-slate-100 flex flex-wrap gap-2">
+                  <span className="text-xs font-bold text-slate-400 mr-2 self-center">Tags:</span>
+                  {blog.tags.map((tag: string) => (
+                    <span
+                      key={tag}
+                      className="px-3 py-1 bg-slate-50 hover:bg-slate-100 rounded-full text-xs font-bold text-slate-600 border border-slate-200"
+                    >
+                      #{tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Social Share Bar */}
+              <BlogShareBar title={blog.title} url={canonicalUrl} />
             </div>
           )}
-
-          {/* Social Share Bar */}
-          <BlogShareBar title={blog.title} url={canonicalUrl} />
         </div>
 
         {/* Bottom CTA Card */}

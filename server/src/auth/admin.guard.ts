@@ -20,7 +20,7 @@ export class AdminGuard implements CanActivate {
         const authHeader = request.headers.authorization;
         let token: string | undefined;
 
-        // 1. Extract Bearer token from Authorization header
+        // 1. Extract Bearer token from Authorization header or cookies
         if (authHeader) {
             const [type, tokenStr] = authHeader.split(' ');
             if (type !== 'Bearer' || !tokenStr) {
@@ -34,14 +34,49 @@ export class AdminGuard implements CanActivate {
             if (isDownloadRoute) {
                 token = request.query.token as string;
             }
+        } else if (request.cookies) {
+            token =
+                request.cookies.itAccessToken ||
+                request.cookies.adminAccessToken ||
+                request.cookies.staffAccessToken ||
+                request.cookies.accessToken ||
+                request.cookies.token ||
+                request.cookies.jwt ||
+                request.cookies.auth_token;
+        }
+
+        if (!token && request.headers['x-access-token']) {
+            token = request.headers['x-access-token'] as string;
+        }
+
+        if (!token && request.headers.cookie) {
+            const rawCookies = request.headers.cookie.split(';');
+            const candidateKeys = ['itAccessToken', 'adminAccessToken', 'staffAccessToken', 'accessToken', 'token', 'jwt', 'auth_token'];
+            for (const c of rawCookies) {
+                const eqIdx = c.indexOf('=');
+                if (eqIdx !== -1) {
+                    const k = c.slice(0, eqIdx).trim();
+                    const v = c.slice(eqIdx + 1).trim();
+                    if (candidateKeys.includes(k)) {
+                        token = decodeURIComponent(v);
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (token && token.startsWith('Bearer ')) {
+            token = token.slice(7);
+        } else if (token && token.startsWith('Bearer%20')) {
+            token = decodeURIComponent(token).slice(7);
         }
 
         if (!token) {
             throw new UnauthorizedException('No authorization token provided');
         }
 
-        // AdminGuard strictly allows only admin and super_admin
-        const allowedRoles = ['admin', 'super_admin'];
+        // AdminGuard allows admin, super_admin, and IT portal operational administrators
+        const allowedRoles = ['admin', 'super_admin', 'it'];
 
         try {
             // Verify JWT token signature and expiry

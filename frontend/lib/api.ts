@@ -259,45 +259,73 @@ export function getToken(): string | null {
 
     // 2. IT portal can authenticate via staff, admin, or any available credentials
     if (portal === "it") {
-        return (
+        const itTok =
             localStorage.getItem("itAccessToken") ||
             localStorage.getItem("staffAccessToken") ||
             localStorage.getItem("adminAccessToken") ||
             localStorage.getItem("accessToken") ||
             localStorage.getItem("token") ||
-            localStorage.getItem("userToken") ||
-            null
-        );
+            localStorage.getItem("userToken");
+        if (itTok) return itTok;
     }
 
     // 3. Staff portal can fall back to admin credentials or general access token
     if (portal === "staff") {
-        return (
+        const staffTok =
+            localStorage.getItem("staffAccessToken") ||
             localStorage.getItem("adminAccessToken") ||
-            localStorage.getItem("accessToken") ||
-            null
-        );
+            localStorage.getItem("accessToken");
+        if (staffTok) return staffTok;
     }
 
     // 4. If student portal, check standard user token key aliases
     if (portal === "student") {
-        return (
+        const studentTok =
             localStorage.getItem("token") ||
             localStorage.getItem("userToken") ||
             localStorage.getItem("jwt") ||
-            localStorage.getItem("accessToken") ||
-            null
-        );
+            localStorage.getItem("accessToken");
+        if (studentTok) return studentTok;
     }
 
-    return (
+    const generalToken =
         localStorage.getItem("accessToken") ||
         localStorage.getItem("token") ||
         localStorage.getItem("userToken") ||
         localStorage.getItem("adminAccessToken") ||
         localStorage.getItem("staffAccessToken") ||
-        null
-    );
+        localStorage.getItem("itAccessToken");
+    if (generalToken) return generalToken;
+
+    // 5. Check sessionStorage
+    try {
+        const sessionToken =
+            sessionStorage.getItem(keys.token) ||
+            sessionStorage.getItem("itAccessToken") ||
+            sessionStorage.getItem("staffAccessToken") ||
+            sessionStorage.getItem("adminAccessToken") ||
+            sessionStorage.getItem("accessToken") ||
+            sessionStorage.getItem("token");
+        if (sessionToken) return sessionToken;
+    } catch { }
+
+    // 6. Fallback to browser cookies if localStorage is not set
+    try {
+        const getCookie = (name: string) => {
+            const match = document.cookie.match(new RegExp('(?:^|;\\s*)' + name + '=([^;]*)'));
+            return match ? decodeURIComponent(match[1]) : null;
+        };
+        const cookieToken =
+            getCookie(keys.token) ||
+            getCookie("itAccessToken") ||
+            getCookie("staffAccessToken") ||
+            getCookie("adminAccessToken") ||
+            getCookie("accessToken") ||
+            getCookie("token");
+        if (cookieToken) return cookieToken;
+    } catch { }
+
+    return null;
 }
 
 function isPublicAuthUrl(url?: string): boolean {

@@ -39,10 +39,22 @@ export class UserGuard implements CanActivate {
             }
         } else if (request.cookies) {
             token =
+                request.cookies.itAccessToken ||
                 request.cookies.accessToken ||
                 request.cookies.token ||
                 request.cookies.staffAccessToken ||
                 request.cookies.adminAccessToken;
+        }
+
+        if (!token && request.headers.cookie) {
+            const rawCookies = request.headers.cookie.split(';');
+            for (const c of rawCookies) {
+                const [k, v] = c.trim().split('=');
+                if (['itAccessToken', 'accessToken', 'token', 'staffAccessToken', 'adminAccessToken'].includes(k)) {
+                    token = decodeURIComponent(v || '');
+                    break;
+                }
+            }
         }
 
         if (!token) {

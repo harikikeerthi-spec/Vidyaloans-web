@@ -6,6 +6,9 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { adminApi, blogApi } from "@/lib/api";
 import { cleanHtmlContent, RichTextBlock, TEXT_COLORS, FONT_SIZES, FONT_FAMILIES, TableData, CURATED_COVERS } from "./DynamicBlogEditor";
+import BlogTableOfContents from "./BlogTableOfContents";
+import { cleanBlogContent, extractHeadingsAndEnhanceHtml } from "@/lib/blogUtils";
+import { sanitizeHtml } from "@/lib/sanitize";
 
 type BlockType = "cover_image" | "heading" | "container" | "split_content" | "registration_form" | "text" | "image" | "video" | "button" | "list" | "quote" | "code" | "divider" | "spacer" | "tags" | "table" | "table_of_contents" | "journey_card";
 
@@ -70,6 +73,7 @@ interface Block {
     type: BlockType;
     content: string;
     title?: string;
+    subtitle?: string;
     level?: 1 | 2 | 3 | 4 | 5 | 6;
     // List specific
     listType?: "unordered" | "ordered";
@@ -327,23 +331,33 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
     // Modal state
     const [editingBlock, setEditingBlock] = useState<Block | null>(null);
     const [showModal, setShowModal] = useState(false);
+    const [showPreviewModal, setShowPreviewModal] = useState(false);
+    const [previewViewport, setPreviewViewport] = useState<"desktop" | "tablet" | "mobile">("desktop");
     const editorRefs = useRef<Record<string, HTMLDivElement | null>>({});
+    const loadedBlogIdRef = useRef<string | null>(null);
 
     // Populate from initialBlog when it changes
     useEffect(() => {
         if (!initialBlog) return;
-        if (initialBlog.title) setTitle(initialBlog.title);
-        if (initialBlog.slug) setSlug(initialBlog.slug);
-        if (initialBlog.category) setCategory(initialBlog.category);
-        if (initialBlog.authorName) setAuthor(initialBlog.authorName);
-        if (initialBlog.excerpt) setExcerpt(initialBlog.excerpt);
-        if (initialBlog.isFeatured !== undefined) setIsFeatured(initialBlog.isFeatured);
-        if (initialBlog.isPublished !== undefined) setIsPublished(initialBlog.isPublished);
+        const currentId = initialBlog.id || initialBlog._id || initialBlog.slug || "editing";
+
+        if (initialBlog.title !== undefined) setTitle(initialBlog.title || "");
+        if (initialBlog.slug !== undefined) setSlug(initialBlog.slug || "");
+        if (initialBlog.category !== undefined) setCategory(initialBlog.category || "Education");
+        if (initialBlog.authorName || initialBlog.author) setAuthor(initialBlog.authorName || initialBlog.author || "");
+        if (initialBlog.excerpt !== undefined || initialBlog.subtitle !== undefined) {
+            setExcerpt(initialBlog.excerpt || initialBlog.subtitle || "");
+        }
+        if (initialBlog.coverImage || initialBlog.featuredImage) {
+            setCoverImage(initialBlog.coverImage || initialBlog.featuredImage || "");
+        }
+        if (initialBlog.isFeatured !== undefined) setIsFeatured(Boolean(initialBlog.isFeatured));
+        if (initialBlog.isPublished !== undefined) setIsPublished(Boolean(initialBlog.isPublished));
         if (initialBlog.tags) {
             setTags(
                 Array.isArray(initialBlog.tags)
-                    ? initialBlog.tags.map((t: any) => (typeof t === "string" ? t : t?.name || "")).filter(Boolean).join(", ")
-                    : initialBlog.tags
+                    ? initialBlog.tags.map((t: any) => (typeof t === "string" ? t : t?.name || t?.tag?.name || "")).filter(Boolean).join(", ")
+                    : (initialBlog.tags || "")
             );
         }
         if (initialBlog.metaTitle) setMetaTitle(initialBlog.metaTitle);
@@ -369,120 +383,175 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
             }
         }
 
-        if (initialBlog.content && blocks.length === 0) {
-            // First check if structured blocks JSON was embedded
-            const jsonMatch = initialBlog.content.match(/<!--BLOCKS_JSON_START-->([\s\S]*?)<!--BLOCKS_JSON_END-->/);
-            if (jsonMatch) {
-                try {
-                    const parsed = JSON.parse(jsonMatch[1]);
-                    if (Array.isArray(parsed) && parsed.length > 0) {
-                        setBlocks(parsed.filter((b: any) => b.type !== "cover_image"));
-                        return;
-                    }
-                } catch (e: any) { }
+        // If blocks haven't been loaded for this blog ID yet, or if blocks are currently empty
+        if (loadedBlogIdRef.current !== currentId || blocks.length === 0) {
+            loadedBlogIdRef.current = currentId;
+
+            // 1. Direct blocks array from initialBlog
+            if (Array.isArray(initialBlog.blocks) && initialBlog.blocks.length > 0) {
+                setBlocks(initialBlog.blocks.filter((b: any) => b.type !== "cover_image"));
+                return;
             }
 
-            try {
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(initialBlog.content, "text/html");
-                const parsedBlocks: Block[] = [];
-                Array.from(doc.body.children).forEach((el, idx) => {
-                    const tag = el.tagName.toLowerCase();
-                    const bId = `blk_${Date.now()}_${idx}`;
-                    if (tag.startsWith("h") && /^h[1-6]$/.test(tag)) {
-                        const lvl = parseInt(tag.charAt(1), 10) as 1 | 2 | 3 | 4 | 5 | 6;
-                        parsedBlocks.push({ id: bId, type: "heading", level: lvl, content: el.textContent || "" });
-                    } else if (tag === "img") {
-                        parsedBlocks.push({ id: bId, type: "image", content: el.getAttribute("src") || "" });
-                    } else if (el.querySelector("img")) {
-                        const img = el.querySelector("img");
-                        parsedBlocks.push({ id: bId, type: "image", content: img?.getAttribute("src") || "" });
-                    } else if (tag === "hr") {
-                        parsedBlocks.push({ id: bId, type: "divider", content: "" });
-                    } else if (tag === "ul" || tag === "ol") {
-                        const listType = tag === "ol" ? "ordered" : "unordered";
-                        const items = Array.from(el.querySelectorAll("li")).map((li) => li.textContent?.trim() || "").filter(Boolean);
-                        parsedBlocks.push({
-                            id: bId,
-                            type: "list",
-                            listType,
-                            content: items.map((it, i) => listType === "ordered" ? `${i + 1}. ${it}` : `• ${it}`).join("\n"),
-                        });
-                    } else if (tag === "a" || el.querySelector("a.blog-btn") || el.classList.contains("blog-button-wrapper")) {
-                        const a = tag === "a" ? (el as HTMLAnchorElement) : (el.querySelector("a") as HTMLAnchorElement);
-                        const btnText = a?.textContent?.replace(/→|&rarr;/, "").trim() || "Click Here";
-                        parsedBlocks.push({
-                            id: bId,
-                            type: "button",
-                            content: btnText,
-                            buttonText: btnText,
-                            buttonUrl: a?.getAttribute("href") || "#",
-                            buttonNewTab: a?.getAttribute("target") === "_blank",
-                            buttonVariant: "gradient",
-                            buttonSize: "md",
-                            buttonAlign: "center",
-                        });
-                    } else if (tag === "iframe" || el.querySelector("iframe")) {
-                        const ifr = tag === "iframe" ? (el as HTMLIFrameElement) : (el.querySelector("iframe") as HTMLIFrameElement);
-                        parsedBlocks.push({ id: bId, type: "video", content: ifr?.getAttribute("src") || "" });
-                    } else if (tag === "video" || el.querySelector("video")) {
-                        const vid = tag === "video" ? (el as HTMLVideoElement) : (el.querySelector("video") as HTMLVideoElement);
-                        parsedBlocks.push({ id: bId, type: "video", content: vid?.getAttribute("src") || "" });
-                    } else if (tag === "table" || el.querySelector("table")) {
-                        const tbl = tag === "table" ? (el as HTMLTableElement) : (el.querySelector("table") as HTMLTableElement);
-                        const thEls = Array.from(tbl.querySelectorAll("thead th"));
-                        let headers = thEls.map((th) => th.textContent?.trim() || "");
-                        const trEls = Array.from(tbl.querySelectorAll("tbody tr"));
-                        let rows: string[][] = [];
-                        if (trEls.length > 0) {
-                            rows = trEls.map((tr) => Array.from(tr.querySelectorAll("td")).map((td) => td.textContent?.trim() || ""));
-                        } else {
-                            const allTrs = Array.from(tbl.querySelectorAll("tr"));
-                            if (headers.length === 0 && allTrs.length > 0) {
-                                const firstTr = allTrs[0];
-                                const ths = Array.from(firstTr.querySelectorAll("th"));
-                                if (ths.length > 0) {
-                                    headers = ths.map((th) => th.textContent?.trim() || "");
-                                    rows = allTrs.slice(1).map((tr) => Array.from(tr.querySelectorAll("td")).map((td) => td.textContent?.trim() || ""));
-                                } else {
-                                    rows = allTrs.map((tr) => Array.from(tr.querySelectorAll("td")).map((td) => td.textContent?.trim() || ""));
+            // 2. Embedded BLOCKS_JSON in initialBlog.content
+            if (initialBlog.content) {
+                const jsonMatch = initialBlog.content.match(/<!--BLOCKS_JSON_START-->([\s\S]*?)<!--BLOCKS_JSON_END-->/);
+                if (jsonMatch && jsonMatch[1]) {
+                    try {
+                        const parsed = JSON.parse(jsonMatch[1]);
+                        if (Array.isArray(parsed) && parsed.length > 0) {
+                            setBlocks(parsed.filter((b: any) => b.type !== "cover_image"));
+                            return;
+                        }
+                    } catch (e: any) { }
+                }
+
+                // Direct JSON array string
+                const trimmed = initialBlog.content.trim();
+                if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+                    try {
+                        const parsed = JSON.parse(trimmed);
+                        if (Array.isArray(parsed) && parsed.length > 0) {
+                            setBlocks(parsed.filter((b: any) => b.type !== "cover_image"));
+                            return;
+                        }
+                    } catch (e: any) { }
+                }
+
+                // 3. Fallback to HTML DOMParser
+                try {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(initialBlog.content, "text/html");
+                    const parsedBlocks: Block[] = [];
+                    Array.from(doc.body.children).forEach((el, idx) => {
+                        const tag = el.tagName.toLowerCase();
+                        const bId = `blk_${Date.now()}_${idx}`;
+
+                        // Skip cover page
+                        if (el.classList.contains("blog-cover-page") || el.querySelector(".blog-cover-page")) {
+                            return;
+                        }
+                        // Check Table of Contents
+                        if (tag === "nav" || el.classList.contains("blog-toc") || el.querySelector(".blog-toc")) {
+                            const headingText = el.querySelector("span:last-child")?.textContent?.trim() || "In This Comprehensive Guide";
+                            parsedBlocks.push({ id: bId, type: "table_of_contents", content: headingText, title: headingText });
+                            return;
+                        }
+                        // Check Journey Card / CTA Card
+                        if (el.classList.contains("blog-cta-card") || el.querySelector(".blog-cta-card")) {
+                            const cardEl = el.classList.contains("blog-cta-card") ? el : el.querySelector(".blog-cta-card")!;
+                            const cTitle = cardEl.querySelector("h3, h4, .text-xl, .font-bold")?.textContent?.trim() || "Start Your Education Loan Journey";
+                            const cSub = cardEl.querySelector("p")?.textContent?.trim() || "Explore education financing assistance through VidyaLoans.";
+                            const cBtn = cardEl.querySelector("a, button");
+                            const btnText = cBtn?.textContent?.replace(/→|&rarr;/, "").trim() || "Visit VidyaLoans →";
+                            const btnUrl = cBtn?.getAttribute("href") || "/apply-loan";
+                            parsedBlocks.push({
+                                id: bId,
+                                type: "journey_card",
+                                title: cTitle,
+                                subtitle: cSub,
+                                content: cSub,
+                                buttonText: btnText,
+                                buttonUrl: btnUrl,
+                            });
+                            return;
+                        }
+                        // Check Registration Form / Lead Form
+                        if (el.classList.contains("blog-inquiry-widget") || el.querySelector(".blog-inquiry-widget")) {
+                            const widgetEl = el.classList.contains("blog-inquiry-widget") ? el : el.querySelector(".blog-inquiry-widget")!;
+                            const fTitle = widgetEl.querySelector("h3, h4, .font-bold")?.textContent?.trim() || "Check Loan Eligibility";
+                            const fSub = widgetEl.querySelector("p")?.textContent?.trim() || "";
+                            parsedBlocks.push({
+                                id: bId,
+                                type: "registration_form",
+                                title: fTitle,
+                                subtitle: fSub,
+                                content: fTitle,
+                            });
+                            return;
+                        }
+
+                        if (tag.startsWith("h") && /^h[1-6]$/.test(tag)) {
+                            const lvl = parseInt(tag.charAt(1), 10) as 1 | 2 | 3 | 4 | 5 | 6;
+                            parsedBlocks.push({ id: bId, type: "heading", level: lvl, content: el.textContent || "" });
+                        } else if (tag === "img") {
+                            parsedBlocks.push({ id: bId, type: "image", content: el.getAttribute("src") || "" });
+                        } else if (tag === "hr") {
+                            parsedBlocks.push({ id: bId, type: "divider", content: "" });
+                        } else if (tag === "ul" || tag === "ol") {
+                            const listType = tag === "ol" ? "ordered" : "unordered";
+                            const items = Array.from(el.querySelectorAll("li")).map((li) => li.textContent?.trim() || "").filter(Boolean);
+                            parsedBlocks.push({
+                                id: bId,
+                                type: "list",
+                                listType,
+                                content: items.map((it, i) => listType === "ordered" ? `${i + 1}. ${it}` : `• ${it}`).join("\n"),
+                            });
+                        } else if (tag === "a" || el.querySelector("a.blog-btn") || el.classList.contains("blog-button-wrapper")) {
+                            const a = tag === "a" ? (el as HTMLAnchorElement) : (el.querySelector("a") as HTMLAnchorElement);
+                            const btnText = a?.textContent?.replace(/→|&rarr;/, "").trim() || "Click Here";
+                            parsedBlocks.push({
+                                id: bId,
+                                type: "button",
+                                content: btnText,
+                                buttonText: btnText,
+                                buttonUrl: a?.getAttribute("href") || "#",
+                                buttonNewTab: a?.getAttribute("target") === "_blank",
+                                buttonVariant: "gradient",
+                                buttonSize: "md",
+                                buttonAlign: "center",
+                            });
+                        } else if (tag === "iframe" || tag === "video") {
+                            const src = el.getAttribute("src") || "";
+                            parsedBlocks.push({ id: bId, type: "video", content: src });
+                        } else if (tag === "table" || el.querySelector("table")) {
+                            const tbl = tag === "table" ? (el as HTMLTableElement) : (el.querySelector("table") as HTMLTableElement);
+                            const thEls = Array.from(tbl.querySelectorAll("thead th"));
+                            let headers = thEls.map((th) => th.textContent?.trim() || "");
+                            const trEls = Array.from(tbl.querySelectorAll("tbody tr"));
+                            let rows: string[][] = [];
+                            if (trEls.length > 0) {
+                                rows = trEls.map((tr) => Array.from(tr.querySelectorAll("td")).map((td) => td.textContent?.trim() || ""));
+                            } else {
+                                const allTrs = Array.from(tbl.querySelectorAll("tr"));
+                                if (headers.length === 0 && allTrs.length > 0) {
+                                    const firstTr = allTrs[0];
+                                    const ths = Array.from(firstTr.querySelectorAll("th"));
+                                    if (ths.length > 0) {
+                                        headers = ths.map((th) => th.textContent?.trim() || "");
+                                        rows = allTrs.slice(1).map((tr) => Array.from(tr.querySelectorAll("td")).map((td) => td.textContent?.trim() || ""));
+                                    } else {
+                                        rows = allTrs.map((tr) => Array.from(tr.querySelectorAll("td")).map((td) => td.textContent?.trim() || ""));
+                                    }
                                 }
                             }
+                            if (headers.length === 0 && rows.length > 0) {
+                                headers = rows[0].map((_, i) => `Column ${i + 1}`);
+                            }
+                            parsedBlocks.push({
+                                id: bId,
+                                type: "table",
+                                content: "Data Table",
+                                tableData: {
+                                    headers: headers.length > 0 ? headers : ["Column 1", "Column 2"],
+                                    rows: rows.length > 0 ? rows : [["", ""]],
+                                    hasHeader: headers.length > 0,
+                                    isStriped: true,
+                                },
+                            });
+                        } else if (el.querySelector("img") && el.children.length === 1) {
+                            const img = el.querySelector("img");
+                            parsedBlocks.push({ id: bId, type: "image", content: img?.getAttribute("src") || "" });
+                        } else {
+                            parsedBlocks.push({ id: bId, type: "text", content: el.innerHTML || el.textContent || "" });
                         }
-                        if (headers.length === 0 && rows.length > 0) {
-                            headers = rows[0].map((_, i) => `Column ${i + 1}`);
-                        }
-                        parsedBlocks.push({
-                            id: bId,
-                            type: "table",
-                            content: "Data Table",
-                            tableData: {
-                                headers: headers.length > 0 ? headers : ["Column 1", "Column 2"],
-                                rows: rows.length > 0 ? rows : [["", ""]],
-                                hasHeader: headers.length > 0,
-                                isStriped: true,
-                            },
-                        });
-                    } else if (el.classList.contains("blog-cover-page") || el.querySelector(".blog-cover-page")) {
-                        // Skip cover page block when opening blog
-                    } else if (tag === "nav" || el.classList.contains("blog-toc") || el.querySelector(".blog-toc")) {
-                        const navEl = tag === "nav" ? el : el.querySelector("nav") || el;
-                        const headingText = navEl.querySelector("span:last-child")?.textContent?.trim() || "In This Comprehensive Guide";
-                        parsedBlocks.push({
-                            id: bId,
-                            type: "table_of_contents",
-                            content: headingText,
-                            title: headingText,
-                        });
-                    } else {
-                        parsedBlocks.push({ id: bId, type: "text", content: el.innerHTML || el.textContent || "" });
+                    });
+                    if (parsedBlocks.length > 0) {
+                        setBlocks(parsedBlocks);
                     }
-                });
-                if (parsedBlocks.length > 0) {
-                    setBlocks(parsedBlocks);
+                } catch (e: any) {
+                    setBlocks([{ id: "init_1", type: "text", content: initialBlog.content }]);
                 }
-            } catch (e: any) {
-                setBlocks([{ id: "init_1", type: "text", content: initialBlog.content }]);
             }
         }
     }, [initialBlog]);
@@ -1396,11 +1465,7 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
             level: type === "heading" ? headingLevel : undefined,
             listType: type === "list" ? listType : undefined,
             buttonText: type === "journey_card" ? "Visit VidyaLoans →" : (type === "button" ? "Explore Loan Options" : undefined),
-            items: type === "journey_card" ? [
-                "Reserve Bank of India|https://www.rbi.org.in",
-                "Ministry of Education|https://www.education.gov.in",
-                "PM-Vidyalaxmi Scheme|https://www.vidyalakshmi.co.in"
-            ] : undefined,
+            items: undefined,
             buttonUrl: (type === "button" || type === "journey_card") ? "/apply-loan" : undefined,
             buttonNewTab: type === "button" ? true : undefined,
             buttonVariant: type === "button" ? "gradient" : undefined,
@@ -2180,40 +2245,9 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
         setTimeout(() => setSaveStatus("Saved"), 1000);
     };
 
-    // Preview blog
-    const previewBlog = () => {
-        alert("Preview functionality - blog preview generated");
-    };
-
-    // Publish blog
-    const handlePublish = async () => {
-        if (!title.trim()) {
-            alert("Please enter a blog title.");
-            return;
-        }
-        if (blocks.length === 0) {
-            alert("Please add some content to your blog.");
-            return;
-        }
-
-        // Backup draft to local storage so work is never lost
-        try {
-            localStorage.setItem("it_blog_draft_backup", JSON.stringify({
-                title,
-                slug,
-                category,
-                author,
-                coverImage,
-                excerpt,
-                blocks,
-                tags,
-                savedAt: new Date().toISOString(),
-            }));
-        } catch (_) { }
-
-        setLoading(true);
-        try {
-            const generateFormHtml = (formCfg: {
+    // Compile canvas blocks into sanitized HTML string for preview and publish
+    const compileCanvasToHtml = () => {
+        const generateFormHtml = (formCfg: {
                 formTitle?: string;
                 formSubtitle?: string;
                 formButtonText?: string;
@@ -2308,7 +2342,7 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                 </div>`;
             };
 
-            const htmlContent = blocks
+            return blocks
                 .map((b) => {
                     switch (b.type) {
                         case "journey_card": {
@@ -2567,6 +2601,43 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                 })
                 .join("");
 
+    };
+
+    // Preview blog
+    const previewBlog = () => {
+        setShowPreviewModal(true);
+    };
+
+    // Publish blog
+    const handlePublish = async () => {
+        if (!title.trim()) {
+            alert("Please enter a blog title.");
+            return;
+        }
+        if (blocks.length === 0) {
+            alert("Please add some content to your blog.");
+            return;
+        }
+
+        // Backup draft to local storage so work is never lost
+        try {
+            localStorage.setItem("it_blog_draft_backup", JSON.stringify({
+                title,
+                slug,
+                category,
+                author,
+                coverImage,
+                excerpt,
+                blocks,
+                tags,
+                savedAt: new Date().toISOString(),
+            }));
+        } catch (_) { }
+
+        setLoading(true);
+        try {
+            const htmlContent = compileCanvasToHtml();
+
             const seoData = {
                 metaTitle: metaTitle.trim() || title.trim(),
                 metaDescription: metaDescription.trim() || excerpt.trim(),
@@ -2615,12 +2686,12 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
             const editId = initialBlog?.id || initialBlog?._id;
             let res: any;
             if (isEditing) {
-                res = await blogApi.update(editId, blogData).catch(async () => {
-                    return await adminApi.createBlog(blogData);
+                res = await blogApi.update(editId, blogData).catch((err: any) => {
+                    return { success: false, message: err?.message || "Failed to update blog" };
                 });
             } else {
-                res = await blogApi.create(blogData).catch(async () => {
-                    return await adminApi.createBlog(blogData);
+                res = await blogApi.create(blogData).catch(async (err: any) => {
+                    return await adminApi.createBlog(blogData).catch(() => ({ success: false, message: err?.message || "Failed to create blog" }));
                 });
             }
 
@@ -7372,6 +7443,206 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                     </div>
                 </div>
             )}
+
+            {/* Live Blog Reader Preview Modal */}
+            {showPreviewModal && (() => {
+                const previewHtml = compileCanvasToHtml();
+                const cleanedHtml = cleanBlogContent(previewHtml);
+                const { headings: pHeadings, enhancedHtml: pEnhancedHtml, tocTitle: pTocTitle } = extractHeadingsAndEnhanceHtml(cleanedHtml);
+                const hasHeadings = pHeadings.length >= 2;
+
+                return (
+                    <div
+                        className="fixed inset-0 z-50 flex flex-col bg-slate-950/80 backdrop-blur-md animate-fade-in"
+                        onClick={(e) => {
+                            if (e.target === e.currentTarget) setShowPreviewModal(false);
+                        }}
+                    >
+                        {/* Top Preview Control Bar */}
+                        <div className="bg-slate-900 border-b border-slate-800 text-white px-4 md:px-8 py-3.5 flex items-center justify-between gap-4 shrink-0 shadow-lg">
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow-xs">
+                                    <span className="material-symbols-outlined text-[18px]">preview</span>
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="font-extrabold text-sm tracking-tight text-white">Live Blog Preview</h3>
+                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                            Reader Experience
+                                        </span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-400">
+                                        Sticky side Table of Contents &amp; responsive layout test
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Viewport Switcher */}
+                            <div className="flex items-center bg-slate-800/90 rounded-xl p-1 border border-slate-700/80 shadow-inner">
+                                <button
+                                    type="button"
+                                    onClick={() => setPreviewViewport("desktop")}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                        previewViewport === "desktop"
+                                            ? "bg-indigo-600 text-white shadow-xs"
+                                            : "text-slate-400 hover:text-white"
+                                    }`}
+                                >
+                                    <span className="material-symbols-outlined text-[15px]">desktop_windows</span>
+                                    <span className="hidden sm:inline">Desktop (Side TOC)</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setPreviewViewport("tablet")}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                        previewViewport === "tablet"
+                                            ? "bg-indigo-600 text-white shadow-xs"
+                                            : "text-slate-400 hover:text-white"
+                                    }`}
+                                >
+                                    <span className="material-symbols-outlined text-[15px]">tablet_mac</span>
+                                    <span className="hidden sm:inline">Tablet</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setPreviewViewport("mobile")}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                        previewViewport === "mobile"
+                                            ? "bg-indigo-600 text-white shadow-xs"
+                                            : "text-slate-400 hover:text-white"
+                                    }`}
+                                >
+                                    <span className="material-symbols-outlined text-[15px]">smartphone</span>
+                                    <span className="hidden sm:inline">Mobile</span>
+                                </button>
+                            </div>
+
+                            {/* Actions: View Live Page + Close */}
+                            <div className="flex items-center gap-2">
+                                {(slug || initialBlog?.slug) && (
+                                    <Link
+                                        href={`/blog/${slug || initialBlog?.slug}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition-all"
+                                    >
+                                        <span>Open Live Page</span>
+                                        <span className="material-symbols-outlined text-[14px]">open_in_new</span>
+                                    </Link>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPreviewModal(false)}
+                                    className="w-8 h-8 rounded-xl bg-slate-800 hover:bg-rose-500 hover:text-white text-slate-400 flex items-center justify-center transition-all border border-slate-700 cursor-pointer"
+                                    title="Close Preview"
+                                >
+                                    <span className="material-symbols-outlined text-[18px]">close</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Preview Scrollable Stage */}
+                        <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-900/60 custom-scrollbar flex justify-center items-start">
+                            <div
+                                className={`transition-all duration-300 w-full ${
+                                    previewViewport === "desktop"
+                                        ? "max-w-6xl"
+                                        : previewViewport === "tablet"
+                                        ? "max-w-[768px]"
+                                        : "max-w-[420px]"
+                                }`}
+                            >
+                                <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden">
+                                    {/* Article Hero inside Preview */}
+                                    <div className="p-6 md:p-10 border-b border-slate-100 bg-gradient-to-b from-slate-50/50 to-white">
+                                        <div className="flex items-center gap-2.5 text-[11px] font-black text-indigo-600 uppercase tracking-widest mb-3">
+                                            <span className="px-2.5 py-1 bg-indigo-50 border border-indigo-100 rounded-md">
+                                                {category || "Education"}
+                                            </span>
+                                            <span className="w-1 h-1 bg-gray-300 rounded-full" />
+                                            <span>5 min read</span>
+                                        </div>
+                                        <h1 className="text-2xl sm:text-4xl md:text-5xl font-black text-slate-900 tracking-tight leading-tight mb-4">
+                                            {title || "Untitled Blog Post"}
+                                        </h1>
+                                        {excerpt && (
+                                            <p className="text-sm sm:text-base text-slate-600 font-normal leading-relaxed mb-6">
+                                                {excerpt}
+                                            </p>
+                                        )}
+                                        <div className="flex items-center gap-3 pt-4 border-t border-slate-100 text-xs text-slate-500">
+                                            <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center">
+                                                {(author || "V")[0]?.toUpperCase()}
+                                            </div>
+                                            <div>
+                                                <p className="font-bold text-slate-900 text-xs">{author || "VidyaLoans Staff"}</p>
+                                                <p className="text-[10px] text-slate-400">Published Today</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Article Content & Side Table of Contents */}
+                                    <div className="p-6 md:p-10">
+                                        <style dangerouslySetInnerHTML={{ __html: `
+                                            .blog-preview-container {
+                                                scroll-behavior: smooth;
+                                            }
+                                            .blog-preview-container h1,
+                                            .blog-preview-container h2,
+                                            .blog-preview-container h3,
+                                            .blog-preview-container h4,
+                                            .blog-preview-container h5,
+                                            .blog-preview-container h6 {
+                                                scroll-margin-top: 5rem !important;
+                                            }
+                                            @media (min-width: 1024px) {
+                                                .blog-preview-desktop .blog-toc {
+                                                    display: none !important;
+                                                }
+                                            }
+                                        `}} />
+
+                                        {previewViewport === "desktop" && hasHeadings ? (
+                                            <div className="blog-preview-desktop grid grid-cols-12 gap-8 items-start">
+                                                {/* Main Article Content */}
+                                                <div className="col-span-8 min-w-0">
+                                                    <div
+                                                        className="prose prose-lg prose-indigo max-w-none blog-prose-content blog-preview-container"
+                                                        dangerouslySetInnerHTML={{ __html: sanitizeHtml(pEnhancedHtml) }}
+                                                    />
+                                                </div>
+
+                                                {/* Sticky Side Table of Contents */}
+                                                <aside className="col-span-4 sticky top-6 self-start">
+                                                    <BlogTableOfContents
+                                                        headings={pHeadings}
+                                                        title={pTocTitle}
+                                                    />
+                                                </aside>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-6">
+                                                {hasHeadings && (
+                                                    <BlogTableOfContents
+                                                        headings={pHeadings}
+                                                        title={pTocTitle}
+                                                        isMobileOnly
+                                                    />
+                                                )}
+                                                <div
+                                                    className="prose prose-base prose-indigo max-w-none blog-prose-content blog-preview-container"
+                                                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(pEnhancedHtml) }}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
+
         </div>
     );
 }

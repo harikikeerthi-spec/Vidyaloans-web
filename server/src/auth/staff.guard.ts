@@ -34,7 +34,40 @@ export class StaffGuard implements CanActivate {
                 token = request.query.token as string;
             }
         } else if (request.cookies) {
-            token = request.cookies.staffAccessToken || request.cookies.adminAccessToken || request.cookies.accessToken;
+            token =
+                request.cookies.itAccessToken ||
+                request.cookies.staffAccessToken ||
+                request.cookies.adminAccessToken ||
+                request.cookies.accessToken ||
+                request.cookies.token ||
+                request.cookies.jwt ||
+                request.cookies.auth_token;
+        }
+
+        if (!token && request.headers['x-access-token']) {
+            token = request.headers['x-access-token'] as string;
+        }
+
+        if (!token && request.headers.cookie) {
+            const rawCookies = request.headers.cookie.split(';');
+            const candidateKeys = ['itAccessToken', 'staffAccessToken', 'adminAccessToken', 'accessToken', 'token', 'jwt', 'auth_token'];
+            for (const c of rawCookies) {
+                const eqIdx = c.indexOf('=');
+                if (eqIdx !== -1) {
+                    const k = c.slice(0, eqIdx).trim();
+                    const v = c.slice(eqIdx + 1).trim();
+                    if (candidateKeys.includes(k)) {
+                        token = decodeURIComponent(v);
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (token && token.startsWith('Bearer ')) {
+            token = token.slice(7);
+        } else if (token && token.startsWith('Bearer%20')) {
+            token = decodeURIComponent(token).slice(7);
         }
 
         if (!token) {

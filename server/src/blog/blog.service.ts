@@ -1,4 +1,4 @@
-// @ts-nocheck
+  // @ts-nocheck
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -403,24 +403,15 @@ export class BlogService {
             const cardDesc = block.content || 'Explore education financing assistance through VidyaLoans.';
             const btnText = block.buttonText || 'Visit VidyaLoans →';
             const btnUrl = block.buttonUrl || '/apply-loan';
-            const refs = Array.isArray(block.items) && block.items.length > 0 ? block.items : [
-              'Reserve Bank of India|https://www.rbi.org.in',
-              'Ministry of Education|https://www.education.gov.in',
-              'PM-Vidyalaxmi Scheme|https://www.vidyalakshmi.co.in'
-            ];
-            const refsHtml = refs.map((ref: string) => {
-              const [name, url] = ref.includes('|') ? ref.split('|') : [ref, 'https://www.vidyaloans.in'];
-              return `<li class="flex items-center gap-2"><a href="${url.trim()}" target="_blank" rel="noopener noreferrer" style="color: #60a5fa !important; font-weight: 600; text-decoration: none;"><span>•</span> <span>${name.trim()}</span> <span style="font-size: 11px;">↗</span></a></li>`;
-            }).join('');
-            return `<div class="blog-cta-card not-prose my-10 rounded-2xl p-6 md:p-8 shadow-xl" style="background: linear-gradient(135deg, #0d213f 0%, #152e55 100%); border: 1px solid rgba(255, 255, 255, 0.08); color: #ffffff;">
+            const bgGradient = block.bgGradient || 'linear-gradient(135deg, #0d213f 0%, #152e55 100%)';
+            return `<div class="blog-cta-card not-prose my-10 rounded-2xl p-6 md:p-8 shadow-xl" style="background: ${bgGradient}; border: 1px solid rgba(255, 255, 255, 0.08); color: #ffffff;">
               <h3 class="text-xl md:text-2xl font-bold tracking-tight mb-2" style="color: #ffffff !important; margin-top: 0;">${cardTitle}</h3>
               <p class="text-sm md:text-base leading-relaxed mb-6" style="color: #cbd5e1 !important;">${cardDesc}</p>
-              <div class="mb-6">
+              <div class="mb-2">
                 <a href="${btnUrl}" target="_blank" rel="noopener noreferrer" style="color: #38bdf8 !important; font-weight: 700; text-decoration: none;">
                   <span>${btnText}</span>
                 </a>
               </div>
-              ${refs.length > 0 ? `<div class="pt-5 mt-4 border-t" style="border-color: rgba(255, 255, 255, 0.12);"><p class="text-xs font-bold uppercase tracking-wider mb-2.5" style="color: #94a3b8 !important;">Official References</p><ul class="space-y-1.5 list-none pl-0 text-sm mb-0">${refsHtml}</ul></div>` : ''}
             </div>`;
           }
           case 'image': {
@@ -1470,7 +1461,33 @@ export class BlogService {
   async deleteBlog(id: string) {
     const { data: blog } = await this.db.from('Blog').select('id').eq('id', id).single();
     if (!blog) throw new NotFoundException('Blog not found');
-    await this.db.from('Blog').delete().eq('id', id);
+
+    // 1. Delete associated BlogTags first to satisfy foreign key constraints
+    try {
+      await this.db.from('BlogTag').delete().eq('blogId', id);
+    } catch (e) {
+      console.warn(`[BlogService.deleteBlog] Could not delete BlogTag for ${id}:`, e);
+    }
+
+    // 2. Delete associated Comments and CommentLikes
+    try {
+      const { data: comments } = await this.db.from('Comment').select('id').eq('blogId', id);
+      if (comments && comments.length > 0) {
+        const cIds = comments.map((c: any) => c.id);
+        await this.db.from('CommentLike').delete().in('commentId', cIds);
+        await this.db.from('Comment').delete().eq('blogId', id);
+      }
+    } catch (e) {
+      console.warn(`[BlogService.deleteBlog] Could not delete Comments for ${id}:`, e);
+    }
+
+    // 3. Delete the Blog record
+    const { error: delError } = await this.db.from('Blog').delete().eq('id', id);
+    if (delError) {
+      console.error(`[BlogService.deleteBlog] Delete failed for ${id}:`, delError);
+      throw new BadRequestException(delError.message || 'Failed to delete blog');
+    }
+
     return { success: true, message: 'Blog deleted successfully' };
   }
 
@@ -1674,6 +1691,24 @@ export class BlogService {
 
   async bulkDeleteBlogs(blogIds: string[]) {
     if (!blogIds || blogIds.length === 0) return { success: false, message: 'No blog IDs provided' };
+
+    try {
+      await this.db.from('BlogTag').delete().in('blogId', blogIds);
+    } catch (e) {
+      console.warn('[BlogService.bulkDeleteBlogs] Could not delete BlogTags:', e);
+    }
+
+    try {
+      const { data: comments } = await this.db.from('Comment').select('id').in('blogId', blogIds);
+      if (comments && comments.length > 0) {
+        const cIds = comments.map((c: any) => c.id);
+        await this.db.from('CommentLike').delete().in('commentId', cIds);
+        await this.db.from('Comment').delete().in('blogId', blogIds);
+      }
+    } catch (e) {
+      console.warn('[BlogService.bulkDeleteBlogs] Could not delete Comments:', e);
+    }
+
     const { error } = await this.db.from('Blog').delete().in('id', blogIds);
     if (error) throw error;
     return { success: true, message: `${blogIds.length} blog(s) deleted successfully`, deleted: blogIds.length };

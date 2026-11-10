@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { blogApi } from "@/lib/api";
+import { blogApi, adminApi } from "@/lib/api";
 import Link from "next/link";
 import DynamicBlogEditor from "@/components/DynamicBlogEditor";
 import AdminBlogBuilder from "@/components/AdminBlogBuilder";
@@ -2417,7 +2417,11 @@ export default function ITBlogsPage() {
   const handleDeleteBlog = async (id: string, title: string) => {
     if (!confirm(`Are you sure you want to delete "${title}"?`)) return;
     try {
-      await blogApi.delete(id);
+      await blogApi.delete(id).catch(async (err: any) => {
+        return await adminApi.deleteBlog(id).catch(() => {
+          throw err;
+        });
+      });
       alert("Blog deleted successfully.");
       loadBlogs();
     } catch (e: any) {
@@ -2482,16 +2486,14 @@ export default function ITBlogsPage() {
   };
 
   async function handleEditBlog(blog: any) {
-    let fullBlog = blog;
+    let fullBlog = { ...blog };
     const id = fullBlog.id || fullBlog._id;
-    // If full content is not present, fetch complete blog from API
-    if (!fullBlog.content && (!fullBlog.blocks || fullBlog.blocks.length === 0)) {
+    // Always fetch complete blog from API if id is available to ensure all metadata, content, and blocks are loaded
+    if (id) {
       try {
-        if (id) {
-          const res: any = await blogApi.getById(id).catch(() => null);
-          if (res?.data) {
-            fullBlog = { ...fullBlog, ...res.data };
-          }
+        const res: any = await blogApi.getById(id).catch(() => null);
+        if (res?.data) {
+          fullBlog = { ...fullBlog, ...res.data };
         }
       } catch (err) {
         console.warn("Could not fetch full blog by ID:", err);
@@ -2499,7 +2501,6 @@ export default function ITBlogsPage() {
     }
 
     setEditingBlogId(id || null);
-    setEditingBlog(fullBlog);
     setBlogTitle(fullBlog.title || "");
     setBlogSlug(fullBlog.slug || "");
     setBlogSubtitle(fullBlog.subtitle || fullBlog.excerpt || "");
@@ -2511,6 +2512,8 @@ export default function ITBlogsPage() {
     setBlogTags(rawTags.length > 0 ? rawTags : ["EducationLoan", "StudyAbroad", "FintechGuidance"]);
     const parsedBlocks = getBlogBlocks(fullBlog);
     setBlocks(parsedBlocks);
+    fullBlog.blocks = parsedBlocks;
+    setEditingBlog(fullBlog);
     setIsCreating(true);
   }
 
@@ -2759,12 +2762,12 @@ export default function ITBlogsPage() {
                           </td>
                           <td className="px-6 py-4">
                             <span
-                              className={`px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider ${blog.published
+                              className={`px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider ${(blog.isPublished !== undefined ? blog.isPublished : blog.published)
                                 ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                                 : "bg-amber-50 text-amber-700 border border-amber-200"
                                 }`}
                             >
-                              {blog.published ? "Published" : "Draft"}
+                              {(blog.isPublished !== undefined ? blog.isPublished : blog.published) ? "Published" : "Draft"}
                             </span>
                           </td>
                           <td className="px-6 py-4 text-center">
@@ -2994,14 +2997,14 @@ export default function ITBlogsPage() {
                                 <div className="flex items-center justify-between mt-2">
                                   <div>
                                     <span className="text-[10px] font-bold text-indigo-600">Blog A:</span>
-                                    <span className={`block text-xs font-black uppercase px-2 py-0.5 rounded-full mt-1 ${bA.published ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-                                      {bA.published ? "Published" : "Draft"}
+                                    <span className={`block text-xs font-black uppercase px-2 py-0.5 rounded-full mt-1 ${(bA.isPublished !== undefined ? bA.isPublished : bA.published) ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                                      {(bA.isPublished !== undefined ? bA.isPublished : bA.published) ? "Published" : "Draft"}
                                     </span>
                                   </div>
                                   <div className="text-right">
                                     <span className="text-[10px] font-bold text-purple-600">Blog B:</span>
-                                    <span className={`block text-xs font-black uppercase px-2 py-0.5 rounded-full mt-1 ${bB.published ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-                                      {bB.published ? "Published" : "Draft"}
+                                    <span className={`block text-xs font-black uppercase px-2 py-0.5 rounded-full mt-1 ${(bB.isPublished !== undefined ? bB.isPublished : bB.published) ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                                      {(bB.isPublished !== undefined ? bB.isPublished : bB.published) ? "Published" : "Draft"}
                                     </span>
                                   </div>
                                 </div>
