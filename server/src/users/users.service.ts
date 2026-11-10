@@ -178,6 +178,12 @@ export class UsersService implements OnModuleInit {
 
       UsersService.lastIssuedAppSeq = candidateSeq;
       return candidate;
+    } catch (outerErr) {
+      console.error('[UsersService] Error in generateApplicationNumber, using fallback:', outerErr);
+      const year = new Date().getFullYear();
+      const prefix = `VL-APP-${year}-`;
+      const fallbackSeq = Math.floor(10000 + Math.random() * 90000);
+      return `${prefix}${fallbackSeq}`;
     } finally {
       release();
     }
@@ -2309,10 +2315,8 @@ export class UsersService implements OnModuleInit {
     const estimatedCompletionAt = new Date();
     estimatedCompletionAt.setDate(estimatedCompletionAt.getDate() + 14);
 
-    // Do NOT generate official VL-APP application number upon initial student submission.
-    // The VL-APP sequential application number is assigned only when the application
-    // is reviewed and officially routed / sent / assigned to a partner bank from the staff/admin dashboard.
-    const applicationNumber = null;
+    // Generate a unique, sequence-safe application number before creating the LoanApplication record.
+    const applicationNumber = await this.generateApplicationNumber();
 
     const insertPayload: any = {
       id: randomUUID(),

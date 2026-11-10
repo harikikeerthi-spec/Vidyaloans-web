@@ -62,17 +62,6 @@ const nextConfig = {
   async redirects() {
     return [
       {
-        source: "/:path*",
-        has: [
-          {
-            type: "host",
-            value: "vidyaloans.in",
-          },
-        ],
-        destination: "https://www.vidyaloans.in/:path*",
-        permanent: true,
-      },
-      {
         source: "/apply",
         destination: "/apply-loan",
         permanent: true,

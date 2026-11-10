@@ -68,6 +68,7 @@ const REQUIRED_DOCUMENTS = {
 
 @Injectable()
 export class ApplicationService {
+  private static lastIssuedAppSeq: number = 0;
   private get db() {
     return this.supabase.getClient();
   }
@@ -257,10 +258,11 @@ export class ApplicationService {
     const estimatedCompletionAt = new Date();
     estimatedCompletionAt.setDate(estimatedCompletionAt.getDate() + 14);
 
+    const applicationNumber = await this.generateApplicationNumber();
+
     const insertPayload: any = {
         userId,
-        // applicationNumber is intentionally NOT set here.
-        // It will be assigned only when staff submits to a bank (submitApplicationToBank).
+        applicationNumber,
         bank: data.bank,
         loanType: data.loanType,
         amount: parseFloat(data.amount),
@@ -2126,6 +2128,8 @@ export class ApplicationService {
         }
       }
 
+      nextSeq = Math.max(nextSeq, ApplicationService.lastIssuedAppSeq + 1);
+
       // Collision-safe probe
       let candidate = `${prefix}${String(nextSeq).padStart(5, '0')}`;
       let attempts = 0;
@@ -2139,6 +2143,7 @@ export class ApplicationService {
             .maybeSingle();
 
           if (!existing) {
+            ApplicationService.lastIssuedAppSeq = nextSeq;
             return candidate;
           }
         } catch (_) {}
@@ -2148,11 +2153,12 @@ export class ApplicationService {
         attempts += 1;
       }
 
+      ApplicationService.lastIssuedAppSeq = nextSeq;
       return candidate;
     } catch (err) {
       console.error('[ApplicationService] Failed to generate sequential application number:', err);
-      const timestampSuffix = Date.now().toString().slice(-5);
-      return `${prefix}${timestampSuffix}`;
+      const fallbackSeq = Math.floor(10000 + Math.random() * 90000);
+      return `${prefix}${fallbackSeq}`;
     }
   }
 

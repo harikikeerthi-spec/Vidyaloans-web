@@ -283,13 +283,13 @@ export class AgentService {
     const estimatedCompletionAt = new Date();
     estimatedCompletionAt.setDate(estimatedCompletionAt.getDate() + 14);
 
-    // Do NOT generate application number on initial create.
-    // It will be generated when staff routes to bank (VTU-APP- format).
+    const applicationNumber = await this.usersService.generateApplicationNumber();
 
     const { data: application, error: appError } = await this.db
       .from('LoanApplication')
       .insert({
         userId: user.id,
+        applicationNumber,
         firstName: data.firstName,
         lastName: data.lastName,
         email: email,

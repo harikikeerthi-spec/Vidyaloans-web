@@ -1405,9 +1405,11 @@ export class StaffProfileService {
 
       if (!application) {
         const mappedDetails = this.mapOnboardingToApplication(body.studentDetails);
+        const applicationNumber = await this.usersService.generateApplicationNumber();
         const insertApp: any = {
           id: 'la-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
           userId: studentId,
+          applicationNumber,
           bank: body.recipientName || 'Credila',
           loanType: 'Education Loan',
           amount: body.studentDetails?.loanAmount ? parseFloat(body.studentDetails.loanAmount) : 1500000,
