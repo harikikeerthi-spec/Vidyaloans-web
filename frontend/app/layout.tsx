@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Script from "next/script";
-import { Plus_Jakarta_Sans, Noto_Serif } from "next/font/google";
 import "@phosphor-icons/web/regular";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
@@ -11,20 +10,6 @@ import SelectedUniversityWidget from "@/components/SelectedUniversityWidget";
 import ReferralTracker from "@/components/ReferralTracker";
 import CookieConsentBanner from "@/components/CookieConsentBanner";
 import MobileAppDownloadBanner from "@/components/MobileAppDownloadBanner";
-
-const plusJakartaSans = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  variable: "--font-plus-jakarta",
-  display: "swap",
-  weight: ["300", "400", "500", "600", "700", "800"],
-});
-
-const notoSerif = Noto_Serif({
-  subsets: ["latin"],
-  variable: "--font-noto-serif",
-  display: "swap",
-  weight: ["400", "600", "700"],
-});
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://www.vidyaloans.in";
 
@@ -91,7 +76,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${plusJakartaSans.variable} ${notoSerif.variable}`}>
+    <html lang="en">
       <head>
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="icon" type="image/png" href="/icon.png" />
@@ -100,6 +85,10 @@ export default function RootLayout({
 
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Noto+Serif:ital,wght@0,400;0,600;0,700;1,400&display=swap"
+        />
         <link
           rel="stylesheet"
           href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"

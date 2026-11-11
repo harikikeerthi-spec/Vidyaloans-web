@@ -112,6 +112,8 @@
   --color-danger: #ef4444;
   --color-info: #3b82f6;
   --background-light: #f7f5f8;
+  --font-plus-jakarta: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-noto-serif: 'Noto Serif', Georgia, serif;
   --font-display: var(--font-plus-jakarta), 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   --font-sans: var(--font-plus-jakarta), 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   --font-serif: var(--font-noto-serif), 'Noto Serif', Georgia, serif;
