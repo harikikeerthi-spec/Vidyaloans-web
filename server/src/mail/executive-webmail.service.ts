@@ -966,4 +966,132 @@ export class ExecutiveWebmailService implements OnModuleInit {
       message: 'Official password updated successfully',
     };
   }
+
+  // ─── Admin Mailbox Management Methods ───
+  async listAdminMailboxUsers() {
+    const rows: any[] = await this.prisma.withRetry(() =>
+      this.prisma.$queryRawUnsafe(`
+        SELECT "id", "email", "name", "title", "s3Prefix", "status", "createdAt", "updatedAt"
+        FROM "executive_mailboxes"
+        ORDER BY "createdAt" DESC;
+      `)
+    );
+    return {
+      success: true,
+      data: rows || [],
+    };
+  }
+
+  async createAdminMailboxUser(data: {
+    email: string;
+    password: string;
+    name?: string;
+    title?: string;
+    s3Prefix?: string;
+  }) {
+    if (!data.email || !data.password) {
+      throw new BadRequestException('Email address and password are required');
+    }
+
+    const cleanEmail = data.email.trim().toLowerCase();
+    const cleanPass = data.password.trim();
+    if (cleanPass.length < 4) {
+      throw new BadRequestException('Password must be at least 4 characters long');
+    }
+
+    const username = cleanEmail.split('@')[0];
+    const cleanName = data.name?.trim() || (username.charAt(0).toUpperCase() + username.slice(1));
+    const cleanTitle = data.title?.trim() || 'Official';
+    const folderName = data.s3Prefix?.trim() || `${username}/`;
+    const cleanPrefix = folderName.endsWith('/') ? folderName : `${folderName}/`;
+    const hashedPassword = this.hashPassword(cleanPass);
+    const newId = randomUUID();
+
+    await this.prisma.withRetry(() =>
+      this.prisma.$executeRawUnsafe(
+        `
+        INSERT INTO "executive_mailboxes" ("id", "email", "password", "name", "title", "s3Prefix", "status", "updatedAt")
+        VALUES ($1, $2, $3, $4, $5, $6, 'active', CURRENT_TIMESTAMP)
+        ON CONFLICT ("email") DO UPDATE SET
+          "password" = EXCLUDED."password",
+          "name" = EXCLUDED."name",
+          "title" = EXCLUDED."title",
+          "s3Prefix" = EXCLUDED."s3Prefix",
+          "status" = 'active',
+          "updatedAt" = CURRENT_TIMESTAMP;
+        `,
+        newId,
+        cleanEmail,
+        hashedPassword,
+        cleanName,
+        cleanTitle,
+        cleanPrefix
+      )
+    );
+
+    return {
+      success: true,
+      message: 'Official mailbox account saved successfully',
+      user: {
+        id: newId,
+        email: cleanEmail,
+        name: cleanName,
+        title: cleanTitle,
+        s3Prefix: cleanPrefix,
+        status: 'active',
+      },
+    };
+  }
+
+  async updateAdminMailboxPassword(id: string, newPassword: string) {
+    if (!newPassword || newPassword.trim().length < 4) {
+      throw new BadRequestException('New password must be at least 4 characters long');
+    }
+
+    const hashedPassword = this.hashPassword(newPassword.trim());
+
+    await this.prisma.withRetry(() =>
+      this.prisma.$executeRawUnsafe(
+        `UPDATE "executive_mailboxes" SET "password" = $1, "updatedAt" = CURRENT_TIMESTAMP WHERE "id" = $2`,
+        hashedPassword,
+        id
+      )
+    );
+
+    return {
+      success: true,
+      message: 'Password updated successfully',
+    };
+  }
+
+  async updateAdminMailboxStatus(id: string, status: string) {
+    const cleanStatus = status === 'active' ? 'active' : 'inactive';
+
+    await this.prisma.withRetry(() =>
+      this.prisma.$executeRawUnsafe(
+        `UPDATE "executive_mailboxes" SET "status" = $1, "updatedAt" = CURRENT_TIMESTAMP WHERE "id" = $2`,
+        cleanStatus,
+        id
+      )
+    );
+
+    return {
+      success: true,
+      message: `Account status updated to ${cleanStatus}`,
+    };
+  }
+
+  async deleteAdminMailboxUser(id: string) {
+    await this.prisma.withRetry(() =>
+      this.prisma.$executeRawUnsafe(
+        `DELETE FROM "executive_mailboxes" WHERE "id" = $1`,
+        id
+      )
+    );
+
+    return {
+      success: true,
+      message: 'Official mailbox account removed',
+    };
+  }
 }

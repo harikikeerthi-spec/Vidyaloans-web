@@ -78,6 +78,11 @@ function LoginContent() {
             const stored = localStorage.getItem("referralCode");
             if (stored) setReferralCode(stored);
         }
+
+        const emailParam = searchParams.get("email");
+        if (emailParam && !email) {
+            setEmail(emailParam.trim().toLowerCase());
+        }
     }, [searchParams]);
 
     useEffect(() => {

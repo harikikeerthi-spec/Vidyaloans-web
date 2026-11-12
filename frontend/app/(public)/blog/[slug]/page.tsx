@@ -235,7 +235,7 @@ export default async function BlogPostPage({ params }: Props) {
       try {
         const parsed = JSON.parse(seoMatch[1]);
         if (Array.isArray(parsed.faqSchema)) faqList = parsed.faqSchema;
-      } catch (_) {}
+      } catch (_) { }
     }
   }
 
@@ -256,7 +256,7 @@ export default async function BlogPostPage({ params }: Props) {
   // Extract headings and enhance HTML with unique IDs and scroll margin for side navigation
   const cleanedRawContent = cleanBlogContent(blog.content || "");
   const { headings, enhancedHtml, tocTitle } = extractHeadingsAndEnhanceHtml(cleanedRawContent);
-  const hasHeadings = headings.length >= 2;
+  const hasHeadings = headings.length >= 1;
 
   return (
     <>
@@ -336,13 +336,39 @@ export default async function BlogPostPage({ params }: Props) {
               </time>
             </div>
           </div>
+
+          {/* Quick Overview Highlights Pill Row */}
+          {/* {hasHeadings && (
+            <div className="mt-6 p-4 bg-slate-50/80 rounded-2xl border border-slate-200/60 flex flex-wrap items-center gap-3 text-xs text-slate-600">
+              <span className="font-bold text-slate-900 flex items-center gap-1.5 shrink-0">
+                <span className="material-symbols-outlined text-indigo-600 text-[18px]">verified</span>
+                Key Topics Covered:
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {headings.slice(0, 4).map((h, i) => (
+                  <span
+                    key={`pill-${i}`}
+                    className="px-2.5 py-1 bg-white rounded-lg border border-slate-200/80 text-slate-700 font-medium text-[11px] shadow-2xs"
+                  >
+                    {h.text}
+                  </span>
+                ))}
+                {headings.length > 4 && (
+                  <span className="px-2 py-1 text-indigo-600 font-bold text-[11px]">
+                    +{headings.length - 4} more
+                  </span>
+                )}
+              </div>
+            </div>
+          )} */}
         </div>
 
 
 
         {/* Article Body Content & Side Table of Contents */}
         <div className={hasHeadings ? "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" : "max-w-3xl mx-auto px-6"}>
-          <style dangerouslySetInnerHTML={{ __html: `
+          <style dangerouslySetInnerHTML={{
+            __html: `
             html {
               scroll-behavior: smooth;
             }
@@ -478,13 +504,15 @@ export default async function BlogPostPage({ params }: Props) {
           `}} />
 
           {hasHeadings ? (
-            <div className="lg:grid lg:grid-cols-12 lg:gap-12 xl:gap-16 items-start">
+            <div className="lg:grid lg:grid-cols-12 lg:gap-12 xl:gap-16">
               {/* Main Content Column */}
               <div className="lg:col-span-8 min-w-0">
-                {/* Mobile Collapsible TOC (shown on mobile / tablet) */}
+                {/* Mobile Collapsible TOC & Floating Quick Jump (shown on mobile / tablet) */}
                 <BlogTableOfContents
                   headings={headings}
                   title={tocTitle}
+                  readTime={blog.readTime || 5}
+                  category={blog.category || "Education"}
                   isMobileOnly
                   className="lg:hidden"
                 />
@@ -496,6 +524,7 @@ export default async function BlogPostPage({ params }: Props) {
                     prose-strong:text-slate-900 prose-strong:font-bold
                     prose-img:rounded-2xl prose-img:shadow-md
                     prose-a:text-blue-600 prose-a:font-bold prose-a:underline prose-a:underline-offset-4 prose-a:decoration-2 prose-a:decoration-blue-400 hover:prose-a:decoration-blue-700 hover:prose-a:text-blue-800 prose-a:bg-blue-50/90 prose-a:px-1.5 prose-a:py-0.5 prose-a:rounded-md hover:prose-a:bg-blue-100 prose-a:transition-all prose-a:shadow-2xs"
+                  suppressHydrationWarning={true}
                   dangerouslySetInnerHTML={{ __html: sanitizeHtml(enhancedHtml) }}
                 />
 
@@ -518,11 +547,16 @@ export default async function BlogPostPage({ params }: Props) {
                 <BlogShareBar title={blog.title} url={canonicalUrl} />
               </div>
 
-              {/* Sticky Side Table of Contents (shown on desktop) */}
-              <aside className="hidden lg:block lg:col-span-4 sticky top-28 self-start">
+              {/* Fixed Sticky Side Table of Contents (shown on desktop) */}
+              <aside
+                className="hidden lg:block lg:col-span-4 self-start sticky top-28 z-20"
+                style={{ position: "sticky", top: "6.5rem" }}
+              >
                 <BlogTableOfContents
                   headings={headings}
                   title={tocTitle}
+                  readTime={blog.readTime || 5}
+                  category={blog.category || "Education"}
                 />
               </aside>
             </div>
@@ -535,6 +569,7 @@ export default async function BlogPostPage({ params }: Props) {
                   prose-strong:text-slate-900 prose-strong:font-bold
                   prose-img:rounded-2xl prose-img:shadow-md
                   prose-a:text-blue-600 prose-a:font-bold prose-a:underline prose-a:underline-offset-4 prose-a:decoration-2 prose-a:decoration-blue-400 hover:prose-a:decoration-blue-700 hover:prose-a:text-blue-800 prose-a:bg-blue-50/90 prose-a:px-1.5 prose-a:py-0.5 prose-a:rounded-md hover:prose-a:bg-blue-100 prose-a:transition-all prose-a:shadow-2xs"
+                suppressHydrationWarning={true}
                 dangerouslySetInnerHTML={{ __html: sanitizeHtml(enhancedHtml) }}
               />
 

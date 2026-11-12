@@ -49,16 +49,18 @@ export function cleanBlogContent(rawHtml: string | null | undefined): string {
     .replace(/&lt;!--EndFragment--&gt;/gi, "")
     .replace(/<!--BLOCKS_JSON_(?:START|END)-->/gi, "")
     .replace(/<!--SEO_JSON_(?:START|END)-->/gi, "")
-    .replace(/<div[^>]*class="[^"]*blog-cover-page[^"]*"[\s\S]*?<\/div>\s*<\/div>/gi, "")
+    .replace(/<div[^>]*class="[^"]*blog-cover-page[^"]*"[\s\S]*?(?:<\/div>\s*){1,6}/gi, "")
     .replace(/<div[^>]*class="[^"]*pt-5 mt-4 border-t[^"]*"[^>]*>[\s\S]*?Official References[\s\S]*?<\/div>/gi, "")
     .replace(/<div[^>]*style="[^"]*border-color:\s*rgba\(255,\s*255,\s*255,\s*0\.12\)[^"]*"[^>]*>[\s\S]*?Official References[\s\S]*?<\/div>/gi, "")
     .replace(/(?:\[\s*\]|\{\s*\})?\s*\{[\s\S]*?"metaTitle"[\s\S]*?\}/gi, "")
+    .replace(/^(?:\s*<\/div\s*>)+/gi, "")
     .trim();
 }
 
 /**
- * Parses headings (h1 - h4) from blog HTML and injects unique IDs + scroll margins.
+ * Parses headings (h1 - h6) from blog HTML and injects unique IDs + scroll margins.
  * Also extracts any authored custom Table of Contents title.
+ * If no standard heading tags are found, gracefully discovers bold section titles (<p><strong>...</strong></p>).
  */
 export function extractHeadingsAndEnhanceHtml(rawHtml: string): {
   headings: BlogHeading[];
@@ -79,12 +81,12 @@ export function extractHeadingsAndEnhanceHtml(rawHtml: string): {
     }
   }
 
-  // 2. Extract headings and inject id and scroll-margin attributes
+  // 2. Extract headings (h1 - h6) and inject id and scroll-margin attributes
   const headings: BlogHeading[] = [];
   const seenIds = new Set<string>();
 
-  const enhancedHtml = rawHtml.replace(
-    /<h([1-4])(\b[^>]*)>([\s\S]*?)<\/h\1>/gi,
+  let enhancedHtml = rawHtml.replace(
+    /<h([1-6])(\b[^>]*)>([\s\S]*?)<\/h\1>/gi,
     (match, levelStr, attrs, innerContent) => {
       const level = parseInt(levelStr, 10);
       const text = cleanExcerptText(innerContent);
@@ -138,6 +140,55 @@ export function extractHeadingsAndEnhanceHtml(rawHtml: string): {
       return `<h${level}${newAttrs}>${innerContent}</h${level}>`;
     }
   );
+
+  // 3. Fallback: if fewer than 2 headings found, scan for standalone <p><strong>Heading</strong></p>
+  if (headings.length < 2) {
+    enhancedHtml = enhancedHtml.replace(
+      /<p(\b[^>]*)>\s*<(strong|b)>([\s\S]*?)<\/\2>\s*<\/p>/gi,
+      (match, attrs, tag, innerContent) => {
+        const text = cleanExcerptText(innerContent);
+        // Only treat as heading if reasonably short and non-empty
+        if (!text || text.length > 85 || (text.includes(".") && text.split(".").length > 2)) return match;
+
+        let id = text
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/(^-|-$)/g, "");
+        if (!id) id = `section-${headings.length + 1}`;
+
+        let uniqueId = id;
+        let counter = 1;
+        while (seenIds.has(uniqueId)) {
+          uniqueId = `${id}-${counter}`;
+          counter++;
+        }
+        seenIds.add(uniqueId);
+
+        headings.push({
+          id: uniqueId,
+          text,
+          level: 2,
+        });
+
+        return `<h2 id="${uniqueId}" class="scroll-mt-28 font-display font-extrabold text-2xl text-slate-900 mt-8 mb-3 block">${innerContent}</h2>`;
+      }
+    );
+  }
+
+  // 4. Ultimate fallback: if still no headings, create default section anchors so TOC is ALWAYS available
+  if (headings.length === 0 && cleanExcerptText(rawHtml).length > 100) {
+    headings.push({
+      id: "overview",
+      text: "Overview & Key Insights",
+      level: 2,
+    });
+    headings.push({
+      id: "details",
+      text: "Detailed Guide & Insights",
+      level: 2,
+    });
+    enhancedHtml = `<div id="overview" class="scroll-mt-28"></div>` + enhancedHtml;
+  }
 
   return { headings, enhancedHtml, tocTitle };
 }

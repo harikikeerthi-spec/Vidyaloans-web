@@ -14,6 +14,7 @@ import AdminCountriesSection from "@/components/Admin/AdminCountriesSection";
 import SiteSettingsSection from "@/components/Admin/SiteSettingsSection";
 import RegistrationLeadsSection from "@/components/Admin/RegistrationLeadsSection";
 import AdminErrorLogsSection from "@/components/Admin/AdminErrorLogsSection";
+import WebmailAdminManager from "@/components/Admin/WebmailAdminManager";
 import ProgressTracker from "@/components/ProgressTracker";
 import {
     Building2,
@@ -242,6 +243,7 @@ const sectionToPathMap: Record<string, string> = {
     users_staff: '/admin/users/staff',
     users_agents: '/admin/users/agents',
     users_banks: '/admin/users/banks',
+    webmail: '/admin/webmail',
     analytics: '/admin/analytics',
     system: '/admin/system',
     banks: '/admin/banks',
@@ -281,6 +283,7 @@ const pathToSectionMap: Record<string, string> = {
     '/admin/agents': 'users_agents',
     '/admin/users/banks': 'users_banks',
     '/admin/users/bank': 'users_banks',
+    '/admin/webmail': 'webmail',
     '/admin/analytics': 'analytics',
     '/admin/system': 'system',
     '/admin/site-settings': 'site_settings',
@@ -1894,9 +1897,11 @@ export default function AdminDashboardPage() {
         { section: "users_staff", icon: "badge", label: "Staff Operations" },
         { section: "users_agents", icon: "support_agent", label: "Agents & Partners" },
         { section: "users_banks", icon: "account_balance", label: "Bank Representatives" },
+        { section: "webmail", icon: "mail", label: "Official Webmail" },
     ];
 
     const isUserSection = activeSection === "users_students" || activeSection === "users_staff" || activeSection === "users_agents" || activeSection === "users_banks" || activeSection === "users";
+    const isUserOrWebmailSection = isUserSection || activeSection === "webmail";
 
     // Marketing sub-nav items
     const marketingNavItems = [
@@ -1926,6 +1931,7 @@ export default function AdminDashboardPage() {
         users_staff: 'User Directory · Staff Operations',
         users_agents: 'User Directory · Agents & Partners',
         users_banks: 'User Directory · Bank Representatives',
+        webmail: 'Official Webmail Accounts Management',
         banks: 'Bank Partners Management',
         countries: 'Supported Study Destinations',
         blogs: 'Blog Management',
@@ -2008,21 +2014,21 @@ export default function AdminDashboardPage() {
                     {/* ── User Directory & Sub-roles ── */}
                     <div className="px-1 mt-1 mb-1">
                         <button
-                            onClick={() => { setUsersExpanded(e => !e); if (!usersExpanded && !isUserSection) setActiveSection('users_students'); }}
+                            onClick={() => { setUsersExpanded(e => !e); if (!usersExpanded && !isUserOrWebmailSection) setActiveSection('users_students'); }}
                             title="User Management"
-                            className={`w-full text-left px-3 py-2 rounded-xl flex items-center gap-3 transition-colors text-xs font-medium ${isUserSection ? 'bg-indigo-500/10 text-indigo-400 font-bold' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}
+                            className={`w-full text-left px-3 py-2 rounded-xl flex items-center gap-3 transition-colors text-xs font-medium ${isUserOrWebmailSection ? 'bg-indigo-500/10 text-indigo-400 font-bold' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}
                         >
                             <div className="w-6 h-6 flex items-center justify-center flex-shrink-0">
-                                <span className={`material-symbols-outlined text-[18px] ${isUserSection ? 'text-indigo-400' : 'text-slate-500'}`}>people</span>
+                                <span className={`material-symbols-outlined text-[18px] ${isUserOrWebmailSection ? 'text-indigo-400' : 'text-slate-500'}`}>people</span>
                             </div>
                             <span className={`flex-1 transition-all duration-200 whitespace-nowrap truncate ${sidebarOpen ? 'opacity-100' : 'opacity-0 w-0 group-hover/sidebar:opacity-100 group-hover/sidebar:w-auto'}`}>
                                 User Management
                             </span>
                             <span className={`material-symbols-outlined text-[14px] opacity-50 transition-opacity duration-200 ${sidebarOpen ? 'inline-block' : 'hidden group-hover/sidebar:inline-block'}`}>
-                                {usersExpanded || isUserSection ? 'expand_less' : 'expand_more'}
+                                {usersExpanded || isUserOrWebmailSection ? 'expand_less' : 'expand_more'}
                             </span>
                         </button>
-                        {(usersExpanded || isUserSection) && (
+                        {(usersExpanded || isUserOrWebmailSection) && (
                             <div className={`ml-3 mt-0.5 space-y-0.5 border-l border-slate-700/50 pl-2 transition-all duration-300 ${sidebarOpen ? 'opacity-100' : 'opacity-0 w-0 group-hover/sidebar:opacity-100 group-hover/sidebar:w-auto'}`}>
                                 {userNavItems.map(item => (
                                     <button
@@ -2887,6 +2893,10 @@ export default function AdminDashboardPage() {
 
                     {activeSection === "registration_leads" && (
                         <RegistrationLeadsSection />
+                    )}
+
+                    {activeSection === "webmail" && (
+                        <WebmailAdminManager />
                     )}
 
                     {/* ─── USERS MANAGEMENT DASHBOARD ──────────────────────────────────────── */}

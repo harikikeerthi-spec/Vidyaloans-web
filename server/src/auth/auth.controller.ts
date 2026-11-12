@@ -7,6 +7,7 @@ import { AssignmentService } from '../assignment/assignment.service';
 import { CsrfService } from './csrf.service';
 import { EmailService } from './email.service';
 import { UserGuard } from './user.guard';
+import { OptionalUserGuard } from './optional-user.guard';
 import { StaffGuard } from './staff.guard';
 import { AdminGuard } from './admin.guard';
 import { OwnershipOrStaffGuard } from './ownership.guard';
@@ -541,7 +542,7 @@ export class AuthController {
    * @returns { success: boolean, application?: LoanApplication }
    */
   @Post('create-application')
-  @UseGuards(UserGuard)
+  @UseGuards(OptionalUserGuard)
   async createApplication(
     @Req() req: any,
     @Body() body: {
@@ -723,20 +724,38 @@ export class AuthController {
         admissionStatus: body.admissionStatus,
       }, isStaffOrAdmin);
 
-      // Generate tokens for immediate seamless login session
+      // Generate tokens only for already-authenticated sessions (logged-in user or staff/admin)
       let tokens: any = null;
-      try {
-        tokens = await this.authService.generateTokens(targetUser);
-      } catch (tokenErr) {
-        console.warn('[AuthController.createApplication] Token generation error:', tokenErr);
+      const isAuthenticatedSession = Boolean(req?.user?.id);
+
+      if (isAuthenticatedSession) {
+        try {
+          tokens = await this.authService.generateTokens(targetUser);
+        } catch (tokenErr) {
+          console.warn('[AuthController.createApplication] Token generation error:', tokenErr);
+        }
+      } else {
+        // Guest user: dispatch OTP so they can verify and login safely
+        try {
+          await this.authService.sendOtpUnified(cleanEmail || targetUser.email);
+        } catch (otpErr) {
+          console.warn('[AuthController.createApplication] Failed to automatically dispatch OTP to guest:', otpErr);
+        }
       }
 
       return {
         success: true,
         application,
-        user: targetUser,
+        user: {
+          id: targetUser.id,
+          email: targetUser.email,
+          firstName: targetUser.firstName,
+          lastName: targetUser.lastName,
+          role: targetUser.role,
+        },
         access_token: tokens?.access_token || null,
         refresh_token: tokens?.refresh_token || null,
+        requiresOtp: !isAuthenticatedSession,
       };
     } catch (error) {
       console.error('Create application error:', error);

@@ -11,9 +11,11 @@ import {
   Headers,
   HttpCode,
   HttpStatus,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { ExecutiveWebmailService } from './executive-webmail.service';
+import { AdminGuard } from '../auth/admin.guard';
 
 @ApiTags('Executive Webmail')
 @Controller('webmail')
@@ -144,5 +146,56 @@ export class ExecutiveWebmailController {
   ) {
     const user = await this.webmailService.verifyToken(auth);
     return this.webmailService.changePassword(user, body.currentPassword, body.newPassword);
+  }
+
+  // ─── Admin Endpoints for Mailbox Management (Admin Only) ───
+  @Get('admin/users')
+  @UseGuards(AdminGuard)
+  @ApiOperation({ summary: 'List all official executive mailboxes (Admin Only)' })
+  async listAdminMailboxes() {
+    return this.webmailService.listAdminMailboxUsers();
+  }
+
+  @Post('admin/users')
+  @UseGuards(AdminGuard)
+  @ApiOperation({ summary: 'Create or update official webmail user (Admin Only)' })
+  async createAdminMailbox(
+    @Body()
+    body: {
+      email: string;
+      password: string;
+      name?: string;
+      title?: string;
+      s3Prefix?: string;
+    },
+  ) {
+    return this.webmailService.createAdminMailboxUser(body);
+  }
+
+  @Patch('admin/users/:id/password')
+  @UseGuards(AdminGuard)
+  @ApiOperation({ summary: 'Update password for official webmail user (Admin Only)' })
+  async updateAdminMailboxPassword(
+    @Param('id') id: string,
+    @Body() body: { password: string },
+  ) {
+    return this.webmailService.updateAdminMailboxPassword(id, body.password);
+  }
+
+  @Patch('admin/users/:id/status')
+  @UseGuards(AdminGuard)
+  @ApiOperation({ summary: 'Update status for official webmail user (Admin Only)' })
+  async updateAdminMailboxStatus(
+    @Param('id') id: string,
+    @Body() body: { status: string },
+  ) {
+    return this.webmailService.updateAdminMailboxStatus(id, body.status);
+  }
+
+  @Delete('admin/users/:id')
+  @UseGuards(AdminGuard)
+  @ApiOperation({ summary: 'Delete official webmail user (Admin Only)' })
+  async deleteAdminMailbox(@Param('id') id: string) {
+    return this.webmailService.deleteAdminMailboxUser(id);
   }
 }

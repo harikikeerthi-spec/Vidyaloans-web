@@ -37,13 +37,14 @@ function serverSanitizeHtml(dirty: string): string {
   clean = clean.replace(/(href|src|action|formaction)\s*=\s*(['"])\s*(?:javascript|vbscript|data\s*:\s*text\/html):[\s\S]*?\2/gi, '$1="#"');
   clean = clean.replace(/(href|src|action|formaction)\s*=\s*(?:javascript|vbscript|data\s*:\s*text\/html):[^\s>]+/gi, '$1="#"');
 
-  // 5. Strip clipboard fragment markers and metadata comments
+  // 5. Strip clipboard fragment markers, metadata comments, and orphaned leading tags
   clean = clean.replace(/<!--StartFragment-->/gi, "");
   clean = clean.replace(/<!--EndFragment-->/gi, "");
   clean = clean.replace(/<!--BLOCKS_JSON_START-->[\s\S]*?<!--BLOCKS_JSON_END-->/gi, "");
   clean = clean.replace(/<!--SEO_JSON_START-->[\s\S]*?<!--SEO_JSON_END-->/gi, "");
   clean = clean.replace(/<!--BLOCKS_JSON_(?:START|END)-->/gi, "");
   clean = clean.replace(/<!--SEO_JSON_(?:START|END)-->/gi, "");
+  clean = clean.replace(/^(?:\s*<\/div\s*>)+/gi, "");
 
   return clean;
 }
@@ -62,6 +63,7 @@ export function cleanBlogMetadata(rawHtml: string): string {
     .replace(/(?:\[\s*\]|\{\s*\})?\s*\{[\s\S]*?"metaTitle"[\s\S]*?\}/gi, "")
     .replace(/&lt;!--StartFragment--&gt;/gi, "")
     .replace(/&lt;!--EndFragment--&gt;/gi, "")
+    .replace(/^(?:\s*<\/div\s*>)+/gi, "")
     .trim();
 }
 

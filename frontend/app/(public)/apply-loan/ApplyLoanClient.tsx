@@ -121,6 +121,7 @@ export default function ApplyLoanPage() {
 
     const [existingApp, setExistingApp] = useState<any>(null);
     const [checkingExisting, setCheckingExisting] = useState<boolean>(true);
+    const [submittedApp, setSubmittedApp] = useState<any>(null);
 
     // Load dynamic study destination countries from backend (configured by Admin)
     useEffect(() => {
@@ -512,13 +513,12 @@ export default function ApplyLoanPage() {
             const effectiveUser = res?.user || user;
             const effectiveUserId = effectiveUser?.id || userId;
 
-            // Auto-login the guest user with tokens returned by the server
-            if (!isAuthenticated && res?.access_token && res?.user) {
-                login(res.access_token, {
-                    ...res.user,
-                    refresh_token: res.refresh_token,
-                });
-            } else if (user?.email) {
+            // Save created application details for the success screen
+            if (res?.application) {
+                setSubmittedApp(res.application);
+            }
+
+            if (isAuthenticated && user?.email) {
                 // Sync personal details to main user profile if authenticated
                 try {
                     await authApi.updateDetails(user.email, {
@@ -611,6 +611,10 @@ export default function ApplyLoanPage() {
     }
 
     if (submitted) {
+        const appNumber = submittedApp?.applicationNumber;
+        const displayBank = banks.find(b => b.id === formData.bank)?.name || formData.bank || "Any Bank";
+        const loginUrl = `/login?email=${encodeURIComponent(formData.email || "")}&redirect=${encodeURIComponent('/dashboard#applications')}`;
+
         return (
             <div className="min-h-screen flex items-center justify-center p-6 relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #ede0ff 0%, #f3eaff 25%, #fdf6ff 55%, #fef3e8 80%, #fde8c8 100%)' }}>
                 {/* Bright Success Decorations matching Homepage aesthetic */}
@@ -625,27 +629,82 @@ export default function ApplyLoanPage() {
                 <div className="absolute -top-20 -right-20 w-[500px] h-[500px] rounded-full border border-purple-100/30 pointer-events-none z-0" />
 
                 <div className="relative z-10 max-w-xl w-full text-center animate-fade-in-up">
-                    <div className="mb-10 relative inline-block">
-                        <div className="w-28 h-28 bg-emerald-500 rounded-[2rem] flex items-center justify-center shadow-2xl shadow-emerald-500/40 relative z-10 animate-bounce-slow border border-emerald-400">
-                            <span className="material-symbols-outlined text-white text-6xl">verified</span>
+                    <div className="mb-8 relative inline-block">
+                        <div className="w-24 h-24 bg-emerald-500 rounded-[2rem] flex items-center justify-center shadow-2xl shadow-emerald-500/40 relative z-10 animate-bounce-slow border border-emerald-400">
+                            <span className="material-symbols-outlined text-white text-5xl">verified</span>
                         </div>
                         <div className="absolute inset-0 bg-emerald-400 rounded-[2rem] blur-2xl opacity-30 animate-pulse" />
                     </div>
 
-                    <h2 className="text-4xl font-black text-gray-900 mb-6 tracking-tight" style={{ fontFamily: "'Noto Serif', 'Playfair Display', serif" }}>Application Transmitted!</h2>
-                    <p className="text-gray-600 font-medium text-lg mb-4 leading-relaxed">
+                    <h2 className="text-3xl sm:text-4xl font-black text-gray-900 mb-3 tracking-tight" style={{ fontFamily: "'Noto Serif', 'Playfair Display', serif" }}>
+                        Application Transmitted!
+                    </h2>
+                    <p className="text-gray-600 font-medium text-base sm:text-lg mb-6 leading-relaxed">
                         Your financing request for <span className="text-[#3A2EAB] font-black">{formData.university}</span> has been successfully logged.
                     </p>
-                    <p className="text-gray-500 text-sm font-medium mb-12">
-                        Our credit specialists are currently reviewing your eligibility. Expect a status update within <span className="text-gray-900 font-bold">24-48 hours</span>.
-                    </p>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 group">
-                        <Link href="/dashboard#applications" className="px-8 py-5 bg-gradient-to-r from-[#9B51E0] to-[#E040FB] text-white text-[11px] uppercase tracking-[0.2em] font-black rounded-2xl hover:brightness-110 hover:shadow-2xl hover:shadow-[#9B51E0]/30 transition-all flex items-center justify-center gap-3">
-                            <span className="material-symbols-outlined text-lg">dashboard_customize</span>
-                            Dashboard
-                        </Link>
-                        <Link href="/" className="px-8 py-5 bg-white text-gray-900 text-[11px] uppercase tracking-[0.2em] font-black rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all flex items-center justify-center gap-3">
+                    {/* Application Details Summary Card */}
+                    <div className="bg-white/95 backdrop-blur-xl p-6 sm:p-7 rounded-3xl border border-purple-100 shadow-xl mb-6 text-left space-y-3">
+                        <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                            <div>
+                                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Application Number</span>
+                                <span className="text-base sm:text-lg font-black text-gray-900 font-mono tracking-tight">
+                                    {appNumber || "VL-APP-PENDING"}
+                                </span>
+                            </div>
+                            <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-purple-100 text-[#6605c7]">
+                                {displayBank}
+                            </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3 text-xs pt-1">
+                            <div>
+                                <span className="text-gray-400 block font-semibold">Amount</span>
+                                <span className="font-bold text-gray-900 text-sm">₹{parseFloat(formData.amount.replace(/,/g, "") || "0").toLocaleString("en-IN")}</span>
+                            </div>
+                            <div>
+                                <span className="text-gray-400 block font-semibold">Study Destination</span>
+                                <span className="font-bold text-gray-900 text-sm">{formData.country === "Other" ? formData.otherCountry : formData.country}</span>
+                            </div>
+                        </div>
+
+                        {!isAuthenticated ? (
+                            <div className="mt-4 p-4 bg-purple-50/80 border border-purple-100 rounded-2xl flex items-start gap-3">
+                                <span className="material-symbols-outlined text-[#6605c7] text-xl mt-0.5">account_circle</span>
+                                <div className="text-xs text-gray-600 leading-relaxed">
+                                    <strong className="text-gray-900 font-bold block mb-0.5">Login to Track Your Application</strong>
+                                    To track approval progress, upload necessary documents, and receive bank sanction updates, please log in with your email <span className="font-bold text-[#6605c7]">({formData.email})</span>.
+                                </div>
+                            </div>
+                        ) : (
+                            <p className="text-gray-500 text-xs font-medium pt-2">
+                                Our credit specialists are currently reviewing your eligibility. Expect a status update within <span className="text-gray-900 font-bold">24-48 hours</span>.
+                            </p>
+                        )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {!isAuthenticated ? (
+                            <Link
+                                href={loginUrl}
+                                className="px-8 py-5 bg-gradient-to-r from-[#9B51E0] to-[#E040FB] text-white text-[11px] uppercase tracking-[0.2em] font-black rounded-2xl hover:brightness-110 hover:shadow-2xl hover:shadow-[#9B51E0]/30 transition-all flex items-center justify-center gap-3 shadow-lg shadow-purple-500/25"
+                            >
+                                <span className="material-symbols-outlined text-lg">login</span>
+                                Login to VidyaLoans
+                            </Link>
+                        ) : (
+                            <Link
+                                href="/dashboard#applications"
+                                className="px-8 py-5 bg-gradient-to-r from-[#9B51E0] to-[#E040FB] text-white text-[11px] uppercase tracking-[0.2em] font-black rounded-2xl hover:brightness-110 hover:shadow-2xl hover:shadow-[#9B51E0]/30 transition-all flex items-center justify-center gap-3 shadow-lg shadow-purple-500/25"
+                            >
+                                <span className="material-symbols-outlined text-lg">dashboard_customize</span>
+                                Go to Dashboard
+                            </Link>
+                        )}
+                        <Link
+                            href="/"
+                            className="px-8 py-5 bg-white text-gray-900 text-[11px] uppercase tracking-[0.2em] font-black rounded-2xl border border-gray-200 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all flex items-center justify-center gap-3"
+                        >
                             <span className="material-symbols-outlined text-lg">home</span>
                             Return Home
                         </Link>

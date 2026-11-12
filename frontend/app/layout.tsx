@@ -161,7 +161,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="min-h-screen transition-colors duration-500 overflow-x-hidden bg-white">
+      <body className="min-h-screen transition-colors duration-500 overflow-x-clip bg-white">
         {/* Google Tag Manager (Head / Interactive Script) */}
         <Script
           id="gtm-script"

@@ -12,6 +12,7 @@ import { AuthorizationService } from './authorization.service';
 import { AuditLogService } from './audit-log.service';
 
 import { UserGuard } from './user.guard';
+import { OptionalUserGuard } from './optional-user.guard';
 import { OwnershipOrStaffGuard } from './ownership.guard';
 import { ReferralModule } from '../referral/referral.module';
 import { AssignmentModule } from '../assignment/assignment.module';
@@ -51,6 +52,7 @@ import { SiteSettingsModule } from '../site-settings/site-settings.module';
     AuditLogService,
 
     UserGuard,
+    OptionalUserGuard,
     OwnershipOrStaffGuard,
     FirebaseAuthService,
     CsrfService,
@@ -65,6 +67,7 @@ import { SiteSettingsModule } from '../site-settings/site-settings.module';
     AuthorizationService,
     AuditLogService,
     UserGuard,
+    OptionalUserGuard,
     OwnershipOrStaffGuard,
     EmailService,
     FirebaseAuthService,

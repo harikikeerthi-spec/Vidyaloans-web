@@ -1219,6 +1219,28 @@ export const referralApi = {
 
 // ─── Admin ────────────────────────────────────────────────────────────
 export const adminApi = {
+    // Webmail Accounts Management
+    getWebmailUsers: () => apiFetch(`${API_URL}/webmail/admin/users`),
+    createWebmailUser: (data: { email: string; password: string; name?: string; title?: string; s3Prefix?: string }) =>
+        apiFetch(`${API_URL}/webmail/admin/users`, {
+            method: "POST",
+            body: JSON.stringify(data),
+        }),
+    updateWebmailPassword: (id: string, password: string) =>
+        apiFetch(`${API_URL}/webmail/admin/users/${id}/password`, {
+            method: "PATCH",
+            body: JSON.stringify({ password }),
+        }),
+    updateWebmailStatus: (id: string, status: string) =>
+        apiFetch(`${API_URL}/webmail/admin/users/${id}/status`, {
+            method: "PATCH",
+            body: JSON.stringify({ status }),
+        }),
+    deleteWebmailUser: (id: string) =>
+        apiFetch(`${API_URL}/webmail/admin/users/${id}`, {
+            method: "DELETE",
+        }),
+
     // Banks Management
     createBank: (data: any) =>
         apiFetch(`${API_URL}/reference/banks`, {

@@ -15,7 +15,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
     const showFooter = !isConnectedPage && !isWhatsAppSimulatorPage && !isRegistrationPage;
 
     return (
-        <div className="min-h-screen text-gray-900 bg-transparent relative overflow-x-hidden">
+        <div className="min-h-screen text-gray-900 bg-transparent relative">
             {showNavbar && <Navbar />}
             <main className="relative z-10">
                 <LoginWall>
