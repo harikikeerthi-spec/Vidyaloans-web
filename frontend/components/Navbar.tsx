@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSiteSettings } from "@/contexts/SiteSettingsContext";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { authApi, referenceApi } from "@/lib/api";
 
 interface DynamicPartner {
@@ -39,6 +39,7 @@ export default function Navbar() {
     const { user, isAuthenticated, logout } = useAuth();
     const { settings } = useSiteSettings();
     const router = useRouter();
+    const pathname = usePathname();
     const [scrolled, setScrolled] = useState(false);
     const [profileOpen, setProfileOpen] = useState(false);
     const [mobileOpen, setMobileOpen] = useState(false);
@@ -108,8 +109,26 @@ export default function Navbar() {
         return () => document.removeEventListener("mousedown", handler);
     }, []);
 
+    const isUserDetailsPage = pathname === "/user-details";
+    const isIncompleteStudent = Boolean(
+        isAuthenticated &&
+        user &&
+        user.role !== "admin" &&
+        user.role !== "super_admin" &&
+        user.role !== "staff" &&
+        user.role !== "staff_admin" &&
+        user.role !== "bank" &&
+        user.role !== "partner_bank" &&
+        user.role !== "agent" &&
+        user.role !== "partner_agent" &&
+        user.role !== "it" &&
+        user.role !== "analyst" &&
+        user.role !== "marketing" &&
+        !(user.firstName?.trim() && user.lastName?.trim() && user.phoneNumber?.trim() && user.dateOfBirth?.trim())
+    );
+
     useEffect(() => {
-        if (isAuthenticated && user?.id) {
+        if (isAuthenticated && user?.id && !isUserDetailsPage && !isIncompleteStudent) {
             const hasUserApps = !!((user as any)?.applications && ((user as any).applications as any[]).length > 0) || !!((user as any)?.loanApplications && ((user as any).loanApplications as any[]).length > 0);
             if (hasUserApps) {
                 setHasApplied(true);
@@ -152,7 +171,7 @@ export default function Navbar() {
         } else {
             setHasApplied(false);
         }
-    }, [isAuthenticated, user?.id]);
+    }, [isAuthenticated, user?.id, isUserDetailsPage, isIncompleteStudent]);
 
     const handleLogout = () => {
         logout();
@@ -176,7 +195,7 @@ export default function Navbar() {
             <div className="w-full max-w-7xl flex justify-between items-center">
                 {/* Logo */}
                 <div className="flex items-center gap-8 lg:gap-12">
-                    <Link href="/" className="flex items-center gap-2 group cursor-pointer relative z-10">
+                    <Link href={isUserDetailsPage || isIncompleteStudent ? "/user-details" : "/"} className="flex items-center gap-2 group cursor-pointer relative z-10">
                         <Image
                             src={settings?.logoLightUrl || "/images/vidyaloans-logo-transparent.png"}
                             alt={`${settings?.siteName || "VidyaLoans"} Logo`}
@@ -192,6 +211,12 @@ export default function Navbar() {
                     </Link>
 
                     {/* Desktop Nav Links */}
+                    {isUserDetailsPage || isIncompleteStudent ? (
+                        <div className="hidden lg:flex items-center gap-2 text-xs font-semibold text-purple-700 bg-purple-50 px-3.5 py-1.5 rounded-full border border-purple-100">
+                            <span className="material-symbols-outlined text-sm">badge</span>
+                            <span>Profile Setup In Progress</span>
+                        </div>
+                    ) : (
                     <div className="hidden lg:flex items-center gap-1">
                         {/* Loans Mega Menu */}
                         <div className="group/nav relative px-3 py-4">
@@ -339,6 +364,7 @@ export default function Navbar() {
 
                         <Link href="/about-us" className={`nav-link px-3 py-4 text-[13px] font-semibold uppercase tracking-wider transition-colors duration-500 text-[#190f23]/90`}>Company</Link>
                     </div>
+                    )}
                 </div>
 
                 {/* Right side */}
@@ -388,17 +414,23 @@ export default function Navbar() {
                                             <p className="text-sm font-bold text-gray-900 truncate">{user?.email}</p>
                                         </div>
                                         <div className="py-2">
-                                            <ProfileDropItem
-                                                href={user?.role === 'bank' || user?.role === 'partner_bank' ? "/bank/dashboard" : "/dashboard"}
-                                                icon="dashboard"
-                                                label="Dashboard"
-                                                iconClass="text-[#6605c7]"
-                                            />
-                                            <ProfileDropItem href="/support-tickets" icon="confirmation_number" label="Support Tickets" iconClass="text-indigo-500" />
-                                            <ProfileDropItem href="/referral" icon="redeem" label="Refer & Earn" iconClass="text-pink-500" comingSoon />
-                                            <ProfileDropItem href="/profile" icon="person" label="My Profile" iconClass="text-[#6605c7]" />
-                                            {!(user?.firstName && user?.lastName && user?.phoneNumber && user?.dateOfBirth) && (
+                                            {isUserDetailsPage || isIncompleteStudent ? (
                                                 <ProfileDropItem href="/user-details" icon="info" label="Complete Profile" iconClass="text-yellow-500" />
+                                            ) : (
+                                                <>
+                                                    <ProfileDropItem
+                                                        href={user?.role === 'bank' || user?.role === 'partner_bank' ? "/bank/dashboard" : "/dashboard"}
+                                                        icon="dashboard"
+                                                        label="Dashboard"
+                                                        iconClass="text-[#6605c7]"
+                                                    />
+                                                    <ProfileDropItem href="/support-tickets" icon="confirmation_number" label="Support Tickets" iconClass="text-indigo-500" />
+                                                    <ProfileDropItem href="/referral" icon="redeem" label="Refer & Earn" iconClass="text-pink-500" comingSoon />
+                                                    <ProfileDropItem href="/profile" icon="person" label="My Profile" iconClass="text-[#6605c7]" />
+                                                    {!(user?.firstName && user?.lastName && user?.phoneNumber && user?.dateOfBirth) && (
+                                                        <ProfileDropItem href="/user-details" icon="info" label="Complete Profile" iconClass="text-yellow-500" />
+                                                    )}
+                                                </>
                                             )}
                                         </div>
                                         <div className="border-t border-gray-200 p-2">
@@ -415,7 +447,7 @@ export default function Navbar() {
                             </div>
 
                             {/* 3D Apply Now Button */}
-                            {!hasApplied && (
+                            {!hasApplied && !isUserDetailsPage && !isIncompleteStudent && (
                                 <Link
                                     href="/apply-loan"
                                     className="relative px-5 py-2.5 bg-gradient-to-r from-[#7c3aed] via-[#a855f7] to-[#f43f5e] text-white text-[11px] font-extrabold uppercase tracking-widest rounded-full shadow-[0_4px_0_#4c1d95] hover:shadow-[0_8px_20px_rgba(124,58,237,0.35),0_6px_0_#4c1d95] border-t border-white/20 translate-y-0 hover:-translate-y-1 hover:brightness-105 active:translate-y-0.5 active:shadow-none transition-all duration-150 ease-out cursor-pointer select-none"
@@ -440,25 +472,36 @@ export default function Navbar() {
             {/* Mobile menu panel */}
             {mobileOpen && (
                 <div className="lg:hidden bg-white border-b border-gray-200 px-4 pt-3 pb-6 flex flex-col gap-2">
-                    <MobileLink href="/" label="Home" onClick={() => setMobileOpen(false)} />
-                    <MobileLink href="/registration" label="Free Counselling Form" onClick={() => setMobileOpen(false)} />
-                    <MobileLink href="/emi" label="EMI Calculator" onClick={() => setMobileOpen(false)} />
-                    <MobileLink href="/compare-loans" label="Compare Loans" onClick={() => setMobileOpen(false)} />
-                    <MobileLink href="/community" label="Community" onClick={() => setMobileOpen(false)} />
-                    <MobileLink href="/blog" label="Blog" onClick={() => setMobileOpen(false)} />
-                    <MobileLink href="/sop-writer" label="AI Tools" onClick={() => setMobileOpen(false)} />
-                    {isAuthenticated ? (
+                    {isUserDetailsPage || isIncompleteStudent ? (
                         <>
-                            <MobileLink
-                                href={user?.role === 'bank' || user?.role === 'partner_bank' ? "/bank/dashboard" : "/dashboard"}
-                                label="Dashboard"
-                                onClick={() => setMobileOpen(false)}
-                            />
-                            <MobileLink href="/support-tickets" label="Support Tickets" onClick={() => setMobileOpen(false)} />
-                            <button onClick={handleLogout} className="text-left text-red-500 font-bold text-sm">Sign Out</button>
+                            <div className="py-2.5 text-xs font-semibold text-purple-700 bg-purple-50 px-3.5 rounded-lg border border-purple-100 mb-1">
+                                Complete your profile details to unlock all services
+                            </div>
+                            <button onClick={handleLogout} className="text-left text-red-500 font-bold text-sm py-2">Sign Out</button>
                         </>
                     ) : (
-                        <MobileLink href="/login" label="Login" onClick={() => setMobileOpen(false)} />
+                        <>
+                            <MobileLink href="/" label="Home" onClick={() => setMobileOpen(false)} />
+                            <MobileLink href="/registration" label="Free Counselling Form" onClick={() => setMobileOpen(false)} />
+                            <MobileLink href="/emi" label="EMI Calculator" onClick={() => setMobileOpen(false)} />
+                            <MobileLink href="/compare-loans" label="Compare Loans" onClick={() => setMobileOpen(false)} />
+                            <MobileLink href="/community" label="Community" onClick={() => setMobileOpen(false)} />
+                            <MobileLink href="/blog" label="Blog" onClick={() => setMobileOpen(false)} />
+                            <MobileLink href="/sop-writer" label="AI Tools" onClick={() => setMobileOpen(false)} />
+                            {isAuthenticated ? (
+                                <>
+                                    <MobileLink
+                                        href={user?.role === 'bank' || user?.role === 'partner_bank' ? "/bank/dashboard" : "/dashboard"}
+                                        label="Dashboard"
+                                        onClick={() => setMobileOpen(false)}
+                                    />
+                                    <MobileLink href="/support-tickets" label="Support Tickets" onClick={() => setMobileOpen(false)} />
+                                    <button onClick={handleLogout} className="text-left text-red-500 font-bold text-sm">Sign Out</button>
+                                </>
+                            ) : (
+                                <MobileLink href="/login" label="Login" onClick={() => setMobileOpen(false)} />
+                            )}
+                        </>
                     )}
                 </div>
             )}

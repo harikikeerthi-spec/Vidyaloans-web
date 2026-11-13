@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException, HttpException, HttpStatus } from '@nestjs/common';
-import { randomInt } from 'crypto';
+import { randomInt, randomUUID } from 'crypto';
 import { SupabaseService } from '../supabase/supabase.service';
 import { OpenRouterService } from '../ai/services/openrouter.service';
 
@@ -15,6 +15,30 @@ export class CommunityService {
     private supabase: SupabaseService,
     private openRouterService: OpenRouterService,
   ) {}
+
+  private sanitizePublicMentor(mentor: any) {
+    if (!mentor) return null;
+    const photo = mentor.photo || mentor.image || null;
+    return {
+      id: mentor.id,
+      name: mentor.name,
+      university: mentor.university,
+      degree: mentor.degree,
+      country: mentor.country,
+      bio: mentor.bio,
+      photo: photo,
+      image: photo,
+    };
+  }
+
+  private normalizeDate(d?: string | Date): string | undefined {
+    if (!d) return undefined;
+    if (d instanceof Date) return d.toISOString();
+    const str = String(d).trim();
+    if (!str) return undefined;
+    if (str.endsWith('Z') || /[+-]\d{2}(:\d{2})?$/.test(str)) return str;
+    return str.replace(' ', 'T') + 'Z';
+  }
 
   // ==================== MENTORSHIP METHODS ====================
 
@@ -37,18 +61,28 @@ export class CommunityService {
     if (offset) query = query.range(offset, offset + (limit || 20) - 1);
 
     const { data: mentors, count } = await query;
-    return { success: true, data: mentors || [], pagination: { total: count || 0, limit, offset, hasMore: (offset || 0) + (mentors?.length || 0) < (count || 0) } };
+    const sanitized = (mentors || []).map((m: any) => this.sanitizePublicMentor(m));
+    return { success: true, data: sanitized, pagination: { total: count || 0, limit, offset, hasMore: (offset || 0) + (mentors?.length || 0) < (count || 0) } };
   }
 
   async getFeaturedMentors(limit: number) {
     const { data } = await this.db.from('Mentor').select('*').eq('isActive', true).eq('isApproved', true).gte('rating', 4.5).order('rating', { ascending: false }).order('studentsMentored', { ascending: false }).limit(limit);
-    return { success: true, data: data || [] };
+    const sanitized = (data || []).map((m: any) => this.sanitizePublicMentor(m));
+    return { success: true, data: sanitized };
   }
 
   async getMentorById(id: string) {
     const { data: mentor } = await this.db.from('Mentor').select('*').eq('id', id).single();
     if (!mentor) throw new NotFoundException('Mentor not found');
-    return { success: true, data: mentor };
+    return { success: true, data: this.sanitizePublicMentor(mentor) };
+  }
+
+  async getAdminMentors() {
+    const { data: mentors } = await this.db
+      .from('Mentor')
+      .select('*')
+      .order('createdAt', { ascending: false });
+    return { success: true, data: mentors || [] };
   }
 
   async bookMentorSession(mentorId: string, bookingData: any) {
@@ -56,7 +90,8 @@ export class CommunityService {
     if (!mentor) throw new NotFoundException('Mentor not found');
     if (!mentor.isActive) throw new BadRequestException('Mentor is not currently accepting bookings');
 
-    const { data: booking, error } = await this.db.from('MentorBooking').insert({ mentorId, ...bookingData, status: 'pending' }).select().single();
+    const bookingId = bookingData.id || randomUUID();
+    const { data: booking, error } = await this.db.from('MentorBooking').insert({ id: bookingId, mentorId, ...bookingData, status: 'pending' }).select().single();
     if (error) throw error;
     return { success: true, message: 'Booking request submitted successfully', data: booking };
   }
@@ -70,7 +105,9 @@ export class CommunityService {
     const { data: existing } = await this.db.from('Mentor').select('id').eq('email', applicationData.email).single();
     if (existing) throw new BadRequestException('A mentor with this email already exists');
 
+    const mentorId = randomUUID();
     const { data: mentor, error } = await this.db.from('Mentor').insert({
+      id: mentorId,
       name: applicationData.name, email: applicationData.email, phone: applicationData.phone || null,
       university: applicationData.university, degree: applicationData.degree || '', country: applicationData.country,
       loanBank: applicationData.loanBank || '', loanAmount: applicationData.loanAmount || '',
@@ -140,7 +177,8 @@ export class CommunityService {
     const { data: existingReg } = await this.db.from('EventRegistration').select('id').eq('eventId', eventId).eq('email', registrationData.email).single();
     if (existingReg) throw new BadRequestException('You are already registered for this event');
 
-    const { data: registration, error } = await this.db.from('EventRegistration').insert({ eventId, ...registrationData }).select().single();
+    const regId = registrationData.id || randomUUID();
+    const { data: registration, error } = await this.db.from('EventRegistration').insert({ id: regId, eventId, ...registrationData }).select().single();
     if (error) throw error;
 
     await this.db.from('CommunityEvent').update({ attendeesCount: (event.attendeesCount || 0) + 1 }).eq('id', eventId);
@@ -174,7 +212,8 @@ export class CommunityService {
   }
 
   async submitStory(storyData: any) {
-    const { data: story, error } = await this.db.from('SuccessStory').insert({ ...storyData, isApproved: false, isFeatured: false }).select().single();
+    const storyId = storyData.id || randomUUID();
+    const { data: story, error } = await this.db.from('SuccessStory').insert({ id: storyId, ...storyData, isApproved: false, isFeatured: false }).select().single();
     if (error) throw error;
     return { success: true, message: 'Success story submitted successfully. We will review and publish it soon.', data: story };
   }
@@ -214,7 +253,8 @@ export class CommunityService {
   // ==================== ADMIN METHODS ====================
 
   async createMentor(mentorData: any) {
-    const { data: mentor, error } = await this.db.from('Mentor').insert({ ...mentorData, expertise: mentorData.expertise || [], isActive: mentorData.isActive !== undefined ? mentorData.isActive : true, isApproved: true, rating: mentorData.rating || 0, studentsMentored: mentorData.studentsMentored || 0 }).select().single();
+    const mentorId = mentorData.id || randomUUID();
+    const { data: mentor, error } = await this.db.from('Mentor').insert({ id: mentorId, ...mentorData, expertise: mentorData.expertise || [], isActive: mentorData.isActive !== undefined ? mentorData.isActive : true, isApproved: true, rating: mentorData.rating || 0, studentsMentored: mentorData.studentsMentored || 0 }).select().single();
     if (error) throw error;
     return { success: true, message: 'Mentor created successfully', data: mentor };
   }
@@ -231,7 +271,8 @@ export class CommunityService {
   }
 
   async createEvent(eventData: any) {
-    const { data: event, error } = await this.db.from('CommunityEvent').insert({ ...eventData, attendeesCount: 0, isFeatured: eventData.isFeatured || false }).select().single();
+    const eventId = eventData.id || randomUUID();
+    const { data: event, error } = await this.db.from('CommunityEvent').insert({ id: eventId, ...eventData, attendeesCount: 0, isFeatured: eventData.isFeatured || false }).select().single();
     if (error) throw error;
     return { success: true, message: 'Event created successfully', data: event };
   }
@@ -248,7 +289,8 @@ export class CommunityService {
   }
 
   async createResource(resourceData: any) {
-    const { data: resource, error } = await this.db.from('CommunityResource').insert({ ...resourceData, downloads: 0, isFeatured: resourceData.isFeatured || false }).select().single();
+    const resId = resourceData.id || randomUUID();
+    const { data: resource, error } = await this.db.from('CommunityResource').insert({ id: resId, ...resourceData, downloads: 0, isFeatured: resourceData.isFeatured || false }).select().single();
     if (error) throw error;
     return { success: true, message: 'Resource created successfully', data: resource };
   }
@@ -265,7 +307,8 @@ export class CommunityService {
   }
 
   async createStory(storyData: any) {
-    const { data: story, error } = await this.db.from('SuccessStory').insert({ ...storyData, isApproved: storyData.isApproved !== undefined ? storyData.isApproved : true, isFeatured: storyData.isFeatured || false }).select().single();
+    const storyId = storyData.id || randomUUID();
+    const { data: story, error } = await this.db.from('SuccessStory').insert({ id: storyId, ...storyData, isApproved: storyData.isApproved !== undefined ? storyData.isApproved : true, isFeatured: storyData.isFeatured || false }).select().single();
     if (error) throw error;
     return { success: true, message: 'Success story created successfully', data: story };
   }
@@ -372,6 +415,8 @@ export class CommunityService {
       success: true,
       data: (posts || []).map((post: any) => ({
         ...post,
+        createdAt: this.normalizeDate(post.createdAt),
+        updatedAt: this.normalizeDate(post.updatedAt),
         commentCount: Array.isArray(post.commentCount) ? post.commentCount.length : (post.commentCount || 0),
         liked: likedPostIds.has(post.id),
       })),
@@ -413,11 +458,28 @@ export class CommunityService {
     const topLevelComments = (post.comments || []).filter((c: any) => !c.parentId);
     const commentsWithLikes = topLevelComments.map((c: any) => ({
       ...c,
+      createdAt: this.normalizeDate(c.createdAt),
+      updatedAt: this.normalizeDate(c.updatedAt),
       liked: likedCommentIds.has(c.id),
-      replies: (c.replies || []).map((r: any) => ({ ...r, liked: likedCommentIds.has(r.id) })),
+      replies: (c.replies || []).map((r: any) => ({
+        ...r,
+        createdAt: this.normalizeDate(r.createdAt),
+        updatedAt: this.normalizeDate(r.updatedAt),
+        liked: likedCommentIds.has(r.id),
+      })),
     }));
 
-    return { success: true, data: { ...post, comments: commentsWithLikes, commentCount: (post.comments || []).length, liked } };
+    return {
+      success: true,
+      data: {
+        ...post,
+        createdAt: this.normalizeDate(post.createdAt),
+        updatedAt: this.normalizeDate(post.updatedAt),
+        comments: commentsWithLikes,
+        commentCount: (post.comments || []).length,
+        liked,
+      },
+    };
   }
 
   async searchSimilarPosts(query: string) {
@@ -479,14 +541,34 @@ export class CommunityService {
       return { success: true, message: 'Post already created recently', data: recentPost, isDuplicate: true };
     }
 
+    const now = new Date().toISOString();
+    const postId = data.id || randomUUID();
     const { data: post, error } = await this.db
       .from('ForumPost')
-      .insert({ title: data.title, content: data.content, category: data.category || 'General', tags: data.tags || [], authorId: userId, isMentorOnly: data.isMentorOnly || false, updatedAt: new Date().toISOString() })
+      .insert({
+        id: postId,
+        title: data.title,
+        content: data.content,
+        category: data.category || 'General',
+        tags: data.tags || [],
+        authorId: userId,
+        isMentorOnly: data.isMentorOnly || false,
+        createdAt: now,
+        updatedAt: now,
+      })
       .select('*, author:User!authorId(firstName, lastName, role, id)')
       .single();
 
     if (error) throw error;
-    return { success: true, message: 'Post created successfully', data: post };
+    return {
+      success: true,
+      message: 'Post created successfully',
+      data: {
+        ...post,
+        createdAt: this.normalizeDate(post?.createdAt) || now,
+        updatedAt: this.normalizeDate(post?.updatedAt) || now,
+      },
+    };
   }
 
   async createForumComment(userId: string, postId: string, content: string, parentId?: string) {
@@ -497,9 +579,31 @@ export class CommunityService {
     const { data: post } = await this.db.from('ForumPost').select('id').eq('id', postId).single();
     if (!post) throw new NotFoundException('Post not found');
 
-    const { data: comment, error } = await this.db.from('ForumComment').insert({ content, postId, authorId: userId, parentId: parentId || null, updatedAt: new Date().toISOString() }).select('*, author:User!authorId(firstName, lastName, role)').single();
+    const now = new Date().toISOString();
+    const commentId = randomUUID();
+    const { data: comment, error } = await this.db
+      .from('ForumComment')
+      .insert({
+        id: commentId,
+        content,
+        postId,
+        authorId: userId,
+        parentId: parentId || null,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .select('*, author:User!authorId(firstName, lastName, role)')
+      .single();
     if (error) throw error;
-    return { success: true, message: 'Comment added successfully', data: comment };
+    return {
+      success: true,
+      message: 'Comment added successfully',
+      data: {
+        ...comment,
+        createdAt: this.normalizeDate(comment?.createdAt) || now,
+        updatedAt: this.normalizeDate(comment?.updatedAt) || now,
+      },
+    };
   }
 
   async likeForumComment(userId: string, id: string) {
@@ -514,7 +618,8 @@ export class CommunityService {
         const { data: updated } = await this.db.from('ForumComment').select('likes').eq('id', id).single();
         return { success: true, likes: updated?.likes || 0, liked: false };
       } else {
-        await this.db.from('ForumCommentLike').insert({ commentId: id, userId });
+        const likeId = randomUUID();
+        await this.db.from('ForumCommentLike').insert({ id: likeId, commentId: id, userId });
         await this.db.from('ForumComment').update({ likes: currentLikes + 1 }).eq('id', id);
         const { data: updated } = await this.db.from('ForumComment').select('likes').eq('id', id).single();
         return { success: true, likes: updated?.likes || 0, liked: true };
@@ -537,7 +642,8 @@ export class CommunityService {
         const { data: updated } = await this.db.from('ForumPost').select('likes').eq('id', id).single();
         return { success: true, likes: updated?.likes || 0, liked: false };
       } else {
-        await this.db.from('PostLike').insert({ postId: id, userId });
+        const likeId = randomUUID();
+        await this.db.from('PostLike').insert({ id: likeId, postId: id, userId });
         await this.db.from('ForumPost').update({ likes: currentLikes + 1 }).eq('id', id);
         const { data: updated } = await this.db.from('ForumPost').select('likes').eq('id', id).single();
         return { success: true, likes: updated?.likes || 0, liked: true };
@@ -691,7 +797,12 @@ export class CommunityService {
     const { data: posts, count } = await query;
     return {
       success: true,
-      data: (posts || []).map((p: any) => ({ ...p, commentCount: Array.isArray(p.comments) ? p.comments.length : 0 })),
+      data: (posts || []).map((p: any) => ({
+        ...p,
+        createdAt: this.normalizeDate(p.createdAt),
+        updatedAt: this.normalizeDate(p.updatedAt),
+        commentCount: Array.isArray(p.comments) ? p.comments.length : 0,
+      })),
       pagination: { total: count || 0, limit, offset, hasMore: (offset || 0) + (posts?.length || 0) < (count || 0) },
     };
   }

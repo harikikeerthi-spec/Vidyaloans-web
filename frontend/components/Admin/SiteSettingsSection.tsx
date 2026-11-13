@@ -127,11 +127,11 @@ const DEFAULT_FORM: SiteSettings = {
   metaTitle: "VidyaLoans - Instant Education Loans for Overseas Studies",
   metaDescription:
     "Compare and apply for top education loans with lowest interest rates, quick approval, and zero hidden charges.",
-  supportEmail: "support@vidyaloans.com",
-  contactEmail: "contact@vidyaloans.com",
-  phone: "+91 1800-123-4567",
-  tollFree: "1800-123-4567",
-  address: "VidyaLoans Financial Tower, Sector 44, Gurgaon, Haryana 122003, India",
+  supportEmail: "support@vidyaloans.in",
+  contactEmail: "contact@vidyaloans.in",
+  phone: "+91 81437 97779",
+  tollFree: "+91 81437 97779",
+  address: "Nuzvid, Krishna District, Andhra Pradesh",
   currency: "INR",
   timezone: "Asia/Kolkata",
   copyrightText: "© 2026 VidyaLoans Inc. All rights reserved.",
@@ -157,7 +157,7 @@ const DEFAULT_FORM: SiteSettings = {
   disposableBlockLevel: "strict",
   blockedDomains: DEFAULT_BLOCKED_DOMAINS,
   allowedDomains:
-    "gmail.com, yahoo.com, outlook.com, hotmail.com, icloud.com, proton.me, protonmail.com, vidyaloans.com",
+    "gmail.com, yahoo.com, outlook.com, hotmail.com, icloud.com, proton.me, protonmail.com, vidyaloans.in",
   disposableApiKey: "",
   disposableProvider: "builtin",
   disposableAction: "reject",
@@ -170,22 +170,22 @@ const DEFAULT_FORM: SiteSettings = {
 
   googleAnalyticsId: "G-1Z8RYR9RBW",
   googleTagManagerId: "GTM-PSHKZ8FK",
-  facebookPixelId: "987654321098765",
+  facebookPixelId: "",
   facebookUrl: "https://facebook.com/vidyaloans",
-  instagramUrl: "https://instagram.com/vidyaloans",
-  twitterUrl: "https://x.com/vidyaloans",
+  instagramUrl: "https://www.instagram.com/vidya_loans/",
+  twitterUrl: "https://x.com/VidyaLoans07",
   linkedinUrl: "https://linkedin.com/company/vidyaloans",
   youtubeUrl: "https://youtube.com/@vidyaloans",
-  whatsappNumber: "+919876543210",
+  whatsappNumber: "+918143797779",
   telegramUrl: "https://t.me/vidyaloans",
-  posthogApiKey: "phc_vidyaloans_live_key_998877",
-  mixpanelToken: "mp_token_vidyaloans_production",
-  hotjarSiteId: "3456789",
+  posthogApiKey: "",
+  mixpanelToken: "",
+  hotjarSiteId: "",
   customHeadScripts:
     "<!-- Google Tag Manager -->\n<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});})(window,document,'script','dataLayer','GTM-PSHKZ8FK');</script>\n<!-- Google tag (gtag.js) -->\n<script async src=\"https://www.googletagmanager.com/gtag/js?id=G-1Z8RYR9RBW\"></script>\n<script>\n  window.dataLayer = window.dataLayer || [];\n  function gtag(){dataLayer.push(arguments);}\n  gtag('js', new Date());\n\n  gtag('config', 'G-1Z8RYR9RBW');\n</script>",
   customBodyScripts:
     "<!-- Google Tag Manager (noscript) -->\n<noscript><iframe src=\"https://www.googletagmanager.com/ns.html?id=GTM-PSHKZ8FK\" height=\"0\" width=\"0\" style=\"display:none;visibility:hidden\"></iframe></noscript>",
-  webhookUrl: "https://api.vidyaloans.com/v1/webhooks/events",
+  webhookUrl: "https://api.vidyaloans.in/v1/webhooks/events",
 
   awsSesRegion: "ap-south-1",
   awsSesAccessKey: "",
@@ -200,7 +200,7 @@ const DEFAULT_FORM: SiteSettings = {
   eventScraperEnabled: true,
   eventScraperSource: "https://education.events.api/v1/scrapes",
 
-  enableAppBanner: true,
+  enableAppBanner: false,
   playStoreUrl: "https://play.google.com/store/apps/details?id=in.vidyaloans.app",
   appStoreUrl: "",
 };
@@ -211,6 +211,42 @@ type TabType =
   | "security"
   | "discovery"
   | "email";
+
+function cleanSettingsData(data: Partial<SiteSettings>): Partial<SiteSettings> {
+  const cleaned: Partial<SiteSettings> = { ...data };
+  if (cleaned.phone && (cleaned.phone.includes("1800-123-4567") || cleaned.phone.includes("94945 68851"))) {
+    cleaned.phone = "+91 81437 97779";
+  }
+  if (cleaned.tollFree && (cleaned.tollFree.includes("1800-123-4567") || cleaned.tollFree.includes("9494568851"))) {
+    cleaned.tollFree = "+91 81437 97779";
+  }
+  if (cleaned.supportEmail && cleaned.supportEmail.includes("@vidyaloans.com")) {
+    cleaned.supportEmail = "support@vidyaloans.in";
+  }
+  if (cleaned.contactEmail && cleaned.contactEmail.includes("@vidyaloans.com")) {
+    cleaned.contactEmail = "contact@vidyaloans.in";
+  }
+  if (cleaned.whatsappNumber && cleaned.whatsappNumber.includes("9876543210")) {
+    cleaned.whatsappNumber = "+918143797779";
+  }
+  if (cleaned.address && (cleaned.address.includes("Sector 44") || cleaned.address.includes("Gurgaon"))) {
+    cleaned.address = "Nuzvid, Krishna District, Andhra Pradesh";
+  }
+  if (cleaned.instagramUrl && (cleaned.instagramUrl === "https://instagram.com/vidyaloans" || cleaned.instagramUrl === "https://instagram.com/" || cleaned.instagramUrl === "https://instagram.com")) {
+    cleaned.instagramUrl = "https://www.instagram.com/vidya_loans/";
+  }
+  if (cleaned.twitterUrl && (cleaned.twitterUrl === "https://x.com/vidyaloans" || cleaned.twitterUrl === "https://twitter.com/vidyaloans")) {
+    cleaned.twitterUrl = "https://x.com/VidyaLoans07";
+  }
+  if (cleaned.webhookUrl && cleaned.webhookUrl.includes("api.vidyaloans.com")) {
+    cleaned.webhookUrl = "https://api.vidyaloans.in/v1/webhooks/events";
+  }
+  if (cleaned.posthogApiKey === "phc_vidyaloans_live_key_998877") cleaned.posthogApiKey = "";
+  if (cleaned.mixpanelToken === "mp_token_vidyaloans_production") cleaned.mixpanelToken = "";
+  if (cleaned.hotjarSiteId === "3456789") cleaned.hotjarSiteId = "";
+  cleaned.enableAppBanner = false;
+  return cleaned;
+}
 
 export default function SiteSettingsSection() {
   const [activeTab, setActiveTab] = useState<TabType>("ai");
@@ -247,8 +283,9 @@ export default function SiteSettingsSection() {
     try {
       const res = await adminApi.getSiteSettings();
       if (res && res.data) {
+        const cleaned = cleanSettingsData(res.data);
         // Smart merge: ensure full 4,600+ domain list is present in the UI along with any DB custom domains
-        const dbDomains = (res.data.blockedDomains || "")
+        const dbDomains = (cleaned.blockedDomains || "")
           .split(/[\n,]+/)
           .map((d: string) => d.trim().toLowerCase())
           .filter(Boolean);
@@ -258,7 +295,7 @@ export default function SiteSettingsSection() {
 
         const mergedForm: SiteSettings = {
           ...DEFAULT_FORM,
-          ...res.data,
+          ...cleaned,
           blockedDomains: fullBlocked,
         };
 
@@ -311,16 +348,12 @@ export default function SiteSettingsSection() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const res = await adminApi.updateSiteSettings(form);
-      const updatedData = res?.data || form;
-      if (res && res.data) {
-        setForm((prev) => ({ ...prev, ...res.data }));
-        setInitialForm((prev) => ({ ...prev, ...res.data }));
-        showToast("Settings saved and reflected site-wide!", "success");
-      } else {
-        showToast("Settings updated and applied!", "success");
-        setInitialForm(form);
-      }
+      const payload = cleanSettingsData(form) as SiteSettings;
+      const res = await adminApi.updateSiteSettings(payload);
+      const updatedData = res?.data ? (cleanSettingsData(res.data) as SiteSettings) : payload;
+      setForm((prev) => ({ ...prev, ...updatedData }));
+      setInitialForm((prev) => ({ ...prev, ...updatedData }));
+      showToast("Settings saved and reflected site-wide!", "success");
 
       // Hot reload: update localStorage and broadcast across all tabs and windows
       if (typeof window !== "undefined") {

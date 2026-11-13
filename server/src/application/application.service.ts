@@ -2081,7 +2081,7 @@ export class ApplicationService {
         icon: 'verified',
         color: 'bg-emerald-50 text-emerald-700 border-emerald-100',
         actorName: 'System',
-        actorEmail: 'system@vidyaloan.in',
+        actorEmail: 'system@vidyaloans.in',
         createdAt: new Date().toISOString()
       });
 
@@ -2628,7 +2628,7 @@ export class ApplicationService {
       icon: evvStatus === 'COMPUTED' ? 'payments' : 'warning',
       color: evvStatus === 'COMPUTED' ? 'bg-green-50 text-green-700 border-green-100' : 'bg-amber-50 text-amber-700 border-amber-100',
       actorName: 'EVV Engine',
-      actorEmail: 'evv@vidyaloan.in',
+      actorEmail: 'evv@vidyaloans.in',
       createdAt: new Date().toISOString()
     });
 

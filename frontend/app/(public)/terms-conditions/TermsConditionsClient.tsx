@@ -92,8 +92,8 @@ export default function TermsConditionsPage() {
                             <div className="mt-8 pt-6 border-t border-black/5">
                                 <p className="text-[11px] text-gray-500 leading-relaxed font-medium">
                                     Have concerns about our platform service conditions? Contact support:{" "}
-                                    <a href="mailto:support@vidyaloan.in" className="text-[#6605c7] hover:underline font-bold">
-                                        support@vidyaloan.in
+                                    <a href="mailto:support@vidyaloans.in" className="text-[#6605c7] hover:underline font-bold">
+                                        support@vidyaloans.in
                                     </a>
                                 </p>
                             </div>

@@ -81,6 +81,7 @@ export default function Footer() {
                             <FooterLink href="/privacy-policy" label="Privacy Policy" />
                             <FooterLink href="/terms-conditions" label="Terms & Conditions" />
                             <FooterLink href="/cookies" label="Cookie Policy" />
+                            <FooterLink href="/delete-account" label="Delete Account" />
                             <FooterLink href="/contact" label="Contact Us" />
                         </ul>
                     </div>

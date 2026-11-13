@@ -136,10 +136,10 @@ export default function AgentDashboardOverview() {
                             <span className="material-symbols-outlined text-[13px] text-emerald-300">support_agent</span>
                             Your RM: <strong className="text-white ml-1">Neha Sharma</strong>
                         </span>
-                        <a href="tel:+919876543210" className="flex items-center gap-1 text-[11px] font-bold bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-xl transition-all">
-                            <span className="material-symbols-outlined text-[13px]">call</span> +91 98XXXXXXXX
+                        <a href="tel:+918143797779" className="flex items-center gap-1 text-[11px] font-bold bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-xl transition-all">
+                            <span className="material-symbols-outlined text-[13px]">call</span> +91 81437 97779
                         </a>
-                        <a href="https://wa.me/919876543210" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[11px] font-black bg-emerald-500/80 hover:bg-emerald-500 px-3 py-1.5 rounded-xl transition-all">
+                        <a href="https://wa.me/918143797779" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[11px] font-black bg-emerald-500/80 hover:bg-emerald-500 px-3 py-1.5 rounded-xl transition-all">
                             <span className="material-symbols-outlined text-[13px]">chat</span> WhatsApp
                         </a>
                     </div>

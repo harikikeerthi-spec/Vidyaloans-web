@@ -55,13 +55,25 @@ interface SimilarPost {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+function parseUtcDate(dateStr: string): Date {
+    if (!dateStr) return new Date();
+    if (dateStr.endsWith("Z") || /[+-]\d{2}(:\d{2})?$/.test(dateStr)) {
+        return new Date(dateStr);
+    }
+    const normalized = dateStr.replace(" ", "T") + "Z";
+    const parsed = new Date(normalized);
+    return isNaN(parsed.getTime()) ? new Date(dateStr) : parsed;
+}
+
 function timeAgo(date: string) {
-    const diff = (Date.now() - new Date(date).getTime()) / 1000;
+    if (!date) return "";
+    const parsed = parseUtcDate(date);
+    const diff = (Date.now() - parsed.getTime()) / 1000;
     if (diff < 60) return "just now";
     if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
     if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
     if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
-    return new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" });
+    return parsed.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" });
 }
 
 function authorName(a: Post["author"]): string {

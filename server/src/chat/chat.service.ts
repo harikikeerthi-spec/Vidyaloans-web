@@ -1,10 +1,11 @@
 import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class ChatService {
-  private readonly logger = new Logger(ChatService.name);
+  readonly logger = new Logger(ChatService.name);
 
   constructor(
     private readonly supabase: SupabaseService,
@@ -16,8 +17,9 @@ export class ChatService {
   }
 
   normalizePhone(phoneStr: string): string {
-    // Synthetic bank/staff/agent identifiers start with BNK_, STF_ or AGT_ — pass through unchanged
-    if (phoneStr.startsWith('BNK_') || phoneStr.startsWith('STF_') || phoneStr.startsWith('AGT_')) return phoneStr;
+    if (!phoneStr) return '';
+    // Synthetic bank/staff/agent/user identifiers start with BNK_, STF_, AGT_ or USR_ — pass through unchanged
+    if (phoneStr.startsWith('BNK_') || phoneStr.startsWith('STF_') || phoneStr.startsWith('AGT_') || phoneStr.startsWith('USR_')) return phoneStr;
     const cleaned = phoneStr.replace('whatsapp:', '').trim().replace(/\D/g, '');
     if (cleaned.length > 10 && cleaned.startsWith('91')) {
       return cleaned.substring(2);
@@ -161,28 +163,11 @@ export class ChatService {
         if (customerEmail) {
             customerPhone = `USR_${customerEmail.replace(/[^a-zA-Z0-9]/g, '_')}`;
         } else {
-            throw new HttpException('A valid phone number or email is required to start a chat.', HttpStatus.BAD_REQUEST);
+            customerPhone = `USR_GUEST_${randomUUID().slice(0, 8)}`;
         }
     }
     // Clean phone number (strip 'whatsapp:' and normalize to 10 digits)
     const phone = this.normalizePhone(customerPhone);
-
-    let query = this.db
-      .from('Conversation')
-      .select('*')
-      .eq('customerPhone', phone);
-
-    if (additionalMetadata && additionalMetadata.applicationId) {
-      query = query.contains('metadata', { applicationId: additionalMetadata.applicationId });
-    }
-
-    let { data: convData, error } = await query.order('updatedAt', { ascending: false }).limit(1);
-    let conv = convData?.[0] || null;
-
-    if (error) {
-      this.logger.error('Failed to query conversation', error);
-      throw new HttpException('Database error', HttpStatus.INTERNAL_SERVER_ERROR);
-    }
 
     const mergedMetadata = {
       type: conversationType,
@@ -190,25 +175,71 @@ export class ChatService {
       ...(additionalMetadata || {})
     };
 
+    let conv: any = null;
+
+    try {
+      let query = this.db
+        .from('Conversation')
+        .select('*')
+        .eq('customerPhone', phone);
+
+      if (additionalMetadata && additionalMetadata.applicationId) {
+        query = query.contains('metadata', { applicationId: additionalMetadata.applicationId });
+      }
+
+      const { data: convData, error } = await query.order('updatedAt', { ascending: false }).limit(1);
+      if (!error && convData && convData.length > 0) {
+        conv = convData[0];
+      }
+    } catch (queryErr) {
+      this.logger.warn('Failed to query conversation:', queryErr);
+    }
+
     if (!conv) {
       // Create new
-      const { data: newConv, error: createError } = await this.db
-        .from('Conversation')
-        .insert({ 
-            customerPhone: phone, 
-            status: 'active',
+      const generatedId = randomUUID();
+      try {
+        const { data: newConv, error: createError } = await this.db
+          .from('Conversation')
+          .insert({ 
+              id: generatedId,
+              customerPhone: phone, 
+              status: 'active',
+              customerEmail: customerEmail || null,
+              customerName: customerName || null,
+              metadata: mergedMetadata
+          })
+          .select()
+          .single();
+          
+        if (createError) {
+          this.logger.warn('Failed to create conversation in DB, using fallback conversation:', createError);
+          conv = {
+            id: generatedId,
+            customerPhone: phone,
             customerEmail: customerEmail || null,
             customerName: customerName || null,
-            metadata: mergedMetadata
-        })
-        .select()
-        .single();
-        
-      if (createError) {
-        this.logger.error('Failed to create conversation', createError);
-        throw new HttpException('Database error', HttpStatus.INTERNAL_SERVER_ERROR);
+            status: 'active',
+            metadata: mergedMetadata,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+        } else {
+          conv = newConv;
+        }
+      } catch (insertErr) {
+        this.logger.warn('Exception creating conversation, returning fallback:', insertErr);
+        conv = {
+          id: generatedId,
+          customerPhone: phone,
+          customerEmail: customerEmail || null,
+          customerName: customerName || null,
+          status: 'active',
+          metadata: mergedMetadata,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
       }
-      conv = newConv;
     } else {
       // Reactivate or update existing conversation metadata
       const updateData: any = {
@@ -222,18 +253,20 @@ export class ChatService {
       if (customerEmail) updateData.customerEmail = customerEmail;
       if (customerName) updateData.customerName = customerName;
 
-      const { data: updatedConv, error: updateError } = await this.db
-        .from('Conversation')
-        .update(updateData)
-        .eq('id', conv.id)
-        .select()
-        .single();
+      try {
+        const { data: updatedConv, error: updateError } = await this.db
+          .from('Conversation')
+          .update(updateData)
+          .eq('id', conv.id)
+          .select()
+          .single();
 
-      if (updateError) {
-        this.logger.error('Failed to reactivate conversation', updateError);
-        throw new HttpException('Database error reactivating conversation', HttpStatus.INTERNAL_SERVER_ERROR);
+        if (!updateError && updatedConv) {
+          conv = updatedConv;
+        }
+      } catch (updateErr) {
+        this.logger.warn('Failed to update conversation timestamp:', updateErr);
       }
-      conv = updatedConv;
     }
 
     return conv;
@@ -367,6 +400,17 @@ export class ChatService {
               const staffId = user.id || user.uid;
               query = query.contains('metadata', { assignedStaffId: staffId });
           }
+      } else if (user) {
+          // Regular student / user role: strictly enforce caller ownership
+          const email = (user.email || '').trim().toLowerCase();
+          const phone = (user.phoneNumber || user.mobile || '').trim();
+          if (email && phone) {
+              query = query.or(`customerEmail.ilike.${email},customerPhone.eq.${phone}`);
+          } else if (email) {
+              query = query.ilike('customerEmail', email);
+          } else if (phone) {
+              query = query.eq('customerPhone', phone);
+          }
       }
 
       let { data, error } = await query;
@@ -407,6 +451,16 @@ export class ChatService {
               } else if (user.assignedOnly && (user.id || user.uid)) {
                   const staffId = user.id || user.uid;
                   fallbackQuery = fallbackQuery.contains('metadata', { assignedStaffId: staffId });
+              }
+          } else if (user) {
+              const email = (user.email || '').trim().toLowerCase();
+              const phone = (user.phoneNumber || user.mobile || '').trim();
+              if (email && phone) {
+                  fallbackQuery = fallbackQuery.or(`customerEmail.ilike.${email},customerPhone.eq.${phone}`);
+              } else if (email) {
+                  fallbackQuery = fallbackQuery.ilike('customerEmail', email);
+              } else if (phone) {
+                  fallbackQuery = fallbackQuery.eq('customerPhone', phone);
               }
           }
           const { data: fallbackData, error: fallbackError } = await fallbackQuery;

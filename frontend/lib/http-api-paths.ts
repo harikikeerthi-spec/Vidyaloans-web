@@ -38,6 +38,8 @@ export const HttpApiPaths = {
         uploadDocument: () => `${HTTP_API_PREFIX}/auth/upload-document`,
         createApplication: () => `${HTTP_API_PREFIX}/auth/create-application`,
         applicationById: (id: string) => `${HTTP_API_PREFIX}/auth/application/${enc(id)}`,
+        requestAccountDeletion: () => `${HTTP_API_PREFIX}/auth/request-account-deletion`,
+        deleteAccount: () => `${HTTP_API_PREFIX}/auth/delete-account`,
     },
 
     reference: {
@@ -175,7 +177,7 @@ export const HttpApiPaths = {
         communityStats: () => `${HTTP_API_PREFIX}/community/admin/stats`,
         forumPostsAdmin: (limit: number, offset: number) =>
             `${HTTP_API_PREFIX}/community/admin/forum/posts${httpApiQuery({ limit, offset })}`,
-        mentors: () => `${HTTP_API_PREFIX}/community/mentors`,
+        mentors: () => `${HTTP_API_PREFIX}/community/admin/mentors`,
         mentorsAdminCreate: () => `${HTTP_API_PREFIX}/community/admin/mentors`,
         mentorAdminDelete: (id: string) => `${HTTP_API_PREFIX}/community/admin/mentors/${enc(id)}`,
         communityResources: (params?: Record<string, string>) => {

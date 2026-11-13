@@ -1383,7 +1383,7 @@ export class StaffProfileService {
 
             <div style="border-top: 1px solid #e2e8f0; padding-top: 20px; margin-top: 30px; text-align: center;">
               <p style="color: #94a3b8; font-size: 12px; margin: 0;">
-                If you did not request this email, please contact support@vidyaloans.com.<br>
+                If you did not request this email, please contact support@vidyaloans.in.<br>
                 © ${new Date().getFullYear()} VidyaLoans. All rights reserved.
               </p>
             </div>

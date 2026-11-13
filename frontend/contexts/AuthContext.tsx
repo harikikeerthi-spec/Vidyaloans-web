@@ -86,7 +86,7 @@ interface AuthContextType {
     login: (accessToken: string, userData?: Partial<AuthUser> & { refresh_token?: string }) => void;
     logout: () => Promise<void>;
     refreshAuth: () => Promise<boolean>;
-    refreshUser: () => Promise<void>;
+    refreshUser: (fallbackData?: Partial<AuthUser>) => Promise<void>;
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -317,10 +317,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, [portal]);
 
     /** Re-fetch the latest user profile from the backend and update state */
-    const refreshUser = useCallback(async (): Promise<void> => {
+    const refreshUser = useCallback(async (fallbackData?: Partial<AuthUser>): Promise<void> => {
         const keys = getStorageKeys(portal);
         const email = localStorage.getItem(keys.email);
         const accessToken = getStoredToken(portal);
+
+        // If fallbackData provided, eagerly update user state and localStorage immediately
+        if (fallbackData) {
+            setUser(prev => {
+                const updated: AuthUser = {
+                    ...(prev as AuthUser),
+                    ...fallbackData,
+                    id: fallbackData.id || prev?.id || localStorage.getItem(keys.userId) || '',
+                    email: fallbackData.email || prev?.email || email || '',
+                };
+                localStorage.setItem(keys.user, JSON.stringify(updated));
+                if (updated.id) {
+                    localStorage.setItem(keys.userId, updated.id);
+                    syncUserSessionToDataLayer(updated.id);
+                }
+                return updated;
+            });
+        }
+
         if (!email || !accessToken) return;
         try {
             const data = await authApi.getDashboard(email) as {

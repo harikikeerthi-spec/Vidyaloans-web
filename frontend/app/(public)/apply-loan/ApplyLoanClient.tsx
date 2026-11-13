@@ -28,6 +28,10 @@ const formatIndianCurrency = (val: string, maxDigits?: number): string => {
     if (maxDigits && clean.length > maxDigits) {
         clean = clean.slice(0, maxDigits);
     }
+    // Cap typed loan amount at ₹1.5 Cr (1,50,00,000)
+    if (clean && Number(clean) > 15000000) {
+        clean = "15000000";
+    }
     if (!clean) return "";
     const num = parseInt(clean, 10);
     if (isNaN(num)) return "";
@@ -164,7 +168,20 @@ export default function ApplyLoanPage() {
         }
     }, [isAuthenticated, user?.id]);
 
-    // Pre-fill personal info from user profile and URL params
+    // Autosave application draft to localStorage & sessionStorage as applicant types
+    useEffect(() => {
+        if (typeof window !== "undefined" && !submitted) {
+            try {
+                const draft = { formData, step, updatedAt: Date.now() };
+                localStorage.setItem("loan_application_draft", JSON.stringify(draft));
+                sessionStorage.setItem("pending_loan_application", JSON.stringify(draft));
+            } catch {
+                // ignore storage quota issues
+            }
+        }
+    }, [formData, step, submitted]);
+
+    // Pre-fill personal info from user profile, saved drafts, and URL params
     useEffect(() => {
         if (typeof window !== "undefined") {
             const params = new URLSearchParams(window.location.search);
@@ -176,29 +193,47 @@ export default function ApplyLoanPage() {
             let selectedBank = "";
             if (bankParam) {
                 const normBank = bankParam.toLowerCase().trim();
-                if (normBank === "credila" || normBank === "hdfc") {
+                if (normBank.includes("credila") || normBank.includes("hdfc")) {
                     selectedBank = "hdfc";
-                } else if (normBank === "idfc") {
+                } else if (normBank.includes("idfc")) {
                     selectedBank = "idfc";
-                } else if (normBank === "auxilo") {
+                } else if (normBank.includes("auxilo")) {
                     selectedBank = "auxilo";
-                } else if (normBank === "avanse") {
+                } else if (normBank.includes("avanse")) {
                     selectedBank = "avanse";
-                } else if (normBank === "poonawalla") {
+                } else if (normBank.includes("poonawalla")) {
                     selectedBank = "poonawalla";
+                } else if (banks.some(b => b.id === normBank)) {
+                    selectedBank = normBank;
                 }
             }
 
-            // Look for saved application data in sessionStorage
-            const savedData = sessionStorage.getItem("pending_loan_application");
-            if (savedData) {
-                try {
+            // Look for saved application data in localStorage / sessionStorage
+            let savedDraftData: any = null;
+            let savedDraftStep: number | null = null;
+            try {
+                const savedData = localStorage.getItem("loan_application_draft") || sessionStorage.getItem("pending_loan_application");
+                if (savedData) {
                     const parsed = JSON.parse(savedData);
-                    if (parsed.formData) setFormData(prev => ({ ...prev, ...parsed.formData }));
-                    if (parsed.step) setStep(parsed.step);
-                    // Don't remove it yet, only remove after successful submission
-                } catch (e) {
-                    console.error("Failed to parse saved application data:", e);
+                    if (parsed.formData) savedDraftData = parsed.formData;
+                    if (parsed.step) savedDraftStep = parsed.step;
+                }
+            } catch (e) {
+                console.error("Failed to parse saved application draft:", e);
+            }
+
+            if (savedDraftData) {
+                setFormData(prev => ({
+                    ...prev,
+                    ...savedDraftData,
+                    // If URL explicitly provides bank or uni, preserve that intent
+                    ...(selectedBank ? { bank: selectedBank } : {}),
+                    ...(uni ? { university: uni } : {}),
+                    ...(country ? { country } : {}),
+                    ...(amountParam ? { amount: formatIndianCurrency(amountParam) } : {})
+                }));
+                if (savedDraftStep && savedDraftStep >= 1 && savedDraftStep <= 3) {
+                    setStep(savedDraftStep);
                 }
             }
 
@@ -292,11 +327,35 @@ export default function ApplyLoanPage() {
         return words.every(word => genericWords.has(word));
     };
 
+    const scrollToFirstError = (errors: Record<string, string>) => {
+        setTimeout(() => {
+            const fieldOrder = [
+                "loanType", "country", "otherCountry", "university", "amount", "bank", "admissionStatus",
+                "firstName", "lastName", "email", "phone", "dateOfBirth", "pincode", "address",
+                "coApplicant", "otherRelation", "coApplicantName", "coApplicantPhone", "coApplicantEmail", "income"
+            ];
+            for (const key of fieldOrder) {
+                if (errors[key]) {
+                    const el = document.getElementById(`apply-${key}`) || document.querySelector(`[name="${key}"]`);
+                    if (el) {
+                        el.scrollIntoView({ behavior: "smooth", block: "center" });
+                        (el as HTMLElement).focus?.();
+                        return;
+                    }
+                }
+            }
+            const summaryEl = document.getElementById("apply-step-errors-summary");
+            if (summaryEl) {
+                summaryEl.scrollIntoView({ behavior: "smooth", block: "center" });
+            }
+        }, 80);
+    };
+
     const validateStep1 = async (): Promise<boolean> => {
         const errors: Record<string, string> = {};
-        if (!formData.loanType) errors.loanType = "Please select a loan type";
+        if (!formData.loanType) errors.loanType = "Please select a field of study";
         if (!formData.country) {
-            errors.country = "Please select a country";
+            errors.country = "Please select destination country";
         } else if (formData.country === "Other" && (!formData.otherCountry || !formData.otherCountry.trim())) {
             errors.otherCountry = "Please specify the destination country";
         }
@@ -308,9 +367,12 @@ export default function ApplyLoanPage() {
             errors.university = "University name cannot contain numbers";
         }
         const cleanAmount = formData.amount.replace(/,/g, "");
-        if (!cleanAmount || Number(cleanAmount) <= 0) {
+        const numAmount = Number(cleanAmount);
+        if (!cleanAmount || isNaN(numAmount) || numAmount <= 0) {
             errors.amount = "Please enter a valid loan amount";
-        } else if (Number(cleanAmount) > 15000000) {
+        } else if (numAmount < 100000) {
+            errors.amount = "Minimum loan amount is ₹1,00,000 (1 Lakh)";
+        } else if (numAmount > 15000000) {
             errors.amount = "Maximum loan amount cannot exceed ₹1,50,00,000 (1.5 Crore)";
         }
 
@@ -334,11 +396,16 @@ export default function ApplyLoanPage() {
         }
 
         setStepErrors(errors);
-        return Object.keys(errors).length === 0;
+        if (Object.keys(errors).length > 0) {
+            scrollToFirstError(errors);
+            return false;
+        }
+        return true;
     };
 
     const [resolvingPincode, setResolvingPincode] = useState(false);
     const [lastAutoAddress, setLastAutoAddress] = useState("");
+    const [pincodeSuggestion, setPincodeSuggestion] = useState<string | null>(null);
 
     const resolvePincode = async (pin: string) => {
         if (!pin || pin.length !== 6) return;
@@ -365,8 +432,16 @@ export default function ApplyLoanPage() {
                 const locationStr = Array.from(new Set(locationComponents)).join(", ");
 
                 if (locationStr) {
-                    setFormData(prev => ({ ...prev, address: locationStr }));
-                    setLastAutoAddress(locationStr);
+                    setPincodeSuggestion(locationStr);
+                    // Suggest, don't overwrite: only set if user hasn't typed an address or it was previous auto address
+                    setFormData(prev => {
+                        if (!prev.address.trim() || prev.address === lastAutoAddress) {
+                            setLastAutoAddress(locationStr);
+                            return { ...prev, address: locationStr };
+                        }
+                        // User already typed an address: KEEP their typed address
+                        return prev;
+                    });
                 }
             }
         } catch (e: any) {
@@ -380,10 +455,28 @@ export default function ApplyLoanPage() {
 
     const validateStep2 = (): boolean => {
         const errors: Record<string, string> = {};
-        if (!formData.firstName.trim()) errors.firstName = "First name is required";
-        if (!formData.lastName.trim()) errors.lastName = "Last name is required";
-        if (!formData.email.trim()) errors.email = "Email is required";
-        else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) errors.email = "Please enter a valid email";
+        const cleanFirst = formData.firstName.trim();
+        if (!cleanFirst) {
+            errors.firstName = "First name is required";
+        } else if (cleanFirst.length < 2) {
+            errors.firstName = "First name must be at least 2 characters";
+        } else if (!/^[A-Za-z\s.-]+$/.test(cleanFirst)) {
+            errors.firstName = "First name must only contain letters, spaces, dots, or hyphens";
+        }
+
+        const cleanLast = formData.lastName.trim();
+        if (!cleanLast) {
+            errors.lastName = "Last name is required";
+        } else if (!/^[A-Za-z\s.-]+$/.test(cleanLast)) {
+            errors.lastName = "Last name must only contain letters, spaces, dots, or hyphens";
+        }
+
+        if (!formData.email.trim()) {
+            errors.email = "Email is required";
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+            errors.email = "Please enter a valid email";
+        }
+
         const appPhone = formData.phone.trim().replace(/^\+91\s*/, "").replace(/\D/g, "");
         if (!appPhone) {
             errors.phone = "Phone number is required";
@@ -426,6 +519,10 @@ export default function ApplyLoanPage() {
             const coName = formData.coApplicantName.trim();
             if (!coName) {
                 errors.coApplicantName = "Co-applicant full name is required";
+            } else if (coName.length < 2) {
+                errors.coApplicantName = "Co-applicant name must be at least 2 characters";
+            } else if (!/^[A-Za-z\s.-]+$/.test(coName)) {
+                errors.coApplicantName = "Co-applicant name must only contain letters, spaces, dots, or hyphens";
             }
 
             const coPhone = formData.coApplicantPhone.trim();
@@ -447,13 +544,27 @@ export default function ApplyLoanPage() {
             } else if (!/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(coEmail)) {
                 errors.coApplicantEmail = "Please enter a valid email address (e.g., name@gmail.com)";
             }
+
+            const cleanIncome = formData.income.replace(/,/g, "");
+            const parsedIncome = cleanIncome ? Number(cleanIncome) : 0;
+            if (!cleanIncome || parsedIncome <= 0) {
+                errors.income = "Please enter co-applicant annual income";
+            } else if (parsedIncome < 120000) {
+                errors.income = "Co-applicant annual income must be at least ₹1,20,000 (₹1.2 Lakhs/year)";
+            } else {
+                const requestedAmount = Number(formData.amount.replace(/,/g, "")) || 0;
+                if (requestedAmount >= 2000000 && parsedIncome < 150000) {
+                    errors.income = `For a ₹${Math.round(requestedAmount / 100000)} Lakh loan, co-applicant annual income must be at least ₹1.5 Lakhs`;
+                }
+            }
         }
-        const cleanIncome = formData.income.replace(/,/g, "");
-        if (formData.coApplicant && (!cleanIncome || Number(cleanIncome) <= 0)) {
-            errors.income = "Please enter co-applicant annual income";
-        }
+
         setStepErrors(errors);
-        return Object.keys(errors).length === 0;
+        if (Object.keys(errors).length > 0) {
+            scrollToFirstError(errors);
+            return false;
+        }
+        return true;
     };
 
     const next = async () => {
@@ -556,6 +667,7 @@ export default function ApplyLoanPage() {
 
             // Clear saved data on success
             sessionStorage.removeItem("pending_loan_application");
+            localStorage.removeItem("loan_application_draft");
             setSubmitted(true);
         } catch (e: unknown) {
             setError(e instanceof Error ? e.message : "Failed to submit");
@@ -898,7 +1010,12 @@ export default function ApplyLoanPage() {
                                         )}
                                     </div>
 
-                                    <div className="grid grid-cols-1 gap-8">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                        <SelectField name="bank" id="apply-bank" label="Preferred Lending Partner" icon="account_balance" value={formData.bank} onChange={(v) => update("bank", v)}
+                                            options={[
+                                                { value: "", label: "Any Bank / Best Available Offer" },
+                                                ...banks.map((b) => ({ value: b.id, label: `${b.name} (${b.rate})` })),
+                                            ]} error={stepErrors.bank} />
                                         <SelectField name="admissionStatus" id="apply-admissionStatus" label="Admission Status" icon="verified" value={formData.admissionStatus} onChange={(v) => update("admissionStatus", v)}
                                             options={[
                                                 { value: "confirmed", label: "Confirmed Admission" },
@@ -940,8 +1057,8 @@ export default function ApplyLoanPage() {
                                     </div>
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                        <InputField name="firstName" id="apply-firstName" autoComplete="given-name" label="Given Name" icon="person" value={formData.firstName} onChange={(v) => update("firstName", v.replace(/[^A-Za-z]/g, "").slice(0, 30))} placeholder="Rahul" error={stepErrors.firstName} required />
-                                        <InputField name="lastName" id="apply-lastName" autoComplete="family-name" label="Surname" icon="person" value={formData.lastName} onChange={(v) => update("lastName", v.replace(/[^A-Za-z]/g, "").slice(0, 30))} placeholder="Sharma" error={stepErrors.lastName} required />
+                                        <InputField name="firstName" id="apply-firstName" autoComplete="given-name" label="Given Name" icon="person" value={formData.firstName} onChange={(v) => update("firstName", v.replace(/[^A-Za-z\s.-]/g, "").slice(0, 50))} placeholder="Rahul" error={stepErrors.firstName} required />
+                                        <InputField name="lastName" id="apply-lastName" autoComplete="family-name" label="Surname" icon="person" value={formData.lastName} onChange={(v) => update("lastName", v.replace(/[^A-Za-z\s.-]/g, "").slice(0, 50))} placeholder="Sharma" error={stepErrors.lastName} required />
                                     </div>
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -1056,6 +1173,27 @@ export default function ApplyLoanPage() {
 
                                     <div className="grid grid-cols-1 gap-8">
                                         <InputField name="address" id="apply-address" autoComplete="street-address" label="Residential Address" icon="location_on" value={formData.address} onChange={(v) => update("address", v)} placeholder="e.g. Flat No, Street, Locality, City, State" error={stepErrors.address} required />
+                                        {pincodeSuggestion && formData.address !== pincodeSuggestion && (
+                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-purple-50/80 border border-purple-200/80 rounded-2xl text-xs -mt-4 animate-fade-in">
+                                                <span className="text-gray-700 flex items-center gap-2 font-medium">
+                                                    <span className="material-symbols-outlined text-[#6605c7] text-base">pin_drop</span>
+                                                    <span>Suggested from Pincode: <strong className="text-gray-900 font-bold">{pincodeSuggestion}</strong></span>
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const combined = formData.address.trim()
+                                                            ? `${formData.address.trim()}, ${pincodeSuggestion}`
+                                                            : pincodeSuggestion;
+                                                        update("address", combined);
+                                                        setLastAutoAddress(pincodeSuggestion);
+                                                    }}
+                                                    className="px-3.5 py-1.5 bg-white border border-purple-200 text-[#6605c7] font-bold rounded-xl hover:bg-purple-100 transition-all text-[11px] shadow-xs cursor-pointer self-start sm:self-auto"
+                                                >
+                                                    Append to Address
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 
@@ -1074,7 +1212,7 @@ export default function ApplyLoanPage() {
                                             label="Co-Applicant Full Name"
                                             icon="person"
                                             value={formData.coApplicantName}
-                                            onChange={(v) => update("coApplicantName", v.replace(/[^A-Za-z\s]/g, "").slice(0, 50))}
+                                            onChange={(v) => update("coApplicantName", v.replace(/[^A-Za-z\s.-]/g, "").slice(0, 50))}
                                             placeholder="e.g. Ramesh Sharma"
                                             error={stepErrors.coApplicantName}
                                             required
@@ -1192,6 +1330,7 @@ export default function ApplyLoanPage() {
                                         </h3>
                                         <div className="bg-white/70 rounded-[2rem] p-8 border border-gray-100 shadow-sm space-y-4">
                                             {[
+                                                { label: "Preferred Bank", value: banks.find(b => b.id === formData.bank)?.name || (formData.bank ? formData.bank : "Any Bank (Best Offer)") },
                                                 { label: "Field of Study", value: formData.loanType },
                                                 { label: "Required Amount", value: formData.amount ? `₹${Number(formData.amount.replace(/,/g, "")).toLocaleString("en-IN")}` : "" },
                                                 { label: "Destination", value: formData.country === "Other" ? formData.otherCountry : formData.country },
@@ -1267,6 +1406,33 @@ export default function ApplyLoanPage() {
                                         </div>
                                     </div>
                                 )}
+                            </div>
+                        )}
+
+                        {/* Validation Error Summary */}
+                        {step < 3 && Object.keys(stepErrors).length > 0 && (
+                            <div id="apply-step-errors-summary" className="p-4 bg-rose-50 border border-rose-200 rounded-2xl animate-fade-in text-left mt-8 relative z-10 shadow-xs">
+                                <div className="flex items-center gap-2 text-rose-700 font-bold text-xs uppercase tracking-wider mb-2">
+                                    <span className="material-symbols-outlined text-base text-rose-600">error</span>
+                                    <span>Please correct the following fields ({Object.keys(stepErrors).length})</span>
+                                </div>
+                                <ul className="list-disc list-inside space-y-1 text-xs text-rose-600 font-medium">
+                                    {Object.entries(stepErrors).map(([key, msg]) => (
+                                        <li key={key}>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const el = document.getElementById(`apply-${key}`) || document.querySelector(`[name="${key}"]`);
+                                                    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+                                                    (el as HTMLElement)?.focus?.();
+                                                }}
+                                                className="hover:underline text-left font-semibold cursor-pointer"
+                                            >
+                                                {msg}
+                                            </button>
+                                        </li>
+                                    ))}
+                                </ul>
                             </div>
                         )}
 

@@ -22,7 +22,7 @@ interface Props {
   }>;
 }
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://www.vidyaloans.in";
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://vidyaloans.in").replace(/\/$/, "");
 
 async function fetchBlogBySlug(slug: string): Promise<BlogPost | null> {
   const backendUrl = process.env.BACKEND_URL || "http://127.0.0.1:5000";

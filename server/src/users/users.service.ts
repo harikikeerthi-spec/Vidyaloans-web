@@ -1382,6 +1382,12 @@ export class UsersService implements OnModuleInit {
     if (targetUser?.email) this.clearCache(targetUser.email);
     if (updatedUser?.email) this.clearCache(updatedUser.email);
     this.clearCache();
+
+    if (updatedUser) {
+      delete updatedUser.password;
+      delete updatedUser.refreshToken;
+    }
+
     return {
       ...updatedUser,
       family: familyObj,

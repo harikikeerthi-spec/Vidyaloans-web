@@ -165,7 +165,7 @@ export class BlogService {
   }) {
     if (!this.emailService) return;
 
-    const adminEmail = process.env.ADMIN_EMAIL || 'support@vidyaloans.com';
+    const adminEmail = process.env.ADMIN_EMAIL || 'support@vidyaloans.in';
     const adminHtml = `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
         <div style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); padding: 24px; text-align: center; color: #ffffff;">

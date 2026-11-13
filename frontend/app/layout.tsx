@@ -11,7 +11,7 @@ import ReferralTracker from "@/components/ReferralTracker";
 import CookieConsentBanner from "@/components/CookieConsentBanner";
 import MobileAppDownloadBanner from "@/components/MobileAppDownloadBanner";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://www.vidyaloans.in";
+const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "https://vidyaloans.in").replace(/\/$/, "");
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),

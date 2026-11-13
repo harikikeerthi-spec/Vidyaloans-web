@@ -14,6 +14,7 @@ import {
     UploadedFile,
     BadRequestException,
     NotFoundException,
+    ForbiddenException,
     Header,
     HttpStatus,
 } from '@nestjs/common';
@@ -646,7 +647,7 @@ export class ApplicationController {
         // Verify ownership (unless admin/staff/bank/support)
         const allowedRoles = ['admin', 'super_admin', 'staff', 'support', 'bank', 'partner_bank'];
         if (!allowedRoles.includes(req.user.role) && application.userId !== req.user.id) {
-            throw new BadRequestException('Unauthorized to view this application');
+            throw new ForbiddenException("Access denied: You do not have permission to view another user's application");
         }
 
         // Fetch disbursements
@@ -704,7 +705,7 @@ export class ApplicationController {
         // Verify ownership (unless admin/staff/bank/support)
         const allowedRoles = ['admin', 'super_admin', 'staff', 'support', 'bank', 'partner_bank'];
         if (!allowedRoles.includes(req.user.role) && application.userId !== req.user.id) {
-            throw new BadRequestException('Unauthorized to view this application');
+            throw new ForbiddenException("Access denied: You do not have permission to view another user's application");
         }
 
         // Trigger staff review start email if viewed by staff/admin for the first time while status is 'submitted'

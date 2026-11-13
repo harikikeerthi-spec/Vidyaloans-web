@@ -43,7 +43,7 @@ export default function ReferralClientPage({ initialData, userEmail }: ReferralC
 
     const referralLink = typeof window !== "undefined" 
         ? `${window.location.origin}/apply-loan?ref=${referralCode}`
-        : `https://www.vidyaloans.in/apply-loan?ref=${referralCode}`;
+        : `https://vidyaloans.in/apply-loan?ref=${referralCode}`;
 
     // Polling logic: fetch every 45s
     useEffect(() => {

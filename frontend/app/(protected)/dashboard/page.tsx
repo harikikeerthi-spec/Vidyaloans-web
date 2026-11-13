@@ -710,7 +710,7 @@ export default function DashboardPage() {
             return {
                 isAssigned: true,
                 name: displayName,
-                email: staffEmail || "support@vidyaloans.com",
+                email: staffEmail || "support@vidyaloans.in",
                 phone: staffPhone || "",
                 role: staffRole,
                 initials: displayName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
@@ -722,7 +722,7 @@ export default function DashboardPage() {
             return {
                 isAssigned: true,
                 name,
-                email: app.assignedTo.email || "support@vidyaloans.com",
+                email: app.assignedTo.email || "support@vidyaloans.in",
                 phone: app.assignedTo.phone || app.assignedTo.phoneNumber || "",
                 role: app.assignedTo.role || "Senior Loan Officer",
                 initials: name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
@@ -733,7 +733,7 @@ export default function DashboardPage() {
             const staffIdStr = String(app.assignedStaffId);
             const isEmail = staffIdStr.includes('@');
             const cleanName = app?.assignedStaffName || (isEmail ? staffIdStr.split('@')[0].replace(/[\._]/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()) : "Education Loan Officer");
-            const cleanEmail = app?.assignedStaffEmail || (isEmail ? staffIdStr : "support@vidyaloans.com");
+            const cleanEmail = app?.assignedStaffEmail || (isEmail ? staffIdStr : "support@vidyaloans.in");
             return {
                 isAssigned: true,
                 name: cleanName,
@@ -747,7 +747,7 @@ export default function DashboardPage() {
         return {
             isAssigned: false,
             name: "VidyaLoans Support Team",
-            email: "support@vidyaloans.com",
+            email: "support@vidyaloans.in",
             phone: "",
             role: "Loan Processing Desk",
             initials: "VL"

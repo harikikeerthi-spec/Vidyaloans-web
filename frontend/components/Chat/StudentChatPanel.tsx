@@ -75,7 +75,9 @@ export default function StudentChatPanel({ onClose }: StudentChatPanelProps) {
                 setConversationId(convId);
                 setCustomerPhone(phone);
             } catch (e: any) {
-                setError("Could not connect to support. Please try again.");
+                console.warn("[StudentChatPanel] Connect error:", e?.message || e);
+                setError("Could not connect to live chat. You can still reach us via WhatsApp or submit a ticket.");
+            } finally {
                 setConnecting(false);
             }
         };

@@ -27,7 +27,7 @@ interface LoginResponse {
 function LoginContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const { login, isAuthenticated, isLoading } = useAuth();
+    const { login, isAuthenticated, isLoading, user } = useAuth();
 
     const [email, setEmail] = useState("");
     const [emailError, setEmailError] = useState("");
@@ -64,9 +64,35 @@ function LoginContent() {
     // Already logged in — redirect without a page reload
     useEffect(() => {
         if (isLoading || !isAuthenticated || isLoginInitiated.current) return;
+        const isStudent =
+            user &&
+            user.role !== "admin" &&
+            user.role !== "super_admin" &&
+            user.role !== "staff" &&
+            user.role !== "staff_admin" &&
+            user.role !== "bank" &&
+            user.role !== "partner_bank" &&
+            user.role !== "agent" &&
+            user.role !== "partner_agent" &&
+            user.role !== "it" &&
+            user.role !== "analyst" &&
+            user.role !== "marketing";
+
+        const hasAllDetails = Boolean(
+            user?.firstName?.trim() &&
+            user?.lastName?.trim() &&
+            user?.phoneNumber?.trim() &&
+            user?.dateOfBirth?.trim()
+        );
+
+        if (isStudent && !hasAllDetails) {
+            router.replace("/user-details");
+            return;
+        }
+
         const redirectTo = searchParams.get("redirect");
         router.replace(redirectTo ? decodeURIComponent(redirectTo) : "/");
-    }, [isAuthenticated, isLoading, router, searchParams]);
+    }, [isAuthenticated, isLoading, user, router, searchParams]);
 
     // Capture referral code from URL on mount
     useEffect(() => {

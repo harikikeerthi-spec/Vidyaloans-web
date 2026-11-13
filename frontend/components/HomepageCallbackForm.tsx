@@ -2,9 +2,23 @@
 
 import React, { useState } from "react";
 import { universityApi } from "@/lib/api";
+import { isPhoneValid } from "@/lib/validation";
 
 const INTAKE_OPTIONS = (() => {
-  const cy = new Date().getFullYear();
+  const now = new Date();
+  const cy = now.getFullYear();
+  const currentMonth = now.getMonth(); // 0 = Jan, 10 = Nov
+  // In late year (July or later), current year's Fall is closed/ongoing; offer upcoming intakes starting next Spring
+  const startYear = currentMonth >= 6 ? cy + 1 : cy;
+  if (currentMonth >= 6) {
+    return [
+      `Spring ${startYear}`,
+      `Fall ${startYear}`,
+      `Spring ${startYear + 1}`,
+      `Fall ${startYear + 1}`,
+      "Immediate / Ongoing",
+    ];
+  }
   return [
     `Fall ${cy}`,
     `Spring ${cy + 1}`,
@@ -36,8 +50,23 @@ export default function HomepageCallbackForm() {
       return;
     }
 
-    if (cleanPhone.length < 10) {
+    if (!cleanPhone) {
+      setError("Please enter your mobile number");
+      return;
+    }
+
+    if (cleanPhone.length !== 10) {
       setError("Please enter a valid 10-digit mobile number");
+      return;
+    }
+
+    if (cleanPhone[0] < '6') {
+      setError("Mobile number must start with 6, 7, 8, or 9");
+      return;
+    }
+
+    if (!isPhoneValid(cleanPhone)) {
+      setError("This mobile number is not realistic");
       return;
     }
 

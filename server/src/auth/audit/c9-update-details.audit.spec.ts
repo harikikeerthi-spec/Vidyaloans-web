@@ -95,4 +95,30 @@ describe('Report C9 Audit Verification: update-details security', () => {
     expect(result.message).toContain('Email address cannot be changed directly via this endpoint');
     expect(usersService.updateUserDetails).not.toHaveBeenCalled();
   });
+
+  it('4. Section 9: Never returns password or refreshToken in response', async () => {
+    usersService.updateUserDetails.mockResolvedValueOnce({
+      success: true,
+      id: 'student-A-id',
+      email: 'studentA@example.com',
+      password: '$2b$10$hashedpasswordsecret',
+      refreshToken: 'secret-refresh-token-xyz',
+    });
+
+    const mockReq = {
+      user: {
+        id: 'student-A-id',
+        email: 'studentA@example.com',
+        role: 'user',
+      },
+    };
+
+    const result: any = await authController.updateUserDetails(mockReq, {
+      firstName: 'UpdatedName',
+    });
+
+    expect(result.password).toBeUndefined();
+    expect(result.refreshToken).toBeUndefined();
+    expect(result.id).toBe('student-A-id');
+  });
 });

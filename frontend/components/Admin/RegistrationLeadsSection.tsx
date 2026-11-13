@@ -33,7 +33,7 @@ import {
   Square,
   User,
 } from "lucide-react";
-import { staffProfileApi, adminApi } from "@/lib/api";
+import { staffProfileApi, adminApi, universityInquiryApi } from "@/lib/api";
 
 export interface LeadInquiry {
   id: string;
@@ -95,8 +95,7 @@ export default function RegistrationLeadsSection() {
   const fetchLeads = async (isManual = false) => {
     if (isManual) setRefreshing(true);
     try {
-      const res = await fetch("/api/university-inquiry");
-      const json = await res.json();
+      const json: any = await universityInquiryApi.getInquiries();
       if (json && json.success && Array.isArray(json.data)) {
         setLeads(json.data);
       }
@@ -147,12 +146,7 @@ export default function RegistrationLeadsSection() {
   const handleUpdateStatus = async (id: string, newStatus: string) => {
     setActionLoadingId(id);
     try {
-      const res = await fetch(`/api/university-inquiry/${id}/status`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
-      });
-      const json = await res.json();
+      const json: any = await universityInquiryApi.updateInquiryStatus(id, newStatus);
       if (json && json.success) {
         setLeads((prev) =>
           prev.map((item) => (item.id === id ? { ...item, status: newStatus } : item))
@@ -182,12 +176,7 @@ export default function RegistrationLeadsSection() {
         staffEmail: isUnassign ? null : selectedStaff?.email || null,
       };
 
-      const res = await fetch(`/api/university-inquiry/${leadId}/assign`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const json = await res.json();
+      const json: any = await universityInquiryApi.assignInquiry(leadId, payload);
 
       if (json && json.success) {
         const assignedAt = isUnassign ? null : new Date().toISOString();
@@ -249,18 +238,12 @@ export default function RegistrationLeadsSection() {
       const selectedStaff = staffMembers.find((s) => s.id === bulkStaffId);
 
       const payload = {
-        leadIds: selectedLeadIds,
         staffId: isUnassign ? null : bulkStaffId,
         staffName: isUnassign ? null : selectedStaff?.name || null,
         staffEmail: isUnassign ? null : selectedStaff?.email || null,
       };
 
-      const res = await fetch("/api/university-inquiry/bulk-assign", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const json = await res.json();
+      const json: any = await universityInquiryApi.bulkAssignInquiries(selectedLeadIds, payload);
 
       if (json && json.success) {
         const assignedAt = isUnassign ? null : new Date().toISOString();
@@ -313,10 +296,7 @@ export default function RegistrationLeadsSection() {
     if (!window.confirm("Are you sure you want to delete this lead?")) return;
     setActionLoadingId(id);
     try {
-      const res = await fetch(`/api/university-inquiry/${id}`, {
-        method: "DELETE",
-      });
-      const json = await res.json();
+      const json: any = await universityInquiryApi.deleteInquiry(id);
       if (json && json.success) {
         setLeads((prev) => prev.filter((item) => item.id !== id));
         setSelectedLeadIds((prev) => prev.filter((item) => item !== id));

@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Param, Delete, Req, Res, Inject, forwardRef, UseGuards, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, Delete, Req, Res, Inject, forwardRef, UseGuards, UnauthorizedException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
@@ -495,6 +495,11 @@ export class AuthController {
       }
     }
 
+    if (result && typeof result === 'object') {
+      delete (result as any).password;
+      delete (result as any).refreshToken;
+    }
+
     return result;
   }
 
@@ -626,8 +631,16 @@ export class AuthController {
     }
 
     // Resolve or auto-provision student user for lead capture
+    if (req?.user && !isStaffOrAdmin && body.userId && body.userId !== req.user.id) {
+      throw new ForbiddenException("Access denied: You cannot create applications for another student.");
+    }
+
     let targetUser: any = null;
-    if (body.userId) {
+    if (body.userId && isStaffOrAdmin) {
+      targetUser = await this.usersService.findById(body.userId);
+    } else if (req?.user?.id) {
+      targetUser = await this.usersService.findById(req.user.id);
+    } else if (body.userId) {
       targetUser = await this.usersService.findById(body.userId);
     }
     if (!targetUser && cleanEmail) {
@@ -985,6 +998,74 @@ export class AuthController {
         message: 'Failed to delete document',
       };
     }
+  }
+
+  /**
+   * Delete logged-in user account (In-app self-service account deletion)
+   * DELETE /auth/delete-account
+   */
+  @Delete('delete-account')
+  @UseGuards(UserGuard)
+  async deleteAccount(@Req() req: any, @Res({ passthrough: true }) res: any) {
+    const user = req.user;
+    if (!user || (!user.id && !user.sub)) {
+      throw new UnauthorizedException('Authentication required to delete account');
+    }
+
+    const userId = user.id || user.sub;
+
+    try {
+      await this.usersService.deleteUser(userId);
+
+      // Clear cookies if present
+      if (res && res.clearCookie) {
+        res.clearCookie('accessToken');
+        res.clearCookie('refreshToken');
+        res.clearCookie('token');
+      }
+
+      return {
+        success: true,
+        message: 'Account and associated personal data deleted successfully',
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: 'Failed to delete account',
+        error: error?.message,
+      };
+    }
+  }
+
+  /**
+   * Public Account Deletion Request (Play Store Data Safety & DPDP Act compliance)
+   * POST /auth/request-account-deletion
+   */
+  @Post('request-account-deletion')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  async requestAccountDeletion(
+    @Body() body: { email: string; phone?: string; reason?: string; details?: string }
+  ) {
+    if (!body || !body.email || typeof body.email !== 'string' || !body.email.includes('@')) {
+      throw new BadRequestException('A valid registered email address is required');
+    }
+
+    const cleanEmail = body.email.trim().toLowerCase();
+
+    try {
+      const user = await this.usersService.findOne(cleanEmail);
+      if (user && user.id) {
+        await this.usersService.deleteUser(user.id);
+      }
+    } catch (e) {
+      // Keep response consistent whether email exists or not to prevent user enumeration
+    }
+
+    return {
+      success: true,
+      message:
+        'Account deletion request received. If an account is registered with this email, your credentials, personal profile, and non-statutory data will be deleted within 30 days pursuant to the DPDP Act 2023.',
+    };
   }
 }
 

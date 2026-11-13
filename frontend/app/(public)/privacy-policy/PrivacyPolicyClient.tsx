@@ -91,8 +91,8 @@ export default function PrivacyPolicyPage() {
                             <div className="mt-8 pt-6 border-t border-black/5">
                                 <p className="text-[11px] text-gray-500 leading-relaxed font-medium">
                                     Have immediate data privacy concerns? Email us at{" "}
-                                    <a href="mailto:privacy@vidyaloan.in" className="text-[#6605c7] hover:underline font-bold">
-                                        privacy@vidyaloan.in
+                                    <a href="mailto:privacy@vidyaloans.in" className="text-[#6605c7] hover:underline font-bold">
+                                        privacy@vidyaloans.in
                                     </a>
                                 </p>
                             </div>
@@ -214,7 +214,7 @@ export default function PrivacyPolicyPage() {
                                 </p>
                                 <div className="bg-white/60 backdrop-blur-xl border border-white/80 rounded-2xl p-6 mt-4 space-y-2.5 shadow-sm">
                                     <p className="text-[13px] text-gray-500 font-medium">
-                                        <span className="text-gray-950 font-bold">Email:</span> privacy@vidyaloan.in
+                                        <span className="text-gray-950 font-bold">Email:</span> privacy@vidyaloans.in
                                     </p>
                                     <p className="text-[13px] text-gray-500 font-medium">
                                         <span className="text-gray-950 font-bold">Address:</span> Nuzvid

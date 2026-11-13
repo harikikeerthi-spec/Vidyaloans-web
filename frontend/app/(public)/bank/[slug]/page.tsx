@@ -415,7 +415,6 @@ export default async function BankPage({ params }: Props) {
                                         { feature: "Dedicated Loan Expert", withUs: "Yes", without: "No" },
                                         { feature: "Rate Negotiation", withUs: "Yes", without: "No" },
                                         { feature: "Application Tracking", withUs: "Real-time", without: "Manual follow-up" },
-                                        { feature: "Service Cost", withUs: "100% Free", without: "N/A" }
                                     ].map((row, i) => (
                                         <tr key={i} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
                                             <td className="p-6 font-medium text-gray-700">{row.feature}</td>

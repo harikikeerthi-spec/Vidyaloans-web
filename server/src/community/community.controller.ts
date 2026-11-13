@@ -358,6 +358,16 @@ export class CommunityController {
     // ==================== ADMIN ENDPOINTS ====================
 
     /**
+     * Get all mentors for Admin (protected)
+     * GET /community/admin/mentors
+     */
+    @Get('admin/mentors')
+    @UseGuards(AdminGuard)
+    async getAdminMentors() {
+        return this.communityService.getAdminMentors();
+    }
+
+    /**
      * Create a new mentor (Admin)
      * POST /community/admin/mentors
      */

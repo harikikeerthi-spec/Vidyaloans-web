@@ -17,6 +17,7 @@ export class SiteSettingsController {
   }
 
   @Get()
+  @UseGuards(AdminGuard)
   async getSettings() {
     const settings = await this.siteSettingsService.getSettings();
     return {
@@ -48,6 +49,7 @@ export class SiteSettingsController {
   }
 
   @Post('check-email')
+  @UseGuards(AdminGuard)
   async checkDisposableEmail(@Body('email') email: string, @Query('email') emailQuery?: string) {
     const targetEmail = email || emailQuery || '';
     const result = await this.siteSettingsService.checkDisposableEmail(targetEmail);

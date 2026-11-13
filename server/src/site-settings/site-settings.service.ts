@@ -16,22 +16,22 @@ const DEFAULT_SETTINGS = {
   tagline: 'Overseas Education Financing & Study Abroad Loan Portal',
   metaTitle: 'VidyaLoans - Instant Education Loans for Overseas Studies',
   metaDescription: 'Compare and apply for top education loans with lowest interest rates, quick approval, and zero hidden charges.',
-  supportEmail: 'support@vidyaloans.com',
-  contactEmail: 'contact@vidyaloans.com',
-  phone: '+91 1800-123-4567',
-  tollFree: '1800-123-4567',
-  address: 'VidyaLoans Financial Tower, Sector 44, Gurgaon, Haryana 122003, India',
+  supportEmail: 'support@vidyaloans.in',
+  contactEmail: 'contact@vidyaloans.in',
+  phone: '+91 81437 97779',
+  tollFree: '+91 81437 97779',
+  address: 'Nuzvid, Krishna District, Andhra Pradesh',
   currency: 'INR',
   timezone: 'Asia/Kolkata',
   copyrightText: '© 2026 VidyaLoans Inc. All rights reserved.',
 
   // Social Media Links
   facebookUrl: 'https://facebook.com/vidyaloans',
-  instagramUrl: 'https://instagram.com/vidyaloans',
-  twitterUrl: 'https://x.com/vidyaloans',
+  instagramUrl: 'https://www.instagram.com/vidya_loans/',
+  twitterUrl: 'https://x.com/VidyaLoans07',
   linkedinUrl: 'https://linkedin.com/company/vidyaloans',
   youtubeUrl: 'https://youtube.com/@vidyaloans',
-  whatsappNumber: '+919876543210',
+  whatsappNumber: '+918143797779',
   telegramUrl: 'https://t.me/vidyaloans',
 
   // Branding Assets
@@ -47,13 +47,13 @@ const DEFAULT_SETTINGS = {
   // Integrations & Analytics
   googleAnalyticsId: 'G-1Z8RYR9RBW',
   googleTagManagerId: 'GTM-PSHKZ8FK',
-  facebookPixelId: '987654321098765',
-  posthogApiKey: 'phc_vidyaloans_live_key_998877',
-  mixpanelToken: 'mp_token_vidyaloans_production',
-  hotjarSiteId: '3456789',
+  facebookPixelId: '',
+  posthogApiKey: '',
+  mixpanelToken: '',
+  hotjarSiteId: '',
   customHeadScripts: '<!-- Google Tag Manager -->\n<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({\'gtm.start\':new Date().getTime(),event:\'gtm.js\'});})(window,document,\'script\',\'dataLayer\',\'GTM-PSHKZ8FK\');</script>\n<!-- Google tag (gtag.js) -->\n<script async src="https://www.googletagmanager.com/gtag/js?id=G-1Z8RYR9RBW"></script>\n<script>\n  window.dataLayer = window.dataLayer || [];\n  function gtag(){dataLayer.push(arguments);}\n  gtag(\'js\', new Date());\n\n  gtag(\'config\', \'G-1Z8RYR9RBW\');\n</script>',
   customBodyScripts: '<!-- Google Tag Manager (noscript) -->\n<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-PSHKZ8FK" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>',
-  webhookUrl: 'https://api.vidyaloans.com/v1/webhooks/events',
+  webhookUrl: 'https://api.vidyaloans.in/v1/webhooks/events',
 
   // AI Service Settings
   openRouterApiKey: process.env.OPENROUTER_API_KEY || '',
@@ -64,7 +64,7 @@ const DEFAULT_SETTINGS = {
   disposableEmailBlock: true,
   disposableBlockLevel: 'strict', // strict, warning, audit_only
   blockedDomains: (DISPOSABLE_DOMAINS || []).join(', '),
-  allowedDomains: 'gmail.com, yahoo.com, outlook.com, hotmail.com, icloud.com, proton.me, protonmail.com, vidyaloans.com',
+  allowedDomains: 'gmail.com, yahoo.com, outlook.com, hotmail.com, icloud.com, proton.me, protonmail.com, vidyaloans.in',
   disposableApiKey: '',
   disposableProvider: 'builtin', // builtin, kickbox, zerobounce, debounce, hunter
   disposableAction: 'reject', // reject, otp_verify, flag_review
@@ -80,7 +80,7 @@ const DEFAULT_SETTINGS = {
   smtpPassword: process.env.SMTP_PASS || '',
 
   // Mobile App Download Banner
-  enableAppBanner: true,
+  enableAppBanner: false,
   playStoreUrl: 'https://play.google.com/store/apps/details?id=in.vidyaloans.app&hl=en-US&ah=Vx9t8taW0pweH2uHyGVMktR2FLs',
   appStoreUrl: '',
 };
@@ -145,17 +145,80 @@ function filterPrismaSiteSettingFields(data: any): Record<string, any> {
   return filtered;
 }
 
+export function cleanPlaceholderSettings(settings: any) {
+  if (!settings || typeof settings !== 'object') return settings;
+  const cleaned = { ...settings };
+
+  // Phone & TollFree
+  if (!cleaned.phone || cleaned.phone.includes('1800-123-4567') || cleaned.phone.includes('94945 68851')) {
+    cleaned.phone = '+91 81437 97779';
+  }
+  if (!cleaned.tollFree || cleaned.tollFree.includes('1800-123-4567') || cleaned.tollFree.includes('9494568851')) {
+    cleaned.tollFree = '+91 81437 97779';
+  }
+
+  // Emails
+  if (!cleaned.supportEmail || cleaned.supportEmail.includes('@vidyaloans.com')) {
+    cleaned.supportEmail = 'support@vidyaloans.in';
+  }
+  if (!cleaned.contactEmail || cleaned.contactEmail.includes('@vidyaloans.com')) {
+    cleaned.contactEmail = 'contact@vidyaloans.in';
+  }
+  if (cleaned.awsSesSenderEmail && cleaned.awsSesSenderEmail.includes('@vidyaloans.com')) {
+    cleaned.awsSesSenderEmail = 'support@vidyaloans.in';
+  }
+
+  // WhatsApp
+  if (!cleaned.whatsappNumber || cleaned.whatsappNumber.includes('9876543210')) {
+    cleaned.whatsappNumber = '+918143797779';
+  }
+
+  // Address
+  if (!cleaned.address || cleaned.address.includes('Sector 44') || cleaned.address.includes('Gurgaon')) {
+    cleaned.address = 'Nuzvid, Krishna District, Andhra Pradesh';
+  }
+
+  // Social
+  if (!cleaned.instagramUrl || cleaned.instagramUrl === 'https://instagram.com/vidyaloans' || cleaned.instagramUrl === 'https://instagram.com/' || cleaned.instagramUrl === 'https://instagram.com') {
+    cleaned.instagramUrl = 'https://www.instagram.com/vidya_loans/';
+  }
+  if (!cleaned.twitterUrl || cleaned.twitterUrl === 'https://x.com/vidyaloans' || cleaned.twitterUrl === 'https://twitter.com/vidyaloans') {
+    cleaned.twitterUrl = 'https://x.com/VidyaLoans07';
+  }
+
+  // Webhook
+  if (!cleaned.webhookUrl || cleaned.webhookUrl.includes('api.vidyaloans.com')) {
+    cleaned.webhookUrl = 'https://api.vidyaloans.in/v1/webhooks/events';
+  }
+
+  // Analytics placeholders
+  if (cleaned.posthogApiKey === 'phc_vidyaloans_live_key_998877') {
+    cleaned.posthogApiKey = '';
+  }
+  if (cleaned.mixpanelToken === 'mp_token_vidyaloans_production') {
+    cleaned.mixpanelToken = '';
+  }
+  if (cleaned.hotjarSiteId === '3456789') {
+    cleaned.hotjarSiteId = '';
+  }
+
+  // App banner suspended
+  cleaned.enableAppBanner = false;
+
+  return cleaned;
+}
+
 const PERSISTENT_SETTINGS_PATH = path.join(process.cwd(), 'scratch', 'site_settings.json');
 
 // In-memory fallback
-let memorySettingsStore: any = { ...DEFAULT_SETTINGS };
+let memorySettingsStore: any = cleanPlaceholderSettings({ ...DEFAULT_SETTINGS });
 
 // Try loading persisted file on startup
 try {
   if (fs.existsSync(PERSISTENT_SETTINGS_PATH)) {
     const raw = fs.readFileSync(PERSISTENT_SETTINGS_PATH, 'utf8');
     const parsed = JSON.parse(raw);
-    memorySettingsStore = { ...DEFAULT_SETTINGS, ...parsed };
+    memorySettingsStore = cleanPlaceholderSettings({ ...DEFAULT_SETTINGS, ...parsed });
   }
 } catch (e) {
   // ignore
@@ -189,7 +252,7 @@ export class SiteSettingsService {
         );
 
         if (settings) {
-          memorySettingsStore = {
+          memorySettingsStore = cleanPlaceholderSettings({
             ...DEFAULT_SETTINGS,
             ...settings,
             openRouterApiKey: settings.openRouterApiKey || process.env.OPENROUTER_API_KEY || '',
@@ -201,7 +264,7 @@ export class SiteSettingsService {
             smtpPort: Number(settings.smtpPort) || Number(process.env.SMTP_PORT) || 587,
             smtpUser: settings.smtpUser || process.env.SMTP_USER || '',
             smtpPassword: settings.smtpPassword || process.env.SMTP_PASS || '',
-          };
+          });
           this.persistToFile(memorySettingsStore);
           return memorySettingsStore;
         }
@@ -215,7 +278,7 @@ export class SiteSettingsService {
             },
           }),
         );
-        memorySettingsStore = { ...DEFAULT_SETTINGS, ...created };
+        memorySettingsStore = cleanPlaceholderSettings({ ...DEFAULT_SETTINGS, ...created });
         this.persistToFile(memorySettingsStore);
         return memorySettingsStore;
       }
@@ -223,12 +286,12 @@ export class SiteSettingsService {
       this.logger.warn(`Database query for siteSetting failed, using fallback: ${e.message}`);
     }
 
-    return memorySettingsStore;
+    return cleanPlaceholderSettings(memorySettingsStore);
   }
 
   async getPublicSettings() {
     const settings = await this.getSettings();
-    // Strip confidential server secrets from public API responses
+    // Strip confidential server secrets and internal integration configs from public API responses
     const {
       razorpayKeySecret,
       stripeSecretKey,
@@ -236,9 +299,17 @@ export class SiteSettingsService {
       groqApiKey,
       awsSesSecretKey,
       awsSesAccessKey,
+      awsSesRegion,
+      awsSesSenderEmail,
       smtpPassword,
+      smtpUser,
+      smtpHost,
+      smtpPort,
       amberApiKey,
       amberApiSecret,
+      disposableApiKey,
+      posthogApiKey,
+      webhookUrl,
       ...publicSettings
     } = settings;
 
@@ -246,9 +317,10 @@ export class SiteSettingsService {
   }
 
   async updateSettings(dto: UpdateSiteSettingsDto) {
+    const cleanDto = cleanPlaceholderSettings(dto);
     try {
       if ((this.prisma as any).siteSetting) {
-        const dbUpdateData = filterPrismaSiteSettingFields(dto);
+        const dbUpdateData = filterPrismaSiteSettingFields(cleanDto);
         const dbCreateData = {
           id: 'default',
           ...filterPrismaSiteSettingFields(DEFAULT_SETTINGS),
@@ -260,12 +332,12 @@ export class SiteSettingsService {
           update: dbUpdateData,
           create: dbCreateData,
         });
-        memorySettingsStore = {
+        memorySettingsStore = cleanPlaceholderSettings({
           ...memorySettingsStore,
-          ...dto,
+          ...cleanDto,
           ...updated,
           updatedAt: new Date(),
-        };
+        });
         this.persistToFile(memorySettingsStore);
         return memorySettingsStore;
       }
@@ -273,11 +345,11 @@ export class SiteSettingsService {
       this.logger.warn(`Database update for siteSetting failed, falling back to memory/file store: ${e.message}`);
     }
 
-    memorySettingsStore = {
+    memorySettingsStore = cleanPlaceholderSettings({
       ...memorySettingsStore,
-      ...dto,
+      ...cleanDto,
       updatedAt: new Date(),
-    };
+    });
     this.persistToFile(memorySettingsStore);
 
     return memorySettingsStore;
@@ -296,11 +368,11 @@ export class SiteSettingsService {
           update: filterPrismaSiteSettingFields(DEFAULT_SETTINGS),
           create: dbData,
         });
-        memorySettingsStore = {
+        memorySettingsStore = cleanPlaceholderSettings({
           ...DEFAULT_SETTINGS,
           ...reset,
           updatedAt: new Date(),
-        };
+        });
         this.persistToFile(memorySettingsStore);
         return memorySettingsStore;
       }
@@ -308,7 +380,7 @@ export class SiteSettingsService {
       this.logger.warn(`Database reset failed, resetting memory store: ${e.message}`);
     }
 
-    memorySettingsStore = { ...DEFAULT_SETTINGS, updatedAt: new Date() };
+    memorySettingsStore = cleanPlaceholderSettings({ ...DEFAULT_SETTINGS });
     this.persistToFile(memorySettingsStore);
     return memorySettingsStore;
   }

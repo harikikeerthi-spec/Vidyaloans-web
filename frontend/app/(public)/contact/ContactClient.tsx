@@ -6,8 +6,8 @@ import { useSiteSettings } from "@/contexts/SiteSettingsContext";
 export default function ContactUsPage() {
     const { settings } = useSiteSettings();
     const siteName = settings?.siteName || "VidyaLoans";
-    const supportEmail = settings?.supportEmail || "support@vidyaloans.com";
-    const phone = settings?.phone || "+91 8143797779";
+    const supportEmail = settings?.supportEmail || "support@vidyaloans.in";
+    const phone = settings?.phone || "+91 81437 97779";
     const address = settings?.address || "Nuzvid, Krishna District, Andhra Pradesh";
 
     const offices = [

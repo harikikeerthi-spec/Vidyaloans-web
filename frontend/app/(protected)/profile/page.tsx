@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from "@/contexts/AuthContext";
 import Navbar from "@/components/Navbar";
@@ -371,6 +372,28 @@ export default function ProfilePage() {
                                         ))}
                                     </div>
                                 )}
+                            </div>
+                        </div>
+
+                        {/* Account & Data Management */}
+                        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                <div className="space-y-1">
+                                    <h3 className="font-bold text-gray-900 text-sm flex items-center gap-2">
+                                        <span className="material-symbols-outlined text-rose-500 text-lg">shield_person</span>
+                                        Account & Data Management
+                                    </h3>
+                                    <p className="text-xs text-gray-500">
+                                        Manage your personal data, data privacy requests, or permanently delete your account
+                                    </p>
+                                </div>
+                                <Link
+                                    href="/delete-account"
+                                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-xl transition-colors border border-rose-200 shadow-sm shrink-0"
+                                >
+                                    <span className="material-symbols-outlined text-sm">delete_forever</span>
+                                    Delete Account
+                                </Link>
                             </div>
                         </div>
                     </div>

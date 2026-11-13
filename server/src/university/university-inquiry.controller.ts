@@ -1,5 +1,6 @@
-import { Controller, Post, Body, Get, Query, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Post, Body, Get, Query, Patch, Param, Delete, UseGuards } from '@nestjs/common';
 import { UniversityInquiryService } from './university-inquiry.service';
+import { StaffGuard } from '../auth/staff.guard';
 
 @Controller('university-inquiry')
 export class UniversityInquiryController {
@@ -20,6 +21,7 @@ export class UniversityInquiryController {
     }
 
     @Get('check')
+    @UseGuards(StaffGuard)
     async check(
         @Query('email') email: string,
         @Query('universityName') universityName: string,
@@ -29,6 +31,7 @@ export class UniversityInquiryController {
     }
 
     @Get()
+    @UseGuards(StaffGuard)
     async getAll(
         @Query('type') type?: string,
         @Query('status') status?: string,
@@ -38,7 +41,14 @@ export class UniversityInquiryController {
         return this.inquiryService.getAllInquiries({ type, status, search, assignedStaffId });
     }
 
+    @Get(':id')
+    @UseGuards(StaffGuard)
+    async getById(@Param('id') id: string) {
+        return this.inquiryService.getInquiryById(id);
+    }
+
     @Post('bulk-assign')
+    @UseGuards(StaffGuard)
     async bulkAssign(
         @Body() body: { leadIds: string[]; staffId?: string | null; staffName?: string | null; staffEmail?: string | null },
     ) {
@@ -46,6 +56,7 @@ export class UniversityInquiryController {
     }
 
     @Patch(':id/assign')
+    @UseGuards(StaffGuard)
     async assignPatch(
         @Param('id') id: string,
         @Body() body: { staffId?: string | null; staffName?: string | null; staffEmail?: string | null },
@@ -54,6 +65,7 @@ export class UniversityInquiryController {
     }
 
     @Post(':id/assign')
+    @UseGuards(StaffGuard)
     async assignPost(
         @Param('id') id: string,
         @Body() body: { staffId?: string | null; staffName?: string | null; staffEmail?: string | null },
@@ -62,6 +74,7 @@ export class UniversityInquiryController {
     }
 
     @Patch(':id/status')
+    @UseGuards(StaffGuard)
     async updateStatus(
         @Param('id') id: string,
         @Body() body: { status: string },
@@ -70,6 +83,7 @@ export class UniversityInquiryController {
     }
 
     @Delete(':id')
+    @UseGuards(StaffGuard)
     async delete(@Param('id') id: string) {
         return this.inquiryService.deleteInquiry(id);
     }

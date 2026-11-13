@@ -330,15 +330,17 @@ export function getToken(): string | null {
 
 function isPublicAuthUrl(url?: string): boolean {
     if (!url) return false;
+    // Protected dashboard and dashboard-data endpoints must NOT be treated as public
+    if (url.includes('/auth/dashboard')) return false;
     return (
         url.includes('/auth/send-otp') ||
+        url.includes('/auth/request-otp') ||
         url.includes('/auth/verify-otp') ||
         url.includes('/auth/firebase') ||
         url.includes('/auth/check-user/') ||
         url.includes('/auth/refresh') ||
         url.includes('/auth/landing-page-submit') ||
-        url.includes('/auth/logout') ||
-        url.includes('/auth/dashboard')
+        url.includes('/auth/logout')
     );
 }
 
@@ -561,22 +563,39 @@ export async function apiFetch<T>(
         }
     }
 
-    if (res.status === 401 && !retried && !isPublicAuthUrl(url)) {
-        const newToken = await tryRefreshAccessToken();
-        if (newToken) {
+    if (res.status === 401 && !retried) {
+        // Special-case /auth/create-application: if stale credentials trigger 401, retry once cleanly as guest without auth header
+        if (url && url.includes('/auth/create-application')) {
+            const cleanHeaders = { ...headersObj };
+            delete cleanHeaders["Authorization"];
+            delete cleanHeaders["authorization"];
             return apiFetch<T>(
                 url,
                 {
                     ...options,
-                    credentials: options.credentials || "include",
-                    headers: {
-                        ...headersObj,
-                        Authorization: `Bearer ${newToken}`,
-                        ...(isFormData ? {} : { "Content-Type": "application/json" }),
-                    },
+                    headers: cleanHeaders,
                 },
                 true
             );
+        }
+
+        if (!isPublicAuthUrl(url)) {
+            const newToken = await tryRefreshAccessToken();
+            if (newToken) {
+                return apiFetch<T>(
+                    url,
+                    {
+                        ...options,
+                        credentials: options.credentials || "include",
+                        headers: {
+                            ...headersObj,
+                            Authorization: `Bearer ${newToken}`,
+                            ...(isFormData ? {} : { "Content-Type": "application/json" }),
+                        },
+                    },
+                    true
+                );
+            }
         }
     }
 
@@ -611,23 +630,23 @@ async function handleResponse<T>(res: Response, url?: string, alreadyRetried = f
             err = typeof body === 'string' ? JSON.parse(body) : body;
         } catch (e) {
             // Check if response is HTML or contains HTML markup to avoid leaking raw HTML into the UI
-            const isHtml = (contentType && contentType.includes("text/html")) || 
-                           (typeof body === 'string' && (body.trim().startsWith('<') || body.toLowerCase().includes('<html')));
-            err = { 
-                message: isHtml 
-                    ? `An unexpected server error occurred (Status ${res.status}). Please try again.` 
-                    : (body || res.statusText) 
+            const isHtml = (contentType && contentType.includes("text/html")) ||
+                (typeof body === 'string' && (body.trim().startsWith('<') || body.toLowerCase().includes('<html')));
+            err = {
+                message: isHtml
+                    ? `An unexpected server error occurred (Status ${res.status}). Please try again.`
+                    : (body || res.statusText)
             };
         }
 
         // Session expired — soft redirect via AuthContext (no full page reload)
         if (res.status === 401 && !isPublicAuthUrl(url) && !alreadyRetried) {
-            if (typeof window !== "undefined" && window.location.pathname.startsWith("/it")) {
+            if (url && url.includes('/auth/create-application')) {
+                // Never redirect or dump form state on create-application
+                console.warn("[create-application 401] Ignored session expiration to protect loan application data");
+            } else if (typeof window !== "undefined" && window.location.pathname.startsWith("/it")) {
                 // Preserve session credentials during blog composition so retries and drafts remain safe
                 console.warn("[IT Portal 401] Session expired. Please re-authenticate or refresh.");
-
-
-
             } else {
                 notifySessionExpired();
             }
@@ -819,6 +838,22 @@ export const authApi = {
         apiFetch(`${API_URL}/auth/landing-page-submit`, {
             method: "POST",
             body: JSON.stringify(data),
+        }),
+
+    requestAccountDeletion: (data: {
+        email: string;
+        phone?: string;
+        reason?: string;
+        details?: string;
+    }) =>
+        apiFetch(HttpApiPaths.auth.requestAccountDeletion(), {
+            method: "POST",
+            body: JSON.stringify(data),
+        }),
+
+    deleteAccount: () =>
+        apiFetch(HttpApiPaths.auth.deleteAccount(), {
+            method: "DELETE",
         }),
 };
 
@@ -1640,7 +1675,7 @@ export const documentApi = {
                         const parsed = JSON.parse(xhr.responseText);
                         if (parsed.message) errorMsg = parsed.message;
                         else if (parsed.error) errorMsg = parsed.error;
-                    } catch {}
+                    } catch { }
                     reject(new Error(errorMsg));
                 }
             });
@@ -1766,6 +1801,8 @@ export const universityApi = {
             method: "DELETE",
         }),
 };
+
+export const universityInquiryApi = universityApi;
 
 // ─── Chat ─────────────────────────────────────────────────────────────
 export const chatApi = {

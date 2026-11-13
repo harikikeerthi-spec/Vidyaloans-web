@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { S3Service } from '../document/s3.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
@@ -217,13 +217,30 @@ export class SupportService {
 
     if (status && status !== 'all') q = q.eq('status', status);
     if (priority && priority !== 'all') q = q.eq('priority', priority);
-    const userRole = (user?.role || '').toLowerCase();
-    const isStudentOnly = userRole === 'user';
+    const userRole = (user?.role || 'user').toLowerCase();
+    const isStaffOrAdmin = [
+      'admin',
+      'super_admin',
+      'superadmin',
+      'staff',
+      'it',
+      'support',
+      'bank',
+      'partner_bank',
+      'analyst',
+      'agent',
+      'partner_agent',
+      'marketing',
+    ].includes(userRole);
+
     if (assignedToId) q = q.eq('assignedToId', assignedToId);
-    if (createdById) {
+
+    // Security: Take the student from the login token; ignore createdById for student role
+    if (!isStaffOrAdmin) {
+      const effectiveStudentId = user?.id || user?.sub;
+      q = q.eq('createdById', effectiveStudentId);
+    } else if (createdById) {
       q = q.eq('createdById', createdById);
-    } else if (isStudentOnly && user) {
-      q = q.eq('createdById', user.id);
     }
 
     const col = sortBy === 'created_at' ? 'createdAt' : sortBy === 'updated_at' ? 'updatedAt' : sortBy;
@@ -273,7 +290,38 @@ export class SupportService {
 
     if (error || !ticket) throw new NotFoundException(`Ticket ${id} not found`);
 
-    const isAdmin = ['admin', 'super_admin', 'staff', 'it', 'support', 'bank'].includes(user.role);
+    const userRole = (user?.role || 'user').toLowerCase();
+    const isStaffOrAdmin = [
+      'admin',
+      'super_admin',
+      'superadmin',
+      'staff',
+      'it',
+      'support',
+      'bank',
+      'partner_bank',
+      'analyst',
+      'agent',
+      'partner_agent',
+      'marketing',
+    ].includes(userRole);
+
+    // Security: Return 403 when a ticket isn't the caller's (matching /api/auth/dashboard-data check)
+    if (!isStaffOrAdmin) {
+      const callerId = user?.id || user?.sub;
+      const callerEmail = (user?.email || '').toLowerCase().trim();
+
+      const isOwner =
+        (callerId && ticket.createdById === callerId) ||
+        (callerId && ticket.studentId === callerId) ||
+        (callerEmail && ticket.createdByEmail && ticket.createdByEmail.toLowerCase().trim() === callerEmail);
+
+      if (!isOwner) {
+        throw new ForbiddenException(
+          "Access denied: You do not have permission to access another user's ticket.",
+        );
+      }
+    }
 
     let commentsQ = this.db
       .from('SupportComment')
@@ -281,7 +329,7 @@ export class SupportService {
       .eq('ticketId', id)
       .order('createdAt', { ascending: true });
 
-    if (!isAdmin) {
+    if (!isStaffOrAdmin) {
       commentsQ = commentsQ.eq('isInternal', false);
     }
 
@@ -473,7 +521,39 @@ export class SupportService {
         .from('SupportTicket').select('*').eq('id', ticketId).single();
       if (findError || !ticket) throw new NotFoundException(`Ticket ${ticketId} not found`);
 
-      const isAdmin = ['admin', 'super_admin', 'staff', 'it', 'support', 'bank'].includes(user?.role);
+      const userRole = (user?.role || 'user').toLowerCase();
+      const isStaffOrAdmin = [
+        'admin',
+        'super_admin',
+        'superadmin',
+        'staff',
+        'it',
+        'support',
+        'bank',
+        'partner_bank',
+        'analyst',
+        'agent',
+        'partner_agent',
+        'marketing',
+      ].includes(userRole);
+
+      if (!isStaffOrAdmin) {
+        const callerId = user?.id || user?.sub;
+        const callerEmail = (user?.email || '').toLowerCase().trim();
+
+        const isOwner =
+          (callerId && ticket.createdById === callerId) ||
+          (callerId && ticket.studentId === callerId) ||
+          (callerEmail && ticket.createdByEmail && ticket.createdByEmail.toLowerCase().trim() === callerEmail);
+
+        if (!isOwner) {
+          throw new ForbiddenException(
+            "Access denied: You do not have permission to comment on another user's ticket.",
+          );
+        }
+      }
+
+      const isAdmin = isStaffOrAdmin;
       const isInternal = dto.isInternal && isAdmin;
       const now = new Date().toISOString();
 
@@ -542,7 +622,7 @@ export class SupportService {
       return comment;
     } catch (err: any) {
       console.error('[SupportService.addComment] Exception:', err);
-      if (err instanceof NotFoundException || err instanceof BadRequestException) {
+      if (err instanceof NotFoundException || err instanceof BadRequestException || err instanceof ForbiddenException) {
         throw err;
       }
       throw new BadRequestException(err?.message || 'Failed to add comment');
@@ -785,8 +865,40 @@ export class SupportService {
 
   // ─── Attachments ─────────────────────────────────────────────────────────────
   async addAttachment(ticketId: string, file: Express.Multer.File, user: any) {
-    const { data: ticket } = await this.db.from('SupportTicket').select('id').eq('id', ticketId).single();
+    const { data: ticket } = await this.db.from('SupportTicket').select('*').eq('id', ticketId).single();
     if (!ticket) throw new NotFoundException(`Ticket ${ticketId} not found`);
+
+    const userRole = (user?.role || 'user').toLowerCase();
+    const isStaffOrAdmin = [
+      'admin',
+      'super_admin',
+      'superadmin',
+      'staff',
+      'it',
+      'support',
+      'bank',
+      'partner_bank',
+      'analyst',
+      'agent',
+      'partner_agent',
+      'marketing',
+    ].includes(userRole);
+
+    if (!isStaffOrAdmin) {
+      const callerId = user?.id || user?.sub;
+      const callerEmail = (user?.email || '').toLowerCase().trim();
+
+      const isOwner =
+        (callerId && ticket.createdById === callerId) ||
+        (callerId && ticket.studentId === callerId) ||
+        (callerEmail && ticket.createdByEmail && ticket.createdByEmail.toLowerCase().trim() === callerEmail);
+
+      if (!isOwner) {
+        throw new ForbiddenException(
+          "Access denied: You do not have permission to add attachments to another user's ticket.",
+        );
+      }
+    }
 
     const backendUrl = (process.env.BACKEND_URL || 'http://localhost:5000').replace(/\/$/, '');
     let filePath = '';

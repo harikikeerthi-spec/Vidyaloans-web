@@ -57,9 +57,9 @@ export const DEFAULT_PUBLIC_SETTINGS: PublicSiteSettings = {
     "Compare and apply for top education loans with lowest interest rates, quick approval, and zero hidden charges.",
   supportEmail: "support@vidyaloans.in",
   contactEmail: "contact@vidyaloans.in",
-  phone: "+91 8143797779",
-  tollFree: "1800-123-4567",
-  address: "VidyaLoans Financial Tower, Sector 44, Gurgaon, Haryana 122003, India",
+  phone: "+91 81437 97779",
+  tollFree: "+91 81437 97779",
+  address: "Nuzvid, Krishna District, Andhra Pradesh",
   currency: "INR",
   timezone: "Asia/Kolkata",
   copyrightText: `© ${new Date().getFullYear()} VidyaLoans Inc. All rights reserved.`,
@@ -90,8 +90,49 @@ export const DEFAULT_PUBLIC_SETTINGS: PublicSiteSettings = {
   // Mobile App Download Banner defaults
   playStoreUrl: "https://play.google.com/store/apps/details?id=in.vidyaloans.app",
   appStoreUrl: "",
-  enableAppBanner: true,
+  enableAppBanner: false,
 };
+
+export function mergeValidPublicSettings(
+  base: PublicSiteSettings,
+  incoming?: Partial<PublicSiteSettings> | null
+): PublicSiteSettings {
+  if (!incoming || typeof incoming !== "object") return base;
+  const merged: PublicSiteSettings = { ...base };
+
+  for (const [key, value] of Object.entries(incoming)) {
+    if (value === undefined || value === null) continue;
+
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      // Stop empty strings from overwriting valid default identity/contact values
+      if (!trimmed) {
+        if (["phone", "tollFree", "supportEmail", "contactEmail", "address", "whatsappNumber", "siteName"].includes(key)) {
+          continue;
+        }
+      }
+
+      // Filter out known placeholder values
+      if (key === "phone" && (trimmed.includes("1800-123-4567") || trimmed.includes("94945 68851"))) continue;
+      if (key === "tollFree" && (trimmed.includes("1800-123-4567") || trimmed.includes("9494568851"))) continue;
+      if ((key === "supportEmail" || key === "contactEmail") && trimmed.includes("@vidyaloans.com")) continue;
+      if (key === "whatsappNumber" && trimmed.includes("9876543210")) continue;
+      if (key === "address" && (trimmed.includes("Sector 44") || trimmed.includes("Gurgaon"))) continue;
+      if (key === "instagramUrl" && (trimmed === "https://instagram.com/vidyaloans" || trimmed === "https://instagram.com/" || trimmed === "https://instagram.com")) continue;
+      if (key === "twitterUrl" && (trimmed === "https://x.com/vidyaloans" || trimmed === "https://twitter.com/vidyaloans")) continue;
+    }
+
+    if (key === "enableAppBanner") {
+      merged.enableAppBanner = false;
+      continue;
+    }
+
+    (merged as any)[key] = value;
+  }
+
+  merged.enableAppBanner = false;
+  return merged;
+}
 
 const STORAGE_KEY = "vidyaloans_site_settings";
 
@@ -132,41 +173,9 @@ export function SiteSettingsProvider({ children }: { children: React.ReactNode }
         root.style.setProperty("--dark-theme-bg", data.darkThemeBg);
       }
 
-      // 2. Dynamic Document Title (if metaTitle or siteName is provided)
-      if (data.metaTitle) {
-        document.title = data.metaTitle;
-      } else if (data.siteName) {
-        document.title = `${data.siteName}${data.tagline ? ` - ${data.tagline}` : ""}`;
-      }
-
-      // 3. Dynamic Meta Description & OG Tags
-      if (data.metaDescription) {
-        let metaDesc = document.querySelector("meta[name='description']");
-        if (!metaDesc) {
-          metaDesc = document.createElement("meta");
-          metaDesc.setAttribute("name", "description");
-          document.head.appendChild(metaDesc);
-        }
-        metaDesc.setAttribute("content", data.metaDescription);
-
-        let ogDesc = document.querySelector("meta[property='og:description']");
-        if (!ogDesc) {
-          ogDesc = document.createElement("meta");
-          ogDesc.setAttribute("property", "og:description");
-          document.head.appendChild(ogDesc);
-        }
-        ogDesc.setAttribute("content", data.metaDescription);
-      }
-
-      if (data.siteName || data.metaTitle) {
-        let ogTitle = document.querySelector("meta[property='og:title']");
-        if (!ogTitle) {
-          ogTitle = document.createElement("meta");
-          ogTitle.setAttribute("property", "og:title");
-          document.head.appendChild(ogTitle);
-        }
-        ogTitle.setAttribute("content", data.metaTitle || data.siteName);
-      }
+      // Note: Page title, meta description, and OpenGraph tags are handled by Next.js
+      // server-side metadata on each route to ensure SEO optimization per page.
+      // Do not overwrite them client-side across all routes.
 
       // 4. Dynamic Custom CSS Injection
       let styleTag = document.getElementById("dynamic-site-custom-css") as HTMLStyleElement | null;
@@ -236,10 +245,7 @@ export function SiteSettingsProvider({ children }: { children: React.ReactNode }
     try {
       const res = await siteSettingsApi.getPublicSettings();
       if (res && res.data) {
-        const merged: PublicSiteSettings = {
-          ...DEFAULT_PUBLIC_SETTINGS,
-          ...res.data,
-        };
+        const merged = mergeValidPublicSettings(DEFAULT_PUBLIC_SETTINGS, res.data);
         setSettings(merged);
         applyDomChanges(merged);
       }
@@ -252,10 +258,7 @@ export function SiteSettingsProvider({ children }: { children: React.ReactNode }
 
   const updateLocally = useCallback(
     (newSettings: Partial<PublicSiteSettings>) => {
-      const merged: PublicSiteSettings = {
-        ...settings,
-        ...newSettings,
-      };
+      const merged = mergeValidPublicSettings(settings, newSettings);
       setSettings(merged);
       applyDomChanges(merged);
 
@@ -274,10 +277,7 @@ export function SiteSettingsProvider({ children }: { children: React.ReactNode }
       const cached = localStorage.getItem(STORAGE_KEY);
       if (cached) {
         const parsed = JSON.parse(cached);
-        const merged: PublicSiteSettings = {
-          ...DEFAULT_PUBLIC_SETTINGS,
-          ...parsed,
-        };
+        const merged = mergeValidPublicSettings(DEFAULT_PUBLIC_SETTINGS, parsed);
         setSettings(merged);
         applyDomChanges(merged);
       }
@@ -294,10 +294,7 @@ export function SiteSettingsProvider({ children }: { children: React.ReactNode }
         const channel = new BroadcastChannel("site_settings_sync");
         channel.onmessage = (event) => {
           if (event?.data?.data) {
-            const merged: PublicSiteSettings = {
-              ...DEFAULT_PUBLIC_SETTINGS,
-              ...event.data.data,
-            };
+            const merged = mergeValidPublicSettings(DEFAULT_PUBLIC_SETTINGS, event.data.data);
             setSettings(merged);
             applyDomChanges(merged);
           }
@@ -311,10 +308,7 @@ export function SiteSettingsProvider({ children }: { children: React.ReactNode }
     // 1. Same-window custom event
     const handleSettingsUpdated = (event: any) => {
       if (event?.detail) {
-        const merged: PublicSiteSettings = {
-          ...DEFAULT_PUBLIC_SETTINGS,
-          ...event.detail,
-        };
+        const merged = mergeValidPublicSettings(DEFAULT_PUBLIC_SETTINGS, event.detail);
         setSettings(merged);
         applyDomChanges(merged);
       } else {
@@ -327,10 +321,7 @@ export function SiteSettingsProvider({ children }: { children: React.ReactNode }
       if (event.key === STORAGE_KEY && event.newValue) {
         try {
           const parsed = JSON.parse(event.newValue);
-          const merged: PublicSiteSettings = {
-            ...DEFAULT_PUBLIC_SETTINGS,
-            ...parsed,
-          };
+          const merged = mergeValidPublicSettings(DEFAULT_PUBLIC_SETTINGS, parsed);
           setSettings(merged);
           applyDomChanges(merged);
         } catch (e) {

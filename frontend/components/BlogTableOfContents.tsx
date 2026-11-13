@@ -140,9 +140,8 @@ export default function BlogTableOfContents({
               </div>
             </div>
             <span
-              className={`material-symbols-outlined text-slate-400 transition-transform duration-200 ${
-                mobileExpanded ? "rotate-180 text-indigo-600" : ""
-              }`}
+              className={`material-symbols-outlined text-slate-400 transition-transform duration-200 ${mobileExpanded ? "rotate-180 text-indigo-600" : ""
+                }`}
             >
               expand_more
             </span>
@@ -167,11 +166,10 @@ export default function BlogTableOfContents({
                     key={`${h.id}-${idx}`}
                     type="button"
                     onClick={() => scrollToHeading(h.id)}
-                    className={`w-full text-left py-2 px-2.5 rounded-xl transition-all flex items-center gap-2.5 ${indent} ${
-                      isActive
+                    className={`w-full text-left py-2 px-2.5 rounded-xl transition-all flex items-center gap-2.5 ${indent} ${isActive
                         ? "bg-indigo-600 text-white font-bold shadow-xs"
                         : "text-slate-700 hover:text-indigo-600 hover:bg-white font-medium"
-                    }`}
+                      }`}
                   >
                     <span className={`text-[10px] font-mono shrink-0 font-bold ${isActive ? "text-indigo-200" : "text-slate-400"}`}>
                       {String(idx + 1).padStart(2, "0")}.
@@ -242,13 +240,11 @@ export default function BlogTableOfContents({
                       key={`mob-drawer-${h.id}-${idx}`}
                       type="button"
                       onClick={() => scrollToHeading(h.id)}
-                      className={`w-full text-left py-2 px-3 rounded-xl transition-all flex items-start gap-2.5 ${
-                        isSub ? "ml-3 text-[11px]" : "text-xs font-semibold"
-                      } ${
-                        isActive
+                      className={`w-full text-left py-2 px-3 rounded-xl transition-all flex items-start gap-2.5 ${isSub ? "ml-3 text-[11px]" : "text-xs font-semibold"
+                        } ${isActive
                           ? "bg-indigo-600 text-white font-bold shadow-xs"
                           : "hover:bg-slate-50 text-slate-700"
-                      }`}
+                        }`}
                     >
                       <span className={`text-[10px] font-mono shrink-0 mt-0.5 ${isActive ? "text-indigo-200" : "text-slate-400"}`}>
                         {String(idx + 1).padStart(2, "0")}.
@@ -348,19 +344,16 @@ export default function BlogTableOfContents({
                 key={`${h.id}-${idx}`}
                 type="button"
                 onClick={() => scrollToHeading(h.id)}
-                className={`w-full text-left py-2 px-3 rounded-xl transition-all flex items-start gap-2.5 group cursor-pointer ${
-                  isSub ? "ml-3 text-[11px]" : "text-xs font-semibold"
-                } ${
-                  isActive
+                className={`w-full text-left py-2 px-3 rounded-xl transition-all flex items-start gap-2.5 group cursor-pointer ${isSub ? "ml-3 text-[11px]" : "text-xs font-semibold"
+                  } ${isActive
                     ? "bg-indigo-50/90 text-indigo-700 font-bold border-l-3 border-indigo-600 shadow-2xs"
                     : "hover:bg-slate-50 hover:text-indigo-600 text-slate-700 font-medium"
-                }`}
+                  }`}
                 title={h.text}
               >
                 <span
-                  className={`text-[10px] font-mono shrink-0 mt-0.5 ${
-                    isActive ? "text-indigo-600 font-black" : "text-slate-400 group-hover:text-indigo-500"
-                  }`}
+                  className={`text-[10px] font-mono shrink-0 mt-0.5 ${isActive ? "text-indigo-600 font-black" : "text-slate-400 group-hover:text-indigo-500"
+                    }`}
                 >
                   {String(idx + 1).padStart(2, "0")}.
                 </span>
@@ -372,7 +365,7 @@ export default function BlogTableOfContents({
 
         {/* Helpful Quick Assistance Card inside Sticky Sidebar */}
         <div className="shrink-0 pt-3 border-t border-slate-100 space-y-3">
-          <div className="p-3.5 bg-gradient-to-br from-indigo-50/80 to-purple-50/40 border border-indigo-100/80 rounded-2xl">
+          {/* <div className="p-3.5 bg-gradient-to-br from-indigo-50/80 to-purple-50/40 border border-indigo-100/80 rounded-2xl">
             <div className="flex items-center gap-2 mb-1.5">
               <span className="material-symbols-outlined text-indigo-600 text-[18px]">school</span>
               <span className="text-[11px] font-black text-indigo-950 uppercase tracking-wider">
@@ -389,7 +382,7 @@ export default function BlogTableOfContents({
               <span>Check Eligibility Free</span>
               <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
             </a>
-          </div>
+          </div> */}
 
           {/* Back to Top Smooth Button */}
           <button

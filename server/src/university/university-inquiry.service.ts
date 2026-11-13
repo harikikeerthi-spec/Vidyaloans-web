@@ -256,6 +256,28 @@ export class UniversityInquiryService implements OnModuleInit {
     }
   }
 
+  async getInquiryById(id: string) {
+    try {
+      const inquiry = await (this.prisma as any).universityInquiry.findUnique({
+        where: { id },
+      });
+      if (inquiry) {
+        return { success: true, data: inquiry };
+      }
+      const { data, error } = await this.db.from('UniversityInquiry').select('*').eq('id', id).maybeSingle();
+      if (error) return { success: false, error: error.message };
+      return { success: true, data };
+    } catch (err: any) {
+      try {
+        const { data, error } = await this.db.from('UniversityInquiry').select('*').eq('id', id).maybeSingle();
+        if (error) return { success: false, error: error.message };
+        return { success: true, data };
+      } catch (e: any) {
+        return { success: false, error: e.message };
+      }
+    }
+  }
+
   async updateInquiryStatus(id: string, status: string) {
     try {
       const updated = await (this.prisma as any).universityInquiry.update({
