@@ -114,21 +114,17 @@ export default function Footer() {
 
                     {/* Offices */}
                     <div className="lg:col-span-3">
-                        <h4 className="text-[11px] font-bold uppercase tracking-[0.1em] text-white mb-4">Offices</h4>
+                        <h4 className="text-[11px] font-bold uppercase tracking-[0.1em] text-white mb-4">Office</h4>
                         <ul className="space-y-1 text-[13px]">
                             <li className="flex items-start gap-2 text-gray-400 min-h-[44px] py-1">
                                 <span className="material-symbols-outlined text-[#6605c7] text-base mt-0.5">location_on</span>
                                 <div>
-                                    <span className="text-white font-medium block">Nuzvidu</span>
-                                    <span className="text-[11px] text-gray-500">Headquarters</span>
+                                    <span className="text-white font-medium block">Nuzvid (Headquarters)</span>
+                                    <span className="text-[11px] text-gray-400 leading-relaxed block mt-0.5 max-w-[240px]">
+                                        {settings?.address || "Jyothi Bose Complex, Bus Stand Road (Opposite to Municipal Office), Nuzvid, Krishna District, Andhra Pradesh 521201, India"}
+                                    </span>
                                 </div>
                             </li>
-                            {/* {["Hyderabad", "Visakhapatnam", "Vijayawada", "Chennai"].map((city) => (
-                                <li key={city} className="flex items-start gap-2.5 text-gray-400">
-                                    <span className="material-symbols-outlined text-[#6605c7] text-base mt-0.5">location_on</span>
-                                    {city}
-                                </li>
-                            ))} */}
                         </ul>
                     </div>
                 </div>

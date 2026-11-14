@@ -59,7 +59,7 @@ export const DEFAULT_PUBLIC_SETTINGS: PublicSiteSettings = {
   contactEmail: "contact@vidyaloans.in",
   phone: "+91 81437 97779",
   tollFree: "+91 81437 97779",
-  address: "Nuzvid, Krishna District, Andhra Pradesh",
+  address: "Jyothi Bose Complex, Bus Stand Road (Opposite to Municipal Office), Nuzvid, Krishna District, Andhra Pradesh 521201, India",
   currency: "INR",
   timezone: "Asia/Kolkata",
   copyrightText: `© ${new Date().getFullYear()} VidyaLoans Inc. All rights reserved.`,

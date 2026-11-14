@@ -39,21 +39,23 @@ export class UniversityInquiryService implements OnModuleInit {
     universityName?: string;
     intake?: string;
     type?: string;
+    subject?: string;
+    message?: string;
   }) {
-    const finalType = data.type === 'fasttrack' ? 'fasttrack' : 'callback';
+    const finalType = data.type && data.type.trim() !== '' ? data.type.trim() : 'callback';
     const validUserId = (data.userId && data.userId.trim() !== '') ? data.userId.trim() : null;
     const recordId = randomUUID();
 
     const istOffsetMs = 5.5 * 60 * 60 * 1000;
     const istNow = new Date(Date.now() + istOffsetMs);
 
-    const cleanMobile = (data.mobile || data.phone || '').trim();
+    const cleanMobile = (data.mobile || data.phone || '0000000000').trim();
     const cleanEmail = (data.email && data.email.trim() !== '')
       ? data.email.trim()
       : `${cleanMobile.replace(/[^0-9]/g, '') || 'lead'}@callback.vidyaloans.com`;
     const cleanUniversity = (data.universityName && data.universityName.trim() !== '')
       ? data.universityName.trim()
-      : (data.intake ? `Intake: ${data.intake.trim()}` : 'General Callback');
+      : (data.subject ? `[${data.subject}] ${data.message || ''}`.trim() : (data.intake ? `Intake: ${data.intake.trim()}` : (finalType === 'contact' ? 'Contact Form Inquiry' : 'General Callback')));
 
     const baseData = {
       id: recordId,
@@ -439,7 +441,13 @@ export class UniversityInquiryService implements OnModuleInit {
   }
 
   private async sendInquiryEmails(data: any) {
-    const typeLabel = data.type === 'callback' ? 'Request a Callback' : 'Fasttrack Application';
+    const typeLabel = data.type === 'contact'
+      ? 'Contact Form Enquiry'
+      : (data.type === 'fasttrack'
+        ? 'Fasttrack Application'
+        : (data.type === 'blog_registration' || data.type === 'newsletter'
+          ? 'Newsletter Subscription'
+          : 'Request a Callback'));
 
     const userHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 12px;">

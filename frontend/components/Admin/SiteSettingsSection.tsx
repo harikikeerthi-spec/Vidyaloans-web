@@ -131,7 +131,7 @@ const DEFAULT_FORM: SiteSettings = {
   contactEmail: "contact@vidyaloans.in",
   phone: "+91 81437 97779",
   tollFree: "+91 81437 97779",
-  address: "Nuzvid, Krishna District, Andhra Pradesh",
+  address: "Jyothi Bose Complex, Bus Stand Road (Opposite to Municipal Office), Nuzvid, Krishna District, Andhra Pradesh 521201, India",
   currency: "INR",
   timezone: "Asia/Kolkata",
   copyrightText: "© 2026 VidyaLoans Inc. All rights reserved.",
@@ -230,7 +230,7 @@ function cleanSettingsData(data: Partial<SiteSettings>): Partial<SiteSettings> {
     cleaned.whatsappNumber = "+918143797779";
   }
   if (cleaned.address && (cleaned.address.includes("Sector 44") || cleaned.address.includes("Gurgaon"))) {
-    cleaned.address = "Nuzvid, Krishna District, Andhra Pradesh";
+    cleaned.address = "Jyothi Bose Complex, Bus Stand Road (Opposite to Municipal Office), Nuzvid, Krishna District, Andhra Pradesh 521201, India";
   }
   if (cleaned.instagramUrl && (cleaned.instagramUrl === "https://instagram.com/vidyaloans" || cleaned.instagramUrl === "https://instagram.com/" || cleaned.instagramUrl === "https://instagram.com")) {
     cleaned.instagramUrl = "https://www.instagram.com/vidya_loans/";

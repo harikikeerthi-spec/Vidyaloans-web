@@ -41,7 +41,7 @@ describe('Section 3: Site Settings Placeholder & Hydration Audit', () => {
       expect(cleaned.supportEmail).toBe('support@vidyaloans.in');
       expect(cleaned.contactEmail).toBe('contact@vidyaloans.in');
       expect(cleaned.whatsappNumber).toBe('+918143797779');
-      expect(cleaned.address).toBe('Nuzvid, Krishna District, Andhra Pradesh');
+      expect(cleaned.address).toBe('Jyothi Bose Complex, Bus Stand Road (Opposite to Municipal Office), Nuzvid, Krishna District, Andhra Pradesh 521201, India');
       expect(cleaned.instagramUrl).toBe('https://www.instagram.com/vidya_loans/');
       expect(cleaned.twitterUrl).toBe('https://x.com/VidyaLoans07');
       expect(cleaned.webhookUrl).toBe('https://api.vidyaloans.in/v1/webhooks/events');
@@ -66,7 +66,7 @@ describe('Section 3: Site Settings Placeholder & Hydration Audit', () => {
       expect(cleaned.supportEmail).toBe('support@vidyaloans.in');
       expect(cleaned.contactEmail).toBe('contact@vidyaloans.in');
       expect(cleaned.whatsappNumber).toBe('+918143797779');
-      expect(cleaned.address).toBe('Nuzvid, Krishna District, Andhra Pradesh');
+      expect(cleaned.address).toBe('Jyothi Bose Complex, Bus Stand Road (Opposite to Municipal Office), Nuzvid, Krishna District, Andhra Pradesh 521201, India');
     });
   });
 
@@ -81,7 +81,7 @@ describe('Section 3: Site Settings Placeholder & Hydration Audit', () => {
       expect(publicSettings.supportEmail).toBe('support@vidyaloans.in');
       expect(publicSettings.contactEmail).toBe('contact@vidyaloans.in');
       expect(publicSettings.whatsappNumber).toBe('+918143797779');
-      expect(publicSettings.address).toBe('Nuzvid, Krishna District, Andhra Pradesh');
+      expect(publicSettings.address).toBe('Jyothi Bose Complex, Bus Stand Road (Opposite to Municipal Office), Nuzvid, Krishna District, Andhra Pradesh 521201, India');
       expect(publicSettings.instagramUrl).toBe('https://www.instagram.com/vidya_loans/');
       expect(publicSettings.twitterUrl).toBe('https://x.com/VidyaLoans07');
       expect(publicSettings.enableAppBanner).toBe(false);

@@ -12,7 +12,7 @@ export default function DeleteAccountClient() {
 
     const supportEmail = settings?.supportEmail || "support@vidyaloans.in";
     const phone = settings?.phone || "+91 81437 97779";
-    const address = settings?.address || "Nuzvid, Krishna District, Andhra Pradesh";
+    const address = settings?.address || "Jyothi Bose Complex, Bus Stand Road (Opposite to Municipal Office), Nuzvid, Krishna District, Andhra Pradesh 521201, India";
 
     // Form state for public / web request
     const [email, setEmail] = useState("");

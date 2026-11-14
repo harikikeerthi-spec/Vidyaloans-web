@@ -709,6 +709,15 @@ function CohortApplicationForm() {
                         ) : "SEND INTENT"}
                     </button>
                 </MagneticButton>
+
+                {/* DPDP Consent Line */}
+                <p className="text-[11px] text-white/50 text-center leading-relaxed pt-2 font-medium">
+                    By submitting your intent, you agree to our{" "}
+                    <Link href="/privacy-policy" className="text-[#F7C600] hover:underline font-bold">
+                        Privacy Policy
+                    </Link>{" "}
+                    and consent to processing per the DPDP Act 2023.
+                </p>
             </form>
         </motion.div>
     );

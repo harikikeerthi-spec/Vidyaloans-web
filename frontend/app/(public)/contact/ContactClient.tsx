@@ -1,17 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useSiteSettings } from "@/contexts/SiteSettingsContext";
+import { universityApi } from "@/lib/api";
+import { trackLeadConversion } from "@/lib/analytics";
 
 export default function ContactUsPage() {
     const { settings } = useSiteSettings();
     const siteName = settings?.siteName || "VidyaLoans";
     const supportEmail = settings?.supportEmail || "support@vidyaloans.in";
     const phone = settings?.phone || "+91 81437 97779";
-    const address = settings?.address || "Nuzvid, Krishna District, Andhra Pradesh";
+    const address = settings?.address || "Jyothi Bose Complex, Bus Stand Road (Opposite to Municipal Office), Nuzvid, Krishna District, Andhra Pradesh 521201, India";
 
     const offices = [
-        { city: "Headquarters", role: "Headquarters & Counselor Center", address, phone },
+        { city: "Nuzvid", role: "Headquarters & Counselor Center", address, phone },
     ];
     const [formData, setFormData] = useState({
         name: "",
@@ -23,6 +26,7 @@ export default function ContactUsPage() {
     const [touched, setTouched] = useState<Record<string, boolean>>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
+    const [submitError, setSubmitError] = useState<string | null>(null);
 
     const errors = {
         name: formData.name ? (formData.name.trim().length < 3 ? "Name must be at least 3 characters" : "") : "",
@@ -39,8 +43,9 @@ export default function ContactUsPage() {
         formData.phone.length === 10 &&
         formData.message.trim().length >= 20;
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setSubmitError(null);
         setTouched({
             name: true,
             email: true,
@@ -52,13 +57,79 @@ export default function ContactUsPage() {
 
         setIsSubmitting(true);
 
-        // Simulate high-fidelity backend submit
-        setTimeout(() => {
-            setIsSubmitting(false);
+        const cleanName = formData.name.trim();
+        const cleanEmail = formData.email.trim();
+        const cleanPhone = formData.phone.trim();
+        const cleanSubject = formData.subject;
+        const cleanMessage = formData.message.trim();
+
+        try {
+            // POST contact inquiry to Leads API
+            const res: any = await universityApi.submitInquiry({
+                name: cleanName,
+                email: cleanEmail,
+                phone: cleanPhone,
+                mobile: cleanPhone,
+                subject: cleanSubject,
+                message: cleanMessage,
+                universityName: `[Contact: ${cleanSubject}] ${cleanMessage}`,
+                type: "contact",
+            });
+
+            if (res && res.success === false) {
+                throw new Error(res.message || "Failed to submit enquiry. Please try again.");
+            }
+
+            // Only show success after a verified 2xx response
             setIsSuccess(true);
             setFormData({ name: "", email: "", phone: "", subject: "Loan Eligibility", message: "" });
             setTouched({});
-        }, 1800);
+
+            // Fire Google Ads conversion + GA hit ONLY after API succeeds
+            trackLeadConversion("contact_form", {
+                subject: cleanSubject,
+                email: cleanEmail,
+            });
+        } catch (err: any) {
+            console.error("Failed to submit contact enquiry via universityApi:", err);
+
+            // Fallback direct POST to API endpoint
+            try {
+                const fallbackRes = await fetch("/api/university-inquiry", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        name: cleanName,
+                        email: cleanEmail,
+                        phone: cleanPhone,
+                        mobile: cleanPhone,
+                        subject: cleanSubject,
+                        message: cleanMessage,
+                        universityName: `[Contact: ${cleanSubject}] ${cleanMessage}`,
+                        type: "contact",
+                    }),
+                });
+
+                if (fallbackRes.ok) {
+                    setIsSuccess(true);
+                    setFormData({ name: "", email: "", phone: "", subject: "Loan Eligibility", message: "" });
+                    setTouched({});
+
+                    // Fire Google Ads conversion + GA hit ONLY after fallback 2xx
+                    trackLeadConversion("contact_form", {
+                        subject: cleanSubject,
+                        email: cleanEmail,
+                    });
+                    return;
+                }
+            } catch (fallbackErr) {
+                console.error("Fallback POST also failed:", fallbackErr);
+            }
+
+            setSubmitError(err?.message || "Failed to send message. Please check your network and try again.");
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -298,7 +369,15 @@ export default function ContactUsPage() {
                                     </div>
 
                                     {/* Tactile 3D Submit Button */}
-                                    <div className="pt-4">
+                                    {/* Error alert */}
+                                    {submitError && (
+                                        <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-600 text-xs font-bold flex items-center gap-2 animate-fade-in">
+                                            <span className="material-symbols-outlined text-base">error</span>
+                                            <span>{submitError}</span>
+                                        </div>
+                                    )}
+
+                                    <div className="pt-2">
                                         <button
                                             type="submit"
                                             disabled={isSubmitting || !isFormValid}
@@ -321,6 +400,15 @@ export default function ContactUsPage() {
                                             )}
                                         </button>
                                     </div>
+
+                                    {/* DPDP Consent Line */}
+                                    <p className="text-[11px] text-gray-500 text-center leading-relaxed pt-1 font-medium">
+                                        By submitting, you consent to VidyaLoans processing your details to contact you regarding your loan enquiry in accordance with our{" "}
+                                        <Link href="/privacy-policy" className="text-[#6605c7] hover:underline font-bold">
+                                            Privacy Policy
+                                        </Link>{" "}
+                                        under the DPDP Act 2023.
+                                    </p>
                                 </form>
                             )}
                         </div>

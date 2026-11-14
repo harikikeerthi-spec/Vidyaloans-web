@@ -1,8 +1,10 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { universityApi } from "@/lib/api";
 import { isPhoneValid } from "@/lib/validation";
+import { trackLeadConversion } from "@/lib/analytics";
 
 const INTAKE_OPTIONS = (() => {
   const now = new Date();
@@ -81,6 +83,7 @@ export default function HomepageCallbackForm() {
         type: "callback",
       });
       setSubmitted(true);
+      trackLeadConversion("homepage_callback", { intake: formData.intake });
     } catch (err: any) {
       console.error("Failed to submit callback enquiry:", err);
       // Fallback direct POST to API
@@ -302,6 +305,15 @@ export default function HomepageCallbackForm() {
             )}
           </button>
         </div>
+
+        {/* DPDP Consent Line */}
+        <p className="text-[10.5px] text-gray-500 text-center sm:text-left leading-relaxed pt-1 font-medium">
+          By requesting a callback, you consent to VidyaLoans contacting you per our{" "}
+          <Link href="/privacy-policy" className="text-[#6605c7] hover:underline font-bold">
+            Privacy Policy
+          </Link>{" "}
+          under the DPDP Act 2023.
+        </p>
       </form>
     </div>
   );

@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { blogApi } from "@/lib/api";
+import { blogApi, universityApi } from "@/lib/api";
+import { trackLeadConversion } from "@/lib/analytics";
 import type { BlogPost } from "@/types";
 
 const categories = ["All", "Tips & Guides", "Success Stories", "News & Updates", "USA", "UK", "Canada", "Australia"];
@@ -14,6 +15,11 @@ export default function BlogClient() {
     const [search, setSearch] = useState("");
     const [activeCategory, setActiveCategory] = useState("All");
     const [page, setPage] = useState(1);
+
+    const [newsletterEmail, setNewsletterEmail] = useState("");
+    const [newsletterSubmitting, setNewsletterSubmitting] = useState(false);
+    const [newsletterSuccess, setNewsletterSuccess] = useState(false);
+    const [newsletterError, setNewsletterError] = useState<string | null>(null);
 
     useEffect(() => {
         const loadBlogs = async () => {
@@ -47,6 +53,60 @@ export default function BlogClient() {
             return str.startsWith('/') ? str : `/${str}`;
         } catch {
             return def;
+        }
+    };
+
+    const handleNewsletterSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setNewsletterError(null);
+        const cleanEmail = newsletterEmail.trim().toLowerCase();
+        if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+            setNewsletterError("Please enter a valid email address.");
+            return;
+        }
+
+        setNewsletterSubmitting(true);
+        try {
+            const res: any = await universityApi.submitInquiry({
+                name: cleanEmail.split("@")[0] || "Newsletter Subscriber",
+                email: cleanEmail,
+                mobile: "0000000000",
+                universityName: "Blog Newsletter Subscription",
+                type: "blog_registration",
+            });
+
+            if (res && res.success === false) {
+                throw new Error(res.message || "Failed to subscribe. Please try again.");
+            }
+
+            setNewsletterSuccess(true);
+            setNewsletterEmail("");
+            trackLeadConversion("blog_newsletter", { email: cleanEmail });
+        } catch (err: any) {
+            console.error("Newsletter subscription error:", err);
+            // Fallback direct POST
+            try {
+                const fb = await fetch("/api/university-inquiry", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        name: cleanEmail.split("@")[0] || "Newsletter Subscriber",
+                        email: cleanEmail,
+                        mobile: "0000000000",
+                        universityName: "Blog Newsletter Subscription",
+                        type: "blog_registration",
+                    }),
+                });
+                if (fb.ok) {
+                    setNewsletterSuccess(true);
+                    setNewsletterEmail("");
+                    trackLeadConversion("blog_newsletter", { email: cleanEmail });
+                    return;
+                }
+            } catch (_) {}
+            setNewsletterError(err?.message || "Something went wrong. Please try again.");
+        } finally {
+            setNewsletterSubmitting(false);
         }
     };
 
@@ -247,21 +307,56 @@ export default function BlogClient() {
                         <h2 className="text-2xl md:text-3xl font-bold text-white mb-4">
                             Stay Ahead in Your Study Abroad Journey
                         </h2>
-                        <p className="text-gray-400 text-[13px] mb-10 leading-relaxed">
+                        <p className="text-gray-400 text-[13px] mb-8 leading-relaxed">
                             Join 50,000+ students. Get the latest loan insights, university guides, and exclusive tips delivered to your inbox.
                         </p>
-                        <form className="flex flex-col sm:flex-row gap-3 p-1.5 bg-white/5 backdrop-blur-md rounded-xl border border-white/10">
-                            <input
-                                type="email"
-                                placeholder="Enter your email address"
-                                className="flex-1 bg-transparent border-none px-5 py-3 text-white placeholder-gray-500 focus:ring-0 outline-none font-medium text-[13px]"
-                                required
-                            />
-                            <button className="bg-[#6605c7] text-white px-8 py-3 rounded-xl font-bold uppercase tracking-widest text-[11px] hover:bg-[#5504a6] transition-all shadow-lg shadow-purple-500/10">
-                                Subscribe Now
-                            </button>
-                        </form>
-                        <p className="text-[10px] text-gray-500 mt-6 uppercase tracking-widest font-bold">Zero Spam. Unsubscribe at any time.</p>
+
+                        {newsletterSuccess ? (
+                            <div className="p-6 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl text-center animate-fade-in">
+                                <span className="material-symbols-outlined text-3xl text-emerald-400 mb-2 block">check_circle</span>
+                                <h4 className="text-white font-bold text-base mb-1">Thanks for Subscribing!</h4>
+                                <p className="text-emerald-300 text-xs">
+                                    You have been added to our study abroad finance digest. Stay tuned!
+                                </p>
+                            </div>
+                        ) : (
+                            <form onSubmit={handleNewsletterSubmit} className="space-y-3">
+                                <div className="flex flex-col sm:flex-row gap-3 p-1.5 bg-white/5 backdrop-blur-md rounded-xl border border-white/10">
+                                    <input
+                                        type="email"
+                                        value={newsletterEmail}
+                                        onChange={(e) => setNewsletterEmail(e.target.value)}
+                                        placeholder="Enter your email address"
+                                        className="flex-1 bg-transparent border-none px-5 py-3 text-white placeholder-gray-500 focus:ring-0 outline-none font-medium text-[13px]"
+                                        required
+                                        disabled={newsletterSubmitting}
+                                    />
+                                    <button
+                                        type="submit"
+                                        disabled={newsletterSubmitting}
+                                        className="bg-[#6605c7] text-white px-8 py-3 rounded-xl font-bold uppercase tracking-widest text-[11px] hover:bg-[#5504a6] transition-all shadow-lg shadow-purple-500/10 cursor-pointer disabled:opacity-60 flex items-center justify-center gap-2"
+                                    >
+                                        {newsletterSubmitting ? (
+                                            <>
+                                                <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                                <span>Subscribing...</span>
+                                            </>
+                                        ) : "Subscribe Now"}
+                                    </button>
+                                </div>
+                                {newsletterError && (
+                                    <p className="text-rose-400 text-xs font-bold text-left px-2">{newsletterError}</p>
+                                )}
+                            </form>
+                        )}
+
+                        <p className="text-[11px] text-gray-400 mt-6 leading-relaxed font-medium">
+                            By subscribing, you agree to our{" "}
+                            <Link href="/privacy-policy" className="text-purple-400 hover:underline font-bold">
+                                Privacy Policy
+                            </Link>{" "}
+                            and consent to receiving education loan insights in accordance with the DPDP Act 2023. Zero spam. Unsubscribe at any time.
+                        </p>
                     </div>
                 </div>
             </div>

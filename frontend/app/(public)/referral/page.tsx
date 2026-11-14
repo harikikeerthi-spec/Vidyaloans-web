@@ -46,7 +46,7 @@ export default async function ReferralPage() {
             <Link href="/login?redirect=/referral" className="px-8 py-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold rounded-xl hover:shadow-xl hover:-translate-y-0.5 transition-all">
               Sign In
             </Link>
-            <Link href="/signup" className="px-8 py-4 bg-purple-950/40 border border-purple-500/20 text-purple-200 font-bold rounded-xl hover:bg-purple-950/60 transition-all">
+            <Link href="/login?redirect=/referral" className="px-8 py-4 bg-purple-950/40 border border-purple-500/20 text-purple-200 font-bold rounded-xl hover:bg-purple-950/60 transition-all">
               Create Account
             </Link>
           </div>

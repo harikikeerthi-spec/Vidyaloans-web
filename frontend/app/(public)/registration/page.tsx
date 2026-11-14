@@ -4,6 +4,7 @@ import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
+import { trackLeadConversion } from "@/lib/analytics";
 
 type FormStep = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -163,6 +164,11 @@ function RegistrationContent() {
 
       setSubmittedLead({ ...formData });
       setStep(6);
+      trackLeadConversion("registration_lead", {
+        country: formData.country,
+        amount: formData.amount,
+        email: formData.email,
+      });
     } catch (err: any) {
       console.error("Registration error:", err);
       setErrorMsg(err.message || "Failed to submit registration. Please try again.");
@@ -336,6 +342,15 @@ function RegistrationContent() {
                   <span>Continue</span>
                   <span className="material-symbols-outlined text-base">arrow_forward</span>
                 </button>
+
+                {/* DPDP Consent Line */}
+                <p className="text-[10.5px] text-slate-500 text-center leading-relaxed pt-1 font-medium">
+                  By continuing, you agree to our{" "}
+                  <Link href="/privacy-policy" className="text-[#6605c7] hover:underline font-bold">
+                    Privacy Policy
+                  </Link>{" "}
+                  and consent to being contacted regarding loan guidance per the DPDP Act 2023.
+                </p>
               </div>
             )}
 
@@ -777,6 +792,15 @@ function RegistrationContent() {
                     </>
                   )}
                 </button>
+
+                {/* DPDP Consent Line */}
+                <p className="text-[10.5px] text-slate-500 text-center leading-relaxed pt-1 font-medium">
+                  By submitting, you consent to VidyaLoans processing your information in accordance with our{" "}
+                  <Link href="/privacy-policy" className="text-[#6605c7] hover:underline font-bold">
+                    Privacy Policy
+                  </Link>{" "}
+                  under the DPDP Act 2023.
+                </p>
 
                 <div className="pt-2">
                   <button

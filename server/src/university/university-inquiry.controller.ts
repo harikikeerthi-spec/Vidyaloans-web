@@ -16,6 +16,8 @@ export class UniversityInquiryController {
         universityName?: string;
         intake?: string;
         type?: string;
+        subject?: string;
+        message?: string;
     }) {
         return this.inquiryService.createInquiry(body);
     }

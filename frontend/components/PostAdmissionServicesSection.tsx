@@ -2,9 +2,12 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import AnimatedNumber from "./AnimatedNumber";
 import { SITE_STATS } from "../lib/siteStats";
+import { universityApi } from "@/lib/api";
+import { trackLeadConversion } from "@/lib/analytics";
 
 interface ModalData {
     id: string;
@@ -65,8 +68,18 @@ export default function PostAdmissionServicesSection() {
         setError("");
         setIsSubmitting(true);
 
-        // Simulate API call
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        try {
+            await universityApi.submitInquiry({
+                name: email.split("@")[0] || "Prospective Student",
+                email: email.trim(),
+                mobile: "0000000000",
+                universityName: `Service Waitlist: ${modalData.title} (${modalData.subtitle})`,
+                type: "service_waitlist",
+            });
+            trackLeadConversion("service_waitlist", { service: modalData.title, email: email.trim() });
+        } catch (err: any) {
+            console.warn("Service waitlist API warning:", err);
+        }
 
         setIsSubmitting(false);
         setSubmitted(true);
@@ -363,6 +376,15 @@ export default function PostAdmissionServicesSection() {
                                                 </>
                                             )}
                                         </button>
+
+                                        {/* DPDP Consent Line */}
+                                        <p className="text-[10px] text-gray-500 text-center leading-relaxed pt-1 font-medium">
+                                            By submitting, you agree to our{" "}
+                                            <Link href="/privacy-policy" className="text-[#6605c7] hover:underline font-bold">
+                                                Privacy Policy
+                                            </Link>{" "}
+                                            under the DPDP Act 2023.
+                                        </p>
                                     </form>
                                 ) : (
                                     <motion.div

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { universityApi } from "@/lib/api";
+import { trackLeadConversion } from "@/lib/analytics";
 
 export interface UniversityData {
     slug: string;
@@ -229,6 +230,11 @@ export default function UniversityDetailView({ university: initialUni, onApply, 
 
             setHasInquiry(prev => ({ ...prev, [inquiryType]: true }));
             setSuccessMsg(`Your ${inquiryType} request has been sent!`);
+            trackLeadConversion("university_inquiry", {
+                university: u.name,
+                type: inquiryType,
+                email: formData.email,
+            });
             setTimeout(() => {
                 setShowInquiryModal(false);
                 setSuccessMsg('');
@@ -923,6 +929,15 @@ export default function UniversityDetailView({ university: initialUni, onApply, 
                                     >
                                         {isSubmitting ? 'Sending...' : 'Confirm Request'}
                                     </button>
+
+                                    {/* DPDP Consent Line */}
+                                    <p className="text-[10.5px] text-gray-500 text-center leading-relaxed pt-1 font-medium">
+                                        By confirming, you agree to our{" "}
+                                        <Link href="/privacy-policy" className="text-purple-600 hover:underline font-bold">
+                                            Privacy Policy
+                                        </Link>{" "}
+                                        and consent to being contacted per the DPDP Act 2023.
+                                    </p>
                                 </form>
                             )}
                         </div>

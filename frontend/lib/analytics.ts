@@ -79,3 +79,39 @@ export function trackUserLogout() {
     });
   }
 }
+
+/**
+ * Fires Google Ads conversion and GA4 lead event ONLY after verified successful 2xx API response.
+ */
+export function trackLeadConversion(formName: string, details?: Record<string, any>) {
+  if (typeof window === "undefined") return;
+
+  // 1. Google Tag Manager dataLayer event
+  window.dataLayer = window.dataLayer || [];
+  window.dataLayer.push({
+    event: "generate_lead",
+    event_category: "Leads",
+    event_label: formName,
+    form_name: formName,
+    conversion_type: "lead_submission",
+    ...details,
+  });
+
+  // 2. Direct GA4 & Google Ads gtag calls if gtag is present
+  if (typeof window.gtag === "function") {
+    window.gtag("event", "generate_lead", {
+      event_category: "Leads",
+      event_label: formName,
+      form_name: formName,
+      ...details,
+    });
+
+    window.gtag("event", "conversion", {
+      send_to: details?.conversion_id,
+      event_category: "Leads",
+      event_label: formName,
+    });
+  }
+
+  console.log(`[Analytics] Verified lead conversion fired for "${formName}".`);
+}

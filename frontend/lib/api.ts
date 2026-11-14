@@ -1758,7 +1758,9 @@ export const universityApi = {
         phone?: string;
         universityName?: string;
         intake?: string;
-        type?: 'callback' | 'fasttrack' | string;
+        type?: 'callback' | 'fasttrack' | 'contact' | 'blog_registration' | string;
+        subject?: string;
+        message?: string;
     }) =>
         apiFetch(`${API_URL}/university-inquiry`, {
             method: "POST",

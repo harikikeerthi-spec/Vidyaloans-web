@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { EmailService } from '../auth/email.service';
+import { PrismaService } from '../prisma/prisma.service';
 import { randomUUID } from 'crypto';
 
 @Injectable()
@@ -12,6 +13,7 @@ export class ReferenceService {
   constructor(
     private supabase: SupabaseService,
     private emailService: EmailService,
+    private prisma: PrismaService,
   ) {}
 
   // ==================== LOAN TYPES ====================
@@ -711,6 +713,16 @@ export class ReferenceService {
 
   async getAllOffices() {
     try {
+      const offices = await this.prisma.office.findMany({
+        where: { isActive: true },
+        orderBy: [{ city: 'asc' }, { name: 'asc' }],
+      });
+      if (offices && offices.length > 0) {
+        return { success: true, data: offices };
+      }
+    } catch (_) {}
+
+    try {
       const { data, error } = await this.db
         .from('Office')
         .select('*')
@@ -732,15 +744,38 @@ export class ReferenceService {
     if (!data.name || !data.city || !data.location) {
       throw new Error('Office name, city, and location are required');
     }
+    const name = data.name.trim();
+    const city = data.city.trim();
+    const location = data.location.trim();
+    const now = new Date();
+
+    // 1. Try Prisma first for native @updatedAt & @default(now()) handling
+    try {
+      const created = await this.prisma.office.create({
+        data: {
+          name,
+          city,
+          location,
+          isActive: true,
+        },
+      });
+      return { success: true, data: created };
+    } catch (prismaErr) {
+      console.warn('[ReferenceService.createOffice] Prisma insert failed, falling back to Supabase:', prismaErr);
+    }
+
+    // 2. Fallback to Supabase client with explicit createdAt and updatedAt
     const id = randomUUID();
     const { data: created, error } = await this.db
       .from('Office')
       .insert({
         id,
-        name: data.name.trim(),
-        city: data.city.trim(),
-        location: data.location.trim(),
+        name,
+        city,
+        location,
         isActive: true,
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
       })
       .select('*')
       .single();
@@ -753,12 +788,23 @@ export class ReferenceService {
   }
 
   async updateOffice(id: string, data: { name?: string; city?: string; location?: string; isActive?: boolean }) {
-    const updatePayload: any = { updatedAt: new Date() };
-    if (data.name !== undefined) updatePayload.name = data.name.trim();
-    if (data.city !== undefined) updatePayload.city = data.city.trim();
-    if (data.location !== undefined) updatePayload.location = data.location.trim();
-    if (data.isActive !== undefined) updatePayload.isActive = data.isActive;
+    const updateData: any = {};
+    if (data.name !== undefined) updateData.name = data.name.trim();
+    if (data.city !== undefined) updateData.city = data.city.trim();
+    if (data.location !== undefined) updateData.location = data.location.trim();
+    if (data.isActive !== undefined) updateData.isActive = data.isActive;
 
+    try {
+      const updated = await this.prisma.office.update({
+        where: { id },
+        data: updateData,
+      });
+      return { success: true, data: updated };
+    } catch (prismaErr) {
+      console.warn('[ReferenceService.updateOffice] Prisma update failed, falling back to Supabase:', prismaErr);
+    }
+
+    const updatePayload: any = { ...updateData, updatedAt: new Date().toISOString() };
     const { data: updated, error } = await this.db
       .from('Office')
       .update(updatePayload)
@@ -774,9 +820,19 @@ export class ReferenceService {
   }
 
   async deleteOffice(id: string) {
+    try {
+      await this.prisma.office.update({
+        where: { id },
+        data: { isActive: false },
+      });
+      return { success: true, message: 'Office deleted successfully' };
+    } catch (prismaErr) {
+      console.warn('[ReferenceService.deleteOffice] Prisma update failed, falling back to Supabase:', prismaErr);
+    }
+
     const { error } = await this.db
       .from('Office')
-      .update({ isActive: false, updatedAt: new Date() })
+      .update({ isActive: false, updatedAt: new Date().toISOString() })
       .eq('id', id);
 
     if (error) {

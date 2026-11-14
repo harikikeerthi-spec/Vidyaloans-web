@@ -217,10 +217,10 @@ export default function PrivacyPolicyPage() {
                                         <span className="text-gray-950 font-bold">Email:</span> privacy@vidyaloans.in
                                     </p>
                                     <p className="text-[13px] text-gray-500 font-medium">
-                                        <span className="text-gray-950 font-bold">Address:</span> Nuzvid
+                                        <span className="text-gray-950 font-bold">Address:</span> Jyothi Bose Complex, Bus Stand Road (Opposite to Municipal Office), Nuzvid, Krishna District, Andhra Pradesh 521201, India
                                     </p>
                                     <p className="text-[13px] text-gray-500 font-medium">
-                                        <span className="text-gray-950 font-bold">Phone:</span> +91 9240209000
+                                        <span className="text-gray-950 font-bold">Phone:</span> +91 81437 97779
                                     </p>
                                 </div>
                             </div>

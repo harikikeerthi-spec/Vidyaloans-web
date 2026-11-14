@@ -1661,7 +1661,7 @@ model SiteSetting {
   contactEmail          String   @default("contact@vidyaloans.in")
   phone                 String   @default("+91 81437 97779")
   tollFree              String   @default("+91 81437 97779")
-  address               String   @default("Nuzvid, Krishna District, Andhra Pradesh")
+  address               String   @default("Jyothi Bose Complex, Bus Stand Road (Opposite to Municipal Office), Nuzvid, Krishna District, Andhra Pradesh 521201, India")
   currency              String   @default("INR")
   timezone              String   @default("Asia/Kolkata")
   copyrightText         String   @default("© 2026 VidyaLoans Inc. All rights reserved.")
