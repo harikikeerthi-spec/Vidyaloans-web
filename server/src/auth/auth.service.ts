@@ -469,7 +469,12 @@ export class AuthService {
     }
 
     try {
-      await this.emailService.sendOtp(email, otp);
+      const recipientName = signupInfo?.firstName || existingUser?.firstName || existingUser?.name;
+      await this.emailService.sendOtp(email, otp, undefined, {
+        name: recipientName,
+        expiryMinutes: 2,
+        purpose: isSignup ? 'registration' : 'login',
+      });
     } catch (emailError) {
       console.warn(`[AuthService] SMTP failed to send email but OTP is generated: ${otp}`, emailError);
     }
@@ -700,7 +705,12 @@ export class AuthService {
 
       // Send OTP via email with target portal context
       try {
-        await this.emailService.sendOtp(cleanEmail, otp, targetPortal);
+        const recipientName = existingUser?.firstName || existingUser?.name || this.signupData.get(cleanEmail)?.firstName;
+        await this.emailService.sendOtp(cleanEmail, otp, targetPortal, {
+          name: recipientName,
+          expiryMinutes: 2,
+          purpose: existingUser ? 'login' : 'registration',
+        });
       } catch (emailError) {
         this.logger.warn(`[AuthService] SMTP failed to send email to ${cleanEmail}`, emailError);
       }

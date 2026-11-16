@@ -153,111 +153,204 @@ export class EmailService {
     return this.transporter.sendMail(mailOptions);
   }
 
-  async sendOtp(email: string, otp: string, portalOrTitle?: string) {
-    const timestamp = new Date().toLocaleTimeString();
-    const portalLabel = portalOrTitle ? ` for ${portalOrTitle}` : '';
+  private formatRecipientName(name?: string, email?: string): string {
+    if (name && name.trim()) {
+      const clean = name.trim().split(/\s+/)[0];
+      return clean.charAt(0).toUpperCase() + clean.slice(1);
+    }
+    if (email && email.includes('@')) {
+      const username = email.split('@')[0];
+      const clean = username.split(/[._\-+]/)[0].replace(/[0-9]/g, '');
+      if (clean.length >= 2) {
+        return clean.charAt(0).toUpperCase() + clean.slice(1).toLowerCase();
+      }
+    }
+    return 'there';
+  }
 
-    // Include OTP in the subject using standard phrasing that triggers Gmail OTP parser and iOS/Android autofill
-    const subject = `${otp} is your VidyaLoans verification code${portalLabel}`;
+  async sendOtp(
+    email: string,
+    otp: string,
+    portalOrTitleOrOptions?: string | { name?: string; expiryMinutes?: number; purpose?: string; portal?: string },
+    optionsParam?: { name?: string; expiryMinutes?: number; purpose?: string }
+  ) {
+    let portal: string | undefined;
+    let name: string | undefined;
+    let expiryMinutes: number = 2;
+    let purpose: string | undefined;
 
-    // Plain text version with standard phrasing recognized by email client AI and autofill
-    const text = `Your one-time password (OTP) is: ${otp}
+    if (typeof portalOrTitleOrOptions === 'string') {
+      portal = portalOrTitleOrOptions;
+      if (optionsParam) {
+        name = optionsParam.name;
+        if (optionsParam.expiryMinutes) expiryMinutes = optionsParam.expiryMinutes;
+        purpose = optionsParam.purpose;
+      }
+    } else if (portalOrTitleOrOptions && typeof portalOrTitleOrOptions === 'object') {
+      name = portalOrTitleOrOptions.name;
+      if (portalOrTitleOrOptions.expiryMinutes) expiryMinutes = portalOrTitleOrOptions.expiryMinutes;
+      purpose = portalOrTitleOrOptions.purpose;
+      portal = portalOrTitleOrOptions.portal;
+    }
 
-Verification code: ${otp}
+    const safeName = this.formatRecipientName(name, email);
 
-This code will expire in 2 minutes.
+    // Subject optimized for Gmail & email clients
+    const subject = 'Your VidyaLoans Verification Code';
 
-Do not share this code with anyone.`;
+    // Plain text alternative with clear OTP positioning for client parsers & autofill
+    const text = `Hi ${safeName},
+
+Your verification code is: ${otp}
+
+Thank you for choosing VidyaLoans. Use the verification code below to securely verify your account.
+
+YOUR VERIFICATION CODE:
+${otp}
+
+Expires in ${expiryMinutes} minutes.
+
+Never share your OTP with anyone. VidyaLoans will never ask you to disclose this code.
+
+Regards,
+Team VidyaLoans
+https://www.vidyaloans.in/
+
+© 2026 VidyaLoans. All rights reserved.`;
 
     const mailOptions = {
-      from: this.getFromAddress('VidyaLoans Verification'),
+      from: this.getFromAddress('VidyaLoans'),
       to: email,
       subject: subject,
       text: text,
       headers: {
-        'X-Mailer': 'VidyaLoan Platform',
+        'X-Mailer': 'VidyaLoans Platform',
         'X-Priority': '3',
+        'X-Auto-Response-Suppress': 'OOF, AutoReply',
       },
       html: `
         <!DOCTYPE html>
-        <html lang="en">
+        <html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
         <head>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>${otp} is your VidyaLoans verification code</title>
-          <!-- Schema.org JSON-LD Email Markup for Gmail Smart Summary Card -->
+          <meta http-equiv="X-UA-Compatible" content="IE=edge">
+          <meta name="color-scheme" content="light dark">
+          <meta name="supported-color-schemes" content="light dark">
+          <title>${subject}</title>
+          <!-- Schema.org JSON-LD Email Markup for Gmail OTP & Action Cards -->
           <script type="application/ld+json">
           {
             "@context": "https://schema.org",
             "@type": "EmailMessage",
-            "description": "Your one-time password (OTP) is: ${otp}. Verification code: ${otp}"
+            "description": "Your verification code is ${otp}"
           }
           </script>
         </head>
-        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px;">
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f4f6f8; margin: 0; padding: 0; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%;">
 
           <!-- ================================================= -->
-          <!-- 1. HIDDEN PREHEADER TEXT (Shows in inbox preview)  -->
+          <!-- 1. GMAIL INBOX PREHEADER SNIPPET                  -->
           <!-- ================================================= -->
-          <div style="display: none; font-size: 1px; color: #f4f4f7; line-height: 1px; max-height: 0px; max-width: 0px; opacity: 0; overflow: hidden; mso-hide: all;">
-            Your one-time password (OTP) is: ${otp}. Verification code: ${otp}. Valid for 2 minutes.
-            &nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;
+          <div style="display: none; font-size: 1px; color: #ffffff; line-height: 1px; max-height: 0px; max-width: 0px; opacity: 0; overflow: hidden; mso-hide: all;">
+            Hi ${safeName}, your verification code is ${otp}. Enter it to continue with VidyaLoans.
+          </div>
+          <!-- Zero-width spacer to prevent subsequent email text leaking into inbox snippet preview -->
+          <div style="display: none; font-size: 1px; color: #ffffff; line-height: 1px; max-height: 0px; max-width: 0px; opacity: 0; overflow: hidden; mso-hide: all;">
+            &#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;
           </div>
 
           <!-- ================================================= -->
-          <!-- 2. MAIN EMAIL BODY                                -->
+          <!-- 2. MAIN EMAIL CONTAINER (RESPONSIVE TABLE)        -->
           <!-- ================================================= -->
-          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; padding: 20px 0;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f4f6f8; margin: 0; padding: 32px 12px;">
             <tr>
               <td align="center">
-                <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 580px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+                <!-- Inner Email Card -->
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 560px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 12px rgba(18, 59, 96, 0.06);">
                   
-                  <!-- Header / Brand -->
+                  <!-- HEADER (Dark Navy Blue #123B60) -->
                   <tr>
-                    <td style="background: linear-gradient(135deg, #6605c7 0%, #8b5cf6 100%); padding: 22px 32px; text-align: center;">
-                      <table border="0" cellpadding="0" cellspacing="0" style="margin: 0 auto;">
+                    <td bgcolor="#123B60" style="background-color: #123B60; padding: 24px 32px; text-align: left;">
+                      <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin: 0;">
                         <tr>
                           <td style="vertical-align: middle; padding-right: 12px;">
-                            <img src="${this.getLogoUrl()}" alt="VidyaLoans Logo" width="40" height="40" style="display: block; border-radius: 8px; background: rgba(255,255,255,0.15); padding: 3px;" />
+                            <img src="${this.getLogoUrl()}" alt="VidyaLoans" width="36" height="36" style="display: block; width: 36px; height: 36px; border: 0; outline: none; text-decoration: none;" />
                           </td>
                           <td style="vertical-align: middle;">
-                            <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.02em;">VidyaLoans</h1>
+                            <span style="color: #ffffff; font-size: 22px; font-weight: 700; letter-spacing: -0.3px; line-height: 1; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">VidyaLoans</span>
                           </td>
                         </tr>
                       </table>
                     </td>
                   </tr>
 
-                  <!-- Content Area -->
+                  <!-- MAIN CONTENT BODY -->
                   <tr>
-                    <td style="padding: 36px 32px 32px 32px;">
-                      <h2 style="color: #0f172a; margin: 0 0 16px 0; font-size: 20px; font-weight: 600;">Confirm your identity</h2>
+                    <td style="padding: 36px 36px 32px 36px; background-color: #ffffff;">
+                      <!-- Heading -->
+                      <h1 style="color: #123B60; font-size: 22px; font-weight: 700; line-height: 1.3; margin: 0 0 16px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">Verify Your Email Address</h1>
                       
-                      <p style="color: #334155; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
-                        We received a request to verify your identity. Use the verification code below to proceed with your access:
+                      <!-- Greeting -->
+                      <p style="color: #1e293b; font-size: 15px; font-weight: 600; margin: 0 0 12px 0; line-height: 1.5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+                        Hi ${safeName},
                       </p>
 
-                      <p style="color: #0f172a; font-size: 16px; margin: 0 0 24px 0; font-weight: 500;">
-                        Your one-time password (OTP) is: <strong style="color: #6605c7; font-size: 20px; letter-spacing: 2px;">${otp}</strong>
+                      <!-- Description -->
+                      <p style="color: #475569; font-size: 15px; line-height: 1.6; margin: 0 0 28px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+                        Thank you for choosing VidyaLoans. Use the verification code below to securely verify your account.
                       </p>
 
-                      <!-- Highlighted OTP Display Card -->
-                      <div style="text-align: center; margin: 28px 0;">
-                        <div style="display: inline-block; background-color: #f5f3ff; border: 1.5px dashed #7c3aed; border-radius: 10px; padding: 20px 36px; text-align: center;">
-                          <div style="font-size: 12px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: #6d28d9; margin-bottom: 6px;">Verification Code</div>
-                          <div style="font-size: 36px; font-weight: 800; letter-spacing: 8px; color: #5b21b6; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace; line-height: 1.2;">
-                            ${otp}
-                          </div>
-                        </div>
-                      </div>
+                      <!-- OTP CARD (Light Blue #EAF4FA) -->
+                      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 28px 0;">
+                        <tr>
+                          <td bgcolor="#EAF4FA" align="center" style="background-color: #EAF4FA; border: 1px solid #d0e4f2; border-radius: 8px; padding: 24px 16px; text-align: center;">
+                            <!-- Label -->
+                            <div style="font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: #4a6b82; margin-bottom: 10px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+                              YOUR VERIFICATION CODE
+                            </div>
+                            <!-- OTP Digits (Actual selectable text, bold typography, letter spaced) -->
+                            <div style="font-size: 38px; font-weight: 800; letter-spacing: 8px; color: #123B60; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Monaco, Courier, monospace, sans-serif; line-height: 1.1; margin-left: 8px; user-select: all; -webkit-user-select: all;">
+                              ${otp}
+                            </div>
+                            <!-- Expiry Note -->
+                            <div style="font-size: 13px; font-weight: 500; color: #5a738e; margin-top: 10px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+                              Expires in ${expiryMinutes} minutes
+                            </div>
+                          </td>
+                        </tr>
+                      </table>
 
-                      <p style="color: #64748b; font-size: 14px; line-height: 1.5; margin: 0 0 24px 0; text-align: center;">
-                        This code will expire in <strong>2 minutes</strong>. If you did not initiate this request, you can safely ignore this email.
-                      </p>
+                      <!-- SECURITY NOTICE -->
+                      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 28px 0; background-color: #f8fafc; border-left: 3px solid #123B60; border-radius: 4px;">
+                        <tr>
+                          <td style="padding: 12px 16px;">
+                            <p style="margin: 0; font-size: 13px; line-height: 1.5; color: #475569; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+                              <strong style="color: #1e293b;">Security Notice:</strong> Never share your OTP with anyone. VidyaLoans will never ask you to disclose this code.
+                            </p>
+                          </td>
+                        </tr>
+                      </table>
 
-                      <div style="border-top: 1px solid #e2e8f0; margin-top: 28px; padding-top: 18px; font-size: 12px; color: #94a3b8; text-align: center; line-height: 1.5;">
-                        <p style="margin: 0;">This is an automated notification from VidyaLoans. Do not share this code with anyone.</p>
-                      </div>
+                      <!-- DIVIDER -->
+                      <div style="border-top: 1px solid #e2e8f0; margin: 0 0 20px 0;"></div>
+
+                      <!-- FOOTER -->
+                      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                        <tr>
+                          <td style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+                            <p style="color: #334155; font-size: 14px; line-height: 1.5; margin: 0 0 2px 0;">Regards,</p>
+                            <p style="color: #123B60; font-size: 14px; font-weight: 600; margin: 0 0 14px 0;">Team VidyaLoans</p>
+                            <p style="color: #64748b; font-size: 13px; line-height: 1.5; margin: 0 0 8px 0;">
+                              Website: <a href="https://www.vidyaloans.in/" style="color: #123B60; text-decoration: underline;" target="_blank">https://www.vidyaloans.in/</a>
+                            </p>
+                            <p style="color: #94a3b8; font-size: 12px; margin: 0;">
+                              &copy; 2026 VidyaLoans. All rights reserved.
+                            </p>
+                          </td>
+                        </tr>
+                      </table>
+
                     </td>
                   </tr>
 
