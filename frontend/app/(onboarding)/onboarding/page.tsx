@@ -1390,6 +1390,16 @@ export default function OnboardingPage() {
             return;
         }
 
+        const fileNameLower = file.name.toLowerCase();
+        const ext = fileNameLower.substring(fileNameLower.lastIndexOf('.'));
+        const blockedExts = ['.exe', '.bat', '.cmd', '.sh', '.msi', '.bin', '.dll', '.com', '.vbs', '.js', '.jar', '.apk'];
+        if (blockedExts.includes(ext) || (!['.pdf', '.jpg', '.jpeg', '.png'].includes(ext) && !file.type.match(/^(image\/(jpeg|png)|application\/pdf)$/))) {
+            const err = `Invalid upload: File "${file.name}" is not supported. Only PDF, JPG, and PNG documents are accepted. Executable (${ext || 'binary'}) files are strictly prohibited.`;
+            setDocumentError(err);
+            alert(err);
+            return;
+        }
+
         setDocumentFile(file);
         setDocumentUploading(true);
         setDocumentError(null);

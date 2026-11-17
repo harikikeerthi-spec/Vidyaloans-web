@@ -22,11 +22,13 @@ const STATIC_LOAN_DATA = Object.values(banks).map(bank => ({
     id: bank.slug,
     bank: bank.name,
     logo: bank.logo,
-    rate: bank.interestRate,
+    rate: bank.interestRate.includes("%") ? `${bank.interestRate} p.a.` : `${bank.interestRate}% p.a.`,
+    processingFee: bank.processingFee || bank.specifications.find(s => s.label === "Processing Fee")?.value || "1% + GST",
+    maxLoan: bank.maxLoan,
     processingTime: formatApprovalTime(bank.approvalTime),
     tenure: bank.specifications.find(s => s.label === "Repayment Tenure")?.value || "Up to 15 Years",
     collateral: bank.specifications.find(s => s.label === "Collateral")?.value || "Profile based",
-    tag: bank.uniqueFeatures[0]?.title || "Premium Partner"
+    tag: bank.slug === "credila" ? "Most Popular Partner" : (bank.uniqueFeatures[0]?.title || "Active Lending Partner")
 }));
 
 export default function CompareLoansPage() {
@@ -49,10 +51,12 @@ export default function CompareLoansPage() {
                             bank: b.name,
                             logo: b.logoUrl || b.logo || staticMatch?.logo || `/banks/${slug}.png`,
                             rate: b.interestRateMin ? `${b.interestRateMin}% - ${b.interestRateMax || (b.interestRateMin + 3)}% p.a.` : (staticMatch?.rate || "From 10.25% p.a."),
+                            processingFee: b.processingFee || staticMatch?.processingFee || "1% + GST",
+                            maxLoan: b.maxLoanAmount || staticMatch?.maxLoan || "No Limit",
                             processingTime: formatApprovalTime(b.processingTime || staticMatch?.processingTime || (b.approvalTime ? String(b.approvalTime) : "48 Hours")),
                             tenure: staticMatch?.tenure || "Up to 15 Years",
                             collateral: b.collateralRequired ? "Collateral Required" : (b.collateralFreeLimit ? `Collateral-free up to ₹${b.collateralFreeLimit}` : "Profile based"),
-                            tag: b.isPopular ? "Most Popular Partner" : (staticMatch?.tag || "Active Lending Partner")
+                            tag: (slug === "credila" || b.shortName?.toLowerCase() === "credila") ? "Most Popular Partner" : (staticMatch?.tag || "Active Lending Partner")
                         };
                     });
                     setLoanData(dynamicMapped);
@@ -123,10 +127,18 @@ export default function CompareLoansPage() {
                                 </div>
                             </div>
 
-                            <div className="space-y-4 mb-8">
+                            <div className="space-y-3 mb-8">
                                 <div className="flex justify-between items-baseline">
                                     <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Interest Rate</span>
                                     <span className="text-xl font-bold text-[#6605c7]">{loan.rate}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Processing Fee</span>
+                                    <span className="text-[13px] font-bold text-gray-900">{loan.processingFee}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Max Funding</span>
+                                    <span className="text-[13px] font-bold text-gray-900">{loan.maxLoan}</span>
                                 </div>
                                 <div className="flex justify-between">
                                     <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Processing Time</span>
@@ -214,6 +226,8 @@ export default function CompareLoansPage() {
                                 <tbody className="divide-y divide-gray-50 text-center">
                                     {[
                                         { label: "Interest Rate", key: "rate" },
+                                        { label: "Processing Fee", key: "processingFee" },
+                                        { label: "Max Funding", key: "maxLoan" },
                                         { label: "Processing Time", key: "processingTime" },
                                         { label: "Tenure", key: "tenure" },
                                         { label: "Collateral", key: "collateral" }

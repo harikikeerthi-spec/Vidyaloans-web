@@ -724,7 +724,8 @@ export default function ApplyLoanPage() {
 
     if (submitted) {
         const appNumber = submittedApp?.applicationNumber;
-        const displayBank = banks.find(b => b.id === formData.bank)?.name || formData.bank || "Any Bank";
+        const rawBank = banks.find(b => b.id === formData.bank)?.name || formData.bank || submittedApp?.bank;
+        const displayBank = rawBank && rawBank.trim() !== "" && rawBank.toLowerCase() !== "any bank" && !rawBank.toLowerCase().startsWith("any") ? rawBank : null;
         const loginUrl = `/login?email=${encodeURIComponent(formData.email || "")}&redirect=${encodeURIComponent('/dashboard#applications')}`;
 
         return (
@@ -764,9 +765,11 @@ export default function ApplyLoanPage() {
                                     {appNumber || "VL-APP-PENDING"}
                                 </span>
                             </div>
-                            <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-purple-100 text-[#6605c7]">
-                                {displayBank}
-                            </span>
+                            {displayBank && (
+                                <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-purple-100 text-[#6605c7]">
+                                    {displayBank}
+                                </span>
+                            )}
                         </div>
 
                         <div className="grid grid-cols-2 gap-3 text-xs pt-1">

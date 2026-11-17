@@ -70,7 +70,7 @@ export default function CookieConsentBanner() {
         <aside
             role="region"
             aria-label="Cookie consent banner"
-            className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-purple-100 shadow-[0_-4px_24px_rgba(0,0,0,0.08)] py-2.5 px-4 sm:px-6 transition-all animate-in fade-in slide-in-from-bottom-4 duration-300 pointer-events-auto"
+            className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-purple-100 shadow-[0_-4px_24px_rgba(0,0,0,0.08)] py-2.5 px-4 sm:px-6 transition-all animate-in fade-in slide-in-from-bottom-4 duration-300 pointer-events-auto"
         >
             <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
                 <div className="flex items-center gap-2.5 text-center sm:text-left">

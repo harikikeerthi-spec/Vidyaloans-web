@@ -81,10 +81,11 @@ export default async function BankPage({ params }: Props) {
                 features: dbFeatures.length > 0 ? dbFeatures : bank.features,
                 specifications: [
                     { label: "Interest Rate", value: `${roiStr} p.a.` },
+                    { label: "Processing Fee", value: dbBank.processingFee || bank.processingFee || "1% + GST" },
                     { label: "Loan Amount", value: dbBank.maxLoanAmount },
                     { label: "Repayment Tenure", value: bank.specifications?.find(s => s.label === "Repayment Tenure")?.value || "Up to 15 years" },
                     { label: "Moratorium Period", value: bank.specifications?.find(s => s.label === "Moratorium Period")?.value || "Course + 12 months" },
-                    { label: "Collateral", value: dbBank.collateralRequired ? "Required" : `Not required up to ${dbBank.collateralFreeLimit || '₹40L'}` }
+                    { label: "Collateral", value: dbBank.collateralRequired ? "Required" : `Not required up to ${dbBank.collateralFreeLimit || '₹50L'}` }
                 ]
             };
         } else {
@@ -97,6 +98,7 @@ export default async function BankPage({ params }: Props) {
                 interestRate: roiStr,
                 maxLoan: dbBank.maxLoanAmount,
                 approvalTime: dbBank.processingTime,
+                processingFee: dbBank.processingFee || "1% + GST",
                 primaryColor: "#6605c7",
                 gradient: "linear-gradient(135deg, #6605c7 0%, #4f0496 100%)",
                 stats: {
@@ -108,10 +110,11 @@ export default async function BankPage({ params }: Props) {
                 features: dbFeatures,
                 specifications: [
                     { label: "Interest Rate", value: `${roiStr} p.a.` },
+                    { label: "Processing Fee", value: dbBank.processingFee || "1% + GST" },
                     { label: "Loan Amount", value: dbBank.maxLoanAmount },
                     { label: "Repayment Tenure", value: "Up to 15 years" },
                     { label: "Moratorium Period", value: "Course + 12 months" },
-                    { label: "Collateral", value: dbBank.collateralRequired ? "Required" : `Not required up to ${dbBank.collateralFreeLimit || '₹40L'}` }
+                    { label: "Collateral", value: dbBank.collateralRequired ? "Required" : `Not required up to ${dbBank.collateralFreeLimit || '₹50L'}` }
                 ],
                 eligibility: [
                     { title: "Admission Confirmed", desc: "From recognized university abroad" },

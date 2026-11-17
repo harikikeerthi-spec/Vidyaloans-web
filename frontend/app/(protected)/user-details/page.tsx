@@ -143,7 +143,7 @@ export default function UserDetailsPage() {
             setSuccess(true);
             // brief delay so user sees the success message
             setTimeout(() => {
-                router.replace("/");
+                router.replace("/dashboard");
             }, 800);
         } catch (err: unknown) {
             setError(err instanceof Error ? err.message : String(err));

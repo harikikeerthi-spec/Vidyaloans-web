@@ -24,7 +24,7 @@ interface SupportTicketModalProps {
 const CATEGORIES = [
     { value: "Loan Application", label: "Loan Application Issue", icon: "assignment" },
     { value: "Document Verification", label: "Document Verification / KYC", icon: "verified" },
-    { value: "Bank Statement", label: "Bank Statement / EVV Analysis", icon: "account_balance" },
+    { value: "Bank Statement", label: "Bank Statement Verification", icon: "account_balance" },
     { value: "Disbursement", label: "Disbursement & Sanction Letter", icon: "payments" },
     { value: "Technical Issue", label: "Technical & System Error", icon: "bug_report" },
     { value: "Profile", label: "Profile & Account Settings", icon: "person" },

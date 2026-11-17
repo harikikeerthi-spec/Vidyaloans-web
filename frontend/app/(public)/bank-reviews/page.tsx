@@ -51,6 +51,10 @@ export default function BankReviewsPage() {
                                 <span className="font-bold text-gray-900">{bank.interestRate}</span>
                             </div>
                             <div className="flex justify-between items-center text-sm">
+                                <span className="text-gray-500">Processing Fee</span>
+                                <span className="font-bold text-gray-900">{bank.processingFee || "1% + GST"}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-sm">
                                 <span className="text-gray-500">Processing Time</span>
                                 <span className="font-bold text-gray-900">
                                     {bank.approvalTime === "48h" ? "48 Hours" : bank.approvalTime === "72h" ? "72 Hours" : bank.approvalTime || "48 Hours"}

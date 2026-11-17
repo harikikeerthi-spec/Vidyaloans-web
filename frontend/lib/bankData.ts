@@ -8,6 +8,7 @@ export interface BankData {
     interestRate: string;
     maxLoan: string;
     approvalTime: string;
+    processingFee?: string;
     primaryColor: string;
     gradient: string;
     stats: {
@@ -51,14 +52,15 @@ export interface BankData {
 
 export const banks: Record<string, BankData> = {
     "idfc": {
-        name: "IDFC First Bank",
+        name: "IDFC FIRST Bank",
         slug: "idfc",
         logo: "/banks/idfc.png",
         rating: "4.5",
-        description: "Achieve your study abroad dreams with IDFC First Bank's flexible education loans. Competitive rates starting at 10.5% p.a. with up to ₹40 lakhs coverage.",
+        description: "Achieve your study abroad dreams with IDFC FIRST Bank's flexible education loans. Competitive rates starting at 10.25% p.a. with up to ₹1.5 Crore coverage.",
         interestRate: "10.25%",
-        maxLoan: "₹40L",
+        maxLoan: "Up to ₹1.5 Cr",
         approvalTime: "48h",
+        processingFee: "1% + GST",
         primaryColor: "#EC1C24",
         gradient: "linear-gradient(135deg, #EC1C24 0%, #B71519 100%)",
         stats: {
@@ -68,17 +70,18 @@ export const banks: Record<string, BankData> = {
             customerRating: "4.5★"
         },
         features: [
-            { icon: "percent", title: "Competitive Rates", desc: "Starting at 10.5% p.a. with flexible tenure options", iconColor: "text-red-500", bgColor: "bg-red-500/10" },
-            { icon: "account_balance", title: "High Loan Amount", desc: "Up to ₹40 lakhs without collateral", iconColor: "text-blue-500", bgColor: "bg-blue-500/10" },
+            { icon: "percent", title: "Competitive Rates", desc: "Starting at 10.25% p.a. with flexible tenure options", iconColor: "text-red-500", bgColor: "bg-red-500/10" },
+            { icon: "account_balance", title: "High Loan Amount", desc: "Up to ₹50 lakhs without collateral", iconColor: "text-blue-500", bgColor: "bg-blue-500/10" },
             { icon: "schedule", title: "Quick Processing", desc: "Sanction letter in as quick as 48 hours", iconColor: "text-green-500", bgColor: "bg-green-500/10" },
             { icon: "payments", title: "Flexible Repayment", desc: "Moratorium period during course + 1 year", iconColor: "text-orange-500", bgColor: "bg-orange-500/10" }
         ],
         specifications: [
             { label: "Interest Rate", value: "10.25% p.a." },
-            { label: "Loan Amount", value: "Up to ₹40 Lakhs" },
+            { label: "Processing Fee", value: "1% + GST" },
+            { label: "Loan Amount", value: "Up to ₹1.5 Crore" },
             { label: "Repayment Tenure", value: "Up to 15 years" },
             { label: "Moratorium Period", value: "Course Duration + 1 year" },
-            { label: "Collateral", value: "Not required up to ₹40L" }
+            { label: "Collateral", value: "Not required up to ₹50L" }
         ],
         eligibility: [
             { title: "Admission Confirmed", desc: "From recognized university abroad" },
@@ -103,9 +106,9 @@ export const banks: Record<string, BankData> = {
             { icon: "gavel", title: "LLM / Law", color: "pink" }
         ],
         uniqueFeatures: [
-            { icon: "speed", title: "48-Hour Fast Track", desc: "One of the fastest processing times in the industry. Get sanctioned in just 2 working days." },
-            { icon: "savings", title: "Zero Margin Money", desc: "No upfront margin money required. 100% of tuition and living expenses covered." },
-            { icon: "support_agent", title: "Dedicated RM", desc: "Personal loan advisor who guides you through every step from application to disbursement." }
+            { icon: "speed", title: "48-Hour Fast Track", desc: "Fast digital processing time with quick sanction letter issued within 48 hours." },
+            { icon: "savings", title: "Section 80E Tax Deduction", desc: "Claim maximum tax deductions on interest paid with no upper cap under Section 80E." },
+            { icon: "support_agent", title: "Dedicated Relationship Manager", desc: "Personal education loan officer who guides you through every step from application to university disbursement." }
         ]
     },
     "auxilo": {
@@ -114,9 +117,10 @@ export const banks: Record<string, BankData> = {
         logo: "/banks/auxilo.png",
         rating: "4.4",
         description: "Auxilo is a next-gen education finance company providing customized loan solutions for students aspiring to study in India and overseas.",
-        interestRate: "10.25%",
-        maxLoan: "No Limit",
-        approvalTime: "72h",
+        interestRate: "10.50%",
+        maxLoan: "Up to ₹1 Crore",
+        approvalTime: "48h",
+        processingFee: "1% + GST",
         primaryColor: "#005CAB",
         gradient: "linear-gradient(135deg, #005CAB 0%, #003D73 100%)",
         stats: {
@@ -132,11 +136,12 @@ export const banks: Record<string, BankData> = {
             { icon: "public", title: "Global Coverage", desc: "Support for 900+ global universities across 20 countries", iconColor: "text-green-500", bgColor: "bg-green-500/10" }
         ],
         specifications: [
-            { label: "Interest Rate", value: "10.25% p.a." },
-            { label: "Loan Amount", value: "No Upper Limit" },
+            { label: "Interest Rate", value: "10.50% p.a." },
+            { label: "Processing Fee", value: "1% + GST" },
+            { label: "Loan Amount", value: "Up to ₹1 Crore" },
             { label: "Repayment Tenure", value: "Up to 10 years" },
             { label: "Moratorium Period", value: "Course Duration + 1 year" },
-            { label: "Collateral", value: "Both Secured & Unsecured" }
+            { label: "Collateral", value: "Both Secured & Unsecured (up to ₹50L)" }
         ],
         eligibility: [
             { title: "Indian Citizenship", desc: "Applicant must be an Indian citizen" },
@@ -173,9 +178,10 @@ export const banks: Record<string, BankData> = {
         logo: "/banks/avanse.png",
         rating: "4.6",
         description: "Avanse Financial Services is a leading education-focused NBFC that provides hyper-personalized, 100% collateral-free education loans with fast approval and global support.",
-        interestRate: "10.25%",
-        maxLoan: "No Limit",
+        interestRate: "10.75%",
+        maxLoan: "No Upper Limit",
         approvalTime: "72h",
+        processingFee: "1% - 1.5% + GST",
         primaryColor: "#0091DA",
         gradient: "linear-gradient(135deg, #0091DA 0%, #005CAB 100%)",
         stats: {
@@ -191,7 +197,8 @@ export const banks: Record<string, BankData> = {
             { icon: "payments", title: "Tailored Repayments", desc: "Customized grace periods and interest options", iconColor: "text-orange-500", bgColor: "bg-orange-500/10" }
         ],
         specifications: [
-            { label: "Interest Rate", value: "10.25% p.a." },
+            { label: "Interest Rate", value: "10.75% p.a." },
+            { label: "Processing Fee", value: "1% - 1.5% + GST" },
             { label: "Loan Amount", value: "No Upper Limit" },
             { label: "Repayment Tenure", value: "Up to 15 years" },
             { label: "Moratorium Period", value: "Course Duration + 1 year" },
@@ -232,8 +239,9 @@ export const banks: Record<string, BankData> = {
         rating: "4.8",
         description: "HDFC Credila is India's first dedicated education loan provider. Get customized loans with flexible terms, high limits, and fast-track processing for 2,500+ global universities.",
         interestRate: "10.25%",
-        maxLoan: "No Limit",
-        approvalTime: "5 days",
+        maxLoan: "No Upper Limit",
+        approvalTime: "72h",
+        processingFee: "1% - 1.25% + GST",
         primaryColor: "#004B8D",
         gradient: "linear-gradient(135deg, #004B8D 0%, #002D54 100%)",
         stats: {
@@ -250,10 +258,11 @@ export const banks: Record<string, BankData> = {
         ],
         specifications: [
             { label: "Interest Rate", value: "10.25% p.a." },
+            { label: "Processing Fee", value: "1% - 1.25% + GST" },
             { label: "Loan Amount", value: "No Upper Limit" },
             { label: "Repayment Tenure", value: "Up to 15 years" },
             { label: "Moratorium Period", value: "Course Duration + 1 year" },
-            { label: "Collateral", value: "Both Secured & Unsecured" }
+            { label: "Collateral", value: "Both Secured & Unsecured (up to ₹50L)" }
         ],
         eligibility: [
             { title: "Confirmed Admission", desc: "Offer letter from a recognized university/college abroad" },
@@ -289,9 +298,10 @@ export const banks: Record<string, BankData> = {
         logo: "/banks/poonawalla.jpg",
         rating: "4.3",
         description: "Poonawalla Fincorp offers quick, hassle-free education loans with competitive interest rates, minimum paperwork, and end-to-end digital processing.",
-        interestRate: "10.25%",
-        maxLoan: "₹50L",
-        approvalTime: "3 days",
+        interestRate: "11.00%",
+        maxLoan: "Up to ₹50L",
+        approvalTime: "48h",
+        processingFee: "1% + GST",
         primaryColor: "#F47920",
         gradient: "linear-gradient(135deg, #F47920 0%, #C85911 100%)",
         stats: {
@@ -307,11 +317,12 @@ export const banks: Record<string, BankData> = {
             { icon: "payments", title: "Flexible Tenure", desc: "Repayment structures that align with post-study income", iconColor: "text-red-500", bgColor: "bg-red-500/10" }
         ],
         specifications: [
-            { label: "Interest Rate", value: "10.25% p.a." },
+            { label: "Interest Rate", value: "11.00% p.a." },
+            { label: "Processing Fee", value: "1% + GST" },
             { label: "Loan Amount", value: "Up to ₹50 Lakhs" },
             { label: "Repayment Tenure", value: "Up to 10 years" },
             { label: "Moratorium Period", value: "Course Duration + 1 year" },
-            { label: "Collateral", value: "Unsecured up to ₹50L" }
+            { label: "Collateral", value: "Unsecured up to ₹50L (100% Collateral-Free)" }
         ],
         eligibility: [
             { title: "Age & Nationality", desc: "Applicant must be an Indian citizen, aged between 18-35 years" },

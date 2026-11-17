@@ -26,8 +26,8 @@ export interface SupportCategoryItem {
 export const IT_DASHBOARD_CATEGORIES: SupportCategoryItem[] = [
     { value: "Loan Application", label: "Loan Application", icon: "assignment", color: "bg-blue-50 text-blue-700 border-blue-200", badgeColor: "bg-blue-100 text-blue-800", description: "Loan inquiry, eligibility & processing" },
     { value: "Bank Statement", label: "Bank Statement", icon: "account_balance", color: "bg-emerald-50 text-emerald-700 border-emerald-200", badgeColor: "bg-emerald-100 text-emerald-800", description: "Upload, parsing & account statement" },
-    { value: "EVV", label: "EVV Verification", icon: "fact_check", color: "bg-teal-50 text-teal-700 border-teal-200", badgeColor: "bg-teal-100 text-teal-800", description: "Electronic verification & fraud check" },
-    { value: "OCR", label: "OCR Recognition", icon: "document_scanner", color: "bg-orange-50 text-orange-700 border-orange-200", badgeColor: "bg-orange-100 text-orange-800", description: "Document OCR scanning & text extraction" },
+    { value: "EVV", label: "Bank Statement Verification", icon: "fact_check", color: "bg-teal-50 text-teal-700 border-teal-200", badgeColor: "bg-teal-100 text-teal-800", description: "Bank statement validation & financial review" },
+    { value: "OCR", label: "Document Scanning & Upload Help", icon: "document_scanner", color: "bg-orange-50 text-orange-700 border-orange-200", badgeColor: "bg-orange-100 text-orange-800", description: "Assistance with reading or uploading scanned documents" },
     { value: "Digilocker", label: "DigiLocker Integration", icon: "lock", color: "bg-purple-50 text-purple-700 border-purple-200", badgeColor: "bg-purple-100 text-purple-800", description: "Aadhaar / DigiLocker verification sync" },
     { value: "Document Verification", label: "Document Verification", icon: "verified", color: "bg-amber-50 text-amber-700 border-amber-200", badgeColor: "bg-amber-100 text-amber-800", description: "KYC, academic & collateral documents" },
     { value: "University", label: "University & Admit", icon: "school", color: "bg-indigo-50 text-indigo-700 border-indigo-200", badgeColor: "bg-indigo-100 text-indigo-800", description: "University admit letter & I-20 queries" },
@@ -37,7 +37,7 @@ export const IT_DASHBOARD_CATEGORIES: SupportCategoryItem[] = [
     { value: "EMI", label: "EMI & Repayment", icon: "calendar_month", color: "bg-cyan-50 text-cyan-700 border-cyan-200", badgeColor: "bg-cyan-100 text-cyan-800", description: "Repayment schedule & interest calculation" },
     { value: "Authentication", label: "Authentication / Login", icon: "key", color: "bg-indigo-50 text-indigo-700 border-indigo-200", badgeColor: "bg-indigo-100 text-indigo-800", description: "OTP, login & password reset issues" },
     { value: "Profile", label: "Profile & Account", icon: "person", color: "bg-violet-50 text-violet-700 border-violet-200", badgeColor: "bg-violet-100 text-violet-800", description: "User information & contact details" },
-    { value: "API Error", label: "API & Server Error", icon: "dns", color: "bg-rose-50 text-rose-700 border-rose-200", badgeColor: "bg-rose-100 text-rose-800", description: "System endpoint error & network failures" },
+    { value: "API Error", label: "Connection & App Error", icon: "dns", color: "bg-rose-50 text-rose-700 border-rose-200", badgeColor: "bg-rose-100 text-rose-800", description: "Network issues, page loading or system errors" },
     { value: "Technical Issue", label: "Technical & System Error", icon: "bug_report", color: "bg-red-50 text-red-700 border-red-200", badgeColor: "bg-red-100 text-red-800", description: "UI glitch, performance or portal bugs" },
     { value: "Others", label: "General Query / Others", icon: "help_outline", color: "bg-slate-50 text-slate-700 border-slate-200", badgeColor: "bg-slate-100 text-slate-800", description: "General inquiry or unlisted concern" },
 ];
@@ -54,6 +54,16 @@ export const getCategoryMeta = (categoryVal?: string): SupportCategoryItem => {
         };
     }
     const clean = categoryVal.trim().toLowerCase();
+    // Support legacy jargon mappings gracefully
+    if (clean === "evv" || clean === "evv verification") {
+        return IT_DASHBOARD_CATEGORIES.find(c => c.value === "EVV")!;
+    }
+    if (clean === "ocr" || clean === "ocr recognition") {
+        return IT_DASHBOARD_CATEGORIES.find(c => c.value === "OCR")!;
+    }
+    if (clean === "api error" || clean === "api & server error") {
+        return IT_DASHBOARD_CATEGORIES.find(c => c.value === "API Error")!;
+    }
     const matched = IT_DASHBOARD_CATEGORIES.find(
         (c) => c.value.toLowerCase() === clean || c.label.toLowerCase() === clean
     );

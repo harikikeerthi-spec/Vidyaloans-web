@@ -64,30 +64,16 @@ export default function UniversityFinderFlow() {
 
     // Simulate API call to match universities
     try {
-      // In real scenario: POST /ai/match-universities with profile + programs
-      const demoMatches: University[] = [
+      const allUniversities: University[] = [
         {
-          name: "Stanford University",
-          country: "USA",
-          loc: "California, USA",
-          rank: 1,
-          accept: 3,
-          tuition: 60000,
-          _score: 95,
-          description: "World-leading university in tech and engineering",
-          slug: "stanford-university",
-          loan: true,
-          website: "https://www.stanford.edu",
-        },
-        {
-          name: "MIT",
+          name: "Massachusetts Institute of Technology (MIT)",
           country: "USA",
           loc: "Cambridge, USA",
-          rank: 2,
-          accept: 2,
-          tuition: 65000,
-          _score: 92,
-          description: "Premier engineering and computer science",
+          rank: 1,
+          accept: 7,
+          tuition: 59000,
+          _score: 99,
+          description: "World #1 university known for premier engineering, technology, and sciences.",
           slug: "mit",
           loan: true,
           website: "https://www.mit.edu",
@@ -96,11 +82,11 @@ export default function UniversityFinderFlow() {
           name: "University of Cambridge",
           country: "UK",
           loc: "Cambridge, UK",
-          rank: 3,
-          accept: 4,
-          tuition: 35000,
-          _score: 90,
-          description: "Historic university with world-class programs",
+          rank: 2,
+          accept: 16,
+          tuition: 44000,
+          _score: 96,
+          description: "Historic university with world-class collegiate academic programs.",
           slug: "cambridge",
           loan: true,
           website: "https://www.cam.ac.uk",
@@ -109,43 +95,150 @@ export default function UniversityFinderFlow() {
           name: "University of Oxford",
           country: "UK",
           loc: "Oxford, UK",
-          rank: 4,
-          accept: 5,
-          tuition: 33000,
-          _score: 88,
-          description: "Leading research university",
+          rank: 3,
+          accept: 14,
+          tuition: 42000,
+          _score: 95,
+          description: "Leading collegiate research university renowned globally.",
           slug: "oxford",
           loan: true,
           website: "https://www.ox.ac.uk",
         },
         {
+          name: "Harvard University",
+          country: "USA",
+          loc: "Cambridge, USA",
+          rank: 4,
+          accept: 3,
+          tuition: 64000,
+          _score: 97,
+          description: "World-renowned Ivy League institution known for elite scholarship.",
+          slug: "harvard",
+          loan: true,
+          website: "https://www.harvard.edu",
+        },
+        {
+          name: "Stanford University",
+          country: "USA",
+          loc: "Palo Alto, California, USA",
+          rank: 5,
+          accept: 4,
+          tuition: 62000,
+          _score: 98,
+          description: "World-leading technology and innovation powerhouse in Silicon Valley.",
+          slug: "stanford-university",
+          loan: true,
+          website: "https://www.stanford.edu",
+        },
+        {
           name: "ETH Zurich",
           country: "Switzerland",
           loc: "Zurich, Switzerland",
-          rank: 5,
-          accept: 6,
+          rank: 7,
+          accept: 27,
           tuition: 1500,
-          _score: 87,
-          description: "Excellence in engineering and technology",
+          _score: 94,
+          description: "Europe's premier science and technology institute with exceptional value.",
           slug: "eth-zurich",
           loan: true,
           website: "https://www.ethz.ch",
         },
         {
+          name: "National University of Singapore (NUS)",
+          country: "Singapore",
+          loc: "Singapore",
+          rank: 8,
+          accept: 25,
+          tuition: 32000,
+          _score: 93,
+          description: "Asia's premier global university with world-class tech and business programs.",
+          slug: "nus",
+          loan: true,
+          website: "https://nus.edu.sg",
+        },
+        {
+          name: "University of Melbourne",
+          country: "Australia",
+          loc: "Melbourne, Australia",
+          rank: 14,
+          accept: 70,
+          tuition: 34000,
+          _score: 85,
+          description: "Australia's top research university offering flexible degrees.",
+          slug: "melbourne",
+          loan: true,
+          website: "https://www.unimelb.edu.au",
+        },
+        {
           name: "University of Toronto",
           country: "Canada",
           loc: "Toronto, Canada",
-          rank: 8,
-          accept: 12,
-          tuition: 35000,
-          _score: 82,
-          description: "Canada's leading research university",
+          rank: 21,
+          accept: 43,
+          tuition: 38000,
+          _score: 88,
+          description: "Canada's leading research university with top global industry placement.",
           slug: "toronto",
           loan: true,
           website: "https://www.utoronto.ca",
         },
+        {
+          name: "Technical University of Munich (TUM)",
+          country: "Germany",
+          loc: "Munich, Germany",
+          rank: 28,
+          accept: 30,
+          tuition: 6000,
+          _score: 92,
+          description: "Germany's top engineering powerhouse with low public tuition fees.",
+          slug: "tum",
+          loan: true,
+          website: "https://www.tum.de",
+        },
+        {
+          name: "Trinity College Dublin",
+          country: "Ireland",
+          loc: "Dublin, Ireland",
+          rank: 81,
+          accept: 33,
+          tuition: 24000,
+          _score: 84,
+          description: "Ireland's premier university integrated with Silicon Docks tech employers.",
+          slug: "trinity",
+          loan: true,
+          website: "https://www.tcd.ie",
+        },
       ];
-      setMatchedUniversities(demoMatches);
+
+      // Filter by target countries if specified
+      let filtered = allUniversities;
+      if (profile.targetCountries && profile.targetCountries.length > 0) {
+        const countryMatches = allUniversities.filter((u) =>
+          profile.targetCountries.some(
+            (c) =>
+              u.country.toLowerCase() === c.toLowerCase() ||
+              u.loc.toLowerCase().includes(c.toLowerCase())
+          )
+        );
+        if (countryMatches.length > 0) {
+          filtered = countryMatches;
+        }
+      }
+
+      // Filter or sort by annual budget if specified
+      if (profile.budget && profile.budget > 0) {
+        const withinBudget = filtered.filter((u) => (u.tuition ?? 0) <= profile.budget!);
+        if (withinBudget.length > 0) {
+          filtered = withinBudget;
+        } else {
+          // If none strictly within budget, sort by closest tuition
+          filtered = [...filtered].sort(
+            (a, b) => (a.tuition ?? 0) - (b.tuition ?? 0)
+          );
+        }
+      }
+
+      setMatchedUniversities(filtered);
       setCurrentStep("results");
     } catch (error) {
       console.error("Error matching universities:", error);

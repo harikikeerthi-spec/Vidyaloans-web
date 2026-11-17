@@ -456,8 +456,8 @@ export default function SiteSettingsSection() {
       {toast && (
         <div
           className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-2xl border text-sm font-semibold flex items-center gap-3 transition-all ${toast.type === "success"
-              ? "bg-emerald-900 border-emerald-500 text-emerald-100"
-              : "bg-rose-900 border-rose-500 text-rose-100"
+            ? "bg-emerald-900 border-emerald-500 text-emerald-100"
+            : "bg-rose-900 border-rose-500 text-rose-100"
             }`}
         >
           {toast.type === "success" ? <CheckCircle2 className="w-5 h-5 text-emerald-400" /> : <AlertTriangle className="w-5 h-5 text-rose-400" />}
@@ -516,8 +516,8 @@ export default function SiteSettingsSection() {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`px-4 py-2.5 rounded-xl font-semibold text-xs flex items-center gap-2 transition-all shrink-0 border ${isActive
-                  ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
-                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:text-slate-900"
+                ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:text-slate-900"
                 }`}
             >
               <span>{tab.icon}</span>
@@ -758,8 +758,8 @@ export default function SiteSettingsSection() {
                     key={mode.id}
                     onClick={() => handleChange("disposableBlockLevel", mode.id)}
                     className={`p-4 rounded-xl border text-left transition-all relative ${form.disposableBlockLevel === mode.id
-                        ? `${mode.color} shadow-md ring-2 ring-indigo-500/20`
-                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                      ? `${mode.color} shadow-md ring-2 ring-indigo-500/20`
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
                       }`}
                   >
                     <div className="flex items-center justify-between mb-2">
@@ -837,8 +837,8 @@ export default function SiteSettingsSection() {
             {testResult && (
               <div
                 className={`p-4 rounded-xl border text-xs space-y-2 animate-fade-in ${testResult.blocked
-                    ? "bg-rose-950/60 border-rose-600/60 text-rose-200"
-                    : "bg-emerald-950/60 border-emerald-600/60 text-emerald-200"
+                  ? "bg-rose-950/60 border-rose-600/60 text-rose-200"
+                  : "bg-emerald-950/60 border-emerald-600/60 text-emerald-200"
                   }`}
               >
                 <div className="flex items-center justify-between font-bold text-sm">

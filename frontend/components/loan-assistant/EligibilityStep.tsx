@@ -30,11 +30,11 @@ export default function EligibilityStep({
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.annualIncome || formData.annualIncome < 0) {
-      newErrors.annualIncome = "Please enter a valid annual income";
+    if (!formData.annualIncome || formData.annualIncome <= 0) {
+      newErrors.annualIncome = "Annual income must be greater than ₹0";
     }
-    if (!formData.creditScore || formData.creditScore <= 700 || formData.creditScore > 900) {
-      newErrors.creditScore = "CIBIL score must be more than 700 (> 700) to qualify for loan eligibility";
+    if (!formData.creditScore || formData.creditScore < 300 || formData.creditScore > 900) {
+      newErrors.creditScore = "CIBIL score must be between 300 and 900";
     }
     if (!formData.employmentType) {
       newErrors.employmentType = "Please select employment type";

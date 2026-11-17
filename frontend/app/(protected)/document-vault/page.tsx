@@ -149,7 +149,32 @@ export default function DocumentVaultPage() {
 
     const handleBulkFileChange = (files: FileList | null) => {
         if (!files) return;
-        const newItems = Array.from(files).map(file => {
+        const blockedExts = ['.exe', '.bat', '.cmd', '.sh', '.msi', '.bin', '.dll', '.com', '.vbs', '.js', '.jar', '.apk'];
+        const allowedExts = ['.pdf', '.jpg', '.jpeg', '.png'];
+        const validFiles: File[] = [];
+        const rejectedFiles: string[] = [];
+
+        Array.from(files).forEach(file => {
+            const nameLower = file.name.toLowerCase();
+            const ext = nameLower.substring(nameLower.lastIndexOf('.'));
+            if (blockedExts.includes(ext) || (!allowedExts.includes(ext) && !file.type.match(/^(image\/(jpeg|png)|application\/pdf)$/))) {
+                rejectedFiles.push(file.name);
+            } else {
+                validFiles.push(file);
+            }
+        });
+
+        if (rejectedFiles.length > 0) {
+            showAlert(
+                "Unsupported File Type",
+                `The following file(s) cannot be uploaded: ${rejectedFiles.join(', ')}. Only PDF, JPG, and PNG documents are allowed. Executables (.exe) are strictly prohibited.`,
+                "error"
+            );
+        }
+
+        if (validFiles.length === 0) return;
+
+        const newItems = validFiles.map(file => {
             const guessed = guessDocType(file.name);
             return {
                 id: `${file.name}-${Date.now()}-${Math.random()}`,
@@ -696,13 +721,27 @@ export default function DocumentVaultPage() {
             return;
         }
 
-        const validFileTypes = ['image/jpeg', 'image/png', 'application/pdf'];
-        if (!validFileTypes.includes(file.type)) {
-            showAlert("Invalid File Type", "File must be JPG, PNG, or PDF format.", "warning");
+        const fileNameLower = file.name.toLowerCase();
+        const ext = fileNameLower.substring(fileNameLower.lastIndexOf('.'));
+        const blockedExts = ['.exe', '.bat', '.cmd', '.sh', '.msi', '.bin', '.dll', '.com', '.vbs', '.js', '.jar', '.apk'];
+        if (blockedExts.includes(ext)) {
+            showAlert(
+                "Prohibited File Type",
+                `Executable and script files (${ext}) are strictly prohibited. Please upload your document as a PDF, JPG, or PNG file.`,
+                "error"
+            );
+            e.target.value = "";
             return;
         }
 
-        const fileNameLower = file.name.toLowerCase();
+        const validFileTypes = ['image/jpeg', 'image/png', 'application/pdf'];
+        const allowedExts = ['.pdf', '.jpg', '.jpeg', '.png'];
+        if (!validFileTypes.includes(file.type) && !allowedExts.includes(ext)) {
+            showAlert("Invalid File Type", "File must be JPG, PNG, or PDF format.", "warning");
+            e.target.value = "";
+            return;
+        }
+
         const docTypeLower = docType.toLowerCase();
 
         if (docTypeLower.includes('aadhar') || docTypeLower.includes('aadhaar') || docTypeLower.includes('national_id')) {
@@ -905,7 +944,7 @@ export default function DocumentVaultPage() {
                 // --- Cross-validate: Passport uploaded but Aadhaar was FIRST ---
                 if (isPassport && isAadhaarFirst && fullName) {
                     if (aadhaarAnchorName && !areNamesMatching(fullName, aadhaarAnchorName)) {
-                        try { await documentApi.deleteFile(user.id, docType); await loadDocs(true); } catch {}
+                        try { await documentApi.deleteFile(user.id, docType); await loadDocs(true); } catch { }
                         await Swal.fire({
                             title: "Identity Mismatch — Upload Rejected",
                             html: `<div class="text-left text-xs space-y-3 font-sans">
@@ -933,7 +972,7 @@ export default function DocumentVaultPage() {
                 // --- Cross-validate: Aadhaar uploaded but Passport was FIRST ---
                 if (isAadhaar && isPassportFirst && fullName) {
                     if (passportAnchorName && !areNamesMatching(fullName, passportAnchorName)) {
-                        try { await documentApi.deleteFile(user.id, docType); await loadDocs(true); } catch {}
+                        try { await documentApi.deleteFile(user.id, docType); await loadDocs(true); } catch { }
                         await Swal.fire({
                             title: "Identity Mismatch — Upload Rejected",
                             html: `<div class="text-left text-xs space-y-3 font-sans">
@@ -1675,6 +1714,15 @@ export default function DocumentVaultPage() {
                                     <p className="text-gray-500 text-[13px] font-medium">Securely store and manage your loan documents</p>
                                 </div>
                             </div>
+                            {/* <div className="flex items-center gap-3">
+                                <Link
+                                    href="/document-vault/digilocker"
+                                    className="px-5 py-2.5 bg-gradient-to-r from-[#004791] to-[#0066cc] hover:from-[#003b7a] hover:to-[#0055aa] text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-2"
+                                >
+                                    <span className="material-symbols-outlined text-base">lock</span>
+                                    <span>DigiLocker Sync</span>
+                                </Link>
+                            </div> */}
                         </div>
 
                         {!hasIdentityDocUploaded && (
@@ -1706,42 +1754,42 @@ export default function DocumentVaultPage() {
                         )}
 
                         {/* <div className="mb-12">
-                    <div className="bg-gradient-to-br from-[#004791] to-[#0b84ff] rounded-[32px] p-8 text-white relative overflow-hidden shadow-2xl shadow-blue-500/20">
-                        <div className="absolute -top-20 -right-20 w-64 h-64 bg-white/10 rounded-full blur-3xl" />
-                        <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-blue-900/30 rounded-full blur-3xl" />
+                            <div className="bg-gradient-to-br from-[#004791] to-[#0b84ff] rounded-[32px] p-8 text-white relative overflow-hidden shadow-2xl shadow-blue-500/20">
+                                <div className="absolute -top-20 -right-20 w-64 h-64 bg-white/10 rounded-full blur-3xl" />
+                                <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-blue-900/30 rounded-full blur-3xl" />
 
-                        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8">
-                            <div className="max-w-xl">
-                                <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 rounded-lg text-[10px] font-black uppercase tracking-[0.2em] mb-4 border border-white/10 backdrop-blur-md">
-                                    <span className="material-symbols-outlined text-[14px]">bolt</span>
-                                    Instant Import
+                                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8">
+                                    <div className="max-w-xl">
+                                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 rounded-lg text-[10px] font-black uppercase tracking-[0.2em] mb-4 border border-white/10 backdrop-blur-md">
+                                            <span className="material-symbols-outlined text-[14px]">bolt</span>
+                                            Instant Import
+                                        </div>
+                                        <h2 className="text-2xl md:text-3xl font-black mb-3">One-Click Document Upload</h2>
+                                        <p className="text-white/70 text-[13px] font-medium leading-relaxed">
+                                            Link your DigiLocker account to instantly fetch and verify your identity documents. 
+                                            Faster processing, zero paperwork, and maximum security.
+                                        </p>
+                                    </div>
+
+                                    <div className="flex flex-col sm:flex-row gap-4 shrink-0">
+                                        <Link
+                                            href="/document-vault/digilocker"
+                                            className="px-8 py-4 bg-white text-[#004791] rounded-2xl text-[12px] font-black uppercase tracking-widest hover:bg-blue-50 transition-all flex items-center justify-center gap-3 shadow-xl shadow-black/10 active:scale-95 border border-blue-200"
+                                        >
+                                            <span className="material-symbols-outlined text-[20px]">open_in_new</span>
+                                            Open DigiLocker Portal
+                                        </Link>
+                                        <button
+                                            onClick={() => handleDigilockerVerify('ALL_SYNC')}
+                                            className="px-8 py-4 bg-emerald-500 text-white rounded-2xl text-[12px] font-black uppercase tracking-widest hover:bg-emerald-400 transition-all flex items-center justify-center gap-3 shadow-xl shadow-black/10 active:scale-95 group"
+                                        >
+                                            <span className="material-symbols-outlined text-[20px] group-hover:rotate-180 transition-transform duration-700">sync</span>
+                                            Instant Sync
+                                        </button>
+                                    </div>
                                 </div>
-                                <h2 className="text-2xl md:text-3xl font-black mb-3">One-Click Document Upload</h2>
-                                <p className="text-white/70 text-[13px] font-medium leading-relaxed">
-                                    Link your DigiLocker account to instantly fetch and verify your identity documents. 
-                                    Faster processing, zero paperwork, and maximum security.
-                                </p>
                             </div>
-
-                            <div className="flex flex-col sm:flex-row gap-4 shrink-0">
-                                <Link
-                                    href="/document-vault/digilocker"
-                                    className="px-8 py-4 bg-white text-[#004791] rounded-2xl text-[12px] font-black uppercase tracking-widest hover:bg-blue-50 transition-all flex items-center justify-center gap-3 shadow-xl shadow-black/10 active:scale-95 border border-blue-200"
-                                >
-                                    <span className="material-symbols-outlined text-[20px]">open_in_new</span>
-                                    Open DigiLocker Portal
-                                </Link>
-                                <button
-                                    onClick={() => handleDigilockerVerify('ALL_SYNC')}
-                                    className="px-8 py-4 bg-emerald-500 text-white rounded-2xl text-[12px] font-black uppercase tracking-widest hover:bg-emerald-400 transition-all flex items-center justify-center gap-3 shadow-xl shadow-black/10 active:scale-95 group"
-                                >
-                                    <span className="material-symbols-outlined text-[20px] group-hover:rotate-180 transition-transform duration-700">sync</span>
-                                    Instant Sync
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div> */}
+                        </div> */}
 
                         {docs.some(d => d.status === 'available_in_digilocker' && !d.uploaded) && (
                             <div className="mb-12 bg-gray-50/50 rounded-[32px] p-8 border border-dashed border-gray-200">

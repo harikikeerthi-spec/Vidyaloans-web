@@ -132,12 +132,12 @@ export default function Footer() {
                 {/* Bottom Bar */}
                 <div className="pt-8 border-t border-white/[0.06]">
                     <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-                            <p suppressHydrationWarning className="text-[11px] text-gray-500 order-3 md:order-1 font-normal opacity-80">
-                                {copyrightText}
-                            </p>
+                        <p suppressHydrationWarning className="text-[11px] text-gray-500 order-3 md:order-1 font-normal opacity-80">
+                            {copyrightText}
+                        </p>
 
-                            {/* Made in India */}
-                            {/* <p className="text-[11px] text-gray-400 order-2 md:order-3 flex items-center gap-1.5 font-normal opacity-80">
+                        {/* Made in India */}
+                        {/* <p className="text-[11px] text-gray-400 order-2 md:order-3 flex items-center gap-1.5 font-normal opacity-80">
                             Made with <span className="text-red-400/80">❤</span> in India for students worldwide
                         </p> */}
                     </div>

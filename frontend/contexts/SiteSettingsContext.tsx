@@ -146,8 +146,8 @@ interface SiteSettingsContextValue {
 const SiteSettingsContext = createContext<SiteSettingsContextValue>({
   settings: DEFAULT_PUBLIC_SETTINGS,
   loading: false,
-  refetch: async () => {},
-  updateLocally: () => {},
+  refetch: async () => { },
+  updateLocally: () => { },
 });
 
 export function SiteSettingsProvider({ children }: { children: React.ReactNode }) {
@@ -362,8 +362,8 @@ export function useSiteSettings() {
     context || {
       settings: DEFAULT_PUBLIC_SETTINGS,
       loading: false,
-      refetch: async () => {},
-      updateLocally: () => {},
+      refetch: async () => { },
+      updateLocally: () => { },
     }
   );
 }

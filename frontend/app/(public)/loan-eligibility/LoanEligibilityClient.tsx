@@ -57,6 +57,16 @@ export default function LoanEligibilityPage() {
             return;
         }
 
+        if (!formData.income || formData.income <= 0) {
+            alert("Annual income must be greater than ₹0.");
+            return;
+        }
+
+        if (!formData.loan || formData.loan <= 0) {
+            alert("Requested loan amount must be greater than ₹0.");
+            return;
+        }
+
         if (!isAuthenticated) {
             localStorage.setItem("pending_loan_eligibility_data", JSON.stringify(formData));
             alert("To view your eligibility score, rate estimates, and pre-approved offers, please login. You will be redirected to the login page.");

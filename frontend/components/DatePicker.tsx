@@ -186,13 +186,23 @@ export default function DatePicker({
             {/* Popover / Embedded Selector Panel */}
             <AnimatePresence>
                 {isOpen && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 10, scale: 0.96 }}
-                        animate={{ opacity: 1, y: 4, scale: 1 }}
-                        exit={{ opacity: 0, y: 10, scale: 0.96 }}
-                        transition={{ duration: 0.2, ease: "easeOut" }}
-                        className="selector-panel absolute z-[100] left-0 right-0 md:left-auto md:w-96 bg-white/95 backdrop-blur-xl border border-slate-200/80 rounded-2xl p-4 shadow-2xl shadow-[#6c2bd9]/15 text-slate-800 space-y-4"
-                    >
+                    <>
+                        {/* Mobile Backdrop to prevent clipping inside small parent cards */}
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setIsOpen(false)}
+                            className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] z-[999] md:hidden"
+                        />
+
+                        <motion.div
+                            initial={{ opacity: 0, y: 10, scale: 0.96 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 10, scale: 0.96 }}
+                            transition={{ duration: 0.2, ease: "easeOut" }}
+                            className="selector-panel fixed inset-x-4 top-1/2 -translate-y-1/2 max-h-[85vh] overflow-y-auto z-[1000] md:absolute md:inset-auto md:top-full md:left-0 md:mt-2 md:translate-y-0 md:w-96 bg-white/98 backdrop-blur-xl border border-slate-200/90 rounded-2xl p-4 shadow-2xl shadow-[#6c2bd9]/20 text-slate-800 space-y-4"
+                        >
                         {/* Panel Header with Selection Breadcrumbs */}
                         <div className="panel-header flex justify-between items-center pb-3 border-b border-slate-100">
                             {/* Selected Breadcrumbs */}
@@ -412,6 +422,7 @@ export default function DatePicker({
                             <span className="text-[11px] text-slate-400 font-medium">Click date to set</span>
                         </div>
                     </motion.div>
+                    </>
                 )}
             </AnimatePresence>
         </div>

@@ -32,7 +32,7 @@ async function seedBanks() {
       contactNumber: "1800 10 888",
       email: "educationloan@idfcfirstbank.com",
       logoUrl: "/banks/idfc.png",
-      isPopular: true
+      isPopular: false
     },
     {
       name: "HDFC Credila",
@@ -82,7 +82,7 @@ async function seedBanks() {
       contactNumber: "1800 266 4333",
       email: "support@auxilo.com",
       logoUrl: "/banks/auxilo.png",
-      isPopular: true
+      isPopular: false
     },
     {
       name: "Avanse Financial",
@@ -107,7 +107,7 @@ async function seedBanks() {
       contactNumber: "1800 222 344",
       email: "response@avanse.com",
       logoUrl: "/banks/avanse.png",
-      isPopular: true
+      isPopular: false
     },
     {
       name: "Poonawalla Fincorp",
@@ -132,7 +132,7 @@ async function seedBanks() {
       contactNumber: "1800 208 0000",
       email: "customercare@poonawallafincorp.com",
       logoUrl: "/banks/poonawalla.jpg",
-      isPopular: true
+      isPopular: false
     }
   ];
 

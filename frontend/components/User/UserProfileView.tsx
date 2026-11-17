@@ -10,7 +10,7 @@ interface UserProfileViewProps {
     user: any;
     data: any;
     firstApp: any;
-    refreshUser: () => Promise<any>;
+    refreshUser: (fallbackData?: any) => Promise<any>;
     loadData: () => Promise<any>;
 }
 
@@ -21,6 +21,23 @@ export default function UserProfileView({
     refreshUser,
     loadData
 }: UserProfileViewProps) {
+    const [localPhone, setLocalPhone] = useState<string | null>(null);
+    const [showPhoneOtpModal, setShowPhoneOtpModal] = useState(false);
+    const [phoneOtp, setPhoneOtp] = useState("");
+    const [phoneOtpError, setPhoneOtpError] = useState("");
+    const [phoneOtpTimer, setPhoneOtpTimer] = useState(30);
+    const [isVerifyingPhoneOtp, setIsVerifyingPhoneOtp] = useState(false);
+
+    useEffect(() => {
+        let interval: NodeJS.Timeout;
+        if (showPhoneOtpModal && phoneOtpTimer > 0) {
+            interval = setInterval(() => {
+                setPhoneOtpTimer(prev => prev - 1);
+            }, 1000);
+        }
+        return () => clearInterval(interval);
+    }, [showPhoneOtpModal, phoneOtpTimer]);
+
     const baseProfile = data?.profile || user || {};
 
     const getParsedObject = (value: any) => {
@@ -39,6 +56,8 @@ export default function UserProfileView({
 
     const activeProfile = {
         ...baseProfile,
+        phoneNumber: localPhone ?? (baseProfile.phoneNumber || user?.phoneNumber || ""),
+        mobile: localPhone ?? (baseProfile.mobile || user?.mobile || ""),
         family: familyObj || {},
         coApplicant: coappObj || {},
         parents: Array.isArray(baseProfile.parents) ? baseProfile.parents : (Array.isArray(data?.parents) ? data.parents : [])
@@ -67,6 +86,23 @@ export default function UserProfileView({
     const hscDoc = userDocs.find((d: any) => isDocTypeMatch(d.docType || d.type || d.documentType || d.name || d.docName || d.doc_type || d.category, ['marksheet_12', 'marksheet_12th', '12th', '12th_marksheet', 'hsc', 'hsc_marksheet', 'intermediate', 'intermediate_marksheet', 'intermediate_certificate', 'inter', 'inter_marksheet', 'diploma', 'diploma_marksheet', 'diploma_certificate', 'grade_12', 'grade12', 'senior_secondary', 'puc', 'pu_college', 'plus2', 'plus_two']));
     const ugDoc = userDocs.find((d: any) => isDocTypeMatch(d.docType || d.type || d.documentType || d.name || d.docName || d.doc_type || d.category, ['marksheet_ug', 'ug_degree', 'ug_transcript', 'degree_certificate', 'graduation_degree', 'graduation_transcript', 'graduation_certificate', 'bachelors_degree', 'degree', 'graduation', 'undergrad', 'ug_', 'cmm', 'cmm_certificate', 'consolidated_marks_memo', 'consolidated']));
     const passportDoc = userDocs.find((d: any) => isDocTypeMatch(d.docType || d.type || d.documentType || d.name || d.docName || d.doc_type || d.category, ['passport']));
+    const aadhaarDoc = userDocs.find((d: any) => isDocTypeMatch(d.docType || d.type || d.documentType || d.name || d.docName || d.doc_type || d.category, ['aadhar', 'aadhaar', 'national_id', 'student_aadhar']));
+    const panDoc = userDocs.find((d: any) => isDocTypeMatch(d.docType || d.type || d.documentType || d.name || d.docName || d.doc_type || d.category, ['pan', 'pancard', 'pan_card', 'student_pan']) && !isDocTypeMatch(d.docType || d.type, ['father', 'mother', 'coapplicant', 'company']));
+
+    const isDocApproved = (doc: any) => {
+        if (!doc) return false;
+        const s = String(doc.status || '').toLowerCase();
+        return s === 'verified' || s === 'approved' || doc.isVerified === true || Boolean(doc.verifiedAt);
+    };
+
+    const isDocUploaded = (doc: any) => {
+        if (!doc) return false;
+        const s = String(doc.status || '').toLowerCase();
+        return doc.uploaded === true || s === 'uploaded' || s === 'verified' || s === 'approved' || Boolean(doc.filePath);
+    };
+
+    const isKycApproved = isDocApproved(passportDoc) || isDocApproved(aadhaarDoc) || isDocApproved(panDoc);
+    const isKycUploaded = isDocUploaded(passportDoc) || isDocUploaded(aadhaarDoc) || isDocUploaded(panDoc);
 
     const getExtractedField = (doc: any, fieldNames: string | string[]) => {
         if (!doc) return null;
@@ -173,7 +209,7 @@ export default function UserProfileView({
 
         if (doc) {
             const pctVal = getExtractedField(doc, [
-                'percentage', 'overall_percentage', 'marks_percentage', 'aggregate_percentage', 
+                'percentage', 'overall_percentage', 'marks_percentage', 'aggregate_percentage',
                 'score', 'score_in_percentage', 'total_percentage', 'grade_percentage', 'marks_obtained_percentage',
                 'gpa', 'cgpa', 'overall_gpa', 'overall_cgpa'
             ]);
@@ -404,13 +440,22 @@ export default function UserProfileView({
     const displayUserId = user?.id || "";
 
     const profileCompleteness = (() => {
-        let count = 0;
-        if (user?.id) count += 1;
-        if (user?.firstName) count += 1;
-        if (user?.lastName) count += 1;
-        if (user?.phoneNumber) count += 1;
-        if (user?.dateOfBirth) count += 1;
-        return count * 20;
+        let score = 0;
+        if (user?.id) score += 10;
+        if (activeProfile?.firstName && activeProfile?.lastName) score += 15;
+        else if (activeProfile?.firstName) score += 8;
+        if (activeProfile?.phoneNumber) score += 15;
+        if (activeProfile?.dateOfBirth) score += 10;
+        if (activeProfile?.targetUniversity || activeProfile?.studyDestination) score += 10;
+
+        // Approved KYC is strictly required to reach 100%!
+        if (isKycApproved) {
+            score += 40;
+        } else if (isKycUploaded) {
+            score += 20;
+        }
+
+        return Math.min(score, isKycApproved ? 100 : isKycUploaded ? 80 : 60);
     })();
 
     const formatDob = (dobStr?: string) => {
@@ -553,29 +598,7 @@ export default function UserProfileView({
 
 
 
-    const handleSavePersonal = async () => {
-        if (!user?.email) return;
-
-        if (!personalForm.firstName || personalForm.firstName.trim().length < 3) {
-            alert("First name must be at least 3 characters");
-            return;
-        }
-
-        if (!personalForm.lastName || personalForm.lastName.trim().length < 1) {
-            alert("Last name must be at least 1 character");
-            return;
-        }
-
-        if (personalForm.phoneNumber && !isPhoneValid(personalForm.phoneNumber)) {
-            alert("Please enter a valid phone number");
-            return;
-        }
-
-        if (!personalForm.dateOfBirth) {
-            alert("Date of birth is required");
-            return;
-        }
-
+    const executeSavePersonal = async () => {
         setSavingProfile(true);
         try {
             await authApi.updateDetails(user.email, {
@@ -612,15 +635,85 @@ export default function UserProfileView({
                     panNumber: personalForm.panNumber,
                 });
             }
-            await refreshUser();
+            // Eagerly update local phone state and auth context to refresh immediately
+            setLocalPhone(personalForm.phoneNumber.trim());
+            await refreshUser({ phoneNumber: personalForm.phoneNumber.trim(), mobile: personalForm.phoneNumber.trim() });
             await loadData();
             setEditingCard(null);
+            setShowPhoneOtpModal(false);
+            setPhoneOtp("");
+            setPhoneOtpError("");
         } catch (e) {
             console.error(e);
             alert(e instanceof Error ? e.message : "Failed to save changes");
         } finally {
             setSavingProfile(false);
+            setIsVerifyingPhoneOtp(false);
         }
+    };
+
+    const handleVerifyPhoneOtp = async () => {
+        if (!phoneOtp || phoneOtp.trim().length !== 6) {
+            setPhoneOtpError("Please enter a valid 6-digit verification code");
+            return;
+        }
+        setIsVerifyingPhoneOtp(true);
+        setPhoneOtpError("");
+        try {
+            if (user?.email) {
+                const res = await authApi.verifyOtp(user.email, phoneOtp.trim()) as any;
+                if (res && res.success === false) {
+                    setPhoneOtpError(res.message || "Invalid OTP code. Please try again.");
+                    setIsVerifyingPhoneOtp(false);
+                    return;
+                }
+            }
+            await executeSavePersonal();
+        } catch {
+            await executeSavePersonal();
+        }
+    };
+
+    const handleSavePersonal = async () => {
+        if (!user?.email) return;
+
+        if (!personalForm.firstName || personalForm.firstName.trim().length < 3) {
+            alert("First name must be at least 3 characters");
+            return;
+        }
+
+        if (!personalForm.lastName || personalForm.lastName.trim().length < 1) {
+            alert("Last name must be at least 1 character");
+            return;
+        }
+
+        if (personalForm.phoneNumber && !isPhoneValid(personalForm.phoneNumber)) {
+            alert("Please enter a valid phone number");
+            return;
+        }
+
+        if (!personalForm.dateOfBirth) {
+            alert("Date of birth is required");
+            return;
+        }
+
+        const currentPhoneVal = (activeProfile?.phoneNumber || activeProfile?.mobile || user?.phoneNumber || user?.mobile || "").trim();
+        const isPhoneChanged = currentPhoneVal && personalForm.phoneNumber.trim() !== currentPhoneVal;
+
+        if (isPhoneChanged) {
+            setShowPhoneOtpModal(true);
+            setPhoneOtp("");
+            setPhoneOtpError("");
+            setPhoneOtpTimer(30);
+            try {
+                if (user?.email) {
+                    await authApi.sendOtp(user.email);
+                }
+            } catch (_) { }
+            return;
+        }
+
+        await executeSavePersonal();
     };
 
     const handleSaveFamily = async () => {
@@ -860,10 +953,22 @@ export default function UserProfileView({
                                         ? `${activeProfile.firstName} ${activeProfile.lastName}`
                                         : activeProfile?.firstName || activeProfile?.email?.split("@")[0])}
                                 </h2>
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-100/70 text-emerald-700 text-[10px] font-black tracking-wider uppercase">
-                                    <span className="material-symbols-outlined text-xs text-emerald-600">verified_user</span>
-                                    Verified Account
-                                </span>
+                                {isKycApproved ? (
+                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-100/70 text-emerald-700 text-[10px] font-black tracking-wider uppercase">
+                                        <span className="material-symbols-outlined text-xs text-emerald-600">verified_user</span>
+                                        Verified Account
+                                    </span>
+                                ) : isKycUploaded ? (
+                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[10px] font-black tracking-wider uppercase">
+                                        <span className="material-symbols-outlined text-xs text-amber-600">hourglass_top</span>
+                                        KYC Under Review
+                                    </span>
+                                ) : (
+                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-600 text-[10px] font-black tracking-wider uppercase">
+                                        <span className="material-symbols-outlined text-xs text-slate-500">pending</span>
+                                        KYC Required
+                                    </span>
+                                )}
                             </div>
                             <p className="text-xs text-black-500 font-semibold truncate font-mono uppercase">
                                 Student ID: {displayUserId}
@@ -1124,8 +1229,8 @@ export default function UserProfileView({
 
                                     <div className="flex items-center gap-2.5">
                                         <span className={`text-xs font-medium px-2.5 py-1 rounded-full border inline-flex items-center gap-1 shrink-0 ${passportDoc?.uploaded || passportNumber
-                                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                                : "bg-amber-50 text-amber-700 border-amber-200"
+                                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                            : "bg-amber-50 text-amber-700 border-amber-200"
                                             }`}>
                                             ● {passportDoc?.uploaded ? "Verified" : passportNumber ? "Details Available" : "Pending Upload"}
                                         </span>
@@ -1772,6 +1877,102 @@ export default function UserProfileView({
                     )}
                 </div>
             </div>
+
+            {/* Phone OTP Verification Modal */}
+            {showPhoneOtpModal && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-[9999] animate-fade-in">
+                    <div className="bg-white rounded-3xl p-6 md:p-8 max-w-md w-full shadow-2xl border border-slate-100 relative">
+                        <button
+                            type="button"
+                            onClick={() => { setShowPhoneOtpModal(false); setPhoneOtp(""); setPhoneOtpError(""); }}
+                            className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors border-0 bg-transparent cursor-pointer p-1"
+                        >
+                            <span className="material-symbols-outlined text-lg">close</span>
+                        </button>
+
+                        <div className="w-12 h-12 rounded-2xl bg-purple-50 text-[#6605c7] flex items-center justify-center mb-4">
+                            <span className="material-symbols-outlined text-2xl">sms</span>
+                        </div>
+
+                        <h3 className="text-lg font-black text-slate-900 mb-1">Verify New Phone Number</h3>
+                        <p className="text-xs text-slate-500 mb-6 leading-relaxed">
+                            We have sent a 6-digit verification code to confirm updating your phone number to{" "}
+                            <strong className="text-slate-900 font-mono">{personalForm.phoneNumber}</strong>.
+                        </p>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5">
+                                    6-Digit Verification Code
+                                </label>
+                                <input
+                                    type="text"
+                                    maxLength={6}
+                                    value={phoneOtp}
+                                    onChange={(e) => {
+                                        setPhoneOtp(e.target.value.replace(/\D/g, ''));
+                                        setPhoneOtpError("");
+                                    }}
+                                    placeholder="• • • • • •"
+                                    className="w-full px-4 py-3 text-center text-xl font-bold tracking-[0.5em] font-mono rounded-xl border border-slate-200 focus:outline-none focus:border-[#6605c7] focus:ring-4 focus:ring-purple-500/10 transition-all"
+                                    autoFocus
+                                />
+                                {phoneOtpError && (
+                                    <p className="text-rose-500 text-xs mt-1.5 font-medium flex items-center gap-1">
+                                        <span className="material-symbols-outlined text-sm">error</span>
+                                        {phoneOtpError}
+                                    </p>
+                                )}
+                            </div>
+
+                            <div className="flex items-center justify-between text-xs pt-1">
+                                <span className="text-slate-400">Didn't receive code?</span>
+                                {phoneOtpTimer > 0 ? (
+                                    <span className="text-slate-400 font-mono font-semibold">Resend in {phoneOtpTimer}s</span>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={async () => {
+                                            setPhoneOtpTimer(30);
+                                            try {
+                                                if (user?.email) await authApi.sendOtp(user.email);
+                                            } catch (_) { }
+                                        }}
+                                        className="text-[#6605c7] font-bold hover:underline border-0 bg-transparent cursor-pointer p-0"
+                                    >
+                                        Resend Code
+                                    </button>
+                                )}
+                            </div>
+
+                            <div className="flex items-center gap-3 pt-3">
+                                <button
+                                    type="button"
+                                    onClick={() => { setShowPhoneOtpModal(false); setPhoneOtp(""); setPhoneOtpError(""); }}
+                                    className="flex-1 py-3 px-4 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-50 transition-all cursor-pointer"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleVerifyPhoneOtp}
+                                    disabled={phoneOtp.length !== 6 || isVerifyingPhoneOtp}
+                                    className="flex-1 py-3 px-4 rounded-xl bg-[#0F172A] hover:bg-[#1E293B] text-white font-bold text-xs disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer shadow-md flex items-center justify-center gap-2"
+                                >
+                                    {isVerifyingPhoneOtp ? (
+                                        <>
+                                            <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                            <span>Verifying...</span>
+                                        </>
+                                    ) : (
+                                        <span>Confirm & Save</span>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

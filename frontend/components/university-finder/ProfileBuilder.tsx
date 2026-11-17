@@ -29,6 +29,7 @@ const COUNTRIES = [
 ];
 
 export default function ProfileBuilder({ onComplete }: ProfileBuilderProps) {
+  const [gpaScale, setGpaScale] = useState<"4.0" | "10.0">("10.0");
   const [profile, setProfile] = useState<UserProfile>({
     gpa: null,
     englishScore: null,
@@ -45,26 +46,41 @@ export default function ProfileBuilder({ onComplete }: ProfileBuilderProps) {
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    if (!profile.gpa || profile.gpa < 0 || profile.gpa > 4) {
-      newErrors.gpa = "GPA must be between 0-4.0";
+    if (gpaScale === "4.0") {
+      if (!profile.gpa || profile.gpa <= 0 || profile.gpa > 4.0) {
+        newErrors.gpa = "GPA must be between 0.1 and 4.0";
+      }
+    } else {
+      if (!profile.gpa || profile.gpa <= 0 || profile.gpa > 10.0) {
+        newErrors.gpa = "CGPA must be between 0.1 and 10.0";
+      }
     }
+
     if (!profile.englishTest) {
       newErrors.englishTest = "Select an English proficiency test";
-    }
-    if (!profile.englishScore || profile.englishScore < 0) {
+    } else if (!profile.englishScore || profile.englishScore <= 0) {
       newErrors.englishScore = "Enter a valid English score";
+    } else if (profile.englishTest === "IELTS" && (profile.englishScore < 1 || profile.englishScore > 9)) {
+      newErrors.englishScore = "IELTS score must be between 1.0 and 9.0";
+    } else if (profile.englishTest === "TOEFL" && (profile.englishScore < 1 || profile.englishScore > 120)) {
+      newErrors.englishScore = "TOEFL score must be between 1 and 120";
     }
+
     if (!profile.testType) {
       newErrors.testType = "Select a standardized test (GMAT/GRE)";
-    }
-    if (!profile.testScore || profile.testScore < 0) {
+    } else if (!profile.testScore || profile.testScore <= 0) {
       newErrors.testScore = "Enter a valid test score";
+    } else if (profile.testType === "GRE" && (profile.testScore < 260 || profile.testScore > 340)) {
+      newErrors.testScore = "GRE score must be between 260 and 340";
+    } else if (profile.testType === "GMAT" && (profile.testScore < 200 || profile.testScore > 800)) {
+      newErrors.testScore = "GMAT score must be between 200 and 800";
     }
-    if (!profile.budget || profile.budget < 0) {
-      newErrors.budget = "Enter your annual budget";
+
+    if (!profile.budget || profile.budget <= 0) {
+      newErrors.budget = "Enter a valid annual budget greater than $0";
     }
-    if (!profile.workExperience || profile.workExperience < 0) {
-      newErrors.workExperience = "Enter years of work experience";
+    if (profile.workExperience === null || profile.workExperience < 0) {
+      newErrors.workExperience = "Enter years of work experience (0 or more)";
     }
     if (profile.targetCountries.length === 0) {
       newErrors.targetCountries = "Select at least one country";
@@ -106,7 +122,13 @@ export default function ProfileBuilder({ onComplete }: ProfileBuilderProps) {
 
   const handleSubmit = () => {
     if (validateForm()) {
-      onComplete(profile);
+      const normalizedGpa = profile.gpa && gpaScale === "10.0"
+        ? parseFloat((profile.gpa / 2.5).toFixed(2))
+        : profile.gpa;
+      onComplete({
+        ...profile,
+        gpa: normalizedGpa,
+      });
     }
   };
 
@@ -124,13 +146,33 @@ export default function ProfileBuilder({ onComplete }: ProfileBuilderProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* GPA */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              GPA / CGPA (0-4.0)
-            </label>
+            <div className="flex justify-between items-center mb-2">
+              <label className="block text-sm font-medium text-gray-700">
+                {gpaScale === "10.0" ? "CGPA (0 - 10.0 Scale)" : "GPA (0 - 4.0 Scale)"}
+              </label>
+              <div className="flex items-center text-xs font-bold gap-1 bg-gray-100 p-0.5 rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => { setGpaScale("10.0"); handleChange("gpa", ""); }}
+                  className={`px-2 py-0.5 rounded-md transition-all ${gpaScale === "10.0" ? "bg-white text-purple-700 shadow-sm" : "text-gray-500"}`}
+                >
+                  10.0 CGPA
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setGpaScale("4.0"); handleChange("gpa", ""); }}
+                  className={`px-2 py-0.5 rounded-md transition-all ${gpaScale === "4.0" ? "bg-white text-purple-700 shadow-sm" : "text-gray-500"}`}
+                >
+                  4.0 GPA
+                </button>
+              </div>
+            </div>
             <input
               type="number"
-              step="0.01"
-              placeholder="3.8"
+              step={gpaScale === "10.0" ? "0.1" : "0.01"}
+              min="0.1"
+              max={gpaScale === "10.0" ? "10" : "4"}
+              placeholder={gpaScale === "10.0" ? "e.g. 8.5" : "e.g. 3.8"}
               value={profile.gpa || ""}
               onChange={(e) =>
                 handleChange("gpa", parseFloat(e.target.value) || "")
@@ -196,12 +238,14 @@ export default function ProfileBuilder({ onComplete }: ProfileBuilderProps) {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Score
+              Score {profile.englishTest === "IELTS" ? "(1.0 - 9.0)" : profile.englishTest === "TOEFL" ? "(1 - 120)" : ""}
             </label>
             <input
               type="number"
-              step="0.5"
-              placeholder={profile.englishTest === "IELTS" ? "7.5" : "105"}
+              step={profile.englishTest === "IELTS" ? "0.5" : "1"}
+              min={profile.englishTest === "IELTS" ? "1" : "1"}
+              max={profile.englishTest === "IELTS" ? "9" : "120"}
+              placeholder={profile.englishTest === "IELTS" ? "e.g. 7.5 (Max 9.0)" : profile.englishTest === "TOEFL" ? "e.g. 105 (Max 120)" : "Score"}
               value={profile.englishScore || ""}
               onChange={(e) =>
                 handleChange("englishScore", parseFloat(e.target.value) || "")
@@ -242,11 +286,13 @@ export default function ProfileBuilder({ onComplete }: ProfileBuilderProps) {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Score
+              Score {profile.testType === "GRE" ? "(260 - 340)" : profile.testType === "GMAT" ? "(200 - 800)" : ""}
             </label>
             <input
               type="number"
-              placeholder={profile.testType === "GRE" ? "330" : "700"}
+              min={profile.testType === "GRE" ? "260" : "200"}
+              max={profile.testType === "GRE" ? "340" : "800"}
+              placeholder={profile.testType === "GRE" ? "e.g. 320 (260 - 340)" : profile.testType === "GMAT" ? "e.g. 700 (200 - 800)" : "Score"}
               value={profile.testScore || ""}
               onChange={(e) =>
                 handleChange("testScore", parseInt(e.target.value) || "")

@@ -190,21 +190,21 @@ export default function UniversityComparisonFlow({
     },
     {
       id: "6",
-      name: "University of Toronto",
-      country: "Canada",
-      city: "Toronto, ON",
-      rank: 21,
-      accept: 43,
-      tuition: 38000,
-      scholarships: 650000,
-      avgjobSalary: 78000,
-      employment: 89,
-      topRecruiters: ["RBC", "Shopify", "TD Bank", "Amazon", "Deloitte"],
-      description: "Canada's top research powerhouse located in the vibrant heart of Toronto.",
-      slug: "toronto",
-      website: "https://www.utoronto.ca",
+      name: "ETH Zurich",
+      country: "Switzerland",
+      city: "Zurich",
+      rank: 7,
+      accept: 27,
+      tuition: 1500,
+      scholarships: 200000,
+      avgjobSalary: 110000,
+      employment: 94,
+      topRecruiters: ["Google", "ABB", "Credit Suisse", "Roche", "Novartis"],
+      description: "Europe's leading science and technology university offering high ROI.",
+      slug: "eth-zurich",
+      website: "https://www.ethz.ch",
       loan: true,
-      _score: 88,
+      _score: 94,
     },
     {
       id: "7",
@@ -244,6 +244,24 @@ export default function UniversityComparisonFlow({
     },
     {
       id: "9",
+      name: "University of Toronto",
+      country: "Canada",
+      city: "Toronto, ON",
+      rank: 21,
+      accept: 43,
+      tuition: 38000,
+      scholarships: 650000,
+      avgjobSalary: 78000,
+      employment: 89,
+      topRecruiters: ["RBC", "Shopify", "TD Bank", "Amazon", "Deloitte"],
+      description: "Canada's top research powerhouse located in the vibrant heart of Toronto.",
+      slug: "toronto",
+      website: "https://www.utoronto.ca",
+      loan: true,
+      _score: 88,
+    },
+    {
+      id: "10",
       name: "Technical University of Munich (TUM)",
       country: "Germany",
       city: "Munich",
@@ -261,7 +279,7 @@ export default function UniversityComparisonFlow({
       _score: 92,
     },
     {
-      id: "10",
+      id: "11",
       name: "Trinity College Dublin",
       country: "Ireland",
       city: "Dublin",
@@ -363,25 +381,29 @@ export default function UniversityComparisonFlow({
 
   // Debounce AI search while typing
   useEffect(() => {
-    if (!searchQuery.trim()) {
+    const trimmed = searchQuery.trim();
+    if (!trimmed) {
       setSearchResults([]);
       setIsSearching(false);
       return;
     }
 
+    let isCurrent = true;
+
     // Instantly filter locally first to keep UI responsive
     const localResults = activeUnis.filter(
       (u) =>
-        u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        u.country.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        u.city.toLowerCase().includes(searchQuery.toLowerCase())
+        u.name.toLowerCase().includes(trimmed.toLowerCase()) ||
+        u.country.toLowerCase().includes(trimmed.toLowerCase()) ||
+        u.city.toLowerCase().includes(trimmed.toLowerCase())
     );
     setSearchResults(localResults);
     setIsSearching(true);
 
     const timer = setTimeout(async () => {
       try {
-        const data: any = await aiApi.aiSearch({ query: searchQuery, type: 'university' });
+        const data: any = await aiApi.aiSearch({ query: trimmed, type: 'university' });
+        if (!isCurrent) return;
         const results = data?.universities || data?.results || [];
 
         if (results.length > 0) {
@@ -423,17 +445,29 @@ export default function UniversityComparisonFlow({
             };
           });
 
-          setSearchResults(mapped);
+          const localSlugs = new Set(localResults.map(l => l.slug || l.name.toLowerCase()));
+          const uniqueRemotes = mapped.filter((r: any) => !localSlugs.has(r.slug || r.name.toLowerCase()));
+          setSearchResults([...localResults, ...uniqueRemotes]);
+        } else {
+          setSearchResults(localResults);
         }
       } catch (err) {
         console.error("AI Global Search Failed:", err);
+        if (isCurrent) {
+          setSearchResults(localResults);
+        }
       } finally {
-        setIsSearching(false);
+        if (isCurrent) {
+          setIsSearching(false);
+        }
       }
-    }, 500);
+    }, 400);
 
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
+    return () => {
+      isCurrent = false;
+      clearTimeout(timer);
+    };
+  }, [searchQuery, activeUnis]);
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);

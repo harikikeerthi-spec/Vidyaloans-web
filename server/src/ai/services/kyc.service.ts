@@ -762,7 +762,12 @@ export class KycService {
             // Check for fraud_reason indicating wrong document type or missing passport pages
             if (parsed.fraud_reason === 'WRONG_DOCUMENT_TYPE_UPLOADED') {
                 isValid = false;
-                validationError = `Document type mismatch: Expected a valid ${docType.toUpperCase().replace(/_/g, ' ')}, but the uploaded document appears to be a ${String(parsed.document_type || 'different document').toUpperCase()}. Please upload the correct document.`;
+                const rawType = String(parsed.document_type || '').trim().toLowerCase();
+                if (!rawType || rawType === 'unknown' || rawType === 'different document') {
+                    validationError = `Document type mismatch: The uploaded file could not be verified as a valid ${docType.toUpperCase().replace(/_/g, ' ')}. Please ensure you upload a clear, legible copy of your official ${docType.toUpperCase().replace(/_/g, ' ')}.`;
+                } else {
+                    validationError = `Document type mismatch: Expected a valid ${docType.toUpperCase().replace(/_/g, ' ')}, but the uploaded document appears to be a ${rawType.toUpperCase().replace(/_/g, ' ')}. Please upload the correct document.`;
+                }
             } else if (parsed.fraud_reason === 'PASSPORT_BACK_PAGE_MISSING') {
                 isValid = false;
                 validationError = 'Passport verification rejected: Only the Front page (Biodata) was detected. Both the Front page and Back page (Address & Parents details) of your Passport are required. Please upload a document containing BOTH pages.';
@@ -778,7 +783,11 @@ export class KycService {
 
                 if (!isCustomDoc && expectedNorm !== detectedNorm) {
                     isValid = false;
-                    validationError = `Document type mismatch: Expected a valid ${docType.toUpperCase().replace(/_/g, ' ')}, but AI detected ${String(rawDetectedType || 'an invalid/unrecognized document').toUpperCase()}. Please upload the correct ${expectedNorm.toUpperCase()} document.`;
+                    if (!rawDetectedType || detectedNorm === 'unknown') {
+                        validationError = `Document type mismatch: Expected a valid ${docType.toUpperCase().replace(/_/g, ' ')}, but the uploaded file could not be recognized. Please upload a clear photo or PDF of your ${expectedNorm.toUpperCase().replace(/_/g, ' ')}.`;
+                    } else {
+                        validationError = `Document type mismatch: Expected a valid ${docType.toUpperCase().replace(/_/g, ' ')}, but AI detected a ${String(rawDetectedType).toUpperCase().replace(/_/g, ' ')}. Please upload the correct ${expectedNorm.toUpperCase().replace(/_/g, ' ')} document.`;
+                    }
                 }
 
                 // ALWAYS run Aadhaar, PAN, and Passport specific validation rules!

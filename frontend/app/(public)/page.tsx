@@ -23,7 +23,7 @@ const CORE_BANKS_CONFIG = [
         name: "Auxilo Finserve",
         slug: "auxilo",
         badge: "Fast Approval",
-        defaultRate: "From 10.25% p.a.",
+        defaultRate: "From 10.50% p.a.",
         defaultTime: "48 hours",
         defaultFee: "1% + GST",
         defaultLogo: "/banks/auxilo.png",
@@ -34,7 +34,7 @@ const CORE_BANKS_CONFIG = [
         name: "Poonawalla Fincorp",
         slug: "poonawalla",
         badge: "Easy Process",
-        defaultRate: "From 10.25% p.a.",
+        defaultRate: "From 11.00% p.a.",
         defaultTime: "48 hours",
         defaultFee: "1% + GST",
         defaultLogo: "/banks/poonawalla.jpg",
@@ -45,8 +45,8 @@ const CORE_BANKS_CONFIG = [
         name: "Avanse Financial",
         slug: "avanse",
         badge: "High Limits",
-        defaultRate: "From 10.25% p.a.",
-        defaultTime: "48 hours",
+        defaultRate: "From 10.75% p.a.",
+        defaultTime: "72 hours",
         defaultFee: "1% - 1.5% + GST",
         defaultLogo: "/banks/avanse.png",
         link: "https://www.avanse.com",
@@ -57,7 +57,7 @@ const CORE_BANKS_CONFIG = [
         slug: "credila",
         badge: "Most Popular",
         defaultRate: "From 10.25% p.a.",
-        defaultTime: "48 hours",
+        defaultTime: "72 hours",
         defaultFee: "1% - 1.25% + GST",
         defaultLogo: "/banks/credila.png",
         link: "https://www.hdfccredila.com",
@@ -108,7 +108,7 @@ function buildActiveLenders(dbBanks: any[] | null) {
         return {
             name: dbMatch.name || core.name,
             slug: (dbMatch.shortName || core.slug).toLowerCase(),
-            badge: dbMatch.isPopular ? "Most Popular" : (dbMatch.type || core.badge),
+            badge: (core.key === 'credila' || dbMatch.shortName?.toLowerCase() === 'credila') ? "Most Popular" : core.badge,
             rate: rateStr,
             time: dbMatch.processingTime || core.defaultTime,
             fee: dbMatch.processingFee || core.defaultFee,
@@ -706,7 +706,7 @@ export default async function HomePage() {
                             <table className="w-full text-left">
                                 <thead className="bg-gray-50/50 text-gray-900 border-b border-gray-100">
                                     <tr>
-                                        {["Lender", "Interest Rate", "Processing Time", ""].map((h) => (
+                                        {["Lender", "Interest Rate", "Processing Fee", "Processing Time", ""].map((h) => (
                                             <th key={h || 'action'} className="p-6 text-[11px] font-black uppercase tracking-widest text-gray-400">{h}</th>
                                         ))}
                                     </tr>
@@ -724,6 +724,7 @@ export default async function HomePage() {
                                                 </Link>
                                             </td>
                                             <td className="p-6 text-gray-600 text-[13px] font-bold">{l.rate}</td>
+                                            <td className="p-6 text-gray-600 text-[13px] font-bold">{l.fee}</td>
                                             <td className="p-6 text-gray-600 text-[13px] font-bold">{l.time}</td>
                                             <td className="p-6">
                                                 <Link href={`/bank/${l.slug}`} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#6605c7]/5 text-[#6605c7] text-[11px] font-black uppercase tracking-wider hover:bg-[#6605c7] hover:text-white transition-all duration-200 group-hover:bg-[#6605c7] group-hover:text-white whitespace-nowrap">

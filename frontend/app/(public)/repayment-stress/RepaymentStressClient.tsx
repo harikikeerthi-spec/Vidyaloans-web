@@ -5,6 +5,7 @@ import { useState } from "react";
 export default function RepaymentStressPage() {
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<any>(null);
+    const [error, setError] = useState<string | null>(null);
     const [formData, setFormData] = useState({
         salary: "",
         emi: "",
@@ -14,21 +15,41 @@ export default function RepaymentStressPage() {
 
     const handleRunTest = (e: React.FormEvent) => {
         e.preventDefault();
+        setError(null);
+
+        const salary = parseFloat(formData.salary);
+        const emi = parseFloat(formData.emi);
+        const living = parseFloat(formData.living);
+
+        if (isNaN(salary) || salary <= 0) {
+            setError("Monthly take-home salary must be greater than ₹0.");
+            return;
+        }
+
+        if (isNaN(emi) || emi < 0) {
+            setError("Monthly EMI must be 0 or greater.");
+            return;
+        }
+
+        if (isNaN(living) || living < 0) {
+            setError("Living expenses must be 0 or greater.");
+            return;
+        }
+
         setLoading(true);
 
         // Simulation logic
         setTimeout(() => {
-            const salary = Number(formData.salary);
-            const emi = Number(formData.emi);
-            const living = Number(formData.living);
-
             const totalOutgo = emi + living;
             const ratio = (totalOutgo / salary) * 100;
-            const stressScore = Math.min(100, Math.floor(ratio));
+            const stressScore = Math.min(100, Math.max(0, Math.round(ratio)));
 
             let status = "Healthy";
             let color = "bg-green-500";
-            if (stressScore > 85) {
+            if (ratio > 100) {
+                status = "Insolvent / Deficit";
+                color = "bg-red-600";
+            } else if (stressScore > 85) {
                 status = "Critical";
                 color = "bg-red-500";
             } else if (stressScore > 65) {
@@ -43,18 +64,20 @@ export default function RepaymentStressPage() {
                 score: stressScore,
                 status,
                 color,
-                ratio: stressScore.toFixed(0) + "%",
+                ratio: Math.round(ratio) + "%",
                 summary: ratio > 100
-                    ? "Insolvent: Your expenses exceed your income."
+                    ? "Insolvent: Your total expenses (EMI + living) exceed your take-home income."
                     : ratio > 80
-                        ? "High Risk: Almost no savings margin."
-                        : "Survivable: You have a decent safety net.",
+                        ? "High Risk: Almost no savings margin to handle shocks."
+                        : ratio > 50
+                            ? "Manageable: Moderate financial pressure; keep expenses controlled."
+                            : "Survivable: You have a healthy safety net.",
                 drop: (salary * 0.8 - emi - living).toFixed(0),
-                delay: (emi * 3).toFixed(0),
+                delay: ((emi + living) * 3).toFixed(0),
                 recommendations: [
-                    ratio > 70 ? "Increase loan tenure to reduce EMI" : "Consider a cheaper city/country",
-                    "Build a 6-month buffer before starting repayment",
-                    "Keep a credit card for extreme emergencies only"
+                    ratio > 70 ? "Increase loan tenure to reduce EMI burden" : "Consider a cheaper city/country if possible",
+                    "Build a 6-month buffer covering both EMI and living expenses before repayment starts",
+                    "Keep an emergency credit line or reserve fund for medical and unforeseen expenses"
                 ]
             });
             setLoading(false);
@@ -75,18 +98,24 @@ export default function RepaymentStressPage() {
                         </p>
 
                         <form onSubmit={handleRunTest} className="bg-white p-8 border border-gray-100 rounded-xl shadow-xl space-y-6">
+                            {error && (
+                                <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-bold flex items-center gap-2">
+                                    <span className="material-symbols-outlined text-base">error</span>
+                                    {error}
+                                </div>
+                            )}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-2">
                                     <label className="text-[11px] font-bold uppercase tracking-widest text-gray-400">Monthly Take-Home (₹)</label>
-                                    <input type="number" required value={formData.salary} onChange={e => setFormData({ ...formData, salary: e.target.value })} className="w-full px-4 py-2.5 rounded-xl border border-gray-100 bg-gray-50/30 focus:border-[#6605c7] focus:ring-1 focus:ring-[#6605c7]/5 outline-none transition-all font-bold text-gray-900 text-[13px]" />
+                                    <input type="number" required min="1" placeholder="e.g. 75000" value={formData.salary} onChange={e => { setFormData({ ...formData, salary: e.target.value }); setError(null); }} className="w-full px-4 py-2.5 rounded-xl border border-gray-100 bg-gray-50/30 focus:border-[#6605c7] focus:ring-1 focus:ring-[#6605c7]/5 outline-none transition-all font-bold text-gray-900 text-[13px]" />
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-[11px] font-bold uppercase tracking-widest text-gray-400">Monthly EMI (₹)</label>
-                                    <input type="number" required value={formData.emi} onChange={e => setFormData({ ...formData, emi: e.target.value })} className="w-full px-4 py-2.5 rounded-xl border border-gray-100 bg-gray-50/30 focus:border-[#6605c7] focus:ring-1 focus:ring-[#6605c7]/5 outline-none transition-all font-bold text-gray-900 text-[13px]" />
+                                    <input type="number" required min="0" placeholder="e.g. 25000" value={formData.emi} onChange={e => { setFormData({ ...formData, emi: e.target.value }); setError(null); }} className="w-full px-4 py-2.5 rounded-xl border border-gray-100 bg-gray-50/30 focus:border-[#6605c7] focus:ring-1 focus:ring-[#6605c7]/5 outline-none transition-all font-bold text-gray-900 text-[13px]" />
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-[11px] font-bold uppercase tracking-widest text-gray-400">Living Expenses (₹)</label>
-                                    <input type="number" required value={formData.living} onChange={e => setFormData({ ...formData, living: e.target.value })} className="w-full px-4 py-2.5 rounded-xl border border-gray-100 bg-gray-50/30 focus:border-[#6605c7] focus:ring-1 focus:ring-[#6605c7]/5 outline-none transition-all font-bold text-gray-900 text-[13px]" />
+                                    <input type="number" required min="0" placeholder="e.g. 20000" value={formData.living} onChange={e => { setFormData({ ...formData, living: e.target.value }); setError(null); }} className="w-full px-4 py-2.5 rounded-xl border border-gray-100 bg-gray-50/30 focus:border-[#6605c7] focus:ring-1 focus:ring-[#6605c7]/5 outline-none transition-all font-bold text-gray-900 text-[13px]" />
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-[11px] font-bold uppercase tracking-widest text-gray-400">Country/City</label>

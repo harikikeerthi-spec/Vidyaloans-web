@@ -142,50 +142,10 @@ export default function GradeConverterPage() {
         let percentage = 0;
         let formulaText = "";
         let formulaName = "";
+        let inputError: string | null = null;
 
-        if (formData.inputType === "percentage") {
-            const val = parseFloat(raw);
-            percentage = isNaN(val) ? 0 : Math.max(0, Math.min(100, val));
-            formulaText = `Direct input: ${percentage.toFixed(2)}%`;
-            formulaName = "Direct Percentage";
-        } else if (formData.inputType === "cgpa") {
-            const cgpa = isNaN(parseFloat(raw)) ? 0 : Math.max(0, Math.min(10, parseFloat(raw)));
-            if (formula === "direct") {
-                percentage = cgpa * 10;
-                formulaText = `${cgpa} [CGPA] × 10 = ${percentage.toFixed(2)}%`;
-                formulaName = "Direct 10-Scale Multiplier (AICTE / IIT standard)";
-            } else if (formula === "vtu") {
-                percentage = Math.max(0, (cgpa - 0.75) * 10);
-                formulaText = `(${cgpa} - 0.75) × 10 = ${percentage.toFixed(2)}%`;
-                formulaName = "VTU / Anna Univ / SPPU Formula";
-            } else if (formula === "mumbai") {
-                percentage = Math.min(100, Math.max(0, (7.1 * cgpa) + 11));
-                formulaText = `(7.1 × ${cgpa}) + 11 = ${percentage.toFixed(2)}%`;
-                formulaName = "Mumbai University Engineering Formula";
-            } else {
-                // CBSE Standard: CGPA * 9.5
-                percentage = cgpa * 9.5;
-                formulaText = `${cgpa} [CGPA] × 9.5 = ${percentage.toFixed(2)}%`;
-                formulaName = "CBSE National Standard (Official 9.5x Multiplier)";
-            }
-        } else if (formData.inputType === "gpa") {
-            const gpa = isNaN(parseFloat(raw)) ? 0 : Math.max(0, Math.min(4.0, parseFloat(raw)));
-            if (gpa >= 4.0) percentage = 95.0;
-            else if (gpa >= 3.7) percentage = 85.0 + ((gpa - 3.7) / 0.3) * 10.0;
-            else if (gpa >= 3.3) percentage = 80.0 + ((gpa - 3.3) / 0.4) * 5.0;
-            else if (gpa >= 3.0) percentage = 70.0 + ((gpa - 3.0) / 0.3) * 10.0;
-            else if (gpa >= 2.7) percentage = 65.0 + ((gpa - 2.7) / 0.3) * 5.0;
-            else if (gpa >= 2.3) percentage = 60.0 + ((gpa - 2.3) / 0.4) * 5.0;
-            else if (gpa >= 2.0) percentage = 50.0 + ((gpa - 2.0) / 0.3) * 10.0;
-            else percentage = Math.max(0, (gpa / 2.0) * 50.0);
-            formulaText = `US 4.0 Collegiate Scale: ${gpa.toFixed(2)} -> ${percentage.toFixed(2)}%`;
-            formulaName = "US Collegiate Standard Equivalent";
-        } else if (formData.inputType === "marks") {
-            const obtained = parseFloat(raw) || 0;
-            const total = parseFloat(formData.totalMarks) || 100;
-            percentage = total > 0 ? Math.min(100, Math.max(0, (obtained / total) * 100)) : 0;
-            formulaText = `(${obtained} ÷ ${total}) × 100 = ${percentage.toFixed(2)}%`;
-            formulaName = "Proportional Raw Marks";
+        if (!raw) {
+            inputError = "Please enter a value to convert";
         } else if (formData.inputType === "letterGrade") {
             const grade = raw.toUpperCase();
             const gradeMap: Record<string, number> = {
@@ -194,9 +154,78 @@ export default function GradeConverterPage() {
                 "C+": 60, "C": 55, "C-": 50,
                 "D+": 45, "D": 40, "F": 25
             };
-            percentage = gradeMap[grade] ?? 60;
-            formulaText = `Letter Grade '${grade}' standardized to ${percentage}%`;
-            formulaName = "Letter Grade Benchmark";
+            if (!(grade in gradeMap)) {
+                inputError = `Invalid letter grade "${raw}". Supported grades are: O, S, A+, A, A-, B+, B, B-, C+, C, C-, D+, D, F`;
+            } else {
+                percentage = gradeMap[grade];
+                formulaText = `Letter Grade '${grade}' standardized to ${percentage}%`;
+                formulaName = "Letter Grade Benchmark";
+            }
+        } else {
+            const num = parseFloat(raw);
+            if (isNaN(num)) {
+                inputError = `Invalid input "${raw}". Please enter a valid numeric value.`;
+            } else if (formData.inputType === "percentage") {
+                if (num < 0 || num > 100) {
+                    inputError = "Percentage must be between 0% and 100%.";
+                } else {
+                    percentage = num;
+                    formulaText = `Direct input: ${percentage.toFixed(2)}%`;
+                    formulaName = "Direct Percentage";
+                }
+            } else if (formData.inputType === "cgpa") {
+                if (num < 0 || num > 10) {
+                    inputError = "CGPA must be between 0.0 and 10.0.";
+                } else {
+                    const cgpa = num;
+                    if (formula === "direct") {
+                        percentage = cgpa * 10;
+                        formulaText = `${cgpa} [CGPA] × 10 = ${percentage.toFixed(2)}%`;
+                        formulaName = "Direct 10-Scale Multiplier (AICTE / IIT standard)";
+                    } else if (formula === "vtu") {
+                        percentage = Math.max(0, (cgpa - 0.75) * 10);
+                        formulaText = `(${cgpa} - 0.75) × 10 = ${percentage.toFixed(2)}%`;
+                        formulaName = "VTU / Anna Univ / SPPU Formula";
+                    } else if (formula === "mumbai") {
+                        percentage = Math.min(100, Math.max(0, (7.1 * cgpa) + 11));
+                        formulaText = `(7.1 × ${cgpa}) + 11 = ${percentage.toFixed(2)}%`;
+                        formulaName = "Mumbai University Engineering Formula";
+                    } else {
+                        percentage = cgpa * 9.5;
+                        formulaText = `${cgpa} [CGPA] × 9.5 = ${percentage.toFixed(2)}%`;
+                        formulaName = "CBSE National Standard (Official 9.5x Multiplier)";
+                    }
+                }
+            } else if (formData.inputType === "gpa") {
+                if (num < 0 || num > 4.0) {
+                    inputError = "US GPA must be between 0.0 and 4.0.";
+                } else {
+                    const gpa = num;
+                    if (gpa >= 4.0) percentage = 95.0;
+                    else if (gpa >= 3.7) percentage = 85.0 + ((gpa - 3.7) / 0.3) * 10.0;
+                    else if (gpa >= 3.3) percentage = 80.0 + ((gpa - 3.3) / 0.4) * 5.0;
+                    else if (gpa >= 3.0) percentage = 70.0 + ((gpa - 3.0) / 0.3) * 10.0;
+                    else if (gpa >= 2.7) percentage = 65.0 + ((gpa - 2.7) / 0.3) * 5.0;
+                    else if (gpa >= 2.3) percentage = 60.0 + ((gpa - 2.3) / 0.4) * 5.0;
+                    else if (gpa >= 2.0) percentage = 50.0 + ((gpa - 2.0) / 0.3) * 10.0;
+                    else percentage = Math.max(0, (gpa / 2.0) * 50.0);
+                    formulaText = `US 4.0 Collegiate Scale: ${gpa.toFixed(2)} -> ${percentage.toFixed(2)}%`;
+                    formulaName = "US Collegiate Standard Equivalent";
+                }
+            } else if (formData.inputType === "marks") {
+                const total = parseFloat(formData.totalMarks);
+                if (isNaN(total) || total <= 0) {
+                    inputError = "Total marks must be greater than 0.";
+                } else if (num < 0) {
+                    inputError = "Secured marks cannot be negative.";
+                } else if (num > total) {
+                    inputError = `Secured marks (${num}) cannot exceed total marks (${total}).`;
+                } else {
+                    percentage = (num / total) * 100;
+                    formulaText = `(${num} ÷ ${total}) × 100 = ${percentage.toFixed(2)}%`;
+                    formulaName = "Proportional Raw Marks";
+                }
+            }
         }
 
         percentage = Math.round(percentage * 100) / 100;
@@ -297,46 +326,60 @@ export default function GradeConverterPage() {
         else if (percentage < 75) globalTarget = "Tier 2 Global Universities (Top 51-200 Worldwide: Russell Group, Go8)";
 
         return {
-            percentage,
-            cgpa: calculatedCgpa,
-            gpa: calculatedGpa,
-            letterGrade,
-            classification,
-            tierBadge,
-            badgeColor,
-            formulaText,
+            percentage: inputError ? 0 : percentage,
+            cgpa: inputError ? 0 : calculatedCgpa,
+            gpa: inputError ? 0 : calculatedGpa,
+            letterGrade: inputError ? "-" : letterGrade,
+            classification: inputError ? "Invalid Input" : classification,
+            tierBadge: inputError ? "Needs Correction" : tierBadge,
+            badgeColor: inputError ? "bg-red-50 text-red-700 border-red-200" : badgeColor,
+            formulaText: inputError ? inputError : formulaText,
             formulaName,
-            ukClass,
-            germanText,
-            ectsGrade,
-            globalTarget
+            ukClass: inputError ? "-" : ukClass,
+            germanText: inputError ? "-" : germanText,
+            ectsGrade: inputError ? "-" : ectsGrade,
+            globalTarget: inputError ? "Please enter valid academic marks or grade" : globalTarget,
+            inputError
         };
     }, [formData]);
 
     // DYNAMIC REAL-TIME CALCULATION FOR MULTIPLE GRADES
     const multipleResult = useMemo(() => {
         let items: { name: string; marks: number; total: number; pct: number }[] = [];
+        let multipleError: string | null = null;
 
         if (multipleMode === "table") {
             items = subjectsList.map((s, idx) => {
-                const marks = parseFloat(s.marks) || 0;
-                const total = parseFloat(s.totalMarks) || 100;
-                const pct = total > 0 ? (marks / total) * 100 : 0;
+                const marks = parseFloat(s.marks);
+                const total = parseFloat(s.totalMarks);
+                const safeMarks = isNaN(marks) ? 0 : marks;
+                const safeTotal = isNaN(total) || total <= 0 ? 100 : total;
+                if (!isNaN(marks) && !isNaN(total) && marks > total) {
+                    multipleError = `Secured marks (${marks}) exceed total marks (${total}) for "${s.name || `Subject ${idx + 1}`}".`;
+                }
+                const pct = safeTotal > 0 ? Math.min(100, Math.max(0, (safeMarks / safeTotal) * 100)) : 0;
                 return {
                     name: s.name.trim() || `Subject ${idx + 1}`,
-                    marks,
-                    total,
+                    marks: safeMarks,
+                    total: safeTotal,
                     pct
                 };
             });
         } else {
+            const total = parseFloat(commaTotalMarks);
+            const safeTotal = isNaN(total) || total <= 0 ? 100 : total;
             const rawMarks = commaMarks.split(",").map(m => parseFloat(m.trim())).filter(n => !isNaN(n));
-            const total = parseFloat(commaTotalMarks) || 100;
+            for (const m of rawMarks) {
+                if (m > safeTotal) {
+                    multipleError = `Secured marks (${m}) exceed maximum marks (${safeTotal}).`;
+                    break;
+                }
+            }
             items = rawMarks.map((m, idx) => ({
                 name: `Subject ${idx + 1}`,
                 marks: m,
-                total,
-                pct: total > 0 ? (m / total) * 100 : 0
+                total: safeTotal,
+                pct: safeTotal > 0 ? Math.min(100, Math.max(0, (m / safeTotal) * 100)) : 0
             }));
         }
 
@@ -350,13 +393,14 @@ export default function GradeConverterPage() {
                 gpa: 0,
                 highest: null,
                 lowest: null,
-                subjects: []
+                subjects: [],
+                error: multipleError
             };
         }
 
         const totalSecured = items.reduce((sum, item) => sum + item.marks, 0);
         const totalMaximum = items.reduce((sum, item) => sum + item.total, 0);
-        const percentage = totalMaximum > 0 ? Math.round(((totalSecured / totalMaximum) * 100) * 100) / 100 : 0;
+        const percentage = totalMaximum > 0 ? Math.min(100, Math.max(0, Math.round(((totalSecured / totalMaximum) * 100) * 100) / 100)) : 0;
 
         const cgpaCbse = Math.round(Math.min(10, percentage / 9.5) * 100) / 100;
         const cgpaDirect = Math.round(Math.min(10, percentage / 10.0) * 100) / 100;
@@ -384,7 +428,8 @@ export default function GradeConverterPage() {
             gpa,
             highest,
             lowest,
-            subjects: items
+            subjects: items,
+            error: multipleError
         };
     }, [multipleMode, subjectsList, commaMarks, commaTotalMarks]);
 
@@ -675,7 +720,11 @@ Verified on Vidyaloans Study Abroad Grade Converter`;
                                             value={formData.inputValue}
                                             onChange={e => setFormData(prev => ({ ...prev, inputValue: e.target.value }))}
                                             placeholder={currentConstraints.placeholder}
-                                            className="w-full px-5 py-4 bg-slate-50/80 border-2 border-slate-200 rounded-2xl font-bold text-gray-900 text-2xl tracking-wide outline-none focus:border-[#6605c7] focus:bg-white focus:ring-4 focus:ring-purple-500/10 transition-all"
+                                            className={`w-full px-5 py-4 bg-slate-50/80 border-2 rounded-2xl font-bold text-gray-900 text-2xl tracking-wide outline-none transition-all ${
+                                                singleResult.inputError
+                                                    ? "border-red-400 focus:border-red-500 focus:ring-4 focus:ring-red-500/10"
+                                                    : "border-slate-200 focus:border-[#6605c7] focus:bg-white focus:ring-4 focus:ring-purple-500/10"
+                                            }`}
                                         />
                                         <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2 text-xs font-bold text-gray-400">
                                             {formData.inputType === "percentage" && "%"}
@@ -683,6 +732,13 @@ Verified on Vidyaloans Study Abroad Grade Converter`;
                                             {formData.inputType === "gpa" && "/ 4.0"}
                                         </div>
                                     </div>
+
+                                    {singleResult.inputError && (
+                                        <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs font-bold flex items-center gap-2">
+                                            <span className="material-symbols-outlined text-sm">error</span>
+                                            <span>{singleResult.inputError}</span>
+                                        </div>
+                                    )}
 
                                     {/* Interactive Range Slider (for numeric types) */}
                                     {formData.inputType !== "letterGrade" && formData.inputType !== "marks" && (() => {
@@ -794,6 +850,13 @@ Verified on Vidyaloans Study Abroad Grade Converter`;
                                         </button>
                                     </div>
                                 </div>
+
+                                {multipleResult.error && (
+                                    <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs font-bold flex items-center gap-2 mb-4">
+                                        <span className="material-symbols-outlined text-sm">error</span>
+                                        <span>{multipleResult.error}</span>
+                                    </div>
+                                )}
 
                                 {multipleMode === "table" ? (
                                     <div className="space-y-3">

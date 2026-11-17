@@ -156,17 +156,17 @@ export default function EmiCalculatorPage() {
                                     value={`${rate}%`}
                                     numValue={rate}
                                     min={7}
-                                    max={15}
+                                    max={18}
                                     step={0.1}
                                     onChange={setRate}
                                 />
 
                                 <SliderControl
                                     label="Tenure (Years)"
-                                    value={`${tenure} Years`}
+                                    value={`${tenure} ${tenure === 1 ? "Year" : "Years"}`}
                                     numValue={tenure}
                                     min={1}
-                                    max={15}
+                                    max={20}
                                     step={1}
                                     onChange={setTenure}
                                 />
@@ -298,10 +298,10 @@ function SliderControl({ label, value, numValue, min, max, step, onChange }: {
                 />
                 <div className="flex justify-between mt-3 px-1">
                     <span className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">
-                        {min >= 100000 ? `₹${min / 100000}L` : min === 7 ? "7%" : `${min}Y`}
+                        {label.toLowerCase().includes("loan") ? `₹${min / 100000}L` : label.toLowerCase().includes("rate") ? `${min}%` : `${min}Y`}
                     </span>
                     <span className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">
-                        {max >= 10000000 ? "₹1CR" : max === 15 ? "15%" : `${max}Y`}
+                        {label.toLowerCase().includes("loan") ? (max >= 10000000 ? "₹1CR" : `₹${max / 100000}L`) : label.toLowerCase().includes("rate") ? `${max}%` : `${max}Y`}
                     </span>
                 </div>
             </div>

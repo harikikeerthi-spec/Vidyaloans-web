@@ -746,10 +746,10 @@ export default function DashboardPage() {
 
         return {
             isAssigned: false,
-            name: "VidyaLoans Support Team",
-            email: "support@vidyaloans.in",
+            name: "Allocation in Progress",
+            email: settings?.supportEmail || "support@vidyaloans.in",
             phone: "",
-            role: "Loan Processing Desk",
+            role: "Dedicated Counselor",
             initials: "VL"
         };
     };
@@ -1266,13 +1266,20 @@ export default function DashboardPage() {
                                                             <div className="mt-4 pt-3 border-t border-slate-100/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-purple-50/40 via-indigo-50/20 to-transparent p-3 rounded-xl border border-purple-100/50">
                                                                 <div>
                                                                     <span className="text-[10px] font-black uppercase tracking-widest text-[#6605c7] block">
-                                                                        Assigned Officer
+                                                                        {staff.isAssigned ? "Assigned Loan Officer" : "Dedicated Loan Officer"}
                                                                     </span>
-                                                                    <p className="text-xs font-extrabold text-slate-900 mt-0.5">{staff.name}</p>
+                                                                    {staff.isAssigned ? (
+                                                                        <p className="text-xs font-extrabold text-slate-900 mt-0.5">{staff.name}</p>
+                                                                    ) : (
+                                                                        <p className="text-xs font-bold text-slate-600 mt-0.5 flex items-center gap-1.5">
+                                                                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0"></span>
+                                                                            Allocation in Progress
+                                                                        </p>
+                                                                    )}
                                                                 </div>
 
                                                                 <div className="flex items-center gap-3 text-xs shrink-0">
-                                                                    {staff.email && (
+                                                                    {staff.isAssigned && staff.email && (
                                                                         <a
                                                                             href={`mailto:${staff.email}`}
                                                                             className="px-2.5 py-1 bg-white hover:bg-purple-50 text-indigo-700 font-bold rounded-lg border border-purple-100 transition-all text-[11px] flex items-center gap-1.5 shadow-2xs"
@@ -1282,7 +1289,7 @@ export default function DashboardPage() {
                                                                             <span className="max-w-[140px] truncate">{staff.email}</span>
                                                                         </a>
                                                                     )}
-                                                                    {staff.phone && staff.phone.trim().length > 0 && (
+                                                                    {staff.isAssigned && staff.phone && staff.phone.trim().length > 0 && (
                                                                         <a
                                                                             href={`tel:${staff.phone.replace(/[^0-9+]/g, '')}`}
                                                                             className="px-2.5 py-1 bg-white hover:bg-emerald-50 text-emerald-700 font-bold rounded-lg border border-emerald-100 transition-all text-[11px] flex items-center gap-1.5 shadow-2xs"
@@ -1291,6 +1298,17 @@ export default function DashboardPage() {
                                                                             <span className="material-symbols-outlined text-[13px]">call</span>
                                                                             <span>{staff.phone}</span>
                                                                         </a>
+                                                                    )}
+                                                                    {!staff.isAssigned && (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={handleConnectSupport}
+                                                                            className="px-2.5 py-1 bg-white hover:bg-emerald-50 text-emerald-700 font-bold rounded-lg border border-emerald-200 transition-all text-[11px] flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                                                                            title="Connect with Support Desk"
+                                                                        >
+                                                                            <span className="material-symbols-outlined text-[13px]">headset_mic</span>
+                                                                            <span>Support Desk</span>
+                                                                        </button>
                                                                     )}
                                                                 </div>
                                                             </div>
@@ -1846,37 +1864,57 @@ export default function DashboardPage() {
                                         <div className="sm:col-span-2 mt-2 bg-gradient-to-r from-purple-50/70 via-indigo-50/50 to-purple-50/30 p-4 rounded-xl border border-purple-100 shadow-2xs">
                                             <div className="flex items-center justify-between mb-3 border-b border-purple-100/80 pb-2">
                                                 <h3 className="text-[10px] font-black uppercase tracking-widest text-[#6605c7]">
-                                                    Assigned Officer
+                                                    {staff.isAssigned ? "Assigned Loan Officer" : "Dedicated Loan Officer"}
                                                 </h3>
                                             </div>
                                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                                 <div>
                                                     <div className="text-[10px] font-extrabold text-slate-400 uppercase">Officer Name</div>
-                                                    <div className="font-extrabold text-slate-900 text-xs mt-0.5">{staff.name}</div>
+                                                    <div className="font-extrabold text-slate-900 text-xs mt-0.5">
+                                                        {staff.isAssigned ? staff.name : (
+                                                            <span className="flex items-center gap-1.5 text-amber-700">
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0"></span>
+                                                                Allocation in Progress
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </div>
                                                 <div>
                                                     <div className="text-[10px] font-extrabold text-slate-400 uppercase">Official Email</div>
-                                                    {staff.email ? (
+                                                    {staff.isAssigned && staff.email ? (
                                                         <a href={`mailto:${staff.email}`} className="font-bold text-indigo-600 hover:underline text-xs flex items-center gap-1 mt-1 truncate">
                                                             <span className="material-symbols-outlined text-[13px]">mail</span>
                                                             <span className="truncate">{staff.email}</span>
                                                         </a>
                                                     ) : (
-                                                        <span className="text-xs font-semibold text-slate-500 mt-1 block">—</span>
+                                                        <span className="text-xs font-semibold text-slate-500 mt-1 block">Assigned upon file review</span>
                                                     )}
                                                 </div>
                                                 <div>
                                                     <div className="text-[10px] font-extrabold text-slate-400 uppercase">Direct Phone</div>
-                                                    {staff.phone ? (
+                                                    {staff.isAssigned && staff.phone ? (
                                                         <a href={`tel:${staff.phone.replace(/[^0-9+]/g, '')}`} className="font-bold text-emerald-700 hover:text-emerald-800 text-xs flex items-center gap-1 mt-1">
                                                             <span className="material-symbols-outlined text-[13px]">call</span>
                                                             <span>{staff.phone}</span>
                                                         </a>
                                                     ) : (
-                                                        <span className="text-xs font-semibold text-slate-500 mt-1 block">—</span>
+                                                        <span className="text-xs font-semibold text-slate-500 mt-1 block">Available once assigned</span>
                                                     )}
                                                 </div>
                                             </div>
+                                            {!staff.isAssigned && (
+                                                <div className="mt-3 pt-2.5 border-t border-purple-100/60 flex items-center justify-between text-xs">
+                                                    <p className="text-[11px] text-slate-500">Your file is currently undergoing preliminary review. An education loan counselor will be allocated shortly.</p>
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleConnectSupport}
+                                                        className="px-3 py-1 bg-white hover:bg-emerald-50 text-emerald-700 font-bold rounded-lg border border-emerald-200 transition-all text-[11px] shrink-0 ml-3 flex items-center gap-1 cursor-pointer"
+                                                    >
+                                                        <span className="material-symbols-outlined text-[12px]">headset_mic</span>
+                                                        <span>Contact Support</span>
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
                                     );
                                 })()}
