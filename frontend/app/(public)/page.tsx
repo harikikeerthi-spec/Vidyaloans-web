@@ -259,7 +259,7 @@ export default async function HomePage() {
                         <div>
                             <div className="inline-flex items-center gap-3 px-5 py-2.5 rounded-full mb-8 border border-[#6605c7]/20" style={{ background: 'rgba(102,5,199,0.08)' }}>
                                 <span className="w-3 h-3 rounded-full bg-[#6605c7] animate-pulse flex-shrink-0" />
-                                <span className="text-[#6605c7] text-xs font-black tracking-wide">Trusted by 1000+ students across 30+ countries</span>
+                                <span className="text-[#6605c7] text-xs font-black tracking-wide">Trusted by 1000+ students across 10+ countries</span>
                             </div>
 
                             <h1 className="text-4xl md:text-6xl font-bold font-display leading-[1.1] mb-6 text-[#1a1626] tracking-tight">

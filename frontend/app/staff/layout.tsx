@@ -485,11 +485,11 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
                 {/* Main Content */}
                 <main className={`flex-1 flex flex-col min-w-0 h-screen overflow-hidden bg-[#f8fafc] transition-all duration-300 ${sidebarOpen ? 'lg:pl-[240px]' : 'lg:pl-[68px]'} print:h-auto print:min-h-0 print:overflow-visible print:pl-0 print:p-0 print:m-0 print:bg-white`}>
                     {/* Top Header Navbar */}
-                    <header className="h-[60px] bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-6 flex items-center justify-between sticky top-0 z-40 flex-shrink-0 shadow-sm no-print">
+                    <header className="h-[54px] bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-6 flex items-center justify-between sticky top-0 z-40 flex-shrink-0 no-print">
                         {/* Left: Section Title */}
                         <div className="flex flex-col justify-center">
-                            <span className="text-[14px] font-extrabold text-[#4F46E5] uppercase tracking-widest leading-none mb-1 font-mono">VidyaLoans</span>
-                            <h1 className="text-[20px] font-bold text-[#0A2540] tracking-tight leading-tight">
+                            <span className="text-[10.5px] font-semibold text-[#4F46E5] uppercase tracking-wider leading-none mb-1 font-sans">VidyaLoans Staff</span>
+                            <h1 className="text-[18px] font-semibold text-[#0F172A] tracking-[-0.015em] leading-tight font-sans">
                                 {sectionTitles[activeSection] || activeSection}
                             </h1>
                         </div>

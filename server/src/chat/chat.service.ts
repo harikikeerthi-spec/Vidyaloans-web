@@ -490,11 +490,28 @@ export class ChatService {
               }).length;
           }
 
+          let cleanCustomerName = conv.customerName;
+          if (!cleanCustomerName || cleanCustomerName.startsWith('BNK_') || cleanCustomerName.startsWith('STF_')) {
+              const meta = conv.metadata || {};
+              if (meta.studentName || meta.applicantName) {
+                  cleanCustomerName = meta.studentName || meta.applicantName;
+              } else if (meta.bank) {
+                  cleanCustomerName = meta.applicationNumber
+                      ? `${meta.bank} • App #${meta.applicationNumber}`
+                      : meta.bank;
+              } else if (conv.customerPhone && conv.customerPhone.startsWith('BNK_')) {
+                  const parts = conv.customerPhone.split('_APP_');
+                  const bankName = parts[0].replace(/^BNK_/, '').replace(/_SUP$/, '').replace(/_/g, ' ');
+                  const appId = parts[1] || '';
+                  cleanCustomerName = appId ? `${bankName} • App #${appId.slice(0, 8)}` : bankName;
+              }
+          }
+
           return {
               id: conv.id,
               customerPhone: conv.customerPhone,
               customerEmail: conv.customerEmail,
-              customerName: conv.customerName,
+              customerName: cleanCustomerName || conv.customerName,
               metadata: conv.metadata || {},
               status: conv.status,
               updatedAt: conv.updatedAt,

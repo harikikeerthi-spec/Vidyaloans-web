@@ -231,22 +231,101 @@ export default function ChatInterface({ role, initialUser, initialBank, initialC
         }
     }, []);
 
+    const parseSyntheticIdentifier = (str?: string | null) => {
+        if (!str || typeof str !== 'string') {
+            return { isSynthetic: false, type: null, cleanLabel: str || '', bankName: '', appId: '' };
+        }
+
+        if (str.startsWith('BNK_')) {
+            const parts = str.split('_APP_');
+            const rawBank = parts[0].replace(/^BNK_/, '').replace(/_SUP$/, '').replace(/_/g, ' ');
+            const formattedBank = rawBank
+                .split(' ')
+                .map(word => {
+                    const upper = word.toUpperCase();
+                    if (['HDFC', 'ICICI', 'SBI', 'PNB', 'BOB', 'IDFC', 'NBFC', 'AXIS', 'RBL', 'HSBC', 'KOTAK', 'CREDILA'].includes(upper)) {
+                        return upper === 'CREDILA' ? 'Credila' : upper;
+                    }
+                    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+                })
+                .join(' ');
+
+            const appId = parts[1] || '';
+            const shortAppId = appId ? `#${appId.slice(0, 8)}` : '';
+
+            return {
+                isSynthetic: true,
+                type: 'bank' as const,
+                bankName: formattedBank,
+                appId,
+                cleanLabel: appId ? `${formattedBank} • App ${shortAppId}` : formattedBank
+            };
+        }
+
+        if (str.startsWith('STF_') || str.startsWith('AGT_') || str.startsWith('USR_')) {
+            const type = str.startsWith('STF_') ? 'staff' as const : str.startsWith('AGT_') ? 'agent' as const : 'user' as const;
+            const label = str.replace(/^(STF|AGT|USR)_/, '').replace(/_/g, ' ');
+            return { isSynthetic: true, type, cleanLabel: label, bankName: '', appId: '' };
+        }
+
+        return { isSynthetic: false, type: null, cleanLabel: str, bankName: '', appId: '' };
+    };
+
     const getSavedNameForConv = (conv?: Conversation | null) => {
         if (!conv) return '';
         if (savedNames[conv.id]) return savedNames[conv.id];
         if (conv.customerPhone && savedNames[conv.customerPhone]) return savedNames[conv.customerPhone];
         const cleanPhone = conv.customerPhone ? conv.customerPhone.replace(/\D/g, '') : '';
         if (cleanPhone && savedNames[cleanPhone]) return savedNames[cleanPhone];
-        if (conv.customerName) return conv.customerName;
+        if (conv.customerName && !conv.customerName.startsWith('BNK_') && !conv.customerName.startsWith('STF_')) {
+            return conv.customerName;
+        }
         return '';
     };
 
     const getConversationDisplayName = (conv: Conversation) => {
         const saved = getSavedNameForConv(conv);
-        if (saved) return saved;
+        if (saved && !saved.startsWith('BNK_')) return saved;
+
+        // If metadata has student/customer name
+        if (conv.metadata?.studentName || conv.metadata?.applicantName) {
+            const name = conv.metadata.studentName || conv.metadata.applicantName;
+            if (conv.metadata?.applicationNumber) {
+                return `${name} • App #${conv.metadata.applicationNumber}`;
+            }
+            return name;
+        }
+
+        // If metadata has bank name
+        if (conv.metadata?.bank || conv.metadata?.bankName) {
+            const bank = conv.metadata.bank || conv.metadata.bankName;
+            if (conv.metadata?.applicationNumber) {
+                return `${bank} • App #${conv.metadata.applicationNumber}`;
+            }
+            if (conv.metadata?.applicationId) {
+                return `${bank} • App #${conv.metadata.applicationId.slice(0, 8)}`;
+            }
+            return bank;
+        }
+
+        // Check if customerName is a valid human name (not a raw synthetic string)
+        if (conv.customerName && !conv.customerName.startsWith('BNK_') && !conv.customerName.startsWith('STF_')) {
+            if (conv.metadata?.applicationNumber) {
+                return `${conv.customerName} • App #${conv.metadata.applicationNumber}`;
+            }
+            return conv.customerName;
+        }
+
+        // Clean synthetic phone (e.g., BNK_HDFC_CREDILA_APP_6b0da605-0a24-4779-a861)
+        if (conv.customerPhone && (conv.customerPhone.startsWith('BNK_') || conv.customerPhone.startsWith('STF_') || conv.customerPhone.startsWith('AGT_'))) {
+            const parsed = parseSyntheticIdentifier(conv.customerPhone);
+            return parsed.cleanLabel || "Bank Channel";
+        }
+
         if (role === 'bank' && conv.metadata?.applicationId) {
             return conv.metadata.applicationNumber || getFormattedAppId(conv.metadata.applicationId);
         }
+
         return conv.customerPhone || conv.customerEmail || "Chat Contact";
     };
 
@@ -1318,21 +1397,26 @@ export default function ChatInterface({ role, initialUser, initialBank, initialC
             {!hideSidebar && (
                 <div className="w-96 shrink-0 border-r border-[#E2E8F0] bg-[#F8F9FC] flex flex-col h-full overflow-hidden">
                     <div className="p-6 border-b border-[#E2E8F0] bg-[#FFFFFF]">
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="font-bold text-lg text-[#1A1D20] tracking-tight">{portalTitle || 'Conversations'}</h3>
-                            <div className="flex gap-2">
+                        <div className="flex items-center justify-between mb-3">
+                            <div>
+                                <h3 className="text-[15px] font-semibold text-slate-900 tracking-[-0.01em]">{portalTitle || 'Conversations'}</h3>
+                                <p className="text-[11.5px] font-normal text-slate-500 mt-0.5">Real-time live user sessions</p>
+                            </div>
+                            <div className="flex gap-1.5">
                                 <button
                                     onClick={() => setSidebarTab('chats')}
-                                    className={`w-8.5 h-8.5 rounded-xl flex items-center justify-center transition-all duration-200 cursor-pointer ${sidebarTab === 'chats' ? 'bg-[#5A42E4] text-[#FFFFFF] shadow-md shadow-[#5A42E4]/25' : 'bg-[#FFFFFF] text-[#4A525A] hover:bg-[#F2F0FF] hover:text-[#5A42E4] border border-[#E2E8F0]'}`}
+                                    className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${sidebarTab === 'chats' ? 'bg-[#5A42E4] text-white shadow-xs' : 'bg-white text-slate-600 hover:bg-indigo-50/60 hover:text-[#5A42E4] border border-slate-200'}`}
+                                    title="Active Chats"
                                 >
-                                    <span className="material-symbols-outlined text-sm font-bold">forum</span>
+                                    <span className="material-symbols-outlined text-[17px]">forum</span>
                                 </button>
                                 {(role === 'staff' || role === 'agent') && (
                                     <button
                                         onClick={() => setSidebarTab('users')}
-                                        className={`w-8.5 h-8.5 rounded-xl flex items-center justify-center transition-all duration-200 cursor-pointer ${sidebarTab === 'users' ? 'bg-[#5A42E4] text-[#FFFFFF] shadow-md shadow-[#5A42E4]/25' : 'bg-[#FFFFFF] text-[#4A525A] hover:bg-[#F2F0FF] hover:text-[#5A42E4] border border-[#E2E8F0]'}`}
+                                        className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${sidebarTab === 'users' ? 'bg-[#5A42E4] text-white shadow-xs' : 'bg-white text-slate-600 hover:bg-indigo-50/60 hover:text-[#5A42E4] border border-slate-200'}`}
+                                        title="User Directory"
                                     >
-                                        <span className="material-symbols-outlined text-sm font-bold">person_add</span>
+                                        <span className="material-symbols-outlined text-[17px]">person_add</span>
                                     </button>
                                 )}
                             </div>
@@ -1340,14 +1424,14 @@ export default function ChatInterface({ role, initialUser, initialBank, initialC
 
                         {/* Assignment scope filter: My Assigned Students vs All Queue */}
                         {role === 'staff' && sidebarTab === 'chats' && (
-                            <div className="flex gap-1 mb-2.5 p-1 bg-[#F1F5F9] border border-[#E2E8F0] rounded-xl">
+                            <div className="flex gap-1 mb-2 p-0.5 bg-slate-100/90 border border-slate-200/80 rounded-lg">
                                 <button
                                     type="button"
                                     onClick={() => setStaffScopeFilter('my')}
-                                    className={`flex-1 py-1.5 rounded-lg text-[10.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                                    className={`flex-1 py-1 px-2.5 rounded-md text-xs font-medium transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
                                         staffScopeFilter === 'my'
-                                            ? 'bg-[#5A42E4] text-[#FFFFFF] shadow-sm'
-                                            : 'text-[#4A525A] hover:bg-[#F2F0FF] hover:text-[#5A42E4]'
+                                            ? 'bg-white text-indigo-700 shadow-xs font-semibold'
+                                            : 'text-slate-600 hover:text-indigo-600 hover:bg-white/50'
                                     }`}
                                 >
                                     <span className="material-symbols-outlined text-[14px]">person</span>
@@ -1356,10 +1440,10 @@ export default function ChatInterface({ role, initialUser, initialBank, initialC
                                 <button
                                     type="button"
                                     onClick={() => setStaffScopeFilter('all')}
-                                    className={`flex-1 py-1.5 rounded-lg text-[10.5px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                                    className={`flex-1 py-1 px-2.5 rounded-md text-xs font-medium transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
                                         staffScopeFilter === 'all'
-                                            ? 'bg-[#5A42E4] text-[#FFFFFF] shadow-sm'
-                                            : 'text-[#4A525A] hover:bg-[#F2F0FF] hover:text-[#5A42E4]'
+                                            ? 'bg-white text-indigo-700 shadow-xs font-semibold'
+                                            : 'text-slate-600 hover:text-indigo-600 hover:bg-white/50'
                                     }`}
                                 >
                                     <span className="material-symbols-outlined text-[14px]">group</span>
@@ -1370,101 +1454,102 @@ export default function ChatInterface({ role, initialUser, initialBank, initialC
 
                         {/* Student / Bank filter tabs — only for staff when in chats tab */}
                         {role === 'staff' && sidebarTab === 'chats' && (
-                            <div className="flex gap-1 mb-4 p-1 bg-[#F8F9FC] border border-[#E2E8F0] rounded-xl">
+                            <div className="flex gap-1 mb-3 p-0.5 bg-slate-100/90 border border-slate-200/80 rounded-lg">
                                 {(['all', 'student', 'bank'] as const).map(type => (
                                     <button
                                         key={type}
                                         onClick={() => setChatTypeFilter(type)}
-                                        className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer ${chatTypeFilter === type
-                                            ? 'bg-[#5A42E4] text-[#FFFFFF] shadow-sm'
-                                            : 'text-[#4A525A] hover:bg-[#F2F0FF] hover:text-[#5A42E4]'
+                                        className={`flex-1 py-1 px-2 rounded-md text-xs font-medium transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${chatTypeFilter === type
+                                            ? 'bg-white text-indigo-700 shadow-xs font-semibold'
+                                            : 'text-slate-600 hover:text-indigo-600 hover:bg-white/50'
                                             }`}
                                     >
                                         <span className="material-symbols-outlined text-[13px]">
                                             {type === 'bank' ? 'account_balance' : type === 'student' ? 'school' : 'all_inclusive'}
                                         </span>
-                                        {type === 'all' ? 'ALL' : type === 'student' ? 'STUDENTS' : 'BANKS'}
+                                        {type === 'all' ? 'All' : type === 'student' ? 'Students' : 'Banks'}
                                     </button>
                                 ))}
                             </div>
                         )}
 
                         <div className="relative">
-                            <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[#8A94A6] text-lg font-medium">search</span>
+                            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-base font-normal">search</span>
                             <input
                                 type="text"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 placeholder={sidebarTab === 'chats' ? "Search conversations..." : "Search students..."}
-                                className="w-full pl-11 pr-4 py-2.5 bg-[#F8F9FC] border border-[#E2E8F0] rounded-xl text-xs font-semibold placeholder-[#8A94A6] focus:outline-none focus:bg-[#FFFFFF] focus:border-[#5A42E4] focus:ring-4 focus:ring-[#5A42E4]/10 transition-all text-[#1A1D20] shadow-sm"
+                                className="w-full pl-9 pr-3.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-normal placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-[#5A42E4] focus:ring-2 focus:ring-[#5A42E4]/15 transition-all text-slate-800"
                             />
                         </div>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto custom-scrollbar space-y-1 bg-[#F8F9FC] py-2">
+                    <div className="flex-1 overflow-y-auto custom-scrollbar space-y-0.5 bg-[#F8F9FC] py-1">
                         {sidebarTab === 'chats' ? (
                             filteredConversations.length === 0 ? (
-                                <div className="p-10 text-center opacity-50">
-                                    <div className="w-14 h-14 rounded-2xl bg-[#FFFFFF] flex items-center justify-center mx-auto mb-3 border border-[#E2E8F0] shadow-sm">
-                                        <span className="material-symbols-outlined text-2xl text-[#8A94A6]">sensors_off</span>
+                                <div className="p-8 text-center opacity-60">
+                                    <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center mx-auto mb-2 border border-slate-200 shadow-xs">
+                                        <span className="material-symbols-outlined text-xl text-slate-400">sensors_off</span>
                                     </div>
-                                    <p className="text-xs font-semibold text-[#4A525A]">No active conversations</p>
+                                    <p className="text-xs font-medium text-slate-500">No active conversations</p>
                                 </div>
                             ) : (
                                 filteredConversations.map(conv => {
-                                    const isBank = conv.metadata?.type === 'bank';
+                                    const isBank = conv.metadata?.type === 'bank' || conv.customerPhone?.startsWith('BNK_');
                                     const activeStyle = activeConversation === conv.id;
                                     const unreadCountVal = conv.unreadCount || 0;
                                     const isUnread = unreadCountVal > 0;
+                                    const displayName = getConversationDisplayName(conv);
                                     return (
                                         <div
                                             key={conv.id}
                                             onClick={() => { setActiveConversation(conv.id); setShowDocPanel(false); }}
-                                            className={`px-5 py-4 cursor-pointer transition-all duration-200 relative flex flex-col border-b border-[#F1F5F9] border-l-4 ${activeStyle ? 'bg-[#F2F0FF] border-l-[#5A42E4]' : 'bg-[#FFFFFF] hover:bg-[#F8F9FC] border-l-transparent'}`}
+                                            className={`px-3.5 py-2.5 cursor-pointer transition-colors relative flex flex-col border-b border-slate-100 border-l-[3px] ${activeStyle ? 'bg-indigo-50/70 border-l-[#5A42E4]' : 'bg-white hover:bg-slate-50/80 border-l-transparent'}`}
                                         >
-                                            <div className="flex justify-between items-start mb-1.5">
-                                                <div className="flex items-center gap-3 min-w-0">
-                                                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 ${activeStyle
-                                                        ? 'bg-[#5A42E4] text-[#FFFFFF] shadow-sm'
+                                            <div className="flex justify-between items-start mb-1">
+                                                <div className="flex items-center gap-2.5 min-w-0">
+                                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-semibold text-xs shrink-0 ${activeStyle
+                                                        ? 'bg-[#5A42E4] text-white shadow-xs'
                                                         : isBank
-                                                            ? 'bg-amber-100 text-amber-700 border border-amber-200'
-                                                            : 'bg-[#F2F0FF] text-[#5A42E4] border border-[#E2E8F0]'
+                                                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                                            : 'bg-indigo-50 text-indigo-700 border border-indigo-100'
                                                         }`}>
                                                         {role === 'bank' && conv.metadata?.applicationId
                                                             ? 'A'
                                                             : (isBank
                                                                 ? <span className="material-symbols-outlined text-[15px]">account_balance</span>
-                                                                : (conv.customerName || conv.customerPhone)?.substring(0, 1)
+                                                                : displayName.charAt(0).toUpperCase()
                                                             )
                                                         }
                                                     </div>
                                                     <div className="min-w-0">
-                                                        <span className="font-bold text-xs text-[#1A1D20] truncate block tracking-tight">
-                                                            {getConversationDisplayName(conv)}
+                                                        <span className={`text-[13px] leading-snug tracking-[-0.01em] truncate block ${isUnread ? 'font-semibold text-slate-900' : 'font-medium text-slate-700'}`}>
+                                                            {displayName}
                                                         </span>
                                                         <div className="flex items-center gap-1 mt-0.5">
-                                                            <span className={`w-1.5 h-1.5 rounded-full ${isBank ? 'bg-amber-500' : 'bg-[#10B981]'}`}></span>
-                                                            <span className="text-[9px] font-semibold text-[#8A94A6] block truncate">
-                                                                {isBank ? `Bank Channel` : 'Online'}
+                                                            <span className={`w-1.5 h-1.5 rounded-full ${isBank ? 'bg-amber-500' : 'bg-emerald-500'}`}></span>
+                                                            <span className="text-[11px] font-normal text-slate-400 block truncate">
+                                                                {isBank ? (conv.metadata?.bank ? `${conv.metadata.bank} Channel` : 'Bank Channel') : 'Active Session'}
                                                             </span>
                                                         </div>
                                                     </div>
                                                 </div>
-                                                <span className="text-[9.5px] font-semibold text-[#8A94A6] shrink-0">
+                                                <span className="text-[11px] font-normal text-slate-400 shrink-0">
                                                     {conv.updatedAt ? formatSidebarDate(conv.updatedAt) : ''}
                                                 </span>
                                             </div>
 
-                                            <div className="flex items-center justify-between gap-2 mt-1 pl-0.5">
-                                                <div className={`text-[11px] truncate flex items-center gap-1 flex-1 ${isUnread ? 'font-bold text-[#1A1D20]' : 'font-medium text-[#4A525A]'}`}>
+                                            <div className="flex items-center justify-between gap-2 mt-0.5 pl-0.5">
+                                                <div className={`text-xs truncate flex items-center gap-1 flex-1 ${isUnread ? 'font-medium text-slate-900' : 'font-normal text-slate-500'}`}>
                                                     {conv.lastMessage && isMessageFromMe(conv.lastMessage) && (
                                                         <span className="inline-flex items-center shrink-0">
                                                             {conv.lastMessage.status === 'read' ? (
-                                                                <span className="material-symbols-outlined text-[13px] text-[#10B981] font-bold leading-none">done_all</span>
+                                                                <span className="material-symbols-outlined text-[13px] text-emerald-600 font-bold leading-none">done_all</span>
                                                             ) : conv.lastMessage.status === 'delivered' ? (
-                                                                <span className="material-symbols-outlined text-[13px] text-[#8A94A6] font-bold leading-none">done_all</span>
+                                                                <span className="material-symbols-outlined text-[13px] text-slate-400 font-bold leading-none">done_all</span>
                                                             ) : (
-                                                                <span className="material-symbols-outlined text-[13px] text-[#8A94A6] font-medium leading-none">done</span>
+                                                                <span className="material-symbols-outlined text-[13px] text-slate-400 font-medium leading-none">done</span>
                                                             )}
                                                         </span>
                                                     )}
@@ -1479,14 +1564,14 @@ export default function ChatInterface({ role, initialUser, initialBank, initialC
 
                                                 <div className="flex items-center gap-1 shrink-0">
                                                     {conv.metadata?.channel === 'whatsapp' && (
-                                                        <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-[8.5px] font-bold rounded border border-emerald-200 flex items-center gap-1 shrink-0" title="Connected via WhatsApp">
+                                                        <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-medium rounded border border-emerald-200 flex items-center gap-1 shrink-0" title="Connected via WhatsApp">
                                                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                                                             WA
                                                         </span>
                                                     )}
 
                                                     {role === 'staff' && conv.metadata?.assignedStaffId && (
-                                                        <span className={`px-1.5 py-0.5 text-[8.5px] font-semibold rounded shrink-0 ${
+                                                        <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded shrink-0 ${
                                                             (conv.metadata.assignedStaffId === user?.id || conv.metadata.assignedStaffId === (user as any)?.uid)
                                                                 ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
                                                                 : 'bg-slate-100 text-slate-500 border border-slate-200'
@@ -1498,7 +1583,7 @@ export default function ChatInterface({ role, initialUser, initialBank, initialC
                                                     )}
 
                                                     {conv.metadata?.applicationNumber && (
-                                                        <span className="px-1.5 py-0.5 bg-[#F2F0FF] text-[#5A42E4] text-[8.5px] font-mono font-bold rounded border border-[#E2E8F0] whitespace-nowrap shrink-0">
+                                                        <span className="px-1.5 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-mono font-medium rounded border border-slate-200 whitespace-nowrap shrink-0">
                                                             #{conv.metadata.applicationNumber}
                                                         </span>
                                                     )}
@@ -1506,7 +1591,7 @@ export default function ChatInterface({ role, initialUser, initialBank, initialC
                                             </div>
 
                                             {isUnread && (
-                                                <div className="absolute right-4 top-4 flex items-center justify-center w-5 h-5 rounded-full bg-[#EF4444] text-white font-bold text-[9px] shadow-sm">
+                                                <div className="absolute right-3.5 top-3 flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-rose-500 text-white font-bold text-[10px] shadow-xs">
                                                     {unreadCountVal}
                                                 </div>
                                             )}
@@ -1564,39 +1649,53 @@ export default function ChatInterface({ role, initialUser, initialBank, initialC
                         return (
                             <>
                                 {/* Chat Header */}
-                                <div className="px-6 py-4 bg-[#FFFFFF] border-b border-[#E2E8F0] flex items-center justify-between shrink-0 h-20 relative">
-                                    <div className="flex items-center gap-4 min-w-0">
+                                <div className="px-5 py-2.5 bg-white border-b border-slate-200 flex items-center justify-between shrink-0 min-h-[58px] relative">
+                                    <div className="flex items-center gap-3 min-w-0">
                                         <div className="relative shrink-0">
-                                            <div className="w-10 h-10 rounded-xl bg-[#5A42E4] flex items-center justify-center font-bold text-lg text-white shadow-sm">
-                                                {displayName ? displayName.substring(0, 1).toUpperCase() : 'C'}
+                                            <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-semibold text-sm ${
+                                                activeConv?.metadata?.type === 'bank' || activeConv?.customerPhone?.startsWith('BNK_')
+                                                    ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                                    : 'bg-indigo-600 text-white shadow-xs'
+                                            }`}>
+                                                {activeConv?.metadata?.type === 'bank' || activeConv?.customerPhone?.startsWith('BNK_') ? (
+                                                    <span className="material-symbols-outlined text-[17px]">account_balance</span>
+                                                ) : displayName ? displayName.substring(0, 1).toUpperCase() : 'C'}
                                             </div>
-                                            <div className="absolute -right-0.5 -bottom-0.5 w-3 h-3 bg-[#10B981] border-2 border-white rounded-full"></div>
+                                            <div className="absolute -right-0.5 -bottom-0.5 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full"></div>
                                         </div>
                                         <div className="min-w-0">
                                             <div className="flex items-center gap-2 flex-wrap">
-                                                <h4 className="font-bold text-sm text-[#1A1D20] tracking-tight truncate">
+                                                <h4 className="font-semibold text-[15px] text-slate-900 tracking-[-0.01em] truncate">
                                                     {displayName}
                                                 </h4>
 
                                                 {activeConv?.metadata?.channel === 'whatsapp' && (
-                                                    <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold rounded-full flex items-center gap-1 shadow-xs">
+                                                    <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-medium rounded-md flex items-center gap-1">
                                                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                                                         WhatsApp Student
                                                     </span>
                                                 )}
 
                                                 {activeConv?.metadata?.applicationNumber && (
-                                                    <span className="px-2 py-0.5 bg-[#F2F0FF] text-[#5A42E4] text-[10px] font-mono font-bold rounded-full border border-[#5A42E4]/25">
+                                                    <span className="px-2 py-0.5 bg-slate-100 text-slate-700 text-[11px] font-mono font-medium rounded-md border border-slate-200">
                                                         App #{activeConv.metadata.applicationNumber}
                                                     </span>
                                                 )}
                                             </div>
-                                            <p className="text-[10px] text-[#8A94A6] truncate mt-0.5 font-medium flex items-center gap-2 min-w-0">
-                                                <span className="truncate">{activeConv?.customerEmail || 'support@student-loan.org'}</span>
-                                                {activeConv?.customerPhone && (
-                                                    <span className="font-mono text-[#5A42E4] truncate max-w-[180px] sm:max-w-[260px]">({activeConv.customerPhone})</span>
+                                            <div className="text-[12px] text-slate-500 truncate mt-0.5 font-normal flex items-center gap-2 min-w-0">
+                                                {activeConv?.customerEmail && !activeConv.customerEmail.includes('student-loan.org') && (
+                                                    <span className="truncate">{activeConv.customerEmail}</span>
                                                 )}
-                                            </p>
+                                                {activeConv?.customerPhone && !activeConv.customerPhone.startsWith('BNK_') && !activeConv.customerPhone.startsWith('STF_') && (
+                                                    <span className="text-slate-400 text-[11px]">({activeConv.customerPhone})</span>
+                                                )}
+                                                {activeConv?.customerPhone && activeConv.customerPhone.startsWith('BNK_') && (
+                                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-50 text-amber-800 border border-amber-200/80 rounded text-[10.5px] font-medium">
+                                                        <span className="material-symbols-outlined text-[12px]">account_balance</span>
+                                                        Bank Partner Channel
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
 
@@ -1606,25 +1705,25 @@ export default function ChatInterface({ role, initialUser, initialBank, initialC
                                                 href={`/staff/applications?search=${encodeURIComponent(activeConv.metadata.applicationNumber)}`}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                className="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+                                                className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 shadow-none"
                                                 title="Open student loan application"
                                             >
-                                                <span className="material-symbols-outlined text-base">folder_open</span>
+                                                <span className="material-symbols-outlined text-base text-slate-500">folder_open</span>
                                                 <span className="hidden md:inline">View Application</span>
                                             </a>
                                         )}
 
                                         <button
                                             onClick={openStudentDocuments}
-                                            className={`px-4 py-2 border rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm cursor-pointer ${showDocPanel
-                                                ? 'bg-[#5A42E4] text-white border-[#5A42E4] shadow-md shadow-[#5A42E4]/20'
-                                                : 'bg-white hover:bg-[#F8F9FC] border-[#E2E8F0] text-[#4A525A]'
+                                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 shadow-none cursor-pointer ${showDocPanel
+                                                ? 'bg-indigo-600 text-white border border-indigo-600'
+                                                : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200'
                                                 }`}
                                         >
                                             <span className="material-symbols-outlined text-base">description</span>
                                             Student Documents
                                             {showDocPanel && studentDocs.length > 0 && (
-                                                <span className="ml-1 w-4.5 h-4.5 rounded-full bg-white/20 text-white text-[9px] font-bold flex items-center justify-center">
+                                                <span className="ml-1 w-4 h-4 rounded-full bg-white/20 text-white text-[9px] font-bold flex items-center justify-center">
                                                     {studentDocs.length}
                                                 </span>
                                             )}
@@ -1633,7 +1732,7 @@ export default function ChatInterface({ role, initialUser, initialBank, initialC
                                         {/* Options Menu Button (Three Dots) */}
                                         <button
                                             onClick={() => setShowHeaderMenu(prev => !prev)}
-                                            className="w-9 h-9 flex items-center justify-center text-[#8A94A6] hover:text-[#1A1D20] hover:bg-[#F8F9FC] rounded-xl border border-[#E2E8F0] transition-all cursor-pointer"
+                                            className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors cursor-pointer"
                                             title="Chat Options"
                                         >
                                             <span className="material-symbols-outlined text-[18px]">more_vert</span>
@@ -1641,26 +1740,26 @@ export default function ChatInterface({ role, initialUser, initialBank, initialC
 
                                         {/* Options Dropdown Menu */}
                                         {showHeaderMenu && (
-                                            <div className="absolute right-0 top-12 w-56 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 py-2 animate-scale-up font-sans">
+                                            <div className="absolute right-0 top-11 w-56 bg-white border border-slate-200 rounded-xl shadow-lg z-50 py-1.5 animate-scale-up font-sans">
                                                 <button
                                                     onClick={() => {
                                                         setShowHeaderMenu(false);
-                                                        setNameInput(savedName || activeConv?.customerName || '');
+                                                        setNameInput(savedName || (activeConv?.customerName?.startsWith('BNK_') ? '' : activeConv?.customerName) || '');
                                                         setShowSaveNameModal(true);
                                                     }}
-                                                    className="w-full px-4 py-2.5 text-left text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors flex items-center gap-2.5 border-0 cursor-pointer"
+                                                    className="w-full px-3.5 py-2 text-left text-xs font-medium text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors flex items-center gap-2 border-0 cursor-pointer"
                                                 >
                                                     <span className="material-symbols-outlined text-base text-indigo-600">edit_note</span>
                                                     Save / Edit Contact Name
                                                 </button>
-                                                {activeConv?.customerPhone && (
+                                                {activeConv?.customerPhone && !activeConv.customerPhone.startsWith('BNK_') && !activeConv.customerPhone.startsWith('STF_') && (
                                                     <button
                                                         onClick={() => {
                                                             setShowHeaderMenu(false);
                                                             navigator.clipboard.writeText(activeConv.customerPhone);
                                                             alert(`Phone number (${activeConv.customerPhone}) copied to clipboard!`);
                                                         }}
-                                                        className="w-full px-4 py-2.5 text-left text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors flex items-center gap-2.5 border-0 cursor-pointer"
+                                                        className="w-full px-3.5 py-2 text-left text-xs font-medium text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors flex items-center gap-2 border-0 cursor-pointer"
                                                     >
                                                         <span className="material-symbols-outlined text-base text-slate-500">content_copy</span>
                                                         Copy Phone Number
@@ -1861,20 +1960,20 @@ export default function ChatInterface({ role, initialUser, initialBank, initialC
                                 </div>
 
                                 {/* Input Panel */}
-                                <div className="p-6 bg-white border-t border-[#E2E8F0] shrink-0">
+                                <div className="p-4 bg-white border-t border-slate-200 shrink-0">
                                     {/* Message Presets */}
-                                    <div className="flex gap-2 mb-4 overflow-x-auto no-scrollbar pb-1.5 scroll-smooth font-sans">
+                                    <div className="flex gap-2 mb-3 overflow-x-auto no-scrollbar pb-1 scroll-smooth font-sans">
                                         {[
-                                            { label: "MISSING MARKS", text: "Hello! We have reviewed your initial dossier but require the original 10th and 12th standard marksheets. Please upload them in the Document Vault." },
-                                            { label: "PROCESSING FEE", text: "Dear applicant, processing fees of ₹17,700 (including 18% GST) are due to advance sanctioning. Kindly deposit upfront or select deduction." },
-                                            { label: "CO-APPLICANT KYC", text: "Hello! To proceed with duplicate checks, please upload your co-applicant's verified Aadhaar and PAN documents." },
-                                            { label: "CLARIFICATION MEMO", text: "Dear applicant, a credit audit query has been raised on your files. Kindly check the Queries Tab and submit responses." }
+                                            { label: "Missing Marks", text: "Hello! We have reviewed your initial dossier but require the original 10th and 12th standard marksheets. Please upload them in the Document Vault." },
+                                            { label: "Processing Fee", text: "Dear applicant, processing fees of ₹17,700 (including 18% GST) are due to advance sanctioning. Kindly deposit upfront or select deduction." },
+                                            { label: "Co-Applicant KYC", text: "Hello! To proceed with duplicate checks, please upload your co-applicant's verified Aadhaar and PAN documents." },
+                                            { label: "Clarification Memo", text: "Dear applicant, a credit audit query has been raised on your files. Kindly check the Queries Tab and submit responses." }
                                         ].map((preset, idx) => (
                                             <button
                                                 key={idx}
                                                 type="button"
                                                 onClick={() => setInputText(preset.text)}
-                                                className="px-3 py-1.5 bg-[#FFFFFF] text-[#5A42E4] border border-[#E2E8F0] text-[9.5px] font-bold uppercase tracking-wider rounded-xl transition-all duration-250 hover:bg-[#F2F0FF] hover:border-[#5A42E4] hover:-translate-y-0.5 shrink-0 shadow-sm cursor-pointer"
+                                                className="px-2.5 py-1 bg-white hover:bg-indigo-50/70 text-slate-700 hover:text-indigo-600 border border-slate-200 hover:border-indigo-300 text-[11.5px] font-medium rounded-lg transition-colors shrink-0 shadow-none cursor-pointer"
                                             >
                                                 {preset.label}
                                             </button>
@@ -2249,9 +2348,11 @@ export default function ChatInterface({ role, initialUser, initialBank, initialC
                             </div>
 
                             <form onSubmit={handleSaveContactNameSubmit} className="space-y-4">
-                                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-1">
-                                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Target Contact Number / ID</span>
-                                    <p className="text-xs font-bold font-mono text-indigo-600">{phone}</p>
+                                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-1">
+                                    <span className="text-[10.5px] font-medium text-slate-500">Target Channel / Contact</span>
+                                    <p className="text-xs font-semibold text-slate-800">
+                                        {phone.startsWith('BNK_') || phone.startsWith('STF_') ? parseSyntheticIdentifier(phone).cleanLabel : phone}
+                                    </p>
                                 </div>
 
                                 <div className="space-y-1.5">
