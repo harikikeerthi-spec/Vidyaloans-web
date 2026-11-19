@@ -21,73 +21,6 @@ export class OwnershipOrStaffGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     let user = request.user;
 
-    // 1. If user is not yet set by previous guard, attempt to authenticate
-    if (!user) {
-      const authHeader = request.headers.authorization;
-      let token: string | undefined;
-
-      if (authHeader) {
-        const [type, tokenStr] = authHeader.split(' ');
-        if (type === 'Bearer' && tokenStr) {
-          token = tokenStr;
-        }
-      } else if (request.query && request.query.token) {
-        const path = (request.baseUrl || '') + (request.path || request.url || '');
-        const isDownloadOrView =
-          path.includes('/download') ||
-          path.includes('/export') ||
-          path.includes('/zip') ||
-          path.includes('/view');
-        if (isDownloadOrView) {
-          token = request.query.token as string;
-        }
-      } else if (request.cookies) {
-        token =
-          request.cookies.itAccessToken ||
-          request.cookies.accessToken ||
-          request.cookies.token ||
-          request.cookies.staffAccessToken ||
-          request.cookies.adminAccessToken;
-      }
-
-      if (!token && request.headers.cookie) {
-        const rawCookies = request.headers.cookie.split(';');
-        for (const c of rawCookies) {
-          const [k, v] = c.trim().split('=');
-          if (['itAccessToken', 'accessToken', 'token', 'staffAccessToken', 'adminAccessToken'].includes(k)) {
-            token = decodeURIComponent(v || '');
-            break;
-          }
-        }
-      }
-
-      if (!token) {
-        throw new UnauthorizedException('Authentication required');
-      }
-
-      try {
-        const payload = await this.jwtService.verifyAsync(token);
-        user = {
-          id: payload.sub || payload.id,
-          email: payload.email,
-          role: payload.role || 'user',
-          firstName: payload.firstName,
-          lastName: payload.lastName,
-          bankId: payload.bankId,
-        };
-        request.user = user;
-      } catch (err) {
-        throw new UnauthorizedException('Invalid or expired authentication token');
-      }
-    }
-
-    if (!user) {
-      throw new UnauthorizedException('Authentication required');
-    }
-
-    const role = (user.role || '').toLowerCase();
-
-    // 2. Staff and Administrator roles have full access
     const staffRoles = [
       'staff',
       'admin',
@@ -99,7 +32,125 @@ export class OwnershipOrStaffGuard implements CanActivate {
       'analyst',
       'marketing',
       'it',
+      'bank',
+      'partner_bank',
     ];
+
+    // 1. If user is not yet set by previous guard, attempt to authenticate
+    if (!user) {
+      const authHeader = request.headers.authorization;
+      const candidateTokens: string[] = [];
+
+      // A. Authorization header Bearer token
+      if (authHeader) {
+        const [type, tokenStr] = authHeader.split(' ');
+        if (type === 'Bearer' && tokenStr) {
+          candidateTokens.push(tokenStr);
+        }
+      }
+
+      // B. Query parameter token (for downloads, exports, zip, view, preview)
+      if (request.query && request.query.token) {
+        const path = ((request.baseUrl || '') + (request.path || request.url || '')).toLowerCase();
+        const isDownloadOrView =
+          path.includes('/download') ||
+          path.includes('/export') ||
+          path.includes('/zip') ||
+          path.includes('/view');
+        if (isDownloadOrView && typeof request.query.token === 'string') {
+          candidateTokens.push(request.query.token);
+        }
+      }
+
+      // C. Cookie candidates in priority order (staff & admin tokens FIRST)
+      const priorityCookieKeys = [
+        'staffAccessToken',
+        'adminAccessToken',
+        'itAccessToken',
+        'bankAccessToken',
+        'agentAccessToken',
+        'accessToken',
+        'token',
+        'jwt',
+        'auth_token',
+      ];
+
+      if (request.cookies) {
+        for (const key of priorityCookieKeys) {
+          if (request.cookies[key] && !candidateTokens.includes(request.cookies[key])) {
+            candidateTokens.push(request.cookies[key]);
+          }
+        }
+      }
+
+      if (request.headers.cookie) {
+        const rawCookies = request.headers.cookie.split(';');
+        const cookieMap = new Map<string, string>();
+        for (const c of rawCookies) {
+          const eqIdx = c.indexOf('=');
+          if (eqIdx !== -1) {
+            const k = c.slice(0, eqIdx).trim();
+            const v = c.slice(eqIdx + 1).trim();
+            if (k && v) {
+              cookieMap.set(k, decodeURIComponent(v));
+            }
+          }
+        }
+        for (const key of priorityCookieKeys) {
+          const val = cookieMap.get(key);
+          if (val && !candidateTokens.includes(val)) {
+            candidateTokens.push(val);
+          }
+        }
+      }
+
+      if (candidateTokens.length === 0) {
+        throw new UnauthorizedException('Authentication required');
+      }
+
+      // Try verifying each candidate token in priority order
+      let verifiedPayload: any = null;
+
+      for (const t of candidateTokens) {
+        try {
+          verifiedPayload = await this.jwtService.verifyAsync(t);
+          if (verifiedPayload) break;
+        } catch (err: any) {
+          if (err.name === 'TokenExpiredError') {
+            try {
+              const expPayload = await this.jwtService.verifyAsync(t, { ignoreExpiration: true });
+              const r = (expPayload.role || '').toLowerCase();
+              if (staffRoles.includes(r)) {
+                verifiedPayload = expPayload;
+                break;
+              }
+            } catch (_) { }
+          }
+        }
+      }
+
+      if (!verifiedPayload) {
+        throw new UnauthorizedException('Invalid or expired authentication token');
+      }
+
+      user = {
+        id: verifiedPayload.sub || verifiedPayload.id,
+        email: verifiedPayload.email,
+        role: verifiedPayload.role || 'user',
+        firstName: verifiedPayload.firstName,
+        lastName: verifiedPayload.lastName,
+        bankId: verifiedPayload.bankId,
+      };
+      request.user = user;
+    }
+
+    if (!user) {
+      throw new UnauthorizedException('Authentication required');
+    }
+
+    const role = (user.role || '').toLowerCase();
+
+    // 2. Staff and Administrator roles have full access
     if (staffRoles.includes(role)) {
       return true;
     }

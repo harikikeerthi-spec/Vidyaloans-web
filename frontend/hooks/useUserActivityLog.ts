@@ -44,6 +44,8 @@ export function useUserActivityLog(options: UseUserActivityLogOptions = {}) {
   // Fetch activities from backend
   const fetchActivities = useCallback(async () => {
     if (!userId || !enabled) return;
+    const token = typeof window !== "undefined" ? (localStorage.getItem("accessToken") || localStorage.getItem("token")) : null;
+    if (!token) return;
 
     try {
       setLoading(true);
@@ -54,8 +56,12 @@ export function useUserActivityLog(options: UseUserActivityLogOptions = {}) {
         setActivities(data.slice(0, limit));
       }
       setError(null);
-    } catch (err) {
-      console.error("[useUserActivityLog] Fetch failed:", err);
+    } catch (err: any) {
+      if (err?.message?.includes("Invalid or expired token") || err?.message?.includes("401")) {
+        console.warn("[useUserActivityLog] Session expired while fetching activities.");
+      } else {
+        console.error("[useUserActivityLog] Fetch failed:", err);
+      }
       setError(err instanceof Error ? err.message : "Failed to load activities");
     } finally {
       setLoading(false);

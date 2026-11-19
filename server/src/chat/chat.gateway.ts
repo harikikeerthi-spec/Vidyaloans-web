@@ -87,6 +87,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       if (userId) {
         await client.join(`user_${userId}`);
       }
+      if (payload.email) {
+        await client.join(`user_${payload.email.toLowerCase()}`);
+      }
 
       // Track online presence if email is available
       if (payload.email) {
@@ -473,6 +476,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         }
       } else {
         this.server.to(`user_${payload.userId}`).emit('notification_received', payload);
+        // If this is an application assignment or staff notification, also emit to room_staff
+        // so staff members and admins connected to the staff portal receive the event in real time
+        if (payload.type === 'loan_assigned' || payload.type === 'application_submitted' || payload.type === 'application_created') {
+          this.server.to('room_staff').emit('notification_received', payload);
+        }
       }
     } else {
       this.logger.warn(`WS server not initialized. Skipping notification broadcast.`);

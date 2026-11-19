@@ -286,14 +286,19 @@ const NotificationsPanel = ({
 
       // Filter out notifications targeted specifically to a different user
       const currentUserId = staffId || (typeof window !== "undefined" ? (localStorage.getItem("staffUserId") || localStorage.getItem("adminUserId") || localStorage.getItem("userId")) : null);
+      const currentUserEmail = (typeof window !== "undefined" ? (localStorage.getItem("staffUserEmail") || localStorage.getItem("adminUserEmail") || localStorage.getItem("userEmail")) : null)?.toLowerCase();
+      const isAdmin = typeof window !== "undefined" && Boolean(localStorage.getItem("adminAccessToken"));
       const targetUserId = (payload as any)?.userId;
+
       if (
+        !isAdmin &&
         targetUserId &&
         targetUserId !== "staff" &&
         targetUserId !== "all" &&
         targetUserId !== "system" &&
         currentUserId &&
-        targetUserId !== currentUserId
+        targetUserId !== currentUserId &&
+        (!currentUserEmail || targetUserId.toLowerCase() !== currentUserEmail)
       ) {
         console.log("[NotificationsPanel] Ignored notification targeted to another user:", targetUserId);
         return;

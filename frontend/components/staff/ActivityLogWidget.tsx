@@ -90,6 +90,11 @@ export default function ActivityLogWidget({
 
   // Fetch activities from backend
   const fetchActivities = async () => {
+    const token =
+      localStorage.getItem("staffAccessToken") ||
+      localStorage.getItem("adminAccessToken");
+    if (!token) return;
+
     try {
       setLoading(true);
       const res: any = await staffProfileApi.getDashboardActivities(limit, isPureStaff ? "me" : selectedStaffId);
@@ -103,8 +108,12 @@ export default function ActivityLogWidget({
 
       setActivities(formattedActivities);
       setError(null);
-    } catch (err) {
-      console.error("Failed to fetch activities:", err);
+    } catch (err: any) {
+      if (err?.message?.includes("Invalid or expired token") || err?.message?.includes("401")) {
+        console.warn("[ActivityLogWidget] Session expired while fetching activities.");
+      } else {
+        console.error("Failed to fetch activities:", err);
+      }
       setError("Failed to load activities");
     } finally {
       setLoading(false);

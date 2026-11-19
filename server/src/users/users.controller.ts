@@ -141,9 +141,9 @@ export class UsersController {
         return this.usersService.getUserStats();
     }
 
-    // Admin: list all users (limited fields)
+    // Staff & Admin: list all users (limited fields)
     @Get('admin/list')
-    @UseGuards(AdminGuard)
+    @UseGuards(StaffGuard)
     async listUsers(
         @Req() req: any,
         @Query('limit') limit?: string,
@@ -518,7 +518,7 @@ export class UsersController {
         }
     }
 
-    @UseGuards(AdminGuard)
+    @UseGuards(StaffGuard)
     @Post('admin/update-details')
     async adminUpdateUser(@Req() req: any, @Body() body: any) {
         try {
@@ -695,7 +695,7 @@ export class UsersController {
         }
     }
 
-    @UseGuards(AdminGuard)
+    @UseGuards(StaffGuard)
     @Post('admin/update-status')
     async adminUpdateUserStatus(
         @Body() body: {
@@ -728,7 +728,7 @@ export class UsersController {
         };
     }
 
-    @UseGuards(AdminGuard)
+    @UseGuards(StaffGuard)
     @Get('admin/:id')
     async getUserById(@Param('id') id: string) {
         if (!id) {
@@ -864,7 +864,7 @@ export class UsersController {
         }
     }
 
-    @UseGuards(AdminGuard)
+    @UseGuards(StaffGuard)
     @Post('admin/parents')
     async upsertParents(@Body() body: { userId: string; relation: string; name?: string; aadharNumber?: string; panNumber?: string }) {
         if (!body.userId || !body.relation) {

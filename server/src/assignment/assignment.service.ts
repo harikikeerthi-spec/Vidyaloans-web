@@ -378,19 +378,20 @@ export class AssignmentService {
 
     // Resolve loan record by UUID id or applicationNumber string
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(loanId);
+    const loanSelectFields = 'id, assignedStaffId, status, applicationNumber, firstName, lastName, email, bank, loanType';
     let targetLoan: any = null;
     if (isUuid) {
-      const { data: uLoan } = await this.db.from('LoanApplication').select('id, assignedStaffId, status, applicationNumber').eq('id', loanId).maybeSingle();
+      const { data: uLoan } = await this.db.from('LoanApplication').select(loanSelectFields).eq('id', loanId).maybeSingle();
       targetLoan = uLoan;
     } else {
-      const { data: aLoan } = await this.db.from('LoanApplication').select('id, assignedStaffId, status, applicationNumber').eq('applicationNumber', loanId).maybeSingle();
+      const { data: aLoan } = await this.db.from('LoanApplication').select(loanSelectFields).eq('applicationNumber', loanId).maybeSingle();
       targetLoan = aLoan;
     }
 
     if (!targetLoan) {
       const { data: fallbackLoan } = await this.db
         .from('LoanApplication')
-        .select('id, assignedStaffId, status, applicationNumber')
+        .select(loanSelectFields)
         .or(`id.eq.${loanId},applicationNumber.eq.${loanId}`)
         .maybeSingle();
       targetLoan = fallbackLoan;
@@ -453,24 +454,6 @@ export class AssignmentService {
       targetStaffUserId = selected.linkedUserId || selected.assignedStaffId || selected.id;
     }
 
-    try {
-      const { data: rpcRes, error: rpcErr } = await this.db.rpc('reassign_loan_atomic', {
-        p_loan_id: actualLoanId,
-        p_new_staff_id: targetStaffUserId,
-        p_assigned_by: assignedBy,
-        p_reason: reason,
-      });
-
-      if (!rpcErr && rpcRes && rpcRes.success) {
-        return { success: true, message: `Loan successfully reassigned to ${targetStaffUserId}` };
-      }
-    } catch (err) {
-      this.logger.warn(`[AssignmentEngine] RPC reassign_loan_atomic failed. Fallback manual update.`);
-    }
-
-    const previousStaffId = targetLoan.assignedStaffId;
-    const now = new Date().toISOString();
-
     let targetStaffName = 'Staff Member';
     let targetStaffEmail = '';
     try {
@@ -485,6 +468,57 @@ export class AssignmentService {
         targetStaffEmail = targetUser.email || '';
       }
     } catch (_) { }
+
+    const dispatchReassignmentNotification = async () => {
+      try {
+        if (targetStaffEmail) {
+          await this.emailService.sendMail(
+            targetStaffEmail,
+            'Loan Application Assigned to You',
+            `<p>Hello ${targetStaffName},</p>
+             <p>Loan Application <strong>#${targetLoan.applicationNumber || actualLoanId}</strong> (${targetLoan.firstName || ''} ${targetLoan.lastName || ''}) has been assigned to you.</p>
+             <p>Reason: ${reason || 'Manual assignment'}</p>
+             <p>Please review and begin processing.</p>`
+          );
+        }
+      } catch (notifyErr: any) {
+        this.logger.error(`Failed to send assignment notification email: ${notifyErr.message}`);
+      }
+
+      try {
+        this.eventEmitter.emit('loan.assigned', {
+          assignedStaffId: targetStaffUserId,
+          staffName: targetStaffName,
+          loanId: actualLoanId,
+          applicationNumber: targetLoan.applicationNumber,
+          candidateName: `${targetLoan.firstName || ''} ${targetLoan.lastName || ''}`.trim() || targetLoan.email || 'Applicant',
+          bank: targetLoan.bank,
+          loanType: targetLoan.loanType,
+          assignedBy,
+        });
+      } catch (emitErr: any) {
+        this.logger.error(`Failed to emit loan.assigned event in reassignLoan: ${emitErr.message}`);
+      }
+    };
+
+    try {
+      const { data: rpcRes, error: rpcErr } = await this.db.rpc('reassign_loan_atomic', {
+        p_loan_id: actualLoanId,
+        p_new_staff_id: targetStaffUserId,
+        p_assigned_by: assignedBy,
+        p_reason: reason,
+      });
+
+      if (!rpcErr && rpcRes && rpcRes.success) {
+        await dispatchReassignmentNotification();
+        return { success: true, message: `Loan successfully reassigned to ${targetStaffUserId}` };
+      }
+    } catch (err) {
+      this.logger.warn(`[AssignmentEngine] RPC reassign_loan_atomic failed. Fallback manual update.`);
+    }
+
+    const previousStaffId = targetLoan.assignedStaffId;
+    const now = new Date().toISOString();
 
     // STEP 1 — Critical write: assignedStaffId only (guaranteed column)
     const { error: reassignErr } = await this.db
@@ -532,6 +566,8 @@ export class AssignmentService {
       reason,
       createdAt: now,
     });
+
+    await dispatchReassignmentNotification();
 
     return { success: true, message: 'Loan application reassigned successfully' };
   }

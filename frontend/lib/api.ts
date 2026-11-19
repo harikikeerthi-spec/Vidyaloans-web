@@ -269,16 +269,71 @@ export function getToken(): string | null {
         if (itTok) return itTok;
     }
 
-    // 3. Staff portal can fall back to admin credentials or general access token
+    // 3. Staff portal can fall back to admin credentials, but never to student credentials
     if (portal === "staff") {
         const staffTok =
             localStorage.getItem("staffAccessToken") ||
-            localStorage.getItem("adminAccessToken") ||
-            localStorage.getItem("accessToken");
+            localStorage.getItem("adminAccessToken");
         if (staffTok) return staffTok;
+
+        try {
+            const sessionToken =
+                sessionStorage.getItem("staffAccessToken") ||
+                sessionStorage.getItem("adminAccessToken");
+            if (sessionToken) return sessionToken;
+        } catch { }
+
+        try {
+            const getCookie = (name: string) => {
+                const match = document.cookie.match(new RegExp('(?:^|;\\s*)' + name + '=([^;]*)'));
+                return match ? decodeURIComponent(match[1]) : null;
+            };
+            const cookieToken =
+                getCookie("staffAccessToken") ||
+                getCookie("adminAccessToken");
+            if (cookieToken) return cookieToken;
+        } catch { }
+
+        return null;
     }
 
-    // 4. If student portal, check standard user token key aliases
+    // 4. Admin portal strictly uses admin credentials
+    if (portal === "admin") {
+        const adminTok = localStorage.getItem("adminAccessToken");
+        if (adminTok) return adminTok;
+
+        try {
+            const sessionToken = sessionStorage.getItem("adminAccessToken");
+            if (sessionToken) return sessionToken;
+        } catch { }
+
+        try {
+            const getCookie = (name: string) => {
+                const match = document.cookie.match(new RegExp('(?:^|;\\s*)' + name + '=([^;]*)'));
+                return match ? decodeURIComponent(match[1]) : null;
+            };
+            const cookieToken = getCookie("adminAccessToken");
+            if (cookieToken) return cookieToken;
+        } catch { }
+
+        return null;
+    }
+
+    // 5. Bank portal strictly uses bank credentials
+    if (portal === "bank") {
+        const bankTok = localStorage.getItem("bankAccessToken");
+        if (bankTok) return bankTok;
+        return null;
+    }
+
+    // 6. Agent portal strictly uses agent credentials
+    if (portal === "agent") {
+        const agentTok = localStorage.getItem("agentAccessToken");
+        if (agentTok) return agentTok;
+        return null;
+    }
+
+    // 7. Student portal checks standard user token aliases
     if (portal === "student") {
         const studentTok =
             localStorage.getItem("token") ||
@@ -291,37 +346,22 @@ export function getToken(): string | null {
     const generalToken =
         localStorage.getItem("accessToken") ||
         localStorage.getItem("token") ||
-        localStorage.getItem("userToken") ||
-        localStorage.getItem("adminAccessToken") ||
-        localStorage.getItem("staffAccessToken") ||
-        localStorage.getItem("itAccessToken");
+        localStorage.getItem("userToken");
     if (generalToken) return generalToken;
 
-    // 5. Check sessionStorage
+    // Check sessionStorage
     try {
-        const sessionToken =
-            sessionStorage.getItem(keys.token) ||
-            sessionStorage.getItem("itAccessToken") ||
-            sessionStorage.getItem("staffAccessToken") ||
-            sessionStorage.getItem("adminAccessToken") ||
-            sessionStorage.getItem("accessToken") ||
-            sessionStorage.getItem("token");
+        const sessionToken = sessionStorage.getItem(keys.token);
         if (sessionToken) return sessionToken;
     } catch { }
 
-    // 6. Fallback to browser cookies if localStorage is not set
+    // Fallback to browser cookies if localStorage is not set
     try {
         const getCookie = (name: string) => {
             const match = document.cookie.match(new RegExp('(?:^|;\\s*)' + name + '=([^;]*)'));
             return match ? decodeURIComponent(match[1]) : null;
         };
-        const cookieToken =
-            getCookie(keys.token) ||
-            getCookie("itAccessToken") ||
-            getCookie("staffAccessToken") ||
-            getCookie("adminAccessToken") ||
-            getCookie("accessToken") ||
-            getCookie("token");
+        const cookieToken = getCookie(keys.token);
         if (cookieToken) return cookieToken;
     } catch { }
 

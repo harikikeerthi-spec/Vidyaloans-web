@@ -858,6 +858,7 @@ export class DocumentController {
     @Param('userId') userId: string,
     @Param('docType') docType: string,
     @Query('bankId') bankId: string,
+    @Req() req: any,
   ) {
     if (bankId) {
       const { data: consent } = await this.supabase.client
@@ -885,16 +886,19 @@ export class DocumentController {
     if (!doc || !doc.filePath)
       throw new NotFoundException('Document not found');
 
+    const rawToken = (req?.headers?.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null) || req?.query?.token;
+    const tokenQuery = rawToken ? `?token=${encodeURIComponent(rawToken)}` : '';
+
     // Check local fallback first
     const localDir = path.join(process.cwd(), 'uploads', userId, docType);
     if (fs.existsSync(localDir)) {
       const files = fs.readdirSync(localDir);
       if (files.length > 0) {
-        return { success: true, url: `/api/documents/view/${userId}/${docType}`, docType, filePath: doc.filePath };
+        return { success: true, url: `/api/documents/view/${userId}/${docType}${tokenQuery}`, docType, filePath: doc.filePath };
       }
     }
 
-    const url = `/api/documents/view/${userId}/${docType}`;
+    const url = `/api/documents/view/${userId}/${docType}${tokenQuery}`;
     return { success: true, url, docType, filePath: doc.filePath };
   }
 

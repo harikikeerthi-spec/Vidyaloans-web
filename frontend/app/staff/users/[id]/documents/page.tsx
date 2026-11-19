@@ -256,8 +256,14 @@ export default function DocumentsTab() {
 
                     // Fetch the document blob from the live view route
                     try {
-                        const viewUrl = `/api/documents/view/${encodeURIComponent(userId)}/${encodeURIComponent(doc.docType)}`;
-                        const res = await fetch(viewUrl);
+                        const token = typeof window !== "undefined"
+                            ? (localStorage.getItem("staffAccessToken") || localStorage.getItem("adminAccessToken") || localStorage.getItem("accessToken"))
+                            : null;
+                        const tokenParam = token ? `?token=${encodeURIComponent(token)}` : "";
+                        const viewUrl = `/api/documents/view/${encodeURIComponent(userId)}/${encodeURIComponent(doc.docType)}${tokenParam}`;
+                        const res = await fetch(viewUrl, {
+                            headers: token ? { Authorization: `Bearer ${token}` } : {},
+                        });
                         if (res.ok) {
                             fileBlob = await res.blob();
                             const ct = res.headers.get("content-type") || fileBlob.type || "";
@@ -639,21 +645,37 @@ export default function DocumentsTab() {
         }
     };
 
+    // ── Document URL Generator (with Auth Token Query Fallback) ───────
+    const getViewUrl = (docType: string) => {
+        const token = typeof window !== "undefined"
+            ? (localStorage.getItem("staffAccessToken") || localStorage.getItem("adminAccessToken") || localStorage.getItem("accessToken"))
+            : null;
+        const tokenParam = token ? `?token=${encodeURIComponent(token)}` : "";
+        return `/api/documents/view/${encodeURIComponent(userId)}/${encodeURIComponent(docType)}${tokenParam}`;
+    };
+
     // ── View Document Handler ───────────────────────────────────────────
     const handleView = async (doc: any) => {
         const docLabel = getDocLabel(doc, userData);
+        const fallbackUrl = getViewUrl(doc.docType);
         try {
             const res = await documentApi.getPresignedView(userId, doc.docType) as any;
             if (res && res.url) {
-                setPreviewUrl(res.url);
+                const token = typeof window !== "undefined"
+                    ? (localStorage.getItem("staffAccessToken") || localStorage.getItem("adminAccessToken") || localStorage.getItem("accessToken"))
+                    : null;
+                const finalUrl = (!res.url.includes("token=") && !res.url.startsWith("http") && token)
+                    ? `${res.url}${res.url.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}`
+                    : res.url;
+                setPreviewUrl(finalUrl);
                 setPreviewName(docLabel);
             } else {
-                setPreviewUrl(`/api/documents/view/${userId}/${doc.docType}`);
+                setPreviewUrl(fallbackUrl);
                 setPreviewName(docLabel);
             }
         } catch (err) {
             console.error("Failed to load view URL:", err);
-            setPreviewUrl(`/api/documents/view/${userId}/${doc.docType}`);
+            setPreviewUrl(fallbackUrl);
             setPreviewName(docLabel);
         }
     };
@@ -961,7 +983,7 @@ export default function DocumentsTab() {
                                     <div className="pt-3 mt-3 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
                                         <div className="flex items-center gap-2">
                                             <a
-                                                href={`/api/documents/view/${userId}/${doc.docType}`}
+                                                href={getViewUrl(doc.docType)}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                                 className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800 transition-colors"
@@ -1092,7 +1114,7 @@ export default function DocumentsTab() {
                                                 <span>View</span>
                                             </button>
                                             <a
-                                                href={`/api/documents/view/${userId}/${doc.docType}`}
+                                                href={getViewUrl(doc.docType)}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                                 className="p-1.5 bg-white hover:bg-slate-50 text-slate-500 hover:text-slate-800 border border-slate-200 rounded-lg text-xs transition-colors"
@@ -1419,12 +1441,23 @@ export default function DocumentsTab() {
                                     <span className="material-symbols-outlined text-[18px] text-[#6605c7]">description</span>
                                     <p className="text-[11px] font-black text-slate-800 uppercase tracking-wider">{previewName}</p>
                                 </div>
-                                <button
-                                    onClick={() => setPreviewUrl(null)}
-                                    className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:text-rose-500 hover:border-rose-200 transition-all cursor-pointer border-0"
-                                >
-                                    <span className="material-symbols-outlined text-[16px]">close</span>
-                                </button>
+                                <div className="flex items-center gap-2">
+                                    <a
+                                        href={previewUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:text-purple-600 hover:border-purple-200 transition-all cursor-pointer"
+                                        title="Open full document in new tab"
+                                    >
+                                        <span className="material-symbols-outlined text-[16px]">open_in_new</span>
+                                    </a>
+                                    <button
+                                        onClick={() => setPreviewUrl(null)}
+                                        className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:text-rose-500 hover:border-rose-200 transition-all cursor-pointer border-0"
+                                    >
+                                        <span className="material-symbols-outlined text-[16px]">close</span>
+                                    </button>
+                                </div>
                             </div>
                             <div className="flex-1 overflow-auto p-2 bg-slate-100 flex items-center justify-center min-h-[400px]">
                                 {previewUrl.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/i) ? (

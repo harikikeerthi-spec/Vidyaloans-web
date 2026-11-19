@@ -1,16 +1,145 @@
-import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
+import { Injectable, Logger, HttpException, HttpStatus, OnModuleInit, Optional } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
+import { PrismaService } from '../prisma/prisma.service';
 import { randomUUID } from 'crypto';
 
 @Injectable()
-export class ChatService {
+export class ChatService implements OnModuleInit {
   readonly logger = new Logger(ChatService.name);
+  private isEnsuringTables = false;
+  private tablesEnsured = false;
 
   constructor(
     private readonly supabase: SupabaseService,
-    private readonly eventEmitter: EventEmitter2
+    private readonly eventEmitter: EventEmitter2,
+    @Optional() private readonly prisma?: PrismaService,
   ) {}
+
+  async onModuleInit() {
+    await this.ensureChatTables();
+  }
+
+  async ensureChatTables() {
+    if (this.tablesEnsured || this.isEnsuringTables || !this.prisma) return;
+    this.isEnsuringTables = true;
+    try {
+      await this.prisma.$executeRawUnsafe(`
+        CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+        CREATE TABLE IF NOT EXISTS "Conversation" (
+          "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          "customerPhone" TEXT,
+          "customerEmail" TEXT,
+          "customerName" TEXT,
+          "status" TEXT NOT NULL DEFAULT 'active',
+          "metadata" JSONB DEFAULT '{}'::JSONB,
+          "applicationId" TEXT,
+          "isMultiParty" BOOLEAN DEFAULT false,
+          "conversationTopic" VARCHAR DEFAULT 'general',
+          "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_conversation_phone ON "Conversation"("customerPhone");
+        CREATE INDEX IF NOT EXISTS idx_conversation_email ON "Conversation"("customerEmail");
+        CREATE INDEX IF NOT EXISTS idx_conversation_status ON "Conversation"("status");
+        CREATE INDEX IF NOT EXISTS idx_conversation_updated_at ON "Conversation"("updatedAt" DESC);
+
+        CREATE TABLE IF NOT EXISTS "Message" (
+          "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          "conversationId" UUID NOT NULL REFERENCES "Conversation"("id") ON DELETE CASCADE,
+          "senderType" TEXT NOT NULL,
+          "senderId" TEXT NOT NULL,
+          "senderName" TEXT,
+          "receiverType" TEXT,
+          "content" TEXT NOT NULL DEFAULT '',
+          "messageType" TEXT NOT NULL DEFAULT 'text',
+          "status" TEXT NOT NULL DEFAULT 'sent',
+          "attachmentUrl" TEXT,
+          "attachmentType" TEXT,
+          "recipientEmails" TEXT[] DEFAULT ARRAY[]::TEXT[],
+          "readBy" JSONB DEFAULT '{}'::JSONB,
+          "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_message_conversation ON "Message"("conversationId");
+        CREATE INDEX IF NOT EXISTS idx_message_created_at ON "Message"("createdAt" ASC);
+        CREATE INDEX IF NOT EXISTS idx_message_sender ON "Message"("senderId");
+
+        CREATE TABLE IF NOT EXISTS "Conversation_Participant" (
+          "id" UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+          "conversationId" UUID NOT NULL REFERENCES "Conversation"("id") ON DELETE CASCADE,
+          "userId" TEXT REFERENCES "User"("id") ON DELETE SET NULL,
+          "email" VARCHAR NOT NULL,
+          "role" VARCHAR NOT NULL,
+          "fullName" VARCHAR,
+          "joinedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+          "canShare" BOOLEAN DEFAULT true,
+          "isActive" BOOLEAN DEFAULT true,
+          UNIQUE("conversationId", "email", "role")
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_conv_participant_conversation ON "Conversation_Participant"("conversationId");
+        CREATE INDEX IF NOT EXISTS idx_conv_participant_email ON "Conversation_Participant"("email");
+        CREATE INDEX IF NOT EXISTS idx_conv_participant_role ON "Conversation_Participant"("role");
+
+        CREATE TABLE IF NOT EXISTS "Document_Share" (
+          "id" UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+          "conversationId" UUID NOT NULL REFERENCES "Conversation"("id") ON DELETE CASCADE,
+          "applicationId" TEXT,
+          "documentId" UUID NOT NULL,
+          "documentName" VARCHAR NOT NULL,
+          "documentType" VARCHAR NOT NULL,
+          "uploadedBy" VARCHAR NOT NULL,
+          "uploaderRole" VARCHAR NOT NULL,
+          "sharedWith" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+          "sharedWithRoles" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+          "status" VARCHAR DEFAULT 'active',
+          "reviewNotes" TEXT,
+          "createdAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_document_share_conversation ON "Document_Share"("conversationId");
+        CREATE INDEX IF NOT EXISTS idx_document_share_application ON "Document_Share"("applicationId");
+
+        CREATE TABLE IF NOT EXISTS "Message_Recipient" (
+          "id" UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+          "messageId" UUID NOT NULL REFERENCES "Message"("id") ON DELETE CASCADE,
+          "recipientEmail" VARCHAR NOT NULL,
+          "recipientRole" VARCHAR NOT NULL,
+          "readAt" TIMESTAMPTZ,
+          "status" VARCHAR DEFAULT 'delivered',
+          "createdAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_message_recipient_message ON "Message_Recipient"("messageId");
+        CREATE INDEX IF NOT EXISTS idx_message_recipient_email ON "Message_Recipient"("recipientEmail");
+
+        CREATE TABLE IF NOT EXISTS "Email_Log" (
+          "id" UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+          "recipientEmail" VARCHAR NOT NULL,
+          "subject" VARCHAR NOT NULL,
+          "messageId" UUID REFERENCES "Message"("id") ON DELETE SET NULL,
+          "documentShareId" UUID REFERENCES "Document_Share"("id") ON DELETE SET NULL,
+          "status" VARCHAR DEFAULT 'sent',
+          "failureReason" TEXT,
+          "sentAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_email_log_recipient ON "Email_Log"("recipientEmail");
+
+        NOTIFY pgrst, 'reload schema';
+      `);
+      this.tablesEnsured = true;
+      this.logger.log('[ChatService] Chat tables verified/created and PostgREST schema cache reload notified.');
+    } catch (err: any) {
+      this.logger.warn(`[ChatService] Notice while ensuring chat tables: ${err?.message}`);
+    } finally {
+      this.isEnsuringTables = false;
+    }
+  }
 
   get db() {
     return this.supabase.getClient();
@@ -188,7 +317,13 @@ export class ChatService {
       }
 
       const { data: convData, error } = await query.order('updatedAt', { ascending: false }).limit(1);
-      if (!error && convData && convData.length > 0) {
+      if (error) {
+        if (error.code === 'PGRST205' || String(error.message || '').includes('schema cache')) {
+          this.ensureChatTables().catch(() => {});
+        } else {
+          this.logger.warn('Failed to query conversation:', error);
+        }
+      } else if (convData && convData.length > 0) {
         conv = convData[0];
       }
     } catch (queryErr) {
@@ -213,7 +348,11 @@ export class ChatService {
           .single();
           
         if (createError) {
-          this.logger.warn('Failed to create conversation in DB, using fallback conversation:', createError);
+          if (createError.code === 'PGRST205' || String(createError.message || '').includes('schema cache')) {
+            this.ensureChatTables().catch(() => {});
+          } else {
+            this.logger.warn('Failed to create conversation in DB, using fallback conversation:', createError);
+          }
           conv = {
             id: generatedId,
             customerPhone: phone,
@@ -308,6 +447,9 @@ export class ChatService {
       .single();
 
     if (error) {
+      if (error.code === 'PGRST205' || String(error.message || '').includes('schema cache')) {
+        this.ensureChatTables().catch(() => {});
+      }
       this.logger.error('Failed to save message', error);
       try {
         const fs = require('fs');
@@ -416,6 +558,13 @@ export class ChatService {
       let { data, error } = await query;
       
       if (error || !data) {
+          const isMissingTable = error?.code === 'PGRST205' || String(error?.message || '').includes('schema cache');
+          if (isMissingTable) {
+              this.logger.warn(`[ChatService] Chat tables not ready in PostgREST schema cache (${error?.message}). Initiating verification and returning empty list.`);
+              this.ensureChatTables().catch(() => {});
+              return [];
+          }
+
           this.logger.warn(`Query with Message relation failed (${error?.message}), executing fallback query...`);
           let fallbackQuery = this.db
             .from('Conversation')
@@ -465,6 +614,12 @@ export class ChatService {
           }
           const { data: fallbackData, error: fallbackError } = await fallbackQuery;
           if (fallbackError) {
+              const isFallbackMissing = fallbackError?.code === 'PGRST205' || String(fallbackError?.message || '').includes('schema cache');
+              if (isFallbackMissing) {
+                  this.logger.warn(`[ChatService] Fallback query: chat tables not in schema cache. Returning empty list.`);
+                  this.ensureChatTables().catch(() => {});
+                  return [];
+              }
               this.logger.error('Fallback query failed:', fallbackError);
               return [];
           }
@@ -544,6 +699,11 @@ export class ChatService {
         .order('createdAt', { ascending: true });
 
       if (error) {
+        if (error.code === 'PGRST205' || String(error.message || '').includes('schema cache')) {
+          this.logger.warn(`[ChatService] Message table not in schema cache (${error?.message}). Returning empty messages.`);
+          this.ensureChatTables().catch(() => {});
+          return [];
+        }
         this.logger.error('Failed to query messages:', error);
         return [];
       }
@@ -556,47 +716,80 @@ export class ChatService {
   }
 
   async getMessageById(messageId: string) {
-    const { data, error } = await this.db
-      .from('Message')
-      .select('*')
-      .eq('id', messageId)
-      .maybeSingle();
+    try {
+      const { data, error } = await this.db
+        .from('Message')
+        .select('*')
+        .eq('id', messageId)
+        .maybeSingle();
 
-    if (error) {
-      throw new HttpException('Db Error', HttpStatus.INTERNAL_SERVER_ERROR);
+      if (error) {
+        if (error.code === 'PGRST205' || String(error.message || '').includes('schema cache')) {
+          this.logger.warn(`[ChatService] Message table not in schema cache (${error?.message}). Returning null.`);
+          this.ensureChatTables().catch(() => {});
+          return null;
+        }
+        throw new HttpException('Db Error', HttpStatus.INTERNAL_SERVER_ERROR);
+      }
+      return data;
+    } catch (e: any) {
+      if (e instanceof HttpException) throw e;
+      this.logger.warn(`[ChatService] getMessageById error: ${e?.message}`);
+      return null;
     }
-    return data;
   }
 
   async getMessagesByPhone(phone: string) {
     const cleanPhone = this.normalizePhone(phone);
     
-    // Find most recently updated active conversation first
-    const { data: convData } = await this.db
-      .from('Conversation')
-      .select('id')
-      .eq('customerPhone', cleanPhone)
-      .eq('status', 'active')
-      .order('updatedAt', { ascending: false })
-      .limit(1);
+    try {
+      // Find most recently updated active conversation first
+      const { data: convData, error } = await this.db
+        .from('Conversation')
+        .select('id')
+        .eq('customerPhone', cleanPhone)
+        .eq('status', 'active')
+        .order('updatedAt', { ascending: false })
+        .limit(1);
 
-    const conv = convData?.[0] || null;
-    if (!conv) return [];
+      if (error) {
+        if (error.code === 'PGRST205' || String(error.message || '').includes('schema cache')) {
+          this.ensureChatTables().catch(() => {});
+          return [];
+        }
+      }
 
-    return this.getMessages(conv.id);
+      const conv = convData?.[0] || null;
+      if (!conv) return [];
+
+      return this.getMessages(conv.id);
+    } catch (e: any) {
+      return [];
+    }
   }
 
   async getConversationById(id: string) {
-    const { data, error } = await this.db
-      .from('Conversation')
-      .select('*')
-      .eq('id', id)
-      .maybeSingle();
+    try {
+      const { data, error } = await this.db
+        .from('Conversation')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
 
-    if (error) {
-      throw new HttpException('Db Error', HttpStatus.INTERNAL_SERVER_ERROR);
+      if (error) {
+        if (error.code === 'PGRST205' || String(error.message || '').includes('schema cache')) {
+          this.logger.warn(`[ChatService] Conversation table not in schema cache (${error?.message}). Returning null.`);
+          this.ensureChatTables().catch(() => {});
+          return null;
+        }
+        throw new HttpException('Db Error', HttpStatus.INTERNAL_SERVER_ERROR);
+      }
+      return data;
+    } catch (e: any) {
+      if (e instanceof HttpException) throw e;
+      this.logger.warn(`[ChatService] getConversationById error: ${e?.message}`);
+      return null;
     }
-    return data;
   }
 
   async markMessagesAsRead(conversationId: string, readerType: 'customer' | 'staff_or_bank', readerRole?: string) {

@@ -117,14 +117,23 @@ export class NotificationService {
     // Admins & Super Admins oversee system-wide and staff notifications.
     // Bank partners see 'bank' / 'incoming_file' notifications.
     // Students see their own personal notifications.
+    const userEmail = (user.email || '').toLowerCase().trim();
     if (isAdmin) {
-      query = query.or(`userId.eq.staff,userId.eq.system,userId.eq.all,userId.eq.${userId}`);
+      const orClauses = [`userId.eq.staff`, `userId.eq.system`, `userId.eq.all`, `userId.eq.${userId}`];
+      if (userEmail) orClauses.push(`userId.eq.${userEmail}`);
+      query = query.or(orClauses.join(','));
     } else if (isStaff) {
-      query = query.or(`userId.eq.${userId},userId.eq.all`);
+      const orClauses = [`userId.eq.${userId}`, `userId.eq.staff`, `userId.eq.all`];
+      if (userEmail) orClauses.push(`userId.eq.${userEmail}`);
+      query = query.or(orClauses.join(','));
     } else if (isBank) {
-      query = query.or(`userId.eq.bank,userId.eq.system,userId.eq.all,userId.eq.${userId}`);
+      const orClauses = [`userId.eq.bank`, `userId.eq.system`, `userId.eq.all`, `userId.eq.${userId}`];
+      if (userEmail) orClauses.push(`userId.eq.${userEmail}`);
+      query = query.or(orClauses.join(','));
     } else {
-      query = query.or(`userId.eq.${userId},userId.eq.all`);
+      const orClauses = [`userId.eq.${userId}`, `userId.eq.all`];
+      if (userEmail) orClauses.push(`userId.eq.${userEmail}`);
+      query = query.or(orClauses.join(','));
     }
 
     if (type && type !== 'all') {

@@ -65,6 +65,9 @@ export const useActivityLog = (options: ActivityLogOptions = {}) => {
 
   // Fetch activities from backend
   const fetchActivities = useCallback(async () => {
+    const activeToken = token || (typeof window !== "undefined" ? (localStorage.getItem("staffAccessToken") || localStorage.getItem("adminAccessToken")) : null);
+    if (!activeToken) return;
+
     const now = Date.now();
     if (now - lastFetchRef.current < 1000) return; // Debounce
 
@@ -82,12 +85,16 @@ export const useActivityLog = (options: ActivityLogOptions = {}) => {
       setLastUpdated(new Date());
       lastFetchRef.current = now;
     } catch (err: any) {
-      console.error('[useActivityLog] Failed to fetch activities:', err);
-      setError(err.message || 'Failed to fetch activities');
+      if (err?.message?.includes('Invalid or expired token') || err?.message?.includes('401')) {
+        console.warn('[useActivityLog] Session expired while fetching activities.');
+      } else {
+        console.error('[useActivityLog] Failed to fetch activities:', err);
+      }
+      setError(err?.message || 'Failed to fetch activities');
     } finally {
       setLoading(false);
     }
-  }, [limit, staffId]);
+  }, [limit, staffId, token]);
 
   // Initialize WebSocket connection
   useEffect(() => {
