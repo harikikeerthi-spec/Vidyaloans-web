@@ -251,8 +251,36 @@ function monthLabel(mKey: string): string {
 // Step 0 – PDF extraction
 // ─────────────────────────────────────────────────────────────────────────────
 
+async function ensurePdfJs(): Promise<any> {
+  if (typeof window === "undefined") {
+    throw new Error("PDF extraction is only available in the browser.");
+  }
+  const win = window as any;
+  if (win.pdfjsLib) return win.pdfjsLib;
+
+  await new Promise<void>((resolve, reject) => {
+    const existing = document.querySelector('script[src*="pdf.min.js"]');
+    if (existing) {
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener("error", () => reject(new Error("Failed to load PDF.js")), { once: true });
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Failed to load PDF.js library"));
+    document.head.appendChild(script);
+  });
+
+  if (win.pdfjsLib?.GlobalWorkerOptions && !win.pdfjsLib.GlobalWorkerOptions.workerSrc) {
+    win.pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  }
+  return win.pdfjsLib;
+}
+
 export async function extractPdfText(file: File): Promise<string> {
-  const pdfjsLib = (window as any).pdfjsLib;
+  const pdfjsLib = await ensurePdfJs();
   if (!pdfjsLib) throw new Error("PDF.js not loaded. Please wait and try again.");
 
   if (pdfjsLib.GlobalWorkerOptions && !pdfjsLib.GlobalWorkerOptions.workerSrc) {

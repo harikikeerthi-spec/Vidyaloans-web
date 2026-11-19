@@ -61,12 +61,12 @@ export default function Footer() {
 
                         {/* Contact */}
                         <div className="space-y-1">
-                            <a href={`mailto:${supportEmail}`} className="flex items-center min-h-[44px] py-1 gap-2.5 text-gray-400 hover:text-white text-[13px] transition-colors group">
-                                <span className="material-symbols-outlined text-base text-gray-500 group-hover:text-[#6605c7] transition-colors">mail</span>
+                            <a href={`mailto:${supportEmail}`} className="flex items-center min-h-[44px] py-1 gap-2.5 text-gray-300 hover:text-white text-[13px] transition-colors group">
+                                <span className="material-symbols-outlined text-base text-gray-400 group-hover:text-[#6605c7] transition-colors" aria-hidden="true">mail</span>
                                 {supportEmail}
                             </a>
-                            <a href={`tel:${phone.replace(/\s+/g, '')}`} className="flex items-center min-h-[44px] py-1 gap-2.5 text-gray-400 hover:text-white text-[13px] transition-colors group">
-                                <span className="material-symbols-outlined text-base text-gray-500 group-hover:text-[#6605c7] transition-colors">call</span>
+                            <a href={`tel:${phone.replace(/\s+/g, '')}`} className="flex items-center min-h-[44px] py-1 gap-2.5 text-gray-300 hover:text-white text-[13px] transition-colors group">
+                                <span className="material-symbols-outlined text-base text-gray-400 group-hover:text-[#6605c7] transition-colors" aria-hidden="true">call</span>
                                 {phone}
                             </a>
                         </div>
@@ -116,8 +116,8 @@ export default function Footer() {
                     <div className="lg:col-span-3">
                         <h4 className="text-[11px] font-bold uppercase tracking-[0.1em] text-white mb-4">Office</h4>
                         <ul className="space-y-1 text-[13px]">
-                            <li className="flex items-start gap-2 text-gray-400 min-h-[44px] py-1">
-                                <span className="material-symbols-outlined text-[#6605c7] text-base mt-0.5">location_on</span>
+                            <li className="flex items-start gap-2 text-gray-300 min-h-[44px] py-1">
+                                <span className="material-symbols-outlined text-[#6605c7] text-base mt-0.5" aria-hidden="true">location_on</span>
                                 <div>
                                     <span className="text-white font-medium block">Nuzvid (Headquarters)</span>
                                     <span className="text-[11px] text-gray-400 leading-relaxed block mt-0.5 max-w-[240px]">

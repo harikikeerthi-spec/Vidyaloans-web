@@ -588,7 +588,7 @@ label {
 }
 
 .bg-premium-noise {
-  background-image: url('https://www.transparenttextures.com/patterns/cubes.png');
+  background-image: url('/images/bg-noise-overlay.png');
   opacity: 0.03;
 }
 

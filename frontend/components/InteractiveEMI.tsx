@@ -40,7 +40,7 @@ export default function InteractiveEMI() {
                 {/* Loan Amount Slider */}
                 <div>
                     <div className="flex justify-between mb-3">
-                        <label className="text-[11px] font-black uppercase tracking-widest text-gray-400">
+                        <label htmlFor="interactive-emi-amount" className="text-[12px] font-black uppercase tracking-widest text-gray-700">
                             Loan Amount
                         </label>
                         <span className="text-[#6605c7] font-black text-[13px]">
@@ -48,27 +48,33 @@ export default function InteractiveEMI() {
                         </span>
                     </div>
                     <input
+                        id="interactive-emi-amount"
                         type="range"
+                        aria-label="Loan Amount"
+                        aria-valuemin={100000}
+                        aria-valuemax={10000000}
+                        aria-valuenow={loanAmount}
+                        aria-valuetext={formatCurrency(loanAmount)}
                         min={100000}
                         max={10000000}
                         step={50000}
                         value={loanAmount}
                         onChange={(e) => setLoanAmount(Number(e.target.value))}
-                        className="w-full h-1.5 bg-gray-100 rounded-full appearance-none cursor-pointer accent-[#6605c7]"
+                        className="w-full h-1.5 bg-gray-100 rounded-full appearance-none cursor-pointer accent-[#6605c7] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6605c7] focus-visible:ring-offset-2"
                         style={{
                             background: `linear-gradient(to right, #6605c7 ${((loanAmount - 100000) / (10000000 - 100000)) * 100}%, #f3f4f6 ${((loanAmount - 100000) / (10000000 - 100000)) * 100}%)`,
                         }}
                     />
                     <div className="flex justify-between mt-1.5">
-                        <span className="text-[10px] text-gray-300 font-bold">₹1L</span>
-                        <span className="text-[10px] text-gray-300 font-bold">₹1Cr</span>
+                        <span className="text-[11px] text-gray-500 font-bold">₹1L</span>
+                        <span className="text-[11px] text-gray-500 font-bold">₹1Cr</span>
                     </div>
                 </div>
 
                 {/* Interest Rate Slider */}
                 <div>
                     <div className="flex justify-between mb-3">
-                        <label className="text-[11px] font-black uppercase tracking-widest text-gray-400">
+                        <label htmlFor="interactive-emi-rate" className="text-[12px] font-black uppercase tracking-widest text-gray-700">
                             Interest Rate
                         </label>
                         <span className="text-[#6605c7] font-black text-[13px]">
@@ -76,27 +82,33 @@ export default function InteractiveEMI() {
                         </span>
                     </div>
                     <input
+                        id="interactive-emi-rate"
                         type="range"
+                        aria-label="Interest Rate"
+                        aria-valuemin={7}
+                        aria-valuemax={18}
+                        aria-valuenow={interestRate}
+                        aria-valuetext={`${interestRate.toFixed(1)}% per annum`}
                         min={7}
                         max={18}
                         step={0.1}
                         value={interestRate}
                         onChange={(e) => setInterestRate(Number(e.target.value))}
-                        className="w-full h-1.5 bg-gray-100 rounded-full appearance-none cursor-pointer accent-[#6605c7]"
+                        className="w-full h-1.5 bg-gray-100 rounded-full appearance-none cursor-pointer accent-[#6605c7] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6605c7] focus-visible:ring-offset-2"
                         style={{
                             background: `linear-gradient(to right, #6605c7 ${((interestRate - 7) / (18 - 7)) * 100}%, #f3f4f6 ${((interestRate - 7) / (18 - 7)) * 100}%)`,
                         }}
                     />
                     <div className="flex justify-between mt-1.5">
-                        <span className="text-[10px] text-gray-300 font-bold">7%</span>
-                        <span className="text-[10px] text-gray-300 font-bold">18%</span>
+                        <span className="text-[11px] text-gray-500 font-bold">7%</span>
+                        <span className="text-[11px] text-gray-500 font-bold">18%</span>
                     </div>
                 </div>
 
                 {/* Tenure Slider */}
                 <div>
                     <div className="flex justify-between mb-3">
-                        <label className="text-[11px] font-black uppercase tracking-widest text-gray-400">
+                        <label htmlFor="interactive-emi-tenure" className="text-[12px] font-black uppercase tracking-widest text-gray-700">
                             Loan Tenure
                         </label>
                         <span className="text-[#6605c7] font-black text-[13px]">
@@ -104,20 +116,26 @@ export default function InteractiveEMI() {
                         </span>
                     </div>
                     <input
+                        id="interactive-emi-tenure"
                         type="range"
+                        aria-label="Loan Tenure"
+                        aria-valuemin={1}
+                        aria-valuemax={20}
+                        aria-valuenow={tenure}
+                        aria-valuetext={`${tenure} ${tenure === 1 ? "Year" : "Years"}`}
                         min={1}
                         max={20}
                         step={1}
                         value={tenure}
                         onChange={(e) => setTenure(Number(e.target.value))}
-                        className="w-full h-1.5 bg-gray-100 rounded-full appearance-none cursor-pointer accent-[#6605c7]"
+                        className="w-full h-1.5 bg-gray-100 rounded-full appearance-none cursor-pointer accent-[#6605c7] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6605c7] focus-visible:ring-offset-2"
                         style={{
                             background: `linear-gradient(to right, #6605c7 ${((tenure - 1) / (20 - 1)) * 100}%, #f3f4f6 ${((tenure - 1) / (20 - 1)) * 100}%)`,
                         }}
                     />
                     <div className="flex justify-between mt-1.5">
-                        <span className="text-[10px] text-gray-300 font-bold">1 Yr</span>
-                        <span className="text-[10px] text-gray-300 font-bold">20 Yrs</span>
+                        <span className="text-[11px] text-gray-500 font-bold">1 Yr</span>
+                        <span className="text-[11px] text-gray-500 font-bold">20 Yrs</span>
                     </div>
                 </div>
 

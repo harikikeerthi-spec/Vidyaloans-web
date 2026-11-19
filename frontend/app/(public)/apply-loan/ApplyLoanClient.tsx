@@ -330,7 +330,7 @@ export default function ApplyLoanPage() {
     const scrollToFirstError = (errors: Record<string, string>) => {
         setTimeout(() => {
             const fieldOrder = [
-                "loanType", "country", "otherCountry", "university", "amount", "bank", "admissionStatus",
+                "loanType", "country", "otherCountry", "university", "amount", "admissionStatus",
                 "firstName", "lastName", "email", "phone", "dateOfBirth", "pincode", "address",
                 "coApplicant", "otherRelation", "coApplicantName", "coApplicantPhone", "coApplicantEmail", "income"
             ];
@@ -698,7 +698,7 @@ export default function ApplyLoanPage() {
                     <div className="bg-purple-50/60 rounded-2xl p-5 border border-purple-100 mb-8 text-left space-y-2">
                         <div className="text-xs font-bold text-gray-400 uppercase tracking-wider">Your Active Application</div>
                         <div className="text-base font-black text-gray-900 flex items-center justify-between">
-                            <span>{existingApp.bank && existingApp.bank !== 'Any Bank' ? existingApp.bank : 'Loan Application'}</span>
+                            <span>{existingApp.bank && !existingApp.bank.toLowerCase().includes('any') ? existingApp.bank : 'Loan Application'}</span>
                             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 capitalize">
                                 {existingApp.status}
                             </span>
@@ -724,8 +724,6 @@ export default function ApplyLoanPage() {
 
     if (submitted) {
         const appNumber = submittedApp?.applicationNumber;
-        const rawBank = banks.find(b => b.id === formData.bank)?.name || formData.bank || submittedApp?.bank;
-        const displayBank = rawBank && rawBank.trim() !== "" && rawBank.toLowerCase() !== "any bank" && !rawBank.toLowerCase().startsWith("any") ? rawBank : null;
         const loginUrl = `/login?email=${encodeURIComponent(formData.email || "")}&redirect=${encodeURIComponent('/dashboard#applications')}`;
 
         return (
@@ -765,11 +763,6 @@ export default function ApplyLoanPage() {
                                     {appNumber || "VL-APP-PENDING"}
                                 </span>
                             </div>
-                            {displayBank && (
-                                <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-purple-100 text-[#6605c7]">
-                                    {displayBank}
-                                </span>
-                            )}
                         </div>
 
                         <div className="grid grid-cols-2 gap-3 text-xs pt-1">
@@ -1013,12 +1006,7 @@ export default function ApplyLoanPage() {
                                         )}
                                     </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                        <SelectField name="bank" id="apply-bank" label="Preferred Lending Partner" icon="account_balance" value={formData.bank} onChange={(v) => update("bank", v)}
-                                            options={[
-                                                { value: "", label: "Any Bank / Best Available Offer" },
-                                                ...banks.map((b) => ({ value: b.id, label: `${b.name} (${b.rate})` })),
-                                            ]} error={stepErrors.bank} />
+                                    <div className="grid grid-cols-1 gap-8">
                                         <SelectField name="admissionStatus" id="apply-admissionStatus" label="Admission Status" icon="verified" value={formData.admissionStatus} onChange={(v) => update("admissionStatus", v)}
                                             options={[
                                                 { value: "confirmed", label: "Confirmed Admission" },
@@ -1333,7 +1321,6 @@ export default function ApplyLoanPage() {
                                         </h3>
                                         <div className="bg-white/70 rounded-[2rem] p-8 border border-gray-100 shadow-sm space-y-4">
                                             {[
-                                                { label: "Preferred Bank", value: banks.find(b => b.id === formData.bank)?.name || (formData.bank ? formData.bank : "Any Bank (Best Offer)") },
                                                 { label: "Field of Study", value: formData.loanType },
                                                 { label: "Required Amount", value: formData.amount ? `₹${Number(formData.amount.replace(/,/g, "")).toLocaleString("en-IN")}` : "" },
                                                 { label: "Destination", value: formData.country === "Other" ? formData.otherCountry : formData.country },

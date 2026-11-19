@@ -194,23 +194,31 @@ export class EmailService {
     }
 
     const safeName = this.formatRecipientName(name, email);
+    const cleanOtp = String(otp || '').trim();
+    const digits = cleanOtp.padStart(6, '0').slice(0, 6).split('');
+    const d1 = digits[0] || '';
+    const d2 = digits[1] || '';
+    const d3 = digits[2] || '';
+    const d4 = digits[3] || '';
+    const d5 = digits[4] || '';
+    const d6 = digits[5] || '';
 
-    // Subject optimized for Gmail & email clients
-    const subject = 'Your VidyaLoans Verification Code';
+    // Subject optimized for Gmail & email clients OTP recognition
+    const subject = `Your verification code: ${cleanOtp}`;
 
     // Plain text alternative with clear OTP positioning for client parsers & autofill
-    const text = `Hi ${safeName},
+    const text = `Code Requested
 
-Your verification code is: ${otp}
+${cleanOtp}
 
-Thank you for choosing VidyaLoans. Use the verification code below to securely verify your account.
+Copy code: ${cleanOtp}
 
-YOUR VERIFICATION CODE:
-${otp}
+Hi ${safeName},
 
-Expires in ${expiryMinutes} minutes.
+Here's your OTP to verify your account: ${cleanOtp}
+Enter it to continue.
 
-Never share your OTP with anyone. VidyaLoans will never ask you to disclose this code.
+Security Notice: This code expires in ${expiryMinutes} minutes. Never share your OTP with anyone. VidyaLoans will never ask you to disclose this code.
 
 Regards,
 Team VidyaLoans
@@ -238,14 +246,38 @@ https://www.vidyaloans.in/
           <meta name="color-scheme" content="light dark">
           <meta name="supported-color-schemes" content="light dark">
           <title>${subject}</title>
+          
           <!-- Schema.org JSON-LD Email Markup for Gmail OTP & Action Cards -->
           <script type="application/ld+json">
           {
             "@context": "https://schema.org",
             "@type": "EmailMessage",
-            "description": "Your verification code is ${otp}"
+            "description": "Your verification code is ${cleanOtp}",
+            "potentialAction": {
+              "@type": "ConfirmAction",
+              "name": "Copy code: ${cleanOtp}",
+              "handler": {
+                "@type": "HttpActionHandler",
+                "url": "https://www.vidyaloans.in"
+              }
+            }
           }
           </script>
+
+          <style type="text/css">
+            body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+            table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+            img { -ms-interpolation-mode: bicubic; border: 0; outline: none; text-decoration: none; }
+            body { margin: 0; padding: 0; width: 100% !important; background-color: #f4f6f8; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+            
+            @media only screen and (max-width: 480px) {
+              .email-container { width: 100% !important; padding: 18px 10px !important; }
+              .otp-card-cell { padding: 22px 10px 20px 10px !important; }
+              .digit-box { width: 42px !important; height: 50px !important; }
+              .digit-text { font-size: 32px !important; line-height: 50px !important; }
+              .digit-cell { padding: 0 2px !important; }
+            }
+          </style>
         </head>
         <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f4f6f8; margin: 0; padding: 0; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%;">
 
@@ -253,7 +285,7 @@ https://www.vidyaloans.in/
           <!-- 1. GMAIL INBOX PREHEADER SNIPPET                  -->
           <!-- ================================================= -->
           <div style="display: none; font-size: 1px; color: #ffffff; line-height: 1px; max-height: 0px; max-width: 0px; opacity: 0; overflow: hidden; mso-hide: all;">
-            Hi ${safeName}, your verification code is ${otp}. Enter it to continue with VidyaLoans.
+            Your verification code: ${cleanOtp}. Copy code: ${cleanOtp}
           </div>
           <!-- Zero-width spacer to prevent subsequent email text leaking into inbox snippet preview -->
           <div style="display: none; font-size: 1px; color: #ffffff; line-height: 1px; max-height: 0px; max-width: 0px; opacity: 0; overflow: hidden; mso-hide: all;">
@@ -263,93 +295,141 @@ https://www.vidyaloans.in/
           <!-- ================================================= -->
           <!-- 2. MAIN EMAIL CONTAINER (RESPONSIVE TABLE)        -->
           <!-- ================================================= -->
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f4f6f8; margin: 0; padding: 32px 12px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f4f6f8; margin: 0; padding: 36px 12px;">
             <tr>
               <td align="center">
                 <!-- Inner Email Card -->
-                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 560px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 12px rgba(18, 59, 96, 0.06);">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="email-container" style="max-width: 520px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);">
                   
-                  <!-- HEADER (Dark Navy Blue #123B60) -->
+                  <!-- MAIN CONTENT BODY (EXACT REQUESTED ORDER) -->
                   <tr>
-                    <td bgcolor="#123B60" style="background-color: #123B60; padding: 24px 32px; text-align: left;">
-                      <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin: 0;">
+                    <td style="padding: 32px 28px; background-color: #ffffff;">
+
+                      <!-- 1. OTP CARD (TOP ELEMENT) -->
+                      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 440px; margin: 0 auto 32px auto; background-color: #303B3D; border-radius: 22px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.18);">
                         <tr>
-                          <td style="vertical-align: middle; padding-right: 12px;">
-                            <img src="${this.getLogoUrl()}" alt="VidyaLoans" width="36" height="36" style="display: block; width: 36px; height: 36px; border: 0; outline: none; text-decoration: none;" />
-                          </td>
-                          <td style="vertical-align: middle;">
-                            <span style="color: #ffffff; font-size: 22px; font-weight: 700; letter-spacing: -0.3px; line-height: 1; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">VidyaLoans</span>
+                          <td align="center" class="otp-card-cell" style="padding: 28px 20px 26px 20px; text-align: center; background-color: #303B3D; border-radius: 22px;">
+                            
+                            <!-- Heading: Code Requested -->
+                            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 15px; font-weight: 600; color: #D1D9DB; letter-spacing: 0.3px; margin: 0 0 20px 0; text-align: center;">
+                              Code Requested
+                            </div>
+
+                            <!-- 2. Six Individual Digit Boxes -->
+                            <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin: 0 auto 22px auto;">
+                              <tr>
+                                <!-- Digit 1 -->
+                                <td align="center" valign="middle" class="digit-cell" style="padding: 0 3px;">
+                                  <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                                    <tr>
+                                      <td align="center" valign="middle" width="46" height="56" bgcolor="#101C1E" class="digit-box" style="width: 46px; height: 56px; background-color: #101C1E; border-radius: 10px; text-align: center; vertical-align: middle; border: 1px solid rgba(255,255,255,0.06);">
+                                        <span class="digit-text" style="font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: 38px; font-weight: 800; color: #FFFFFF; line-height: 56px; display: block; user-select: all; -webkit-user-select: all;">${d1}</span>
+                                      </td>
+                                    </tr>
+                                  </table>
+                                </td>
+                                <!-- Digit 2 -->
+                                <td align="center" valign="middle" class="digit-cell" style="padding: 0 3px;">
+                                  <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                                    <tr>
+                                      <td align="center" valign="middle" width="46" height="56" bgcolor="#101C1E" class="digit-box" style="width: 46px; height: 56px; background-color: #101C1E; border-radius: 10px; text-align: center; vertical-align: middle; border: 1px solid rgba(255,255,255,0.06);">
+                                        <span class="digit-text" style="font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: 38px; font-weight: 800; color: #FFFFFF; line-height: 56px; display: block; user-select: all; -webkit-user-select: all;">${d2}</span>
+                                      </td>
+                                    </tr>
+                                  </table>
+                                </td>
+                                <!-- Digit 3 -->
+                                <td align="center" valign="middle" class="digit-cell" style="padding: 0 3px;">
+                                  <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                                    <tr>
+                                      <td align="center" valign="middle" width="46" height="56" bgcolor="#101C1E" class="digit-box" style="width: 46px; height: 56px; background-color: #101C1E; border-radius: 10px; text-align: center; vertical-align: middle; border: 1px solid rgba(255,255,255,0.06);">
+                                        <span class="digit-text" style="font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: 38px; font-weight: 800; color: #FFFFFF; line-height: 56px; display: block; user-select: all; -webkit-user-select: all;">${d3}</span>
+                                      </td>
+                                    </tr>
+                                  </table>
+                                </td>
+                                <!-- Digit 4 -->
+                                <td align="center" valign="middle" class="digit-cell" style="padding: 0 3px;">
+                                  <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                                    <tr>
+                                      <td align="center" valign="middle" width="46" height="56" bgcolor="#101C1E" class="digit-box" style="width: 46px; height: 56px; background-color: #101C1E; border-radius: 10px; text-align: center; vertical-align: middle; border: 1px solid rgba(255,255,255,0.06);">
+                                        <span class="digit-text" style="font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: 38px; font-weight: 800; color: #FFFFFF; line-height: 56px; display: block; user-select: all; -webkit-user-select: all;">${d4}</span>
+                                      </td>
+                                    </tr>
+                                  </table>
+                                </td>
+                                <!-- Digit 5 -->
+                                <td align="center" valign="middle" class="digit-cell" style="padding: 0 3px;">
+                                  <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                                    <tr>
+                                      <td align="center" valign="middle" width="46" height="56" bgcolor="#101C1E" class="digit-box" style="width: 46px; height: 56px; background-color: #101C1E; border-radius: 10px; text-align: center; vertical-align: middle; border: 1px solid rgba(255,255,255,0.06);">
+                                        <span class="digit-text" style="font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: 38px; font-weight: 800; color: #FFFFFF; line-height: 56px; display: block; user-select: all; -webkit-user-select: all;">${d5}</span>
+                                      </td>
+                                    </tr>
+                                  </table>
+                                </td>
+                                <!-- Digit 6 -->
+                                <td align="center" valign="middle" class="digit-cell" style="padding: 0 3px;">
+                                  <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                                    <tr>
+                                      <td align="center" valign="middle" width="46" height="56" bgcolor="#101C1E" class="digit-box" style="width: 46px; height: 56px; background-color: #101C1E; border-radius: 10px; text-align: center; vertical-align: middle; border: 1px solid rgba(255,255,255,0.06);">
+                                        <span class="digit-text" style="font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: 38px; font-weight: 800; color: #FFFFFF; line-height: 56px; display: block; user-select: all; -webkit-user-select: all;">${d6}</span>
+                                      </td>
+                                    </tr>
+                                  </table>
+                                </td>
+                              </tr>
+                            </table>
+
+                            <!-- 3. Copy code Control -->
+                            <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin: 0 auto;">
+                              <tr>
+                                <td align="center" bgcolor="#A9D6E7" style="background-color: #A9D6E7; border-radius: 20px; padding: 10px 28px;">
+                                  <span style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; font-weight: 700; color: #0A2540; text-decoration: none; display: inline-block; letter-spacing: 0.2px; user-select: all; -webkit-user-select: all;">
+                                    Copy code
+                                  </span>
+                                </td>
+                              </tr>
+                            </table>
+
                           </td>
                         </tr>
                       </table>
-                    </td>
-                  </tr>
 
-                  <!-- MAIN CONTENT BODY -->
-                  <tr>
-                    <td style="padding: 36px 36px 32px 36px; background-color: #ffffff;">
-                      <!-- Heading -->
-                      <h1 style="color: #123B60; font-size: 22px; font-weight: 700; line-height: 1.3; margin: 0 0 16px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">Verify Your Email Address</h1>
-                      
-                      <!-- Greeting -->
-                      <p style="color: #1e293b; font-size: 15px; font-weight: 600; margin: 0 0 12px 0; line-height: 1.5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+                      <!-- 4. GREETING -->
+                      <p style="margin: 0 0 14px 0; font-size: 16px; font-weight: 600; color: #1E293B; line-height: 1.5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
                         Hi ${safeName},
                       </p>
 
-                      <!-- Description -->
-                      <p style="color: #475569; font-size: 15px; line-height: 1.6; margin: 0 0 28px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-                        Thank you for choosing VidyaLoans. Use the verification code below to securely verify your account.
+                      <!-- 5. VERIFICATION MESSAGE -->
+                      <p style="margin: 0 0 14px 0; font-size: 15px; color: #475569; line-height: 1.6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+                        Here's your OTP to verify your account: <strong style="color: #0F172A; font-family: 'SFMono-Regular', Consolas, Menlo, Monaco, monospace; font-size: 16px; letter-spacing: 1px;">${cleanOtp}</strong>
+                      </p>
+                      <p style="margin: 0 0 24px 0; font-size: 15px; color: #475569; line-height: 1.6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+                        Enter it to continue.
                       </p>
 
-                      <!-- OTP CARD (Light Blue #EAF4FA) -->
-                      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 28px 0;">
-                        <tr>
-                          <td bgcolor="#EAF4FA" align="center" style="background-color: #EAF4FA; border: 1px solid #d0e4f2; border-radius: 8px; padding: 24px 16px; text-align: center;">
-                            <!-- Label -->
-                            <div style="font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: #4a6b82; margin-bottom: 10px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-                              YOUR VERIFICATION CODE
-                            </div>
-                            <!-- OTP Digits (Actual selectable text, bold typography, letter spaced) -->
-                            <div style="font-size: 38px; font-weight: 800; letter-spacing: 8px; color: #123B60; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Monaco, Courier, monospace, sans-serif; line-height: 1.1; margin-left: 8px; user-select: all; -webkit-user-select: all;">
-                              ${otp}
-                            </div>
-                            <!-- Expiry Note -->
-                            <div style="font-size: 13px; font-weight: 500; color: #5a738e; margin-top: 10px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-                              Expires in ${expiryMinutes} minutes
-                            </div>
-                          </td>
-                        </tr>
-                      </table>
-
-                      <!-- SECURITY NOTICE -->
-                      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 28px 0; background-color: #f8fafc; border-left: 3px solid #123B60; border-radius: 4px;">
+                      <!-- 6. OTP EXPIRY INFORMATION -->
+                      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 24px 0; background-color: #F8FAFC; border-left: 3px solid #303B3D; border-radius: 4px;">
                         <tr>
                           <td style="padding: 12px 16px;">
                             <p style="margin: 0; font-size: 13px; line-height: 1.5; color: #475569; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-                              <strong style="color: #1e293b;">Security Notice:</strong> Never share your OTP with anyone. VidyaLoans will never ask you to disclose this code.
+                              <strong style="color: #1E293B;">Security Notice:</strong> This code expires in ${expiryMinutes} minutes. Never share your OTP with anyone. VidyaLoans will never ask you to disclose this code.
                             </p>
                           </td>
                         </tr>
                       </table>
 
-                      <!-- DIVIDER -->
-                      <div style="border-top: 1px solid #e2e8f0; margin: 0 0 20px 0;"></div>
-
-                      <!-- FOOTER -->
-                      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-                        <tr>
-                          <td style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-                            <p style="color: #334155; font-size: 14px; line-height: 1.5; margin: 0 0 2px 0;">Regards,</p>
-                            <p style="color: #123B60; font-size: 14px; font-weight: 600; margin: 0 0 14px 0;">Team VidyaLoans</p>
-                            <p style="color: #64748b; font-size: 13px; line-height: 1.5; margin: 0 0 8px 0;">
-                              Website: <a href="https://www.vidyaloans.in/" style="color: #123B60; text-decoration: underline;" target="_blank">https://www.vidyaloans.in/</a>
-                            </p>
-                            <p style="color: #94a3b8; font-size: 12px; margin: 0;">
-                              &copy; 2026 VidyaLoans. All rights reserved.
-                            </p>
-                          </td>
-                        </tr>
-                      </table>
+                      <!-- MINIMAL CLEAN SIGN-OFF -->
+                      <div style="border-top: 1px solid #F1F5F9; padding-top: 18px; margin-top: 20px;">
+                        <p style="margin: 0 0 4px 0; font-size: 13px; color: #64748B; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+                          Regards,<br>
+                          <strong style="color: #1E293B;">Team VidyaLoans</strong>
+                        </p>
+                        <p style="margin: 8px 0 0 0; font-size: 12px; color: #94A3B8; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+                          &copy; 2026 VidyaLoans. All rights reserved.
+                        </p>
+                      </div>
 
                     </td>
                   </tr>

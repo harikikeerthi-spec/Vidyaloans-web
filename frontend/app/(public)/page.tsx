@@ -215,7 +215,7 @@ export default async function HomePage() {
                             <div className="relative flex flex-col items-center gap-1">
                                 <span className="absolute right-full mr-3 whitespace-nowrap bg-gradient-to-r from-amber-500 to-orange-600 text-white text-[11px] font-black px-4 py-2 rounded-xl shadow-xl shadow-orange-500/30 opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 uppercase tracking-wider">
                                     <span className="flex items-center gap-1.5">
-                                        <span className="material-symbols-outlined text-xs">lock</span>
+                                        <span className="material-symbols-outlined text-xs" aria-hidden="true">lock</span>
                                         <span>Locked — Refer & Earn Coming Soon</span>
                                     </span>
                                 </span>
@@ -233,7 +233,7 @@ export default async function HomePage() {
                                         </div>
                                     </div>
                                     <div className="absolute -top-1 -right-1 z-20 w-5 h-5 bg-amber-600 text-white rounded-full flex items-center justify-center shadow-md border-2 border-white">
-                                        <span className="material-symbols-outlined text-[11px] font-bold">lock</span>
+                                        <span className="material-symbols-outlined text-[11px] font-bold" aria-hidden="true">lock</span>
                                     </div>
                                 </div>
                                 <div className="text-center flex flex-col items-center gap-0.5">
@@ -241,7 +241,7 @@ export default async function HomePage() {
                                         Refer & Earn
                                     </span>
                                     <span className="inline-flex items-center gap-0.5 text-[8px] font-extrabold uppercase tracking-wider text-amber-700 bg-amber-50 border border-amber-200/90 px-1.5 py-0.5 rounded-full shadow-xs">
-                                        <span className="material-symbols-outlined text-[10px] text-amber-600">lock</span>
+                                        <span className="material-symbols-outlined text-[10px] text-amber-600" aria-hidden="true">lock</span>
                                         Locked
                                     </span>
                                 </div>
@@ -320,7 +320,7 @@ export default async function HomePage() {
                                 ].map(s => (
                                     <div key={s.label} className="text-center">
                                         <div className="text-[13px] font-black text-[#6605c7]">{s.val}</div>
-                                        <div className="text-[11px] text-gray-400 font-bold uppercase tracking-wider">{s.label}</div>
+                                        <div className="text-[11px] text-gray-600 font-bold uppercase tracking-wider">{s.label}</div>
                                     </div>
                                 ))}
                             </div>
@@ -334,6 +334,7 @@ export default async function HomePage() {
                                     alt="Students studying abroad"
                                     width={1200}
                                     height={900}
+                                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 600px"
                                     className="w-full h-auto object-cover transition-transform duration-1000 group-hover:scale-105"
                                     priority
                                     fetchPriority="high"
@@ -349,7 +350,7 @@ export default async function HomePage() {
                                     <span className="material-symbols-outlined text-[#6605c7] text-lg icon-filled" aria-hidden="true">verified</span>
                                 </div>
                                 <div>
-                                    <div className="text-[10px] text-gray-400 uppercase font-black tracking-widest mb-0.5">Lowest Rate</div>
+                                    <div className="text-[11px] text-gray-600 uppercase font-black tracking-widest mb-0.5">Lowest Rate</div>
                                     <div className="text-xl font-black text-[#1a1626] leading-none">10.25% p.a.</div>
                                 </div>
                             </div>
@@ -358,9 +359,9 @@ export default async function HomePage() {
                                 className="absolute -top-3 -right-3 flex items-center gap-2.5 px-4 py-2.5 rounded-xl shadow-lg border border-white/60"
                                 style={{ background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(20px)' }}
                             >
-                                <span className="text-xl">⚡</span>
+                                <span className="text-xl" aria-hidden="true">⚡</span>
                                 <div>
-                                    <div className="text-[10px] text-gray-400 uppercase font-black tracking-widest">Approval</div>
+                                    <div className="text-[11px] text-gray-600 uppercase font-black tracking-widest">Approval</div>
                                     <div className="text-[13px] font-black text-[#1a1626]">48 Hours</div>
                                 </div>
                             </div>
@@ -433,7 +434,7 @@ export default async function HomePage() {
                                     </span>
                                 </div>
                                 <div className="absolute top-4 right-4 w-20 h-20 rounded-2xl bg-white/10 backdrop-blur-md will-change-transform flex items-center justify-center group-hover:scale-110 transition-transform border border-white/20">
-                                    <span className="material-symbols-outlined text-5xl text-white">auto_stories</span>
+                                    <span className="material-symbols-outlined text-5xl text-white" aria-hidden="true">auto_stories</span>
                                 </div>
                                 <div className="relative z-10 p-7">
                                     <div className="text-3xl font-black text-white mb-1"><AnimatedNumber value="200+" /></div>
@@ -451,7 +452,7 @@ export default async function HomePage() {
                                 <div className="absolute inset-0 opacity-25" style={{ background: "url('/images/ecosystem/universities.jpg') center/cover" }} />
                                 <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(15,23,42,0.9) 0%, rgba(15,23,42,0.3) 60%, transparent 100%)' }} />
                                 <div className="absolute top-4 right-4 w-20 h-20 rounded-2xl bg-white/10 backdrop-blur-md will-change-transform flex items-center justify-center group-hover:scale-110 transition-transform border border-white/20">
-                                    <span className="material-symbols-outlined text-5xl text-white font-light opacity-80">account_balance</span>
+                                    <span className="material-symbols-outlined text-5xl text-white font-light opacity-80" aria-hidden="true">account_balance</span>
                                 </div>
                                 <div className="relative z-10 p-6">
                                     <div className="text-2xl font-black text-white mb-1"><AnimatedNumber value="500+" /></div>
@@ -468,7 +469,7 @@ export default async function HomePage() {
                                 <div className="absolute inset-0 opacity-20" style={{ background: "url('/images/ecosystem/scholarships.jpg') center/cover" }} />
                                 <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(120,53,15,0.9) 0%, rgba(120,53,15,0.3) 70%, transparent 100%)' }} />
                                 <div className="absolute top-4 right-4 w-20 h-20 rounded-2xl bg-white/10 backdrop-blur-md will-change-transform flex items-center justify-center group-hover:scale-110 transition-transform border border-white/20">
-                                    <span className="material-symbols-outlined text-5xl text-white font-light opacity-80">military_tech</span>
+                                    <span className="material-symbols-outlined text-5xl text-white font-light opacity-80" aria-hidden="true">military_tech</span>
                                 </div>
                                 <div className="relative z-10 p-6">
                                     <div className="text-2xl font-black text-white mb-1">₹<AnimatedNumber value="50" />L+</div>
@@ -484,7 +485,7 @@ export default async function HomePage() {
                             <Link href="/apply-loan" className="col-span-12 lg:col-span-7 row-span-1 group relative overflow-hidden rounded-xl shadow-xl flex flex-col justify-end min-h-[240px]" style={{ background: 'linear-gradient(135deg, #6605c7 0%, #9333ea 100%)' }}>
                                 <div className="absolute inset-0 opacity-10" style={{ background: "url('/images/ecosystem/education-loan.jpg') center/cover" }} />
                                 <div className="absolute top-4 right-4 w-20 h-20 rounded-2xl bg-white/10 backdrop-blur-md will-change-transform flex items-center justify-center group-hover:scale-110 transition-transform border border-white/20">
-                                    <span className="material-symbols-outlined text-5xl text-white font-light">payments</span>
+                                    <span className="material-symbols-outlined text-5xl text-white font-light" aria-hidden="true">payments</span>
                                 </div>
                                 <div className="relative z-10 p-6">
                                     <span className="inline-block px-2 py-0.5 rounded-lg bg-white/10 text-white text-[10px] font-black uppercase tracking-widest mb-3 border border-white/10">⭐ Best Rates</span>

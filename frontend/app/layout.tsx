@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Script from "next/script";
-import "@phosphor-icons/web/regular";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SiteSettingsProvider } from "@/contexts/SiteSettingsContext";
@@ -91,21 +90,30 @@ export default function RootLayout({
         />
         <link
           rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0..1,0&display=swap"
         />
-        <link
-          rel="stylesheet"
-          type="text/css"
-          href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css"
-        />
-        {/* PDF.js for EVV Test Agent */}
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" />
+        {/* DPDP / GDPR Google Consent Mode v2 Initialization (Prior-Consent Default) */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
-              if (typeof window !== "undefined" && window.pdfjsLib && window.pdfjsLib.GlobalWorkerOptions) {
-                window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-              }
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              (function() {
+                var stored = null;
+                try {
+                  var raw = localStorage.getItem('cookie-preferences');
+                  if (raw) stored = JSON.parse(raw);
+                } catch(e) {}
+                var analyticsGranted = stored && stored.analytical ? 'granted' : 'denied';
+                var marketingGranted = stored && stored.marketing ? 'granted' : 'denied';
+                gtag('consent', 'default', {
+                  'analytics_storage': analyticsGranted,
+                  'ad_storage': marketingGranted,
+                  'ad_user_data': marketingGranted,
+                  'ad_personalization': marketingGranted,
+                  'wait_for_update': 500
+                });
+              })();
             `,
           }}
         />
@@ -117,9 +125,9 @@ export default function RootLayout({
                 if (typeof window === "undefined") return;
                 try {
                   window.Cookiebot = window.Cookiebot || {
-                    consent: { necessary: true, preferences: true, statistics: true, marketing: true },
-                    consented: true,
-                    declined: false,
+                    consent: { necessary: true, preferences: false, statistics: false, marketing: false },
+                    consented: false,
+                    declined: true,
                     hasResponse: true,
                     show: function() {},
                     hide: function() {},
@@ -208,7 +216,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           <div
             className="absolute inset-0 opacity-30 mix-blend-overlay"
             style={{
-              backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuCSQJcRexkqlKu3kzwZCWIGdx9mSdhvK4Je6lxA9kVrWHQFg-ShCu6j3XLipgBh0waP45VYm3rBVD2Psy-FTMp2qLU946EXQwD2sIGZJLe5tw2ugWPYnnOTMWoTGM95X4u1epiDmYaEV_vVdH7tyv2ZlDuFjSMZlzWulHW3UyesMipUWi30MryHEiz-_Lje83ApXK-FpMUQdIEWe0M_ZFfiu3BcH1_opus8b5qOTiMh8tMBAX7ifzSLR_qpWnWtdB8obUzknDxLtfeP")',
+              backgroundImage: 'url("/images/bg-noise-overlay.png")',
               backgroundSize: 'cover'
             }}
           ></div>

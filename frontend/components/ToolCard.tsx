@@ -14,7 +14,9 @@ export default function ToolCard({ href, bg, icon, title, desc, cta, large = fal
                     {icon.startsWith("/") || icon.startsWith("http") ? (
                         <Image src={icon} alt={title} width={48} height={48} className="w-full h-full object-contain" />
                     ) : (
-                        <i className={`ph ${icon.startsWith("ph-") ? icon : `ph-${icon}`} text-2xl text-[#6605c7]`} />
+                        <span className="material-symbols-outlined text-2xl text-[#6605c7]" aria-hidden="true">
+                            {icon.replace(/^ph-/, "")}
+                        </span>
                     )}
                 </div>
                 <div className="flex-1">

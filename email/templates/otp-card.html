@@ -1,0 +1,96 @@
+<!-- Reusable OTP Card Component -->
+<!-- Specifications:
+     Main card: Dark grey #303B3D, border-radius 22px
+     Heading: Code Requested
+     Boxes: 6 individual boxes, background #101C1E, digits #FFFFFF 38px
+     Copy button: Light blue #A9D6E7, dark blue text
+-->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 440px; margin: 0 auto; background-color: #303B3D; border-radius: 22px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.18);">
+  <tr>
+    <td align="center" style="padding: 28px 20px 26px 20px; text-align: center; background-color: #303B3D; border-radius: 22px;">
+      
+      <!-- Heading -->
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 15px; font-weight: 600; color: #D1D9DB; letter-spacing: 0.3px; margin: 0 0 20px 0; text-align: center;">
+        Code Requested
+      </div>
+
+      <!-- Six Individual Digit Boxes -->
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin: 0 auto 22px auto;">
+        <tr>
+          <!-- Digit 1 -->
+          <td align="center" valign="middle" style="padding: 0 3px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td align="center" valign="middle" width="46" height="56" bgcolor="#101C1E" style="width: 46px; height: 56px; background-color: #101C1E; border-radius: 10px; text-align: center; vertical-align: middle; border: 1px solid rgba(255,255,255,0.06);">
+                  <span style="font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: 38px; font-weight: 800; color: #FFFFFF; line-height: 56px; display: block; user-select: all; -webkit-user-select: all;">{{DIGIT_1}}</span>
+                </td>
+              </tr>
+            </table>
+          </td>
+          <!-- Digit 2 -->
+          <td align="center" valign="middle" style="padding: 0 3px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td align="center" valign="middle" width="46" height="56" bgcolor="#101C1E" style="width: 46px; height: 56px; background-color: #101C1E; border-radius: 10px; text-align: center; vertical-align: middle; border: 1px solid rgba(255,255,255,0.06);">
+                  <span style="font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: 38px; font-weight: 800; color: #FFFFFF; line-height: 56px; display: block; user-select: all; -webkit-user-select: all;">{{DIGIT_2}}</span>
+                </td>
+              </tr>
+            </table>
+          </td>
+          <!-- Digit 3 -->
+          <td align="center" valign="middle" style="padding: 0 3px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td align="center" valign="middle" width="46" height="56" bgcolor="#101C1E" style="width: 46px; height: 56px; background-color: #101C1E; border-radius: 10px; text-align: center; vertical-align: middle; border: 1px solid rgba(255,255,255,0.06);">
+                  <span style="font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: 38px; font-weight: 800; color: #FFFFFF; line-height: 56px; display: block; user-select: all; -webkit-user-select: all;">{{DIGIT_3}}</span>
+                </td>
+              </tr>
+            </table>
+          </td>
+          <!-- Digit 4 -->
+          <td align="center" valign="middle" style="padding: 0 3px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td align="center" valign="middle" width="46" height="56" bgcolor="#101C1E" style="width: 46px; height: 56px; background-color: #101C1E; border-radius: 10px; text-align: center; vertical-align: middle; border: 1px solid rgba(255,255,255,0.06);">
+                  <span style="font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: 38px; font-weight: 800; color: #FFFFFF; line-height: 56px; display: block; user-select: all; -webkit-user-select: all;">{{DIGIT_4}}</span>
+                </td>
+              </tr>
+            </table>
+          </td>
+          <!-- Digit 5 -->
+          <td align="center" valign="middle" style="padding: 0 3px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td align="center" valign="middle" width="46" height="56" bgcolor="#101C1E" style="width: 46px; height: 56px; background-color: #101C1E; border-radius: 10px; text-align: center; vertical-align: middle; border: 1px solid rgba(255,255,255,0.06);">
+                  <span style="font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: 38px; font-weight: 800; color: #FFFFFF; line-height: 56px; display: block; user-select: all; -webkit-user-select: all;">{{DIGIT_5}}</span>
+                </td>
+              </tr>
+            </table>
+          </td>
+          <!-- Digit 6 -->
+          <td align="center" valign="middle" style="padding: 0 3px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td align="center" valign="middle" width="46" height="56" bgcolor="#101C1E" style="width: 46px; height: 56px; background-color: #101C1E; border-radius: 10px; text-align: center; vertical-align: middle; border: 1px solid rgba(255,255,255,0.06);">
+                  <span style="font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: 38px; font-weight: 800; color: #FFFFFF; line-height: 56px; display: block; user-select: all; -webkit-user-select: all;">{{DIGIT_6}}</span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+
+      <!-- Copy code Visual Control -->
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin: 0 auto;">
+        <tr>
+          <td align="center" bgcolor="#A9D6E7" style="background-color: #A9D6E7; border-radius: 20px; padding: 10px 28px;">
+            <span style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; font-weight: 700; color: #0A2540; text-decoration: none; display: inline-block; letter-spacing: 0.2px; user-select: all; -webkit-user-select: all;">
+              Copy code
+            </span>
+          </td>
+        </tr>
+      </table>
+
+    </td>
+  </tr>
+</table>

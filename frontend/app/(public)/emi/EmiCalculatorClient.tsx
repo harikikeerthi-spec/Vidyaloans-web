@@ -277,30 +277,37 @@ function SliderControl({ label, value, numValue, min, max, step, onChange }: {
     label: string; value: string; numValue: number; min: number; max: number; step: number;
     onChange: (v: number) => void;
 }) {
+    const inputId = `emi-slider-${label.toLowerCase().replace(/[^a-z0-9]/g, "-")}`;
     return (
         <div>
             <div className="flex justify-between items-end mb-4">
-                <label className="text-gray-400 text-[11px] uppercase font-bold tracking-widest">{label}</label>
+                <label htmlFor={inputId} className="text-gray-700 text-[12px] uppercase font-bold tracking-widest">{label}</label>
                 <span className="text-gray-900 text-2xl font-bold">{value}</span>
             </div>
             <div className="relative pt-2">
                 <input
+                    id={inputId}
                     type="range"
+                    aria-label={label}
+                    aria-valuemin={min}
+                    aria-valuemax={max}
+                    aria-valuenow={numValue}
+                    aria-valuetext={value}
                     min={min}
                     max={max}
                     step={step}
                     value={numValue}
                     onChange={(e) => onChange(Number(e.target.value))}
-                    className="w-full h-1.5 rounded-full appearance-none cursor-pointer accent-[#6605c7]"
+                    className="w-full h-1.5 rounded-full appearance-none cursor-pointer accent-[#6605c7] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6605c7] focus-visible:ring-offset-2"
                     style={{
                         background: `linear-gradient(to right, #6605c7 0%, #6605c7 ${((numValue - min) / (max - min)) * 100}%, #f3f4f6 ${((numValue - min) / (max - min)) * 100}%, #f3f4f6 100%)`
                     }}
                 />
                 <div className="flex justify-between mt-3 px-1">
-                    <span className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">
+                    <span className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">
                         {label.toLowerCase().includes("loan") ? `₹${min / 100000}L` : label.toLowerCase().includes("rate") ? `${min}%` : `${min}Y`}
                     </span>
-                    <span className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">
+                    <span className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">
                         {label.toLowerCase().includes("loan") ? (max >= 10000000 ? "₹1CR" : `₹${max / 100000}L`) : label.toLowerCase().includes("rate") ? `${max}%` : `${max}Y`}
                     </span>
                 </div>

@@ -364,7 +364,7 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
     const sectionTitles: Record<string, string> = {
         overview: 'Staff Dashboard Overview',
         incoming_queue: 'Incoming Applications Queue',
-        applications: 'Loan Applications Management',
+        applications: 'Active Applications Pipeline',
         inactive_applications: 'Archived Applications Vault',
         tasks: 'Reminders & Tasks',
         performance: 'Performance Analytics',
