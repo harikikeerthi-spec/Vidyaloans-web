@@ -127,7 +127,7 @@ export class BankDashboardService {
 
     const now = new Date().toISOString();
 
-    // Update application with LAN
+    // Update application with LAN - moves to Review stage
     const { data: updated, error: updateError } = await this.db
       .from('LoanApplication')
       .update({
@@ -135,6 +135,8 @@ export class BankDashboardService {
         lanEnteredAt: now,
         fileLoggedBy: bankUser.id,
         status: 'file_logged',
+        stage: 'bank_review',
+        progress: 90,
         updatedAt: now
       })
       .eq('id', applicationId)
@@ -142,6 +144,24 @@ export class BankDashboardService {
       .single();
 
     if (updateError) throw updateError;
+
+    // Record status history transition to Review stage
+    try {
+      await this.db.from('ApplicationStatusHistory').insert({
+        id: `ash-${Date.now()}-review`,
+        applicationId,
+        fromStatus: application.status || 'submitted_to_bank',
+        toStatus: 'file_logged',
+        fromStage: 'credit_check',
+        toStage: 'bank_review',
+        notes: `File logged with LAN: ${lanNumber}. Moved to Review stage.`,
+        changedBy: bankUser.email || bankUser.id || 'Bank Officer',
+        isAutomatic: true,
+        createdAt: now,
+      });
+    } catch {
+      // Non-fatal
+    }
 
     // Log audit
     await this.logAudit({
@@ -1595,7 +1615,7 @@ export class BankDashboardService {
     // Fetch current application status for state machine validation
     const { data: currentApp, error: fetchError } = await this.db
       .from('LoanApplication')
-      .select('status')
+      .select('status, stage')
       .eq('id', applicationId)
       .single();
     if (fetchError || !currentApp) throw new NotFoundException(`Application ${applicationId} not found`);
@@ -1654,9 +1674,19 @@ export class BankDashboardService {
     if (error) throw error;
 
     // Auto status transition via state machine (already validated above)
+    const isSanctionDecision = ['APPROVED', 'CONDITIONAL_SANCTION', 'PARTIAL_SANCTION', 'COUNTER_OFFER'].includes(decision);
+    const newStage = isSanctionDecision ? 'sanction' : (decision === 'REJECTED' ? currentApp.stage : 'bank_review');
+    const newProgress = isSanctionDecision ? 95 : (decision === 'REJECTED' ? 0 : 90);
+
     await this.db
       .from('LoanApplication')
-      .update({ status: targetStatus, updatedAt: now })
+      .update({
+        status: targetStatus,
+        stage: newStage,
+        progress: newProgress,
+        ...(isSanctionDecision ? { approvedAt: now } : {}),
+        updatedAt: now
+      })
       .eq('id', applicationId);
 
     // For partial sanction — notify staff about shortfall
@@ -1710,9 +1740,17 @@ export class BankDashboardService {
     LoanStateMachine.validateTransition(currentApp.status, targetStatus, bankUser.role);
 
     const now = new Date().toISOString();
+    const updatedStage = LoanStateMachine.getStageByStatus(targetStatus);
+    const updatedProgress = LoanStateMachine.getProgressByStatus(targetStatus);
+
     const { data: updated, error: updateError } = await this.db
       .from('LoanApplication')
-      .update({ status: targetStatus, updatedAt: now })
+      .update({
+        status: targetStatus,
+        stage: updatedStage,
+        progress: updatedProgress,
+        updatedAt: now
+      })
       .eq('id', applicationId)
       .select()
       .single();

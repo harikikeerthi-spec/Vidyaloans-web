@@ -412,7 +412,6 @@ function ApplicationsPageInner() {
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight text-[#0A2540]">Active Applications Pipeline</h1>
-                    <p className="text-xs text-slate-500 font-semibold mt-0.5">Live applications actively in progress across loan processing & bank review stages</p>
                 </div>
                 <div className="flex items-center gap-2.5">
                     {/* Search Input */}
@@ -549,8 +548,14 @@ function ApplicationsPageInner() {
                                                             />
                                                         </div>
                                                     </div>
-                                                    <span className="font-mono text-xs text-slate-500 whitespace-nowrap block mt-0.5">
-                                                        {item.applicationNumber || "VL-APP-PENDING"}
+                                                    <span className="font-mono text-xs whitespace-nowrap block mt-0.5">
+                                                        {item.applicationNumber ? (
+                                                            <span className="text-slate-600 font-semibold">{item.applicationNumber}</span>
+                                                        ) : (
+                                                            <span className="text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 text-[10px] font-bold tracking-tight">
+                                                                Pending Bank Submission
+                                                            </span>
+                                                        )}
                                                     </span>
                                                 </div>
                                             </div>

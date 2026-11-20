@@ -28,11 +28,13 @@ export const STAGES_LIST = Object.entries(STAGES_CONFIG)
 export const getDynamicProgress = (app: any, documents: any[] = [], profile?: any): number => {
     if (!app) return 10;
     const s = String(app.status || '').toLowerCase();
-    if (['disbursed', 'closed', 'disbursement_confirmed'].includes(s)) return 100;
-    if (['sanctioned', 'approved', 'sanction', 'conditional_sanction', 'partial_sanction', 'counter_offer', 'sanction_issued'].includes(s)) return 95;
-    if (['under_bank_review', 'query_raised', 'processing', 'bank_review'].includes(s)) return 90;
-    if (['submitted_to_bank', 'submit_to_bank', 'file_logged'].includes(s)) return 75;
-    if (['staff_verified', 'verification', 'documents_verified', 'document_verification'].includes(s)) return 50;
+    const stg = String(app.stage || '').toLowerCase();
+    if (['disbursed', 'closed', 'disbursement_confirmed'].includes(s) || stg === 'disbursement') return 100;
+    if (['sanctioned', 'approved', 'sanction', 'conditional_sanction', 'partial_sanction', 'counter_offer', 'sanction_issued'].includes(s) || stg === 'sanction') return 95;
+    if (['file_logged', 'under_bank_review', 'bank_review', 'processing'].includes(s) || stg === 'bank_review') return 90;
+    if (['submitted_to_bank', 'routed_multiparty', 'credit_check', 'query_raised'].includes(s) || stg === 'credit_check') return 75;
+    if (['submit_to_bank', 'bank_submission'].includes(s) || stg === 'submit_to_bank') return 50;
+    if (['staff_verified', 'verification', 'documents_verified', 'document_verification'].includes(s) || stg === 'document_verification') return 50;
 
     let baseProgress = typeof app.progress === 'number' && app.progress > 0 ? app.progress : 10;
     if (['docs_received', 'docs_uploaded', 'under_review'].includes(s)) baseProgress = Math.max(baseProgress, 40);
@@ -64,13 +66,13 @@ export const getStageKeyForApp = (app: any, calculatedProgress?: number): string
     if (status === 'rejected' || status === 'cancelled') return 'application_created';
 
     let stageKey = app.stage;
-    if (['sanctioned', 'approved', 'sanction', 'conditional_sanction', 'partial_sanction', 'counter_offer', 'sanction_issued'].includes(status)) return 'sanction';
-    if (['disbursed', 'disbursement_confirmed', 'closed'].includes(status)) return 'disbursement';
-    if (status.includes('process') || status.includes('review') || status === 'under_bank_review' || stageKey === 'bank_review') return 'bank_review';
-    if (status.includes('submit_to_bank') || status.includes('submitted_to_bank') || status === 'file_logged' || stageKey === 'submit_to_bank') return 'submit_to_bank';
+    if (['sanctioned', 'approved', 'sanction', 'conditional_sanction', 'partial_sanction', 'counter_offer', 'sanction_issued'].includes(status) || stageKey === 'sanction' || stageKey === 'sanctioned') return 'sanction';
+    if (['disbursed', 'disbursement_confirmed', 'closed'].includes(status) || stageKey === 'disbursement' || stageKey === 'disbursed') return 'disbursement';
+    if (['file_logged', 'under_bank_review', 'bank_review', 'processing'].includes(status) || stageKey === 'bank_review') return 'bank_review';
+    if (['submitted_to_bank', 'routed_multiparty', 'credit_check', 'query_raised'].includes(status) || stageKey === 'credit_check') return 'credit_check';
+    if (['submit_to_bank', 'bank_submission'].includes(status) || stageKey === 'submit_to_bank') return 'submit_to_bank';
     if (status === 'submitted' || status === 'application_submitted' || stageKey === 'application_submitted') return 'application_submitted';
     if (status.includes('document') || status.includes('verification') || stageKey === 'document_verification') return 'document_verification';
-    if (status.includes('credit') || stageKey === 'credit_check') return 'credit_check';
 
     if (!stageKey || !STAGES_CONFIG[stageKey]) {
         const p = calculatedProgress !== undefined ? calculatedProgress : (app.progress || 10);

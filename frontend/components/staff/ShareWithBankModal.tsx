@@ -46,6 +46,7 @@ export default function ShareWithBankModal({
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [submissionId, setSubmissionId] = useState("");
+  const [generatedAppNumber, setGeneratedAppNumber] = useState("");
   const [remarks, setRemarks] = useState("");
   const [priorities, setPriorities] = useState<{ priority: number; bankName: string }[]>([]);
 
@@ -134,11 +135,17 @@ export default function ShareWithBankModal({
           })
         });
 
+        if (res?.applicationNumber) {
+          setGeneratedAppNumber(res.applicationNumber);
+        }
+
         if (res?.submissions?.[0]?.id) {
           setSubmissionId(res.submissions[0].id);
         } else {
           setSubmissionId(`MULT-${applicationId.slice(-6).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`);
         }
+
+        const effectiveAppNum = res?.applicationNumber || applicationNumber;
 
         // Auto-create chat conversations for each submitted bank in multi-bank mode
         for (const b of selectedBanksList) {
@@ -148,7 +155,7 @@ export default function ShareWithBankModal({
               body: JSON.stringify({
                 bankName: b.bankName,
                 applicationId,
-                applicationNumber,
+                applicationNumber: effectiveAppNum,
               }),
             });
           } catch (chatErr) {
@@ -190,6 +197,11 @@ export default function ShareWithBankModal({
           }
         }
 
+        const assignedAppNumber = workflowRes?.applicationNumber || workflowRes?.data?.applicationNumber;
+        if (assignedAppNumber) {
+          setGeneratedAppNumber(assignedAppNumber);
+        }
+
         if (workflowRes?.data?.id) {
           realSubmissionId = workflowRes.data.id;
         } else if (workflowRes?.submission?.id) {
@@ -211,7 +223,7 @@ export default function ShareWithBankModal({
             body: JSON.stringify({
               bankName: selectedBankName,
               applicationId,
-              applicationNumber,
+              applicationNumber: assignedAppNumber || applicationNumber,
             }),
           });
         } catch (chatErr) {
@@ -280,7 +292,9 @@ export default function ShareWithBankModal({
                 </div>
                 
                 <h2 className="text-2xl font-bold text-white mb-2 leading-tight">{studentName}</h2>
-                <p className="text-purple-200 text-xs mb-8">Application #{applicationNumber}</p>
+                <p className="text-purple-200 text-xs mb-8">
+                  {applicationNumber ? `Application #${applicationNumber}` : "Application ID: Generated on bank submission"}
+                </p>
                 
                 <div className="bg-white/10 rounded-xl p-5 border border-white/20">
                   <p className="text-[10px] font-semibold text-purple-200 tracking-wider mb-1 uppercase">Requested Loan</p>
@@ -440,7 +454,12 @@ export default function ShareWithBankModal({
                           The bank portals have been updated in real-time.
                         </p>
                       </div>
-                      <p className="text-xs text-slate-400 font-mono mt-3">
+                      {generatedAppNumber && (
+                        <p className="text-xs text-slate-700 font-mono mt-3">
+                          Generated Application ID: <span className="font-bold text-indigo-700">{generatedAppNumber}</span>
+                        </p>
+                      )}
+                      <p className="text-xs text-slate-400 font-mono mt-2">
                         Submission Ref: <span className="font-bold">{submissionId}</span>
                       </p>
                     </motion.div>

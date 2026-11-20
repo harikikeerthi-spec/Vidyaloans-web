@@ -2305,6 +2305,8 @@ export class UsersService implements OnModuleInit {
       city?: string;
       state?: string;
       admissionStatus?: string;
+      status?: string;
+      applicationNumber?: string;
     },
     isStaffOrAdmin: boolean = false,
   ) {
@@ -2321,8 +2323,12 @@ export class UsersService implements OnModuleInit {
     const estimatedCompletionAt = new Date();
     estimatedCompletionAt.setDate(estimatedCompletionAt.getDate() + 14);
 
-    // Generate a unique, sequence-safe application number before creating the LoanApplication record.
-    const applicationNumber = await this.generateApplicationNumber();
+    // DO NOT generate VL-APP- number on initial student application creation.
+    // The VL-APP- application ID is generated only when staff submits/transmits the application to a partner bank.
+    const isSubmittedToBank = (data.status === 'submitted_to_bank' || data.status === 'routed_multiparty');
+    const applicationNumber = isSubmittedToBank
+      ? (data.applicationNumber || await this.generateApplicationNumber())
+      : null;
 
     const insertPayload: any = {
       id: randomUUID(),

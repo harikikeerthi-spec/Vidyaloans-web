@@ -723,7 +723,8 @@ export default function ApplyLoanPage() {
     }
 
     if (submitted) {
-        const appNumber = submittedApp?.applicationNumber;
+        const hasValidAppNum = Boolean(submittedApp?.applicationNumber && (submittedApp.applicationNumber.startsWith('VL-APP-') || submittedApp.applicationNumber.startsWith('VTU-APP-')));
+        const appNumber = hasValidAppNum ? submittedApp.applicationNumber : null;
         const loginUrl = `/login?email=${encodeURIComponent(formData.email || "")}&redirect=${encodeURIComponent('/dashboard#applications')}`;
 
         return (
@@ -758,10 +759,15 @@ export default function ApplyLoanPage() {
                     <div className="bg-white/95 backdrop-blur-xl p-6 sm:p-7 rounded-3xl border border-purple-100 shadow-xl mb-6 text-left space-y-3">
                         <div className="flex items-center justify-between pb-3 border-b border-gray-100">
                             <div>
-                                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Application Number</span>
+                                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Application Status</span>
                                 <span className="text-base sm:text-lg font-black text-gray-900 font-mono tracking-tight">
-                                    {appNumber || "VL-APP-PENDING"}
+                                    {appNumber || "Under Staff Review"}
                                 </span>
+                                {!appNumber && (
+                                    <span className="text-xs text-slate-500 font-medium block mt-0.5">
+                                        Application ID will be generated upon submission to bank by staff
+                                    </span>
+                                )}
                             </div>
                         </div>
 

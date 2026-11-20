@@ -35,13 +35,13 @@ const getApplicationDisplayProgress = (app: any): number => {
     const stage = (app.stage || "").toLowerCase();
     const bankWorkflow = (app.bankWorkflowStatus || "").toUpperCase();
 
-    if (status === "disbursed" || status === "disbursement_confirmed" || status === "closed" || bankWorkflow === "DISBURSED") return 100;
-    if (status === "approved" || stage === "sanction" || stage === "sanctioned") return Math.max(app.progress ?? 0, 95);
-    if (stage === "bank_review" || status === "under_bank_review" || status === "processing") return Math.max(app.progress ?? 0, 85);
-    if (stage === "credit_check" || status === "query_raised") return Math.max(app.progress ?? 0, 70);
-    if (stage === "submit_to_bank" || stage === "bank_submission" || status === "submitted_to_bank" || status === "file_logged") return Math.max(app.progress ?? 0, 50);
-    if (stage === "document_verification" || stage === "documents_verification" || status === "staff_verified" || status === "docs_received" || status === "docs_uploaded" || status === "under_review") return Math.max(app.progress ?? 0, 35);
-    if (status === "submitted" || stage === "application_submitted") return Math.max(app.progress ?? 0, 20);
+    if (status === "disbursed" || status === "disbursement_confirmed" || status === "closed" || bankWorkflow === "DISBURSED" || stage === "disbursement") return 100;
+    if (status === "approved" || status === "sanctioned" || stage === "sanction" || stage === "sanctioned" || status === "conditional_sanction" || status === "partial_sanction" || status === "counter_offer") return Math.max(app.progress ?? 0, 95);
+    if (stage === "bank_review" || status === "under_bank_review" || status === "file_logged" || status === "processing") return Math.max(app.progress ?? 0, 90);
+    if (stage === "credit_check" || status === "submitted_to_bank" || status === "routed_multiparty" || status === "query_raised") return Math.max(app.progress ?? 0, 75);
+    if (stage === "submit_to_bank" || stage === "bank_submission") return Math.max(app.progress ?? 0, 50);
+    if (stage === "document_verification" || stage === "documents_verification" || status === "staff_verified" || status === "docs_received" || status === "docs_uploaded" || status === "under_review") return Math.max(app.progress ?? 0, 40);
+    if (status === "submitted" || stage === "application_submitted") return Math.max(app.progress ?? 0, 25);
     return app.progress ?? 10;
 };
 

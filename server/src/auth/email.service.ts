@@ -1075,7 +1075,8 @@ https://www.vidyaloans.in/
   async sendLoanSubmissionEmail(email: string, userName: string, bankName: string, application: any) {
     const frontendUrl = process.env.FRONTEND_URL || 'https://www.vidyaloans.in';
     const year = new Date().getFullYear();
-    const appNum = application.applicationNumber || 'N/A';
+    const hasAppNum = Boolean(application.applicationNumber);
+    const appNum = application.applicationNumber || 'Under Staff Review';
     const loanType = (application.loanType || 'Education').toUpperCase();
     const amount = application.amount ? `₹${Number(application.amount).toLocaleString('en-IN')}` : 'N/A';
     const university = application.universityName || application.targetUniversity || 'N/A';
@@ -1086,8 +1087,8 @@ https://www.vidyaloans.in/
       to: userName ? `"${userName}" <${email}>` : email,
       replyTo: process.env.EMAIL_USER || 'support@vidyaloans.in',
       headers: this.getStandardHeaders(),
-      subject: `Confirmation: Loan Application Submitted (#${appNum})`,
-      text: `Dear ${userName},\n\nYour loan application for ${targetCountry} has been submitted successfully.\n\nApplication Number: ${appNum}\nLoan Type: ${loanType}\nAmount: ${amount}\nTarget Country: ${targetCountry}\n\nWarm regards,\nThe VidyaLoan Team`,
+      subject: hasAppNum ? `Confirmation: Loan Application Submitted (#${appNum})` : 'Confirmation: Loan Application Received (Under Staff Review)',
+      text: `Dear ${userName},\n\nYour loan application for ${targetCountry} has been submitted successfully.\n\nApplication Status: ${hasAppNum ? `Application Number: ${appNum}` : 'Under Staff Review (Application ID will be assigned upon bank transmission)'}\nLoan Type: ${loanType}\nAmount: ${amount}\nTarget Country: ${targetCountry}\n\nWarm regards,\nThe VidyaLoan Team`,
       html: `
 <!DOCTYPE html>
 <html lang="en">
@@ -1128,7 +1129,7 @@ https://www.vidyaloans.in/
                     </table>
                   </td>
                   <td align="right" valign="middle">
-                    <span style="background-color: rgba(56, 189, 248, 0.15); color: #38bdf8; font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 20px; border: 1px solid rgba(56, 189, 248, 0.3);">#${appNum}</span>
+                    <span style="background-color: rgba(56, 189, 248, 0.15); color: #38bdf8; font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 20px; border: 1px solid rgba(56, 189, 248, 0.3);">${hasAppNum ? `#${appNum}` : 'Under Review'}</span>
                   </td>
                 </tr>
               </table>
@@ -1417,7 +1418,8 @@ https://www.vidyaloans.in/
   async sendLoanTrackingEmail(email: string, userName: string, bankName: string, application: any) {
     const frontendUrl = process.env.FRONTEND_URL || 'https://www.vidyaloans.in';
     const year = new Date().getFullYear();
-    const appNum = application.applicationNumber || 'N/A';
+    const hasAppNum = Boolean(application.applicationNumber && (application.applicationNumber.startsWith('VL-APP-') || application.applicationNumber.startsWith('VTU-APP-')));
+    const appNum = hasAppNum ? application.applicationNumber : 'Under Staff Review';
     const loanType = (application.loanType || 'Education').toUpperCase();
     const targetCountry = application.country || application.targetCountry || application.countryName || 'N/A';
     const progress = this.calculateProgress(application, 25);
@@ -1427,8 +1429,8 @@ https://www.vidyaloans.in/
       to: email,
       replyTo: process.env.EMAIL_USER || 'support@vidyaloans.in',
       headers: this.getStandardHeaders(),
-      subject: `Application Progress Tracker (#${appNum})`,
-      text: `Dear ${userName},\n\nYour loan application progress tracker is active.\n\nApplication Number: #${appNum}\nTarget Country: ${targetCountry}\nLoan Type: ${loanType}\nCurrent Stage: Application Submitted\nProgress: ${progress}%\n\nYou can track the progress of your application on the VidyaLoan dashboard: ${frontendUrl}/dashboard\n\nWarm regards,\nThe VidyaLoan Team`,
+      subject: hasAppNum ? `Application Progress Tracker (#${appNum})` : 'Application Progress Tracker: Received & Under Review',
+      text: `Dear ${userName},\n\nYour loan application progress tracker is active.\n\nApplication Status: ${hasAppNum ? `Application Number: #${appNum}` : 'Under Staff Review (Application ID will be assigned upon bank transmission)'}\nTarget Country: ${targetCountry}\nLoan Type: ${loanType}\nCurrent Stage: Application Submitted\nProgress: ${progress}%\n\nYou can track the progress of your application on the VidyaLoan dashboard: ${frontendUrl}/dashboard\n\nWarm regards,\nThe VidyaLoan Team`,
       html: `
 <!DOCTYPE html>
 <html lang="en">

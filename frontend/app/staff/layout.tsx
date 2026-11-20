@@ -361,22 +361,6 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
         }
     }, []);
 
-    const sectionTitles: Record<string, string> = {
-        overview: 'Staff Dashboard Overview',
-        incoming_queue: 'Incoming Applications Queue',
-        applications: 'Active Applications Pipeline',
-        inactive_applications: 'Archived Applications Vault',
-        tasks: 'Reminders & Tasks',
-        performance: 'Performance Analytics',
-        users: 'Bank & Staff Members',
-        communications: 'Outreach Center',
-        inbox: 'Support & Staff Email Inbox',
-        support_tickets: 'Support Desk Center',
-        my_profile: 'My Staff Profile',
-        chat_customer: 'Live Customer Support Chat',
-        onboarding: 'Applicant Onboarding',
-    };
-
     const navItems = [
         { section: "dashboard", path: "/staff/dashboard", icon: "dashboard", label: "Dashboard", badge: 0 },
         { section: "incoming_queue", path: "/staff/incoming-queue", icon: "move_to_inbox", label: "Incoming Queue", badge: incomingCount, maxBadge: 9 },
@@ -487,10 +471,9 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
                     {/* Top Header Navbar */}
                     <header className="h-[54px] bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-6 flex items-center justify-between sticky top-0 z-40 flex-shrink-0 no-print">
                         {/* Left: Section Title */}
-                        <div className="flex flex-col justify-center">
-                            <span className="text-[10.5px] font-semibold text-[#4F46E5] uppercase tracking-wider leading-none mb-1 font-sans">VidyaLoans Staff</span>
-                            <h1 className="text-[18px] font-semibold text-[#0F172A] tracking-[-0.015em] leading-tight font-sans">
-                                {sectionTitles[activeSection] || activeSection}
+                        <div className="flex items-center">
+                            <h1 className="text-lg font-bold text-slate-900">
+                                VidyaLoans Staff
                             </h1>
                         </div>
 

@@ -293,15 +293,16 @@ const ApplicationDetailView: React.FC<ApplicationDetailViewProps> = ({
 
   const getDynamicProgress = () => {
     const s = String(application.status || '').toLowerCase();
+    const stg = String(application.stage || '').toLowerCase();
     const baseProgress = typeof application.progress === 'number' ? application.progress : 10;
 
-    if (['disbursed', 'closed', 'disbursement_confirmed'].includes(s)) return 100;
-    if (['sanctioned', 'approved', 'sanction'].includes(s)) return Math.max(baseProgress, 95);
-    if (['under_bank_review', 'bank_review'].includes(s)) return Math.max(baseProgress, 90);
-    if (['credit_check', 'query_raised'].includes(s)) return Math.max(baseProgress, 75);
-    if (['submitted_to_bank', 'file_logged', 'submit_to_bank', 'bank_submission'].includes(s)) return Math.max(baseProgress, 50);
-    if (['staff_verified', 'documents_verification', 'document_verification', 'docs_received', 'docs_uploaded', 'under_review'].includes(s)) return Math.max(baseProgress, 40);
-    if (['submitted', 'application_submitted'].includes(s)) return Math.max(baseProgress, 25);
+    if (['disbursed', 'closed', 'disbursement_confirmed'].includes(s) || stg === 'disbursement') return 100;
+    if (['sanctioned', 'approved', 'sanction', 'conditional_sanction', 'partial_sanction', 'counter_offer'].includes(s) || stg === 'sanction') return Math.max(baseProgress, 95);
+    if (['file_logged', 'under_bank_review', 'bank_review', 'processing'].includes(s) || stg === 'bank_review') return Math.max(baseProgress, 90);
+    if (['submitted_to_bank', 'routed_multiparty', 'credit_check', 'query_raised'].includes(s) || stg === 'credit_check') return Math.max(baseProgress, 75);
+    if (['submit_to_bank', 'bank_submission'].includes(s) || stg === 'submit_to_bank') return Math.max(baseProgress, 50);
+    if (['staff_verified', 'documents_verification', 'document_verification', 'docs_received', 'docs_uploaded', 'under_review'].includes(s) || stg === 'document_verification') return Math.max(baseProgress, 40);
+    if (['submitted', 'application_submitted'].includes(s) || stg === 'application_submitted') return Math.max(baseProgress, 25);
 
     return baseProgress;
   };
@@ -1180,19 +1181,19 @@ const ApplicationDetailView: React.FC<ApplicationDetailViewProps> = ({
           time = findHistoryTime(['submitted', 'application_submitted', 'docs_received', 'docs_uploaded']) || application.submittedAt;
           break;
         case 2:
-          time = findHistoryTime(['staff_verified', 'verification', 'documents_verified']) || application.verifiedAt;
+          time = findHistoryTime(['staff_verified', 'verification', 'documents_verified', 'document_verification']) || application.verifiedAt;
           break;
         case 3:
-          time = findHistoryTime(['submitted_to_bank', 'file_logged']) || application.fileLoggedAt || application.submittedToBankAt;
+          time = findHistoryTime(['submit_to_bank', 'submitted_to_bank', 'routed_multiparty']) || application.submittedToBankAt;
           break;
         case 4:
-          time = findHistoryTime(['under_bank_review', 'query_raised', 'processing']) || application.reviewStartedAt || application.fileLoggedAt;
+          time = findHistoryTime(['credit_check', 'submitted_to_bank', 'routed_multiparty']) || application.submittedToBankAt;
           break;
         case 5:
-          time = findHistoryTime(['approved', 'sanctioned', 'conditional_sanction', 'counter_offer']) || application.approvedAt;
+          time = findHistoryTime(['file_logged', 'under_bank_review', 'bank_review', 'query_raised', 'processing']) || application.reviewStartedAt || application.lanEnteredAt || application.fileLoggedAt;
           break;
         case 6:
-          time = findHistoryTime(['sanctioned', 'approved', 'sanction']) || application.sanctionDate || application.approvedAt;
+          time = findHistoryTime(['sanctioned', 'approved', 'sanction', 'conditional_sanction', 'counter_offer', 'partial_sanction']) || application.approvedAt || application.sanctionDate;
           break;
         case 7:
           time = findHistoryTime(['disbursed', 'disbursement_confirmed', 'closed', 'disbursement']) || application.disbursedAt;
@@ -1254,13 +1255,13 @@ const ApplicationDetailView: React.FC<ApplicationDetailViewProps> = ({
 
   const stages = [
     { label: "APPLICATION CREATED", icon: "bolt", date: getStepStatus(progress >= 10), completed: progress >= 10, timestamp: getStageTimestamp(0, progress >= 10) },
-    { label: "APPLICATION SUBMITTED", icon: "send", date: getStepStatus(progress >= 25), completed: progress >= 25, timestamp: getStageTimestamp(1, progress >= 25) },
-    { label: "DOCUMENTS", icon: "upload_file", date: getStepStatus(progress >= 40), completed: progress >= 40, timestamp: getStageTimestamp(2, progress >= 40) },
-    { label: "SUBMIT TO BANK", icon: "account_balance", date: getStepStatus(progress >= 50), completed: progress >= 50, timestamp: getStageTimestamp(3, progress >= 50) },
-    { label: "CREDIT CHECK", icon: "credit_score", date: getStepStatus(progress >= 75), completed: progress >= 75, timestamp: getStageTimestamp(4, progress >= 75) },
-    { label: getBankStepLabel(), icon: "rate_review", date: getStepStatus(progress >= 90, progress >= 75 && progress < 90), completed: progress >= 90, active: progress >= 75 && progress < 90, timestamp: getStageTimestamp(5, progress >= 90, progress >= 75 && progress < 90) },
-    { label: "SANCTION", icon: "assignment_turned_in", date: getStepStatus(progress >= 95, progress >= 90 && progress < 95), completed: progress >= 95, active: progress >= 90 && progress < 95, timestamp: getStageTimestamp(6, progress >= 95, progress >= 90 && progress < 95) },
-    { label: "DISBURSEMENT", icon: "payments", date: getStepStatus(progress >= 100, progress >= 95 && progress < 100), completed: progress >= 100, active: progress >= 95 && progress < 100, timestamp: getStageTimestamp(7, progress >= 100, progress >= 95 && progress < 100) },
+    { label: "APPLICATION SUBMITTED", icon: "send", date: getStepStatus(progress >= 25, progress >= 10 && progress < 25), completed: progress >= 25, active: progress >= 10 && progress < 25, timestamp: getStageTimestamp(1, progress >= 25, progress >= 10 && progress < 25) },
+    { label: "DOCUMENTS", icon: "upload_file", date: getStepStatus(progress >= 40, progress >= 25 && progress < 40), completed: progress >= 40, active: progress >= 25 && progress < 40, timestamp: getStageTimestamp(2, progress >= 40, progress >= 25 && progress < 40) },
+    { label: "SUBMIT TO BANK", icon: "account_balance", date: getStepStatus(progress >= 50, progress >= 40 && progress < 50), completed: progress >= 50, active: progress >= 40 && progress < 50, timestamp: getStageTimestamp(3, progress >= 50, progress >= 40 && progress < 50) },
+    { label: "CREDIT CHECK", icon: "credit_score", date: getStepStatus(progress >= 75, progress >= 75 && progress < 90), completed: progress >= 75, active: progress >= 75 && progress < 90, timestamp: getStageTimestamp(4, progress >= 75, progress >= 75 && progress < 90) },
+    { label: getBankStepLabel(), icon: "rate_review", date: getStepStatus(progress >= 90, progress >= 90 && progress < 95), completed: progress >= 90, active: progress >= 90 && progress < 95, timestamp: getStageTimestamp(5, progress >= 90, progress >= 90 && progress < 95) },
+    { label: "SANCTION", icon: "assignment_turned_in", date: getStepStatus(progress >= 95, progress >= 95 && progress < 100), completed: progress >= 95, active: progress >= 95 && progress < 100, timestamp: getStageTimestamp(6, progress >= 95, progress >= 95 && progress < 100) },
+    { label: "DISBURSEMENT", icon: "payments", date: getStepStatus(progress >= 100), completed: progress >= 100, active: progress >= 100, timestamp: getStageTimestamp(7, progress >= 100) },
   ];
 
   const getBankLogo = () => {
@@ -1944,7 +1945,7 @@ const ApplicationDetailView: React.FC<ApplicationDetailViewProps> = ({
                       <div className="grid grid-cols-2 gap-4 max-w-xl bg-slate-50/60 p-5 rounded-3xl border border-slate-100/80">
                         <div className="space-y-0.5">
                           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">APPLICATION ID</p>
-                          <p className="text-[12px] font-bold text-slate-700 font-mono truncate">{appId}</p>
+                          <p className="text-[12px] font-bold text-slate-700 font-mono truncate">{appId || "Pending Bank Submission"}</p>
                         </div>
                         <div className="space-y-0.5 col-span-2 sm:col-span-1">
                           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">UNIVERSITY</p>

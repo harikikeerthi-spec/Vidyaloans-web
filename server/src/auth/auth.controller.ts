@@ -631,20 +631,22 @@ export class AuthController {
     }
 
     // Resolve or auto-provision student user for lead capture
-    if (req?.user && !isStaffOrAdmin && body.userId && body.userId !== req.user.id) {
-      throw new ForbiddenException("Access denied: You cannot create applications for another student.");
-    }
-
     let targetUser: any = null;
     if (body.userId && isStaffOrAdmin) {
       targetUser = await this.usersService.findById(body.userId);
+    } else if (cleanEmail) {
+      targetUser = await this.usersService.findOne(cleanEmail);
+      if (!targetUser && req?.user?.id && req?.user?.email?.toLowerCase() === cleanEmail) {
+        targetUser = await this.usersService.findById(req.user.id);
+      }
     } else if (req?.user?.id) {
       targetUser = await this.usersService.findById(req.user.id);
     } else if (body.userId) {
       targetUser = await this.usersService.findById(body.userId);
     }
-    if (!targetUser && cleanEmail) {
-      targetUser = await this.usersService.findOne(cleanEmail);
+
+    if (req?.user && !isStaffOrAdmin && body.userId && body.userId !== req.user.id && req.user.email?.toLowerCase() === cleanEmail) {
+      throw new ForbiddenException("Access denied: You cannot create applications for another student.");
     }
 
     if (!targetUser) {
@@ -735,11 +737,16 @@ export class AuthController {
         notes: body.notes,
         pincode: body.pincode,
         admissionStatus: body.admissionStatus,
+        applicationNumber: undefined,
+        status: 'submitted',
       }, isStaffOrAdmin);
 
-      // Generate tokens only for already-authenticated sessions (logged-in user or staff/admin)
+      // Generate tokens only for already-authenticated sessions (logged-in user matching email, or staff/admin)
       let tokens: any = null;
-      const isAuthenticatedSession = Boolean(req?.user?.id);
+      const isAuthenticatedSession = Boolean(
+        isStaffOrAdmin ||
+        (req?.user?.id && (!cleanEmail || req?.user?.email?.toLowerCase() === cleanEmail))
+      );
 
       if (isAuthenticatedSession) {
         try {

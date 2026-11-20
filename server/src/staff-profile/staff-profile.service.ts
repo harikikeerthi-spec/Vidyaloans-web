@@ -1527,8 +1527,8 @@ export class StaffProfileService {
           steps.push({
             from: 'staff_verified',
             to: 'submitted_to_bank',
-            stage: 'Submitted',
-            progress: 50,
+            stage: 'credit_check',
+            progress: 75,
             reason: 'Submitted to Bank',
             notes: `Application bundle shared and submitted directly to partner bank ${body.recipientName}.`
           });
@@ -1536,8 +1536,8 @@ export class StaffProfileService {
           steps.push({
             from: 'staff_verified',
             to: 'submitted_to_bank',
-            stage: 'Submitted',
-            progress: 50,
+            stage: 'credit_check',
+            progress: 75,
             reason: 'Submitted to Bank',
             notes: `Application bundle shared and submitted directly to partner bank ${body.recipientName}.`
           });
@@ -1545,8 +1545,8 @@ export class StaffProfileService {
           steps.push({
             from: currentStatus,
             to: 'submitted_to_bank',
-            stage: 'Submitted',
-            progress: 50,
+            stage: 'credit_check',
+            progress: 75,
             reason: 'Resubmitted to Bank',
             notes: `Application shared again with partner bank ${body.recipientName}.`
           });
@@ -1556,6 +1556,12 @@ export class StaffProfileService {
         for (let i = 0; i < steps.length; i++) {
           const step = steps[i];
           
+          let appNumber = application.applicationNumber;
+          if (step.to === 'submitted_to_bank' && (!appNumber || (!appNumber.startsWith('VL-APP-') && !appNumber.startsWith('VTU-APP-')))) {
+            appNumber = await this.generateApplicationNumber('default');
+            application.applicationNumber = appNumber;
+          }
+
           await this.db
             .from('LoanApplication')
             .update({
@@ -1563,6 +1569,7 @@ export class StaffProfileService {
               stage: step.stage,
               progress: step.progress,
               bank: body.recipientName,
+              ...(appNumber ? { applicationNumber: appNumber } : {}),
               ...(step.to === 'submitted_to_bank' ? { submittedToBankAt: new Date().toISOString() } : {}),
               updatedAt: new Date().toISOString()
             })

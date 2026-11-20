@@ -155,18 +155,23 @@ export class LoanStateMachine {
       case 'pending': return 10;
       case 'docs_received': return 25;
       case 'staff_verified': return 40;
-      case 'submitted_to_bank': return 50;
-      case 'file_logged': return 60;
-      case 'processing': return 65;
-      case 'under_bank_review': return 70;
+      case 'submit_to_bank': return 50;
+      case 'submitted_to_bank': return 75; // Credit Check
+      case 'routed_multiparty': return 75; // Credit Check
+      case 'credit_check': return 75;
+      case 'file_logged': return 90; // LAN added -> Review stage
+      case 'processing': return 90;
+      case 'under_bank_review': return 90; // Review stage
+      case 'bank_review': return 90;
       case 'query_raised': return 75;
-      case 'conditional_sanction': return 80;
-      case 'partial_sanction': return 80;
-      case 'counter_offer': return 80;
-      case 'approved': return 85;
-      case 'sanctioned': return 90;
-      case 'disbursement_confirmed': return 100;
-      case 'disbursed': return 100;
+      case 'conditional_sanction': return 95; // Sanction stage
+      case 'partial_sanction': return 95; // Sanction stage
+      case 'counter_offer': return 95;
+      case 'approved': return 95; // Sanction stage
+      case 'sanctioned': return 95; // Sanction stage
+      case 'sanction': return 95;
+      case 'disbursement_confirmed': return 100; // Disbursed
+      case 'disbursed': return 100; // Disbursed
       case 'partially_disbursed': return 95;
       case 'closed': return 100;
       default: return 10;
@@ -178,12 +183,15 @@ export class LoanStateMachine {
    */
   static getStageByStatus(status: string): string {
     const s = status?.toLowerCase();
-    if (['pending', 'docs_received'].includes(s)) return 'Pre-login';
-    if (['staff_verified', 'submitted_to_bank'].includes(s)) return 'Submitted';
-    if (['file_logged', 'under_bank_review', 'query_raised', 'processing'].includes(s)) return 'Verification';
-    if (['conditional_sanction', 'partial_sanction', 'counter_offer', 'approved', 'sanctioned'].includes(s)) return 'Sanctioned';
-    if (['disbursement_confirmed', 'closed', 'disbursed', 'partially_disbursed'].includes(s)) return 'Disbursed';
-    return 'Pre-login';
+    if (['pending', 'docs_received', 'draft', 'application_created'].includes(s)) return 'application_created';
+    if (['submitted', 'application_submitted'].includes(s)) return 'application_submitted';
+    if (['staff_verified', 'document_verification', 'verification'].includes(s)) return 'document_verification';
+    if (['submit_to_bank'].includes(s)) return 'submit_to_bank';
+    if (['submitted_to_bank', 'routed_multiparty', 'credit_check', 'query_raised'].includes(s)) return 'credit_check';
+    if (['file_logged', 'under_bank_review', 'bank_review', 'processing'].includes(s)) return 'bank_review';
+    if (['conditional_sanction', 'partial_sanction', 'counter_offer', 'approved', 'sanctioned', 'sanction'].includes(s)) return 'sanction';
+    if (['disbursement_confirmed', 'closed', 'disbursed', 'disbursement'].includes(s)) return 'disbursement';
+    return 'application_submitted';
   }
 
   /**

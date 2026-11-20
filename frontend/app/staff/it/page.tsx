@@ -407,9 +407,6 @@ export default function ITDashboardPage() {
                         <span className="material-symbols-outlined text-2xl text-indigo-600">developer_board</span>
                         IT & Operations Dashboard
                     </h2>
-                    <p className="text-xs text-slate-500 font-semibold mt-0.5">
-                        Central management node for platform Support Tickets & Blog CMS publishing
-                    </p>
                 </div>
 
                 {/* Tabs switcher */}

@@ -379,7 +379,7 @@ export class BankWorkflowService {
 
     // Update LoanApplication with bank submission reference — generate VL-APP sequential number if not already assigned.
     let appNumber = application.applicationNumber;
-    if (!appNumber) {
+    if (!appNumber || (!appNumber.startsWith('VL-APP-') && !appNumber.startsWith('VTU-APP-'))) {
       appNumber = await this.generateApplicationNumber();
     }
 
@@ -393,8 +393,8 @@ export class BankWorkflowService {
         submittedToBankAt: new Date().toISOString(),
         applicationNumber: appNumber,
         status: 'submitted_to_bank',
-        stage: 'bank_review',
-        progress: 70,
+        stage: 'credit_check',
+        progress: 75,
         updatedAt: new Date().toISOString(),
       })
       .eq('id', applicationId);
@@ -441,9 +441,9 @@ export class BankWorkflowService {
       console.error('[BankWorkflowService] Failed to send bank notification email:', err);
     });
 
-    // 2. Send email alert to student registered mail ID
+    // 2. Send email alert to student registered mail ID with newly generated VL-APP- number
     if (studentEmail) {
-      await this.emailService.sendApplicationSentToBankEmail(studentEmail, studentName, bankName, application).catch(err => {
+      await this.emailService.sendApplicationSentToBankEmail(studentEmail, studentName, bankName, { ...application, applicationNumber: appNumber }).catch(err => {
         console.error('[BankWorkflowService] Failed to send student application email:', err);
       });
     }
@@ -456,7 +456,7 @@ export class BankWorkflowService {
       bankName,
     });
 
-    return { success: true, data: submission };
+    return { success: true, data: submission, applicationNumber: appNumber };
   }
 
   /**
@@ -688,14 +688,38 @@ export class BankWorkflowService {
       `File logged with LAN: ${lanNumber}`,
     );
 
-    // Update LoanApplication
+    // Update LoanApplication - moving to review stage with LAN number added
     await this.db.client
       .from('LoanApplication')
       .update({
         bankWorkflowStatus: 'FILE_LOGGED',
+        status: 'file_logged',
         lanNumber,
+        lanEnteredAt: new Date().toISOString(),
+        fileLoggedBy: loggedBy,
+        stage: 'bank_review',
+        progress: 90,
+        updatedAt: new Date().toISOString(),
       })
       .eq('id', submission.applicationId);
+
+    // Record status history transition to review stage
+    try {
+      await this.db.client.from('ApplicationStatusHistory').insert({
+        id: `ash-${Date.now()}-review`,
+        applicationId: submission.applicationId,
+        fromStatus: submission.workflowStatus || 'submitted_to_bank',
+        toStatus: 'file_logged',
+        fromStage: 'credit_check',
+        toStage: 'bank_review',
+        notes: `File logged with LAN: ${lanNumber}. Moved to Review stage.`,
+        changedBy: loggedBy,
+        isAutomatic: true,
+        createdAt: new Date().toISOString(),
+      });
+    } catch (hErr) {
+      // Non-fatal
+    }
 
     this.eventEmitter.emit('bank.file.logged', {
       submissionId,
@@ -744,7 +768,13 @@ export class BankWorkflowService {
 
     await this.db.client
       .from('LoanApplication')
-      .update({ bankWorkflowStatus: 'UNDER_REVIEW' })
+      .update({
+        bankWorkflowStatus: 'UNDER_REVIEW',
+        status: 'under_bank_review',
+        stage: 'bank_review',
+        progress: 90,
+        updatedAt: new Date().toISOString(),
+      })
       .eq('id', submission.applicationId);
 
     return { success: true, data: updated };
@@ -1002,11 +1032,15 @@ export class BankWorkflowService {
       .update({
         bankWorkflowStatus: 'SANCTIONED',
         status: 'approved',
+        stage: 'sanction',
+        progress: 95,
         sanctionAmount: sanctionDetails.sanctionAmount,
         roiType: sanctionDetails.roiType,
         roiBase: sanctionDetails.roiBase,
         roiEffective: sanctionDetails.roiEffective,
         roiSubsidy: sanctionDetails.roiSubsidy,
+        approvedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       })
       .eq('id', submission.applicationId);
 
@@ -1086,7 +1120,13 @@ export class BankWorkflowService {
 
     await this.db.client
       .from('LoanApplication')
-      .update({ bankWorkflowStatus: 'CONDITIONAL_SANCTION' })
+      .update({
+        bankWorkflowStatus: 'CONDITIONAL_SANCTION',
+        status: 'conditional_sanction',
+        stage: 'sanction',
+        progress: 95,
+        updatedAt: new Date().toISOString(),
+      })
       .eq('id', submission.applicationId);
 
     this.eventEmitter.emit('bank.application.conditional_sanctioned', {
@@ -1182,7 +1222,13 @@ export class BankWorkflowService {
 
     await this.db.client
       .from('LoanApplication')
-      .update({ bankWorkflowStatus: 'SANCTIONED', status: 'sanctioned' })
+      .update({
+        bankWorkflowStatus: 'SANCTIONED',
+        status: 'sanctioned',
+        stage: 'sanction',
+        progress: 95,
+        updatedAt: new Date().toISOString(),
+      })
       .eq('id', submission.applicationId);
 
     this.eventEmitter.emit('bank.counter_offer.accepted', {
@@ -1303,7 +1349,13 @@ export class BankWorkflowService {
 
     await this.db.client
       .from('LoanApplication')
-      .update({ bankWorkflowStatus: 'CONDITIONAL_SANCTION', status: 'partial_sanction' })
+      .update({
+        bankWorkflowStatus: 'CONDITIONAL_SANCTION',
+        status: 'partial_sanction',
+        stage: 'sanction',
+        progress: 95,
+        updatedAt: new Date().toISOString(),
+      })
       .eq('id', submission.applicationId);
 
     // Route-to-bank notification: create staff query about shortfall
@@ -1383,7 +1435,13 @@ export class BankWorkflowService {
 
     await this.db.client
       .from('LoanApplication')
-      .update({ bankWorkflowStatus: 'COUNTER_OFFER' })
+      .update({
+        bankWorkflowStatus: 'COUNTER_OFFER',
+        status: 'counter_offer',
+        stage: 'sanction',
+        progress: 95,
+        updatedAt: new Date().toISOString(),
+      })
       .eq('id', submission.applicationId);
 
     return { success: true, data: updated };
@@ -2918,18 +2976,18 @@ export class BankWorkflowService {
       createdSubmissions.push(submission);
     }
 
-    // 2. Send email alert to student registered mail ID
-    if (studentEmail && createdSubmissions.length > 0) {
-      const bankNamesStr = banks.map(b => b.bankName).join(', ');
-      await this.emailService.sendApplicationSentToBankEmail(studentEmail, studentName, bankNamesStr, application).catch(err => {
-        console.error('[BankWorkflowService] Failed to send student application email for multi-bank:', err);
-      });
-    }
-
-    // Update LoanApplication status to ROUTED_MULTIPARTY and bank to targeted list — preserve existing VTU-APP applicationNumber, or generate new VTU-APP sequential one if it's missing/not bank format.
+    // Update LoanApplication status to ROUTED_MULTIPARTY and bank to targeted list — generate VL-APP sequential number if not already assigned.
     let appNumber = application.applicationNumber;
     if (!appNumber || (!appNumber.startsWith('VL-APP-') && !appNumber.startsWith('VTU-APP-'))) {
       appNumber = await this.generateApplicationNumber();
+    }
+
+    // 2. Send email alert to student registered mail ID with newly generated VL-APP- number
+    if (studentEmail && createdSubmissions.length > 0) {
+      const bankNamesStr = banks.map(b => b.bankName).join(', ');
+      await this.emailService.sendApplicationSentToBankEmail(studentEmail, studentName, bankNamesStr, { ...application, applicationNumber: appNumber }).catch(err => {
+        console.error('[BankWorkflowService] Failed to send student application email for multi-bank:', err);
+      });
     }
 
     const bankNamesStr = banks.map(b => b.bankName).join(', ');
@@ -2940,8 +2998,8 @@ export class BankWorkflowService {
       submittedToBankAt: new Date().toISOString(),
       bank: bankNamesStr,
       applicationNumber: appNumber,
-      stage: 'bank_review',
-      progress: 70,
+      stage: 'credit_check',
+      progress: 75,
     };
 
     if (createdSubmissions.length > 0) {
@@ -2953,7 +3011,7 @@ export class BankWorkflowService {
       .update(updatePayload)
       .eq('id', applicationId);
 
-    return { success: true, count: createdSubmissions.length, submissions: createdSubmissions };
+    return { success: true, count: createdSubmissions.length, submissions: createdSubmissions, applicationNumber: appNumber };
   }
 }
 

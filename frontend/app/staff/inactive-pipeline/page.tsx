@@ -210,7 +210,6 @@ export default function InactivePipelinePage() {
                     <h2 className="text-2xl font-bold tracking-tight text-[#0A2540]">
                         Inactive & Archived Pipeline
                     </h2>
-                    <p className="text-xs text-slate-500 font-semibold mt-0.5">Rejected, cancelled, or archived application channels awaiting review or restore</p>
                 </div>
                 <div className="flex items-center gap-3">
                     <button

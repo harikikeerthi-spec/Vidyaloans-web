@@ -258,7 +258,12 @@ export class ApplicationService {
     const estimatedCompletionAt = new Date();
     estimatedCompletionAt.setDate(estimatedCompletionAt.getDate() + 14);
 
-    const applicationNumber = await this.generateApplicationNumber();
+    // DO NOT generate VL-APP- number on initial student application creation.
+    // The VL-APP- application ID is generated only when staff submits/transmits the application to a partner bank.
+    const isSubmittedToBank = (data.status === 'submitted_to_bank' || data.status === 'routed_multiparty');
+    const applicationNumber = isSubmittedToBank
+      ? (data.applicationNumber || await this.generateApplicationNumber())
+      : null;
 
     const insertPayload: any = {
         userId,
@@ -773,9 +778,22 @@ export class ApplicationService {
     // Generate application number ONLY when application is officially submitted to a bank.
     // Do NOT generate for 'approved' or stage changes — the bank workflow service handles number
     // generation in submitApplicationToBank() to ensure the number is tied to an actual bank submission.
-    const isSubmittedToBank = (data.status === 'submitted_to_bank');
-    if (isSubmittedToBank && !application.applicationNumber) {
-      updatePayload.applicationNumber = await this.generateApplicationNumber();
+    const isSubmittedToBank = (data.status === 'submitted_to_bank' || data.status === 'routed_multiparty');
+    if (isSubmittedToBank) {
+      updatePayload.stage = 'credit_check';
+      updatePayload.progress = 75;
+      if (!application.applicationNumber || (!application.applicationNumber.startsWith('VL-APP-') && !application.applicationNumber.startsWith('VTU-APP-'))) {
+        updatePayload.applicationNumber = await this.generateApplicationNumber();
+      }
+    }
+
+    if (data.lanNumber) {
+      updatePayload.lanNumber = data.lanNumber;
+      updatePayload.lanEnteredAt = new Date().toISOString();
+      if (!data.stage && (!application.stage || ['submit_to_bank', 'credit_check'].includes(application.stage))) {
+        updatePayload.stage = 'bank_review';
+        updatePayload.progress = 90;
+      }
     }
 
     // Standardize aliases to exact DB column names on LoanApplication table
@@ -1341,6 +1359,9 @@ export class ApplicationService {
         const uniqueIds = Array.from(new Set(candidateIds.filter(Boolean)));
         console.log(`[ApplicationService] Staff filter — candidateIds: ${uniqueIds.join(', ')}`);
         const orConditions = uniqueIds.map(id => `assignedStaffId.eq.${id}`);
+        if (filters?.includeUnassigned) {
+          orConditions.push('assignedStaffId.is.null');
+        }
         query = query.or(orConditions.join(','));
       }
 
@@ -1536,16 +1557,35 @@ export class ApplicationService {
         historyData.fromStatus = application.status;
         historyData.toStatus = data.status;
         if (data.status === 'rejected' && data.rejectionReason) updateData.remarks = data.rejectionReason;
-        if (data.status === 'approved') { updateData.stage = 'sanction'; updateData.progress = 90; }
+        if (data.status === 'approved' || data.status === 'sanctioned') {
+          updateData.stage = 'sanction';
+          updateData.progress = 95;
+          updateData.approvedAt = new Date().toISOString();
+        }
+        else if (data.status === 'conditional_sanction' || data.status === 'partial_sanction' || data.status === 'counter_offer') {
+          updateData.stage = 'sanction';
+          updateData.progress = 95;
+        }
         else if (data.status === 'submitted_to_bank' || data.status === 'routed_multiparty') {
-          updateData.stage = 'bank_review';
-          updateData.progress = Math.max(application.progress || 0, 70);
+          updateData.stage = 'credit_check';
+          updateData.progress = 75;
           updateData.submittedToBankAt = application.submittedToBankAt || new Date().toISOString();
           updateData.bankWorkflowStatus = 'SUBMITTED_TO_BANK';
+          if (!application.applicationNumber || (!application.applicationNumber.startsWith('VL-APP-') && !application.applicationNumber.startsWith('VTU-APP-'))) {
+            updateData.applicationNumber = await this.generateApplicationNumber();
+          }
+        }
+        else if (data.status === 'file_logged' || data.status === 'under_bank_review') {
+          updateData.stage = 'bank_review';
+          updateData.progress = 90;
         }
         else if (data.status === 'rejected') { updateData.progress = 0; }
-        else if (data.status === 'processing') { updateData.stage = 'document_verification'; updateData.progress = 40; }
-        else if (data.status === 'disbursed' || data.status === 'disbursement_confirmed') { updateData.stage = 'disbursement'; updateData.progress = 100; }
+        else if (data.status === 'processing') { updateData.stage = 'bank_review'; updateData.progress = 90; }
+        else if (data.status === 'disbursed' || data.status === 'disbursement_confirmed') {
+          updateData.stage = 'disbursement';
+          updateData.progress = 100;
+          updateData.disbursedAt = new Date().toISOString();
+        }
       }
     }
 

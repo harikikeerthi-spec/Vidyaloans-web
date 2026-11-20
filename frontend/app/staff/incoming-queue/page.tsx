@@ -921,7 +921,6 @@ function IncomingQueuePageInner() {
                     <h2 className="text-2xl font-bold tracking-tight text-[#0A2540]">
                         Incoming Queue
                     </h2>
-                    <p className="text-xs text-slate-500 font-semibold mt-0.5">Newly submitted applications awaiting initial review & verification</p>
                 </div>
                 <div className="flex items-center gap-3">
                     <div className="relative">
