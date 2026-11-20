@@ -41,6 +41,7 @@ export class CommunityController {
      * @query offset - Skip mentors (default: 0)
      */
     @Get('mentors')
+    @UseGuards(UserGuard)
     async getAllMentors(
         @Query('university') university?: string,
         @Query('country') country?: string,
@@ -65,6 +66,7 @@ export class CommunityController {
      * @query limit - Number of mentors (default: 6)
      */
     @Get('mentors/featured')
+    @UseGuards(UserGuard)
     async getFeaturedMentors(@Query('limit') limit?: string) {
         return this.communityService.getFeaturedMentors(
             limit ? parseInt(limit, 10) : 6,
@@ -76,6 +78,7 @@ export class CommunityController {
      * GET /community/mentors/:id
      */
     @Get('mentors/:id')
+    @UseGuards(UserGuard)
     async getMentorById(@Param('id') id: string) {
         return this.communityService.getMentorById(id);
     }
@@ -87,6 +90,7 @@ export class CommunityController {
      * @body studentName, studentEmail, preferredDate, preferredTime, message
      */
     @Post('mentors/:id/book')
+    @UseGuards(UserGuard)
     async bookMentorSession(
         @Param('id') mentorId: string,
         @Body()
