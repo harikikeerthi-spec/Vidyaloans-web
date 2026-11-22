@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { authApi, documentApi, onboardingApi, getCsrfToken, initializeCsrf } from "@/lib/api";
+import { authApi, documentApi, onboardingApi, getCsrfToken, initializeCsrf, tryRefreshAccessToken } from "@/lib/api";
 import Navbar from "@/components/Navbar";
 import Link from "next/link";
 import DigilockerConsentModal from "@/components/DigilockerConsentModal";
@@ -517,20 +517,22 @@ export default function DocumentVaultPage() {
             if (!coapp || typeof coapp !== 'object') coapp = {};
 
             const docTypeLower = (extractedModalData.docType || '').toLowerCase();
-            const isPassport = docTypeLower.includes('passport');
-            const isAadhaar = docTypeLower.includes('aadhar') || docTypeLower.includes('aadhaar') || docTypeLower.includes('national_id');
             const isCoapp = docTypeLower.includes('coapplicant') || docTypeLower.includes('coapp') || docTypeLower.includes('co_applicant');
             const isFather = docTypeLower.includes('father') && !isCoapp;
             const isMother = docTypeLower.includes('mother') && !isCoapp;
+            const isParentOrRelative = isFather || isMother || isCoapp || docTypeLower.includes('brother') || docTypeLower.includes('sister') || docTypeLower.includes('spouse') || docTypeLower.includes('guarantor') || docTypeLower.includes('guardian');
+            const isPassport = docTypeLower.includes('passport') && !isParentOrRelative;
+            const isAadhaar = (docTypeLower.includes('aadhar') || docTypeLower.includes('aadhaar') || docTypeLower.includes('national_id')) && !isParentOrRelative;
 
-            const fullName = confirmedFields.fullName || confirmedFields.full_name || confirmedFields.name || confirmedFields.applicant_name;
-            const fatherName = confirmedFields.fatherName || confirmedFields.father_name;
-            const motherName = confirmedFields.motherName || confirmedFields.mother_name;
-            const spouseName = confirmedFields.spouseName || confirmedFields.spouse_name;
-            const dob = confirmedFields.dob || confirmedFields.dateOfBirth || confirmedFields.date_of_birth;
-            const gender = confirmedFields.gender;
-            const address = confirmedFields.address;
-            const docNum = confirmedFields.documentNumber || confirmedFields.docNum || confirmedFields.pan_number || confirmedFields.passport_number || confirmedFields.aadhaar_number || confirmedFields.aadhar_number;
+            const fullName = (confirmedFields.fullName || confirmedFields.full_name || confirmedFields.name || confirmedFields.applicant_name || '').trim();
+            const fatherName = (confirmedFields.fatherName || confirmedFields.father_name || '').trim();
+            const motherName = (confirmedFields.motherName || confirmedFields.mother_name || '').trim();
+            const spouseName = (confirmedFields.spouseName || confirmedFields.spouse_name || '').trim();
+            const dob = (confirmedFields.dob || confirmedFields.dateOfBirth || confirmedFields.date_of_birth || '').trim();
+            const gender = (confirmedFields.gender || '').trim();
+            const address = (confirmedFields.address || '').trim();
+            const docNum = (confirmedFields.documentNumber || confirmedFields.docNum || confirmedFields.pan_number || confirmedFields.passport_number || confirmedFields.aadhaar_number || confirmedFields.aadhar_number || '').trim();
+            const mobile = (confirmedFields.mobile || confirmedFields.phoneNumber || confirmedFields.phone || '').trim();
 
             let updatedProfile = { ...baseProfile };
 
@@ -538,7 +540,7 @@ export default function DocumentVaultPage() {
                 let parsedFirstName: string | undefined = undefined;
                 let parsedLastName: string | undefined = undefined;
                 if (fullName) {
-                    const parts = fullName.trim().split(/\s+/);
+                    const parts = fullName.split(/\s+/);
                     if (parts.length === 1) {
                         parsedFirstName = parts[0];
                         parsedLastName = "";
@@ -552,16 +554,34 @@ export default function DocumentVaultPage() {
                 const isFirstIdentityDoc = !priorAnchorDoc;
                 const currentAnchorDoc = isFirstIdentityDoc ? (isAadhaar ? 'aadhaar' : 'passport') : priorAnchorDoc;
                 const shouldUpdateFirstLastName = isFirstIdentityDoc || currentAnchorDoc === (isAadhaar ? 'aadhaar' : 'passport');
+                const cleanAadhaar = isAadhaar && docNum ? docNum.replace(/\s+/g, '') : undefined;
+                const cleanGender = gender ? (gender.toLowerCase().startsWith('m') ? 'Male' : gender.toLowerCase().startsWith('f') ? 'Female' : gender) : undefined;
 
                 const updatedFamily = {
                     ...family,
                     identityAnchorDoc: currentAnchorDoc,
-                    identityAnchorName: isFirstIdentityDoc ? fullName : (family.identityAnchorName || (currentAnchorDoc === 'aadhaar' ? family.aadhaarOriginalName : family.passportOriginalName) || fullName),
+                    identityAnchorName: shouldUpdateFirstLastName && fullName ? fullName : (family.identityAnchorName || fullName),
                     ...(fatherName ? { fatherName } : {}),
                     ...(motherName ? { motherName } : {}),
                     ...(spouseName ? { spouseName } : {}),
-                    ...(isPassport && fullName ? { passportOriginalName: fullName } : {}),
+                    ...(isPassport && fullName ? { passportOriginalName: fullName, nameAsInPassport: fullName } : {}),
                     ...(isAadhaar && fullName ? { aadhaarOriginalName: fullName, nameAsInAadhaar: fullName } : {}),
+                    ...(isPassport ? {
+                        passport: {
+                            ...(family.passport || {}),
+                            number: docNum || family.passport?.number,
+                            passportNumber: docNum || family.passport?.passportNumber,
+                            fullName: fullName || family.passport?.fullName,
+                        }
+                    } : {}),
+                    ...(isAadhaar ? {
+                        aadhaar: {
+                            ...(family.aadhaar || {}),
+                            number: cleanAadhaar || family.aadhaar?.number,
+                            aadhaarNumber: cleanAadhaar || family.aadhaar?.aadhaarNumber,
+                            fullName: fullName || family.aadhaar?.fullName,
+                        }
+                    } : {}),
                 };
 
                 const rel = (coapp.relation || coappRelation || '').toLowerCase().trim();
@@ -574,26 +594,46 @@ export default function DocumentVaultPage() {
 
                 updatedProfile = {
                     ...updatedProfile,
-                    ...(shouldUpdateFirstLastName && parsedFirstName ? { firstName: parsedFirstName } : {}),
-                    ...(shouldUpdateFirstLastName && parsedLastName !== undefined && parsedLastName !== "" ? { lastName: parsedLastName } : {}),
+                    ...(shouldUpdateFirstLastName && parsedFirstName ? { firstName: parsedFirstName, lastName: parsedLastName ?? "" } : {}),
                     ...(isPassport && fullName ? { passportOriginalName: fullName, nameAsInPassport: fullName } : {}),
                     ...(isAadhaar && fullName ? { aadhaarOriginalName: fullName, nameAsInAadhaar: fullName } : {}),
+                    ...(isPassport && docNum ? { passportNumber: docNum } : {}),
+                    ...(isAadhaar && cleanAadhaar ? { aadhaarNumber: cleanAadhaar, aadharNumber: cleanAadhaar, nationalId: cleanAadhaar } : {}),
                     ...(dob ? { dob, dateOfBirth: dob } : {}),
-                    ...(gender ? { gender } : {}),
-                    ...(address ? { address } : {}),
+                    ...(cleanGender ? { gender: cleanGender } : {}),
+                    ...(mobile ? { phoneNumber: mobile, mobile } : {}),
+                    ...(address ? { address, permanentAddress: address } : {}),
                     family: updatedFamily,
                     coApplicant: updatedCoapp,
                     ...(fatherName ? { fatherName } : {}),
                     ...(motherName ? { motherName } : {}),
                 };
 
-                if (user?.email && parsedFirstName && shouldUpdateFirstLastName) {
+                const parentsList: any[] = [];
+                if (fatherName) {
+                    parentsList.push({
+                        relation: 'father',
+                        name: fatherName,
+                        aadharNumber: cleanAadhaar,
+                    });
+                }
+                if (motherName) {
+                    parentsList.push({
+                        relation: 'mother',
+                        name: motherName,
+                    });
+                }
+                if (parentsList.length > 0) {
+                    updatedProfile.parents = parentsList;
+                }
+
+                if (user?.email && (parsedFirstName || mobile || dob || cleanGender)) {
                     try {
                         await authApi.updateDetails(user.email, {
-                            firstName: parsedFirstName,
-                            lastName: parsedLastName || "",
-                            phoneNumber: user.phoneNumber || "",
-                            dateOfBirth: dob || user.dateOfBirth || ""
+                            ...(parsedFirstName ? { firstName: parsedFirstName, lastName: parsedLastName || "" } : {}),
+                            phoneNumber: mobile || user.phoneNumber || "",
+                            dateOfBirth: dob || user.dateOfBirth || "",
+                            ...(cleanGender ? { gender: cleanGender } : {}),
                         });
                     } catch (e) {
                         console.error("Auth details update error:", e);
@@ -628,19 +668,48 @@ export default function DocumentVaultPage() {
             } else {
                 // Academic, PAN or other student document
                 if (docTypeLower.includes('pan') && docNum) {
+                    const cleanPan = docNum.toUpperCase().trim();
                     updatedProfile = {
                         ...updatedProfile,
-                        panNumber: docNum,
-                        pan: docNum,
+                        panNumber: cleanPan,
+                        pan: cleanPan,
                     };
                 }
                 if (address) {
                     updatedProfile = {
                         ...updatedProfile,
                         address,
+                        permanentAddress: address,
                     };
                 }
             }
+
+            // Sync with backend document extracted endpoint
+            try {
+                await documentApi.updateExtracted(user.id, extractedModalData.docType, confirmedFields);
+            } catch (docSyncErr) {
+                console.warn("Could not sync document extracted metadata to document record:", docSyncErr);
+            }
+
+            // Update local docs state with confirmed fields so immediate review reflects new values
+            setDocs(prevDocs => prevDocs.map(d => {
+                if (d.docType.toLowerCase() === (extractedModalData.docType || '').toLowerCase()) {
+                    return {
+                        ...d,
+                        verificationMetadata: {
+                            ...d.verificationMetadata,
+                            details: {
+                                ...(d.verificationMetadata?.details || {}),
+                                extractedFields: {
+                                    ...(d.verificationMetadata?.details?.extractedFields || {}),
+                                    ...confirmedFields,
+                                }
+                            }
+                        }
+                    };
+                }
+                return d;
+            }));
 
             setProfile(updatedProfile);
             await onboardingApi.submit(updatedProfile);
@@ -858,6 +927,21 @@ export default function DocumentVaultPage() {
                 headers: headersObj,
                 body: formData
             });
+
+            // Handle 401 Unauthorized (Expired Token) retry once with a refreshed token
+            if (response.status === 401) {
+                console.log("[handleFileChange] Access token expired (401). Refreshing token...");
+                const freshToken = await tryRefreshAccessToken();
+                if (freshToken) {
+                    headersObj["Authorization"] = `Bearer ${freshToken}`;
+                    response = await fetch(`/api/documents/upload`, {
+                        method: 'POST',
+                        credentials: 'include',
+                        headers: headersObj,
+                        body: formData
+                    });
+                }
+            }
 
             // Handle 403 CSRF mismatch retry once with a fresh token
             if (response.status === 403) {
@@ -1269,7 +1353,14 @@ export default function DocumentVaultPage() {
 
         } catch (e: any) {
             console.error("Upload error:", e.message || e);
-            showAlert("Upload Failed", e.message || "Unknown error occurred.", "error");
+            const msg = String(e?.message || e || "");
+            if (msg.includes("Failed to fetch") || msg.includes("NetworkError") || msg.includes("network")) {
+                showAlert("Connection Error", "Could not connect to the backend server. Please verify your backend server is running and try again.", "error");
+            } else if (msg.toLowerCase().includes("token") || msg.toLowerCase().includes("unauthorized") || msg.toLowerCase().includes("session")) {
+                showAlert("Session Expired", "Your login session has expired. Please refresh the page or log in again to continue.", "warning");
+            } else {
+                showAlert("Upload Failed", msg || "Unknown error occurred.", "error");
+            }
         } finally {
             setUploadingDocs(prev => ({ ...prev, [docType]: false }));
         }

@@ -424,6 +424,64 @@ export class DocumentController {
     };
   }
 
+  // ─── Update User-Confirmed Extracted Fields ───────────────────────────────
+  @Post('update-extracted')
+  @UseGuards(OwnershipOrStaffGuard)
+  async updateExtracted(
+    @Body('userId') userId: string,
+    @Body('docType') docType: string,
+    @Body('fields') fields: Record<string, any>,
+  ) {
+    if (!userId || !docType || !fields) {
+      throw new BadRequestException('userId, docType, and fields are required');
+    }
+
+    try {
+      console.log(`[UPDATE-EXTRACTED] Updating extracted fields for user=${userId}, docType=${docType}`);
+      const userDocs = await this.usersService.getUserDocuments(userId).catch(() => []);
+      const doc = userDocs.find(
+        (d: any) => d.docType.toLowerCase() === docType.toLowerCase()
+      );
+
+      if (doc) {
+        const existingMeta = doc.verificationMetadata || {};
+        const existingDetails = existingMeta.details || {};
+        const updatedMeta = {
+          ...existingMeta,
+          details: {
+            ...existingDetails,
+            extractedFields: {
+              ...(existingDetails.extractedFields || existingMeta.extractedFields || {}),
+              ...fields,
+            },
+          },
+        };
+
+        await this.usersService.upsertUserDocument(userId, docType, {
+          uploaded: doc.uploaded ?? true,
+          status: doc.status || 'uploaded',
+          verificationMetadata: updatedMeta,
+        });
+      }
+
+      await this.usersService.updateExtractedDetails(userId, {
+        documentVerified: true,
+        ...fields,
+      }, docType);
+
+      return {
+        success: true,
+        message: 'Extracted fields updated and synchronized successfully',
+      };
+    } catch (err: any) {
+      console.error('[UPDATE-EXTRACTED] Error:', err);
+      return {
+        success: false,
+        error: err.message || 'Failed to update extracted fields',
+      };
+    }
+  }
+
   // ─── OCR Re-verify (reads from S3) ──────────────────────────────────────
   @Post('ocr-reverify')
   @UseGuards(OwnershipOrStaffGuard)

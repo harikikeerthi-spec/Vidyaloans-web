@@ -416,7 +416,7 @@ function authHeaders(url?: string): HeadersInit {
 let activeRefreshPromise: Promise<string | null> | null = null;
 
 /** Attempt a silent token refresh — only called when an API request returns 401 */
-async function tryRefreshAccessToken(): Promise<string | null> {
+export async function tryRefreshAccessToken(): Promise<string | null> {
     if (typeof window === "undefined") return null;
 
     if (activeRefreshPromise) {
@@ -1628,6 +1628,12 @@ export const documentApi = {
     deleteFile: (userId: string, docType: string) =>
         apiFetch(`${HttpApiPaths.documents.byUserIdAndDocType(userId, docType)}/file`, {
             method: "DELETE",
+        }),
+
+    updateExtracted: (userId: string, docType: string, fields: Record<string, any>) =>
+        apiFetch(HttpApiPaths.documents.updateExtracted(), {
+            method: "POST",
+            body: JSON.stringify({ userId, docType, fields }),
         }),
 
     initiateDigilocker: (userId: string, docType: string) => {

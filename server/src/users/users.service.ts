@@ -1590,7 +1590,8 @@ export class UsersService implements OnModuleInit {
       }
 
       // Automatically extract and set details from Passport documents (Student Name, DOB, Gender, Passport Number, Father Name, Mother Name)
-      if (normalizedDocType.includes('passport')) {
+      // Only process as student passport if it is NOT a parent/relative document
+      if (!relation && normalizedDocType.includes('passport')) {
         const extFields = details.extractedFields || details.extracted_fields || details.extracted_data || details;
         const passportFather = details.father_name || details.fatherName || details.father_full_name || extFields.father_name || extFields.fatherName || extFields.father_full_name;
         const passportMother = details.mother_name || details.motherName || details.mother_full_name || extFields.mother_name || extFields.motherName || extFields.mother_full_name;

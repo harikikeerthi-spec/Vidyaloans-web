@@ -67,6 +67,7 @@ export const HttpApiPaths = {
             `${HTTP_API_PREFIX}/digilocker/authorize${httpApiQuery({ userId, docType })}`,
         digilockerSync: () => `${HTTP_API_PREFIX}/digilocker/sync`,
         ocrReverify: () => `${HTTP_API_PREFIX}/documents/ocr-reverify`,
+        updateExtracted: () => `${HTTP_API_PREFIX}/documents/update-extracted`,
         requirement: () => `${HTTP_API_PREFIX}/documents/requirement`,
         presignedView: (userId: string, docType: string) =>
             `${HTTP_API_PREFIX}/documents/presigned-view/${enc(userId)}/${enc(docType)}`,

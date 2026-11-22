@@ -57,6 +57,7 @@ export default function DocumentExtractedDetailsModal({
         const institution = raw.institution_name || raw.school_name || raw.board_name || raw.university_name || "";
         const passingYear = raw.year_of_passing || raw.passing_year || raw.year || "";
         const score = raw.percentage || raw.marks || raw.cgpa || raw.grade || "";
+        const mobile = raw.mobile || raw.mobile_number || raw.phone || raw.phoneNumber || raw.phone_number || "";
 
         if (fullName) initial["fullName"] = String(fullName);
         if (docNum) initial["documentNumber"] = String(docNum);
@@ -65,6 +66,7 @@ export default function DocumentExtractedDetailsModal({
         if (fatherName) initial["fatherName"] = String(fatherName);
         if (motherName) initial["motherName"] = String(motherName);
         if (spouseName) initial["spouseName"] = String(spouseName);
+        if (mobile) initial["mobile"] = String(mobile);
         if (address) initial["address"] = String(address);
         if (institution) initial["institution"] = String(institution);
         if (passingYear) initial["passingYear"] = String(passingYear);
@@ -76,6 +78,7 @@ export default function DocumentExtractedDetailsModal({
             "passport_number", "passportNo", "pan_number", "pan", "aadhar_number", "aadhaar_number", "id_number", "roll_number", "registration_number",
             "dob", "date_of_birth", "dateOfBirth", "gender", "father_name", "fatherName", "father_full_name", "care_of", "c_o", "guardian_name",
             "mother_name", "motherName", "mother_full_name", "spouse_name", "spouseName",
+            "mobile", "mobile_number", "phone", "phoneNumber", "phone_number",
             "address", "institution_name", "school_name", "board_name", "university_name", "year_of_passing", "passing_year", "percentage", "marks", "cgpa", "grade",
             "ocr_issues", "missing_fields", "raw_text_summary", "error", "document_type", "confidence_score", "is_valid", "document_validation", "staffUploaded"
         ]);
@@ -94,7 +97,6 @@ export default function DocumentExtractedDetailsModal({
     const isIdentitySlot = ['passport', 'national_id', 'aadhar', 'aadhaar'].includes((docType || '').toLowerCase());
 
     const handleInputChange = (key: string, value: string) => {
-        if (isIdentitySlot && key === "fullName") return;
         setEditableFields(prev => ({ ...prev, [key]: value }));
     };
 
@@ -111,7 +113,13 @@ export default function DocumentExtractedDetailsModal({
         fatherName: { label: "Father's Name", icon: "family_restroom", category: "family" },
         motherName: { label: "Mother's Name", icon: "female", category: "family" },
         spouseName: { label: "Spouse's Name", icon: "favorite", category: "family" },
+        mobile: { label: "Mobile Number", icon: "smartphone", category: "identity" },
+        phone: { label: "Phone Number", icon: "phone", category: "identity" },
+        email: { label: "Email Address", icon: "mail", category: "identity" },
         address: { label: "Address", icon: "home_pin", category: "address" },
+        pincode: { label: "PIN Code", icon: "pin_drop", category: "address" },
+        city: { label: "City", icon: "location_city", category: "address" },
+        state: { label: "State", icon: "map", category: "address" },
         institution: { label: "Institution / Board", icon: "school", category: "academic" },
         passingYear: { label: "Year of Passing", icon: "calendar_today", category: "academic" },
         score: { label: "Marks / Percentage / CGPA", icon: "grade", category: "academic" },
@@ -138,9 +146,9 @@ export default function DocumentExtractedDetailsModal({
                                     {confidence}% AI Confidence
                                 </span>
                             </div>
-                            <p className="text-[11px] text-purple-100/90 font-medium mt-0.5">
+                            {/* <p className="text-[11px] text-purple-100/90 font-medium mt-0.5">
                                 Verified via AI OCR Engine • Review and confirm details below
-                            </p>
+                            </p> */}
                         </div>
                     </div>
                     <button
@@ -196,42 +204,34 @@ export default function DocumentExtractedDetailsModal({
                                     };
 
                                     const isMultiline = key === "address" || val.length > 50;
-                                    const isLockedName = key === "fullName" && isIdentitySlot;
 
                                     return (
                                         <div
                                             key={key}
-                                            className={`p-3.5 rounded-2xl border transition-all duration-150 ${
-                                                readOnly
-                                                    ? "bg-slate-50/70 border-slate-200"
-                                                    : "bg-white border-slate-200 hover:border-purple-300 focus-within:border-purple-500 focus-within:ring-2 focus-within:ring-purple-100 shadow-sm"
-                                            } ${isMultiline ? "md:col-span-2" : ""}`}
+                                            className={`p-3.5 rounded-2xl border transition-all duration-150 ${readOnly
+                                                ? "bg-slate-50/70 border-slate-200"
+                                                : "bg-white border-slate-200 hover:border-purple-300 focus-within:border-purple-500 focus-within:ring-2 focus-within:ring-purple-100 shadow-sm"
+                                                } ${isMultiline ? "md:col-span-2" : ""}`}
                                         >
-                                            <div className="flex items-center gap-1.5 mb-1.5">
-                                                <span className="material-symbols-outlined text-[15px] text-purple-600">
-                                                    {meta.icon}
-                                                </span>
-                                                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-tight">
-                                                    {meta.label}
-                                                </label>
+                                            <div className="flex items-center justify-between mb-1.5">
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="material-symbols-outlined text-[15px] text-purple-600">
+                                                        {meta.icon}
+                                                    </span>
+                                                    <label className="text-[11px] font-bold text-slate-600 uppercase tracking-tight">
+                                                        {meta.label}
+                                                    </label>
+                                                </div>
+                                                {/* {!readOnly && (
+                                                    <span className="text-[10px] text-purple-600 font-bold bg-purple-50 px-1.5 py-0.5 rounded-md border border-purple-100">
+                                                        Editable
+                                                    </span>
+                                                )} */}
                                             </div>
 
                                             {readOnly ? (
                                                 <div className="text-[13px] font-bold text-slate-800 bg-white px-3 py-1.5 rounded-xl border border-slate-100 break-words">
                                                     {val || "—"}
-                                                </div>
-                                            ) : isLockedName ? (
-                                                <div>
-                                                    <div className="text-[13px] font-bold text-slate-900 bg-slate-100/90 px-3 py-2 rounded-xl border border-slate-200 flex items-center justify-between select-all cursor-not-allowed">
-                                                        <span>{val || "—"}</span>
-                                                        <span className="inline-flex items-center gap-1 text-[10px] font-black text-purple-700 bg-purple-100/70 px-2 py-0.5 rounded-md uppercase tracking-wider">
-                                                            <span className="material-symbols-outlined text-[13px]">lock</span>
-                                                            Fixed
-                                                        </span>
-                                                    </div>
-                                                    <p className="text-[10px] text-slate-500 mt-1 font-medium">
-                                                        Official name verified from document — locked to ensure identity consistency.
-                                                    </p>
                                                 </div>
                                             ) : isMultiline ? (
                                                 <textarea
@@ -242,13 +242,21 @@ export default function DocumentExtractedDetailsModal({
                                                     placeholder={`Enter ${meta.label.toLowerCase()}`}
                                                 />
                                             ) : (
-                                                <input
-                                                    type="text"
-                                                    value={val}
-                                                    onChange={e => handleInputChange(key, e.target.value)}
-                                                    className="w-full text-[13px] font-semibold text-slate-900 bg-slate-50/50 hover:bg-slate-50 focus:bg-white rounded-xl px-3 py-1.5 border border-slate-200 focus:outline-none focus:border-purple-500 transition-colors"
-                                                    placeholder={`Enter ${meta.label.toLowerCase()}`}
-                                                />
+                                                <div>
+                                                    <input
+                                                        type="text"
+                                                        value={val}
+                                                        onChange={e => handleInputChange(key, e.target.value)}
+                                                        className="w-full text-[13px] font-semibold text-slate-900 bg-slate-50/50 hover:bg-slate-50 focus:bg-white rounded-xl px-3 py-1.5 border border-slate-200 focus:outline-none focus:border-purple-500 transition-colors"
+                                                        placeholder={`Enter ${meta.label.toLowerCase()}`}
+                                                    />
+                                                    {key === "fullName" && (
+                                                        <p className="text-[10px] text-purple-700 mt-1 font-medium flex items-center gap-1">
+                                                            <span className="material-symbols-outlined text-[13px]">edit_note</span>
+                                                            Official name — you can edit or adjust if OCR extracted incorrectly before saving.
+                                                        </p>
+                                                    )}
+                                                </div>
                                             )}
                                         </div>
                                     );
