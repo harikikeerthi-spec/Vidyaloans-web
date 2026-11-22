@@ -14,7 +14,7 @@ export class ReferenceService {
     private supabase: SupabaseService,
     private emailService: EmailService,
     private prisma: PrismaService,
-  ) {}
+  ) { }
 
   // ==================== LOAN TYPES ====================
 
@@ -158,7 +158,7 @@ export class ReferenceService {
       maxLoanAmount: "No Limit",
       collateralRequired: false,
       collateralFreeLimit: "50 Lakhs",
-      processingFee: "1% - 1.5% + GST",
+      processingFee: "1% + GST",
       processingTime: "48 hours",
       features: [
         "High Loan Amounts with flexible collateral terms",
@@ -184,7 +184,7 @@ export class ReferenceService {
       maxLoanAmount: "No Limit",
       collateralRequired: false,
       collateralFreeLimit: "50 Lakhs",
-      processingFee: "1% - 1.25% + GST",
+      processingFee: "1% + GST",
       processingTime: "48 hours",
       features: [
         "Specialist Education Lender: Customized loans for 35+ countries",
@@ -275,7 +275,7 @@ export class ReferenceService {
   }
 
   async getBankById(id: string) {
-    const { data } = await this.db.from('Bank').select('*').eq('id', id).single();
+    const { data } = await this.db.from('Bank').select('*').eq('id', id).maybeSingle();
     if (!data) {
       const fallback = ReferenceService.DEFAULT_CORE_BANKS.find(b => b.id === id);
       if (fallback) return { success: true, data: fallback };
@@ -331,7 +331,36 @@ export class ReferenceService {
     };
     delete payload.id;
     delete payload.createdAt;
-    const { data, error } = await this.db.from('Bank').update(payload).eq('id', id).select().single();
+
+    // Check if the bank exists in the database
+    const { data: existing } = await this.db.from('Bank').select('id, name, shortName').eq('id', id).maybeSingle();
+
+    if (!existing) {
+      // If it doesn't exist, it is a default core partner that was serving from memory fallback.
+      // Look up default fallback values so all required DB fields are satisfied
+      const fallback = ReferenceService.DEFAULT_CORE_BANKS.find(
+        b => b.id === id || (b.shortName && b.shortName.toLowerCase() === (bankData.shortName || '').toLowerCase())
+      );
+
+      const insertPayload = {
+        ...(fallback || {}),
+        ...payload,
+        id,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      const { data: inserted, error: insertError } = await this.db
+        .from('Bank')
+        .insert([insertPayload])
+        .select()
+        .maybeSingle();
+
+      if (insertError) throw new Error(insertError.message);
+      return { success: true, data: inserted };
+    }
+
+    const { data, error } = await this.db.from('Bank').update(payload).eq('id', id).select().maybeSingle();
     if (error) throw new Error(error.message);
     return { success: true, data };
   }
@@ -426,7 +455,7 @@ export class ReferenceService {
       if (!error && typeof count === 'number' && count > baseCountries) {
         countryCount = count;
       }
-    } catch (e) {}
+    } catch (e) { }
 
     let programCount = basePrograms;
     try {
@@ -436,12 +465,12 @@ export class ReferenceService {
       if (!error && typeof count === 'number' && count > basePrograms) {
         programCount = count;
       }
-    } catch (e) {}
+    } catch (e) { }
 
     const totalStudents = baseStudents + dynamicUserCount;
     const roundedStudents = Math.floor(totalStudents / 1000) * 1000;
-    const studentsFormatted = totalStudents >= 100000 
-      ? `${(totalStudents / 100000).toFixed(1)} lakh` 
+    const studentsFormatted = totalStudents >= 100000
+      ? `${(totalStudents / 100000).toFixed(1)} lakh`
       : `${roundedStudents.toLocaleString()}+`;
 
     return {
@@ -720,7 +749,7 @@ export class ReferenceService {
       if (offices && offices.length > 0) {
         return { success: true, data: offices };
       }
-    } catch (_) {}
+    } catch (_) { }
 
     try {
       const { data, error } = await this.db

@@ -285,9 +285,9 @@ export default function Navbar() {
                                                 <div>
                                                     <div className="flex items-center justify-between mb-4 pl-3 pr-2">
                                                         <div className="text-[11px] font-bold uppercase tracking-widest text-gray-600">Our Lending Partners</div>
-                                                        <span className="text-[10px] font-black text-[#6605c7] bg-purple-50 px-2 py-0.5 rounded-full border border-purple-100">
+                                                        {/* <span className="text-[10px] font-black text-[#6605c7] bg-purple-50 px-2 py-0.5 rounded-full border border-purple-100">
                                                             {lendingPartners.length} Partners
-                                                        </span>
+                                                        </span> */}
                                                     </div>
                                                     <div className="space-y-1">
                                                         {lendingPartners.map((p) => (

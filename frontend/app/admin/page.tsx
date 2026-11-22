@@ -3291,12 +3291,12 @@ export default function AdminDashboardPage() {
                                                                         value={item.role || 'user'}
                                                                         onChange={(e) => handleUserRole(item.email, e.target.value)}
                                                                         className={`w-full px-2 py-0.5 pr-6 rounded text-[9px] font-bold uppercase tracking-widest border appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-500/50 transition-all ${item.role === 'admin' ? 'bg-slate-900 text-white border-slate-900' :
-                                                                                item.role === 'super_admin' ? 'bg-indigo-900 text-white border-indigo-900' :
-                                                                                    item.role === 'staff' ? 'bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100/50' :
-                                                                                        item.role === 'bank' ? 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100/50' :
-                                                                                            item.role === 'agent' ? 'bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100/50' :
-                                                                                                item.role === 'student' ? 'bg-indigo-50 text-indigo-700 border-indigo-100 hover:bg-indigo-100/50' :
-                                                                                                    'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                                                                            item.role === 'super_admin' ? 'bg-indigo-900 text-white border-indigo-900' :
+                                                                                item.role === 'staff' ? 'bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100/50' :
+                                                                                    item.role === 'bank' ? 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100/50' :
+                                                                                        item.role === 'agent' ? 'bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100/50' :
+                                                                                            item.role === 'student' ? 'bg-indigo-50 text-indigo-700 border-indigo-100 hover:bg-indigo-100/50' :
+                                                                                                'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
                                                                             }`}
                                                                     >
                                                                         <option value="user" className="bg-white text-slate-900 font-medium">User</option>
@@ -3315,8 +3315,8 @@ export default function AdminDashboardPage() {
                                                                             type="button"
                                                                             onClick={() => handleToggleResigned(item.id, !!(item.isResigned || item.status === 'resigned'))}
                                                                             className={`px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wider rounded border transition-all cursor-pointer ${(item.isResigned || item.status === 'resigned')
-                                                                                    ? "bg-rose-600 text-white border-rose-700 shadow-xs"
-                                                                                    : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-rose-50 hover:text-rose-600"
+                                                                                ? "bg-rose-600 text-white border-rose-700 shadow-xs"
+                                                                                : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-rose-50 hover:text-rose-600"
                                                                                 }`}
                                                                             title={(item.isResigned || item.status === 'resigned') ? "Staff member is Resigned (Invalid). Click to reinstate." : "Click to mark staff member as Resigned (Invalid)"}
                                                                         >
@@ -3326,8 +3326,8 @@ export default function AdminDashboardPage() {
                                                                             type="button"
                                                                             onClick={() => handleToggleLeave(item.id, !!item.isOnLeave)}
                                                                             className={`px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wider rounded border transition-all cursor-pointer ${item.isOnLeave
-                                                                                    ? "bg-amber-500 text-white border-amber-600 shadow-xs"
-                                                                                    : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                                                                                ? "bg-amber-500 text-white border-amber-600 shadow-xs"
+                                                                                : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
                                                                                 }`}
                                                                             title={item.isOnLeave ? "Staff member is On Leave. Click to mark available." : "Click to mark staff member On Leave"}
                                                                         >
@@ -3469,9 +3469,9 @@ export default function AdminDashboardPage() {
                             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                                 <div>
                                     <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Applications</h1>
-                                    <p className="text-xs text-slate-500 mt-0.5 font-normal">
+                                    {/* <p className="text-xs text-slate-500 mt-0.5 font-normal">
                                         Loan pipeline management, staff allocation & lifecycle progression
-                                    </p>
+                                    </p> */}
                                 </div>
                                 <div className="flex items-center gap-2.5 self-stretch sm:self-auto justify-end flex-wrap">
                                     {/* Auto-Assign Unassigned (Solid Primary Button) */}
@@ -3481,21 +3481,21 @@ export default function AdminDashboardPage() {
                                         title="Distribute all unassigned applications across active staff members via round-robin"
                                     >
                                         <span className="material-symbols-outlined text-[16px]">autorenew</span>
-                                        Auto-Assign Unassigned
+                                        Auto-Assign
                                     </button>
 
                                     {/* Live Sync Subtle Toggle */}
-                                    <button
+                                    {/* <button
                                         onClick={() => setAutoRefreshEnabled(!autoRefreshEnabled)}
                                         className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${autoRefreshEnabled
-                                                ? 'bg-emerald-50/80 text-emerald-700 border-emerald-200/80 hover:bg-emerald-100/70'
-                                                : 'bg-white text-slate-600 border-slate-200/80 hover:bg-slate-50'
+                                            ? 'bg-emerald-50/80 text-emerald-700 border-emerald-200/80 hover:bg-emerald-100/70'
+                                            : 'bg-white text-slate-600 border-slate-200/80 hover:bg-slate-50'
                                             }`}
                                         title={autoRefreshEnabled ? "Live auto-sync enabled (click to pause)" : "Auto-sync paused (click to enable)"}
                                     >
                                         <span className={`w-2 h-2 rounded-full ${autoRefreshEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}></span>
                                         <span>{autoRefreshEnabled ? 'Live' : 'Paused'}</span>
-                                    </button>
+                                    </button> */}
 
                                     {/* Refresh Icon Button */}
                                     <button
@@ -3535,10 +3535,10 @@ export default function AdminDashboardPage() {
                                             <button
                                                 onClick={() => setFilterStaff(isUnassignedSelected ? 'all' : 'unassigned')}
                                                 className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all shrink-0 cursor-pointer border ${isUnassignedSelected
-                                                        ? 'bg-rose-100 text-rose-800 border-rose-300 ring-2 ring-rose-400/30'
-                                                        : unassignedCount > 0
-                                                            ? 'bg-rose-50/90 text-rose-700 border-rose-200/80 hover:bg-rose-100/70'
-                                                            : 'bg-slate-50 text-slate-600 border-slate-200/80 hover:bg-slate-100'
+                                                    ? 'bg-rose-100 text-rose-800 border-rose-300 ring-2 ring-rose-400/30'
+                                                    : unassignedCount > 0
+                                                        ? 'bg-rose-50/90 text-rose-700 border-rose-200/80 hover:bg-rose-100/70'
+                                                        : 'bg-slate-50 text-slate-600 border-slate-200/80 hover:bg-slate-100'
                                                     }`}
                                             >
                                                 <span className={`w-2 h-2 rounded-full ${unassignedCount > 0 ? 'bg-rose-500 animate-pulse' : 'bg-slate-400'}`}></span>
@@ -3581,8 +3581,8 @@ export default function AdminDashboardPage() {
                                                 }}
                                                 title={`${staffName} (${assignedCount} assigned) · Click to filter applications · Double-click to view staff profile`}
                                                 className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-all shrink-0 cursor-pointer border ${isActive
-                                                        ? 'bg-indigo-50 text-indigo-900 border-indigo-300 ring-2 ring-indigo-500/20 font-semibold'
-                                                        : 'bg-white text-slate-700 border-slate-200/80 hover:border-slate-300 hover:bg-slate-50'
+                                                    ? 'bg-indigo-50 text-indigo-900 border-indigo-300 ring-2 ring-indigo-500/20 font-semibold'
+                                                    : 'bg-white text-slate-700 border-slate-200/80 hover:border-slate-300 hover:bg-slate-50'
                                                     }`}
                                             >
                                                 <img
@@ -4076,12 +4076,12 @@ export default function AdminDashboardPage() {
                                                                 <div className="space-y-1.5 min-w-[150px]">
                                                                     <div className="flex items-center justify-between gap-2">
                                                                         <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium border ${progress >= 100
-                                                                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80'
-                                                                                : progress >= 75
-                                                                                    ? 'bg-indigo-50 text-indigo-700 border-indigo-200/80'
-                                                                                    : progress >= 40
-                                                                                        ? 'bg-blue-50 text-blue-700 border-blue-200/80'
-                                                                                        : 'bg-amber-50 text-amber-700 border-amber-200/80'
+                                                                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80'
+                                                                            : progress >= 75
+                                                                                ? 'bg-indigo-50 text-indigo-700 border-indigo-200/80'
+                                                                                : progress >= 40
+                                                                                    ? 'bg-blue-50 text-blue-700 border-blue-200/80'
+                                                                                    : 'bg-amber-50 text-amber-700 border-amber-200/80'
                                                                             }`}>
                                                                             {stageLabel}
                                                                         </span>
@@ -4092,9 +4092,9 @@ export default function AdminDashboardPage() {
                                                                     <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden">
                                                                         <div
                                                                             className={`h-full rounded-full transition-all duration-500 ${progress >= 100 ? 'bg-emerald-500' :
-                                                                                    progress >= 75 ? 'bg-indigo-600' :
-                                                                                        progress >= 40 ? 'bg-blue-500' :
-                                                                                            'bg-amber-500'
+                                                                                progress >= 75 ? 'bg-indigo-600' :
+                                                                                    progress >= 40 ? 'bg-blue-500' :
+                                                                                        'bg-amber-500'
                                                                                 }`}
                                                                             style={{ width: `${progress}%` }}
                                                                         />
@@ -4175,8 +4175,8 @@ export default function AdminDashboardPage() {
                                                                 <button
                                                                     onClick={() => setAppPage(p)}
                                                                     className={`w-7 h-7 rounded-md font-bold text-xs transition-all cursor-pointer ${p === currentAppPage
-                                                                            ? 'bg-indigo-600 text-white shadow-xs'
-                                                                            : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                                                                        ? 'bg-indigo-600 text-white shadow-xs'
+                                                                        : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
                                                                         }`}
                                                                 >
                                                                     {p}
@@ -4697,9 +4697,9 @@ export default function AdminDashboardPage() {
                                                                 <div className="flex items-start justify-between gap-3">
                                                                     <div className="flex items-start gap-3 min-w-0">
                                                                         <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${['verified', 'approved'].includes(doc.status) ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
-                                                                                doc.status === 'rejected' ? 'bg-rose-50 text-rose-600 border border-rose-100' :
-                                                                                    isUploaded ? 'bg-amber-50 text-amber-600 border border-amber-100' :
-                                                                                        'bg-slate-100 text-slate-400 border border-slate-200'
+                                                                            doc.status === 'rejected' ? 'bg-rose-50 text-rose-600 border border-rose-100' :
+                                                                                isUploaded ? 'bg-amber-50 text-amber-600 border border-amber-100' :
+                                                                                    'bg-slate-100 text-slate-400 border border-slate-200'
                                                                             }`}>
                                                                             <span className="material-symbols-outlined text-[18px]">
                                                                                 {['verified', 'approved'].includes(doc.status) ? 'verified' :
@@ -4739,9 +4739,9 @@ export default function AdminDashboardPage() {
                                                                     </div>
                                                                     <div className="flex items-center gap-1.5 shrink-0">
                                                                         <span className={`inline-flex items-center px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded-full border ${['verified', 'approved'].includes(doc.status) ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                                                                                doc.status === 'rejected' ? 'bg-rose-50 text-rose-700 border-rose-200' :
-                                                                                    isUploaded ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                                                                                        'bg-slate-100 text-slate-500 border-slate-200'
+                                                                            doc.status === 'rejected' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                                                                                isUploaded ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                                                                    'bg-slate-100 text-slate-500 border-slate-200'
                                                                             }`}>
                                                                             {['verified', 'approved'].includes(doc.status) && '✓ Verified'}
                                                                             {doc.status === 'rejected' && '✗ Rejected'}
@@ -5492,8 +5492,8 @@ export default function AdminDashboardPage() {
                                                             });
                                                         }}
                                                         className={`w-full px-4 py-3 bg-white rounded-xl text-sm font-medium text-slate-800 outline-none appearance-none shadow-2xs pr-10 transition-all cursor-pointer ${!newUserQuery.bank
-                                                                ? 'border-2 border-red-400 focus:ring-2 focus:ring-red-100'
-                                                                : 'border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'
+                                                            ? 'border-2 border-red-400 focus:ring-2 focus:ring-red-100'
+                                                            : 'border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'
                                                             }`}
                                                     >
                                                         <option value="">-- Select Bank Partner ({bankPartners && bankPartners.length > 0 ? `${bankPartners.length} Active Partners` : '5 Active Partners'}) --</option>
@@ -5934,8 +5934,8 @@ export default function AdminDashboardPage() {
                                                                         <label
                                                                             key={doc.key}
                                                                             className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-all ${isUploaded
-                                                                                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                                                                                    : 'bg-white border-dashed border-amber-300 hover:border-amber-400 text-slate-600'
+                                                                                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                                                                                : 'bg-white border-dashed border-amber-300 hover:border-amber-400 text-slate-600'
                                                                                 }`}
                                                                         >
                                                                             <span className="material-symbols-outlined text-xl">
@@ -6005,8 +6005,8 @@ export default function AdminDashboardPage() {
                                                                     });
                                                                 }}
                                                                 className={`w-full min-h-[48px] px-4 py-3 bg-white rounded-xl text-sm font-semibold text-slate-900 focus:outline-none transition-all cursor-pointer shadow-2xs ${!newUserQuery.bank
-                                                                        ? 'border-2 border-rose-400 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20'
-                                                                        : 'border border-slate-300 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/20'
+                                                                    ? 'border-2 border-rose-400 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20'
+                                                                    : 'border border-slate-300 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/20'
                                                                     }`}
                                                             >
                                                                 <option value="">-- Select Bank Partner ({bankPartners.length} Active Partners) --</option>
@@ -6573,8 +6573,8 @@ export default function AdminDashboardPage() {
                                         <button
                                             onClick={() => setUserProfileTab('credentials')}
                                             className={`whitespace-nowrap pb-3 text-[11px] font-black uppercase tracking-widest border-b-2 flex items-center gap-2 transition-all cursor-pointer ${userProfileTab === 'credentials'
-                                                    ? 'border-indigo-600 text-indigo-600'
-                                                    : 'border-transparent text-slate-400 hover:text-slate-600'
+                                                ? 'border-indigo-600 text-indigo-600'
+                                                : 'border-transparent text-slate-400 hover:text-slate-600'
                                                 }`}
                                         >
                                             <span className="material-symbols-outlined text-[14px]">badge</span>
@@ -6583,8 +6583,8 @@ export default function AdminDashboardPage() {
                                         <button
                                             onClick={() => setUserProfileTab('applications')}
                                             className={`whitespace-nowrap pb-3 text-[11px] font-black uppercase tracking-widest border-b-2 flex items-center gap-2 transition-all cursor-pointer ${userProfileTab === 'applications'
-                                                    ? 'border-indigo-600 text-indigo-600'
-                                                    : 'border-transparent text-slate-400 hover:text-slate-600'
+                                                ? 'border-indigo-600 text-indigo-600'
+                                                : 'border-transparent text-slate-400 hover:text-slate-600'
                                                 }`}
                                         >
                                             <span className="material-symbols-outlined text-[14px]">description</span>
@@ -6593,8 +6593,8 @@ export default function AdminDashboardPage() {
                                         <button
                                             onClick={() => setUserProfileTab('bank_compare')}
                                             className={`whitespace-nowrap pb-3 text-[11px] font-black uppercase tracking-widest border-b-2 flex items-center gap-2 transition-all cursor-pointer ${userProfileTab === 'bank_compare'
-                                                    ? 'border-emerald-600 text-emerald-600'
-                                                    : 'border-transparent text-slate-400 hover:text-emerald-600'
+                                                ? 'border-emerald-600 text-emerald-600'
+                                                : 'border-transparent text-slate-400 hover:text-emerald-600'
                                                 }`}
                                         >
                                             <span className="material-symbols-outlined text-[14px]">account_balance</span>
@@ -6707,8 +6707,8 @@ export default function AdminDashboardPage() {
                                                                 onClick={() => handleUpdateUserBank(selectedUserProfile.id, selectedUserProfile.email, comparedBankPartner.shortName)}
                                                                 disabled={updatingUserBank || selectedUserProfile.bank === comparedBankPartner.shortName}
                                                                 className={`w-full py-2.5 px-3 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${selectedUserProfile.bank === comparedBankPartner.shortName
-                                                                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-200 cursor-default'
-                                                                        : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm'
+                                                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-200 cursor-default'
+                                                                    : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm'
                                                                     }`}
                                                             >
                                                                 <span className="material-symbols-outlined text-[14px]">
@@ -6836,11 +6836,11 @@ export default function AdminDashboardPage() {
                                                                     </p>
                                                                 </div>
                                                                 <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider border ${loan.status === 'pending' ? 'bg-amber-50 text-amber-700 border-amber-100' :
-                                                                        loan.status === 'processing' ? 'bg-blue-50 text-blue-700 border-blue-100' :
-                                                                            loan.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
-                                                                                loan.status === 'disbursed' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' :
-                                                                                    loan.status === 'rejected' ? 'bg-rose-50 text-rose-700 border-rose-100' :
-                                                                                        'bg-slate-50 text-slate-600 border-slate-100'
+                                                                    loan.status === 'processing' ? 'bg-blue-50 text-blue-700 border-blue-100' :
+                                                                        loan.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
+                                                                            loan.status === 'disbursed' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' :
+                                                                                loan.status === 'rejected' ? 'bg-rose-50 text-rose-700 border-rose-100' :
+                                                                                    'bg-slate-50 text-slate-600 border-slate-100'
                                                                     }`}>
                                                                     {loan.status}
                                                                 </span>
@@ -7091,8 +7091,8 @@ export default function AdminDashboardPage() {
                                                 <div className="flex items-center gap-2 flex-shrink-0">
                                                     <span className="text-[9px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">{app.bank || 'No Bank'}</span>
                                                     <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${(app.status || '').toLowerCase() === 'rejected' ? 'bg-rose-50 text-rose-700 border-rose-200' :
-                                                            (app.status || '').toLowerCase() === 'processing' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                                                                'bg-amber-50 text-amber-700 border-amber-200'
+                                                        (app.status || '').toLowerCase() === 'processing' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                                            'bg-amber-50 text-amber-700 border-amber-200'
                                                         }`}>{app.status || 'Draft'}</span>
                                                 </div>
                                             </div>

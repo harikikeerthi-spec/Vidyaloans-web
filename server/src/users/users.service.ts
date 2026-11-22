@@ -2323,8 +2323,12 @@ export class UsersService implements OnModuleInit {
     const estimatedCompletionAt = new Date();
     estimatedCompletionAt.setDate(estimatedCompletionAt.getDate() + 14);
 
-    // Always generate an application number since the DB column has a NOT NULL constraint.
-    const applicationNumber = data.applicationNumber || await this.generateApplicationNumber();
+    // Do NOT generate VL-APP- number on initial student application creation.
+    // The application number is generated only when staff submits/transmits the application to a partner bank.
+    const isSubmittedToBank = (data.status === 'submitted_to_bank' || data.status === 'routed_multiparty');
+    const applicationNumber = isSubmittedToBank
+      ? (data.applicationNumber || await this.generateApplicationNumber())
+      : (data.applicationNumber || null);
 
     const insertPayload: any = {
       id: randomUUID(),

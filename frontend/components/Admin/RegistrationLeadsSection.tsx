@@ -184,12 +184,12 @@ export default function RegistrationLeadsSection() {
           prev.map((item) =>
             item.id === leadId
               ? {
-                  ...item,
-                  assignedStaffId: payload.staffId,
-                  assignedStaffName: payload.staffName,
-                  assignedStaffEmail: payload.staffEmail,
-                  assignedAt,
-                }
+                ...item,
+                assignedStaffId: payload.staffId,
+                assignedStaffName: payload.staffName,
+                assignedStaffEmail: payload.staffEmail,
+                assignedAt,
+              }
               : item
           )
         );
@@ -197,12 +197,12 @@ export default function RegistrationLeadsSection() {
           setSelectedLead((prev) =>
             prev
               ? {
-                  ...prev,
-                  assignedStaffId: payload.staffId,
-                  assignedStaffName: payload.staffName,
-                  assignedStaffEmail: payload.staffEmail,
-                  assignedAt,
-                }
+                ...prev,
+                assignedStaffId: payload.staffId,
+                assignedStaffName: payload.staffName,
+                assignedStaffEmail: payload.staffEmail,
+                assignedAt,
+              }
               : null
           );
         }
@@ -251,12 +251,12 @@ export default function RegistrationLeadsSection() {
           prev.map((item) =>
             selectedLeadIds.includes(item.id)
               ? {
-                  ...item,
-                  assignedStaffId: payload.staffId,
-                  assignedStaffName: payload.staffName,
-                  assignedStaffEmail: payload.staffEmail,
-                  assignedAt,
-                }
+                ...item,
+                assignedStaffId: payload.staffId,
+                assignedStaffName: payload.staffName,
+                assignedStaffEmail: payload.staffEmail,
+                assignedAt,
+              }
               : item
           )
         );
@@ -539,17 +539,17 @@ export default function RegistrationLeadsSection() {
             <div>
               <h2 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
                 Registration Leads & Student Inquiries
-                <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-purple-100 text-purple-700 border border-purple-200 tracking-wider">
+                {/* <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-purple-100 text-purple-700 border border-purple-200 tracking-wider">
                   Live CRM
-                </span>
+                </span> */}
               </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
+              {/* <p className="text-xs text-slate-500 mt-0.5">
                 Real-time capture from{" "}
                 <code className="text-indigo-600 font-bold bg-indigo-50 px-1 py-0.5 rounded">
                   /registration
                 </code>{" "}
                 direct form and education loan inquiries
-              </p>
+              </p> */}
             </div>
           </div>
         </div>
@@ -563,7 +563,7 @@ export default function RegistrationLeadsSection() {
             title="Refresh Leads List"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin text-purple-600" : ""}`} />
-            Refresh
+
           </button>
           <button
             onClick={handleExportCSV}
@@ -739,11 +739,10 @@ export default function RegistrationLeadsSection() {
               <button
                 key={f.id}
                 onClick={() => setStatusFilter(f.id)}
-                className={`px-3 py-1.5 rounded-lg transition-all ${
-                  statusFilter === f.id
-                    ? "bg-white text-slate-900 shadow-xs font-bold"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
+                className={`px-3 py-1.5 rounded-lg transition-all ${statusFilter === f.id
+                  ? "bg-white text-slate-900 shadow-xs font-bold"
+                  : "text-slate-600 hover:text-slate-900"
+                  }`}
               >
                 {f.label}
               </button>
@@ -841,9 +840,8 @@ export default function RegistrationLeadsSection() {
                   return (
                     <tr
                       key={lead.id}
-                      className={`hover:bg-purple-50/30 transition-colors group cursor-pointer ${
-                        isSelected ? "bg-purple-50/40" : ""
-                      }`}
+                      className={`hover:bg-purple-50/30 transition-colors group cursor-pointer ${isSelected ? "bg-purple-50/40" : ""
+                        }`}
                       onClick={() => setSelectedLead(lead)}
                     >
                       {/* Checkbox */}
@@ -1015,11 +1013,10 @@ export default function RegistrationLeadsSection() {
                       {/* Source */}
                       <td className="py-3.5 px-4">
                         <span
-                          className={`inline-block px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide border ${
-                            lead.type === "registration_lead" || parsed.source.includes("Registration")
-                              ? "bg-purple-50 text-purple-700 border-purple-200"
-                              : "bg-slate-100 text-slate-600 border-slate-200"
-                          }`}
+                          className={`inline-block px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide border ${lead.type === "registration_lead" || parsed.source.includes("Registration")
+                            ? "bg-purple-50 text-purple-700 border-purple-200"
+                            : "bg-slate-100 text-slate-600 border-slate-200"
+                            }`}
                         >
                           {lead.type === "registration_lead" ? "Registration Form" : parsed.source}
                         </span>

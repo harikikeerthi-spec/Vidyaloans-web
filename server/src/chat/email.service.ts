@@ -48,6 +48,9 @@ export class EmailService {
         port,
         secure: port === 465,
         auth: { user, pass },
+        tls: {
+          rejectUnauthorized: false,
+        },
       },
       {
         from,
@@ -262,6 +265,7 @@ export class EmailService {
         </div>
       `;
 
+      this.logger.log(`[EmailService] Dispatching AI result email to ${to} for tool: "${toolName}"`);
       await this.transporter.sendMail({
         from: this.getFromAddress(),
         to,

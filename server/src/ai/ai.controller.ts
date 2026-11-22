@@ -32,6 +32,30 @@ export class AiController {
   ) { }
 
   private async resolveUser(req: any, body: any): Promise<{ email: string; name: string } | null> {
+    // 1. Direct email provided in body or profile
+    const directEmail = (body?.email || body?.userEmail || body?.studentEmail || body?.profile?.email || '')
+      .toString()
+      .trim()
+      .toLowerCase();
+
+    if (directEmail && directEmail.includes('@') && directEmail.includes('.')) {
+      const directName = (
+        body?.name ||
+        body?.userName ||
+        body?.firstName ||
+        body?.profile?.name ||
+        body?.profile?.firstName ||
+        'Student'
+      ).toString().trim();
+
+      console.log(`[AiController] Resolved user from request body email: ${directEmail}`);
+      return {
+        email: directEmail,
+        name: directName,
+      };
+    }
+
+    // 2. JWT Bearer token in Authorization header
     try {
       const authHeader = req.headers['authorization'];
       const token = authHeader?.split(' ')[1];
@@ -40,9 +64,11 @@ export class AiController {
           secret: this.configService.get('JWT_SECRET')
         });
         if (payload && payload.email) {
+          const jwtName = `${payload.firstName || ''} ${payload.lastName || ''}`.trim() || payload.name || 'Student';
+          console.log(`[AiController] Resolved user from JWT token: ${payload.email}`);
           return {
-            email: payload.email,
-            name: `${payload.firstName || ''} ${payload.lastName || ''}`.trim() || 'Student',
+            email: payload.email.toLowerCase().trim(),
+            name: jwtName,
           };
         }
       }
@@ -50,6 +76,7 @@ export class AiController {
       // Ignore token verification errors (guest user flow)
     }
 
+    // 3. User ID lookup from DB
     const userId = body?.userId || body?.profile?.userId;
     if (userId) {
       try {
@@ -60,16 +87,19 @@ export class AiController {
           .maybeSingle();
 
         if (dbUser?.email) {
+          const dbName = `${dbUser.firstName || ''} ${dbUser.lastName || ''}`.trim() || 'Student';
+          console.log(`[AiController] Resolved user from userId DB lookup: ${dbUser.email}`);
           return {
-            email: dbUser.email,
-            name: `${dbUser.firstName || ''} ${dbUser.lastName || ''}`.trim() || 'Student',
+            email: dbUser.email.toLowerCase().trim(),
+            name: dbName,
           };
         }
       } catch (e) {
-        console.warn('Failed to resolve user from body userId:', e.message);
+        console.warn('[AiController] Failed to resolve user from body userId:', e.message);
       }
     }
 
+    console.log('[AiController] No user email/token resolved. AI result email will be skipped.');
     return null;
   }
 
@@ -208,6 +238,7 @@ export class AiController {
 
   @Post('convert-grades')
   async convertGrades(
+    @Req() req: any,
     @Body()
     data: {
       inputType: 'letterGrade' | 'percentage' | 'gpa' | 'cgpa' | 'marks';
@@ -216,13 +247,47 @@ export class AiController {
       outputType: 'letterGrade' | 'percentage' | 'gpa' | 'cgpa';
       gradingSystem?: 'US' | 'UK' | 'India' | 'Canada' | 'Australia';
       formula?: 'cbse' | 'direct' | 'vtu' | 'mumbai';
+      email?: string;
+      userId?: string;
     },
   ): Promise<any> {
-    const result = await this.gradeConversionService.convertGrade(data);
+    const result = await this.gradeConversionService.convertGrade(data) as any;
+
+    const user = await this.resolveUser(req, data);
+    if (user) {
+      try {
+        const emailHtml = this.buildGradeConversionHtml(data, result);
+        const textSummary = `Your grade conversion result: ${data.inputValue} (${data.inputType}) = ${result.convertedValue || result.gpa || ''} (${data.outputType}).`;
+        await this.emailService.sendAiToolResultEmail(
+          user.email,
+          user.name,
+          'Grade Converter',
+          emailHtml,
+          textSummary
+        );
+      } catch (err) {
+        console.error('Failed to send grade conversion result email:', err);
+      }
+    }
+
     return {
       success: true,
       gradeConversion: result,
     };
+  }
+
+  private buildGradeConversionHtml(input: any, result: any): string {
+    const converted = result.convertedValue ?? result.gpa ?? result.cgpa ?? result.percentage ?? result.letterGrade ?? 'N/A';
+    return `
+      <div style="font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+        <div style="text-align: center; padding: 25px 20px; background-color: #f8fafc; border-radius: 12px; margin-bottom: 20px; border: 1px solid #e2e8f0;">
+          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #64748b; font-weight: bold; margin-bottom: 5px;">GPA & Grade Conversion</div>
+          <div style="font-size: 14px; color: #475569; margin-bottom: 10px;">Input: <strong>${input.inputValue}</strong> (${input.inputType}) &rarr; ${input.gradingSystem || 'Target'}</div>
+          <div style="font-size: 40px; font-weight: 800; color: #6605c7; margin-bottom: 5px;">${converted}</div>
+          <div style="font-size: 12px; font-weight: bold; color: #0284c7; text-transform: uppercase;">Scale: ${input.outputType}</div>
+        </div>
+      </div>
+    `;
   }
 
   @Post('analyze-grades')
@@ -942,6 +1007,7 @@ Respond strictly in valid JSON format:
 
   @Post('visa-interview/save-report')
   async saveVisaReport(
+    @Req() req: any,
     @Body()
     data: {
       userId?: string;
@@ -982,11 +1048,60 @@ Respond strictly in valid JSON format:
           evaluations: data.evaluations || [],
       }).select().single();
       if (error) throw error;
+
+      const user = await this.resolveUser(req, data);
+      if (user) {
+        try {
+          const emailHtml = this.buildVisaReportHtml(data);
+          const textSummary = `Your Visa Mock Interview score is ${data.overallScore}/100. Approval Likelihood: ${data.approvalLikelihood}. Risk: ${data.overallRisk}.`;
+          await this.emailService.sendAiToolResultEmail(
+            user.email,
+            user.name,
+            'Visa Mock Interview',
+            emailHtml,
+            textSummary
+          );
+        } catch (err) {
+          console.error('Failed to send visa interview result email:', err);
+        }
+      }
+
       return { success: true, result };
     } catch (error) {
       console.error('Failed to save visa interview result:', error);
       return { success: false, message: 'Failed to save result' };
     }
+  }
+
+  private buildVisaReportHtml(data: any): string {
+    return `
+      <div style="font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+        <div style="text-align: center; padding: 25px 20px; background-color: #f8fafc; border-radius: 12px; margin-bottom: 25px; border: 1px solid #e2e8f0;">
+          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #64748b; font-weight: bold; margin-bottom: 5px;">Visa Mock Interview</div>
+          <div style="font-size: 20px; font-weight: bold; color: #1e293b; margin-bottom: 10px;">${data.visaType || 'F1 Student Visa'}</div>
+          <div style="font-size: 44px; font-weight: 800; color: #6605c7; margin-bottom: 10px;">${data.overallScore}<span style="font-size: 18px; color: #94a3b8; font-weight: normal;">/100</span></div>
+          <div style="font-size: 13px; font-weight: bold; color: #0284c7;">Likelihood: ${data.approvalLikelihood || 'Moderate'} • Risk: ${data.overallRisk || 'Medium'}</div>
+        </div>
+        ${data.verdict ? `
+        <div style="margin-bottom: 20px; background-color: #f8fafc; padding: 15px; border-left: 4px solid #6605c7; border-radius: 0 8px 8px 0;">
+          <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #475569;"><strong>Consular Officer Verdict:</strong> ${data.verdict}</p>
+        </div>` : ''}
+        ${data.strengths && data.strengths.length > 0 ? `
+        <div style="margin-bottom: 20px;">
+          <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #166534; font-weight: bold;">Strengths</h4>
+          <ul style="margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.6; color: #475569;">
+            ${data.strengths.map((s: string) => `<li style="margin-bottom: 4px;">${s}</li>`).join('')}
+          </ul>
+        </div>` : ''}
+        ${data.criticalIssues && data.criticalIssues.length > 0 ? `
+        <div style="margin-bottom: 20px;">
+          <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #991b1b; font-weight: bold;">Critical Areas to Address</h4>
+          <ul style="margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.6; color: #475569;">
+            ${data.criticalIssues.map((issue: string) => `<li style="margin-bottom: 4px;">${issue}</li>`).join('')}
+          </ul>
+        </div>` : ''}
+      </div>
+    `;
   }
 
   private buildEligibilityHtml(eligibility: any, recommendations: any): string {
