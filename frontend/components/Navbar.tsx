@@ -199,11 +199,32 @@ export default function Navbar() {
         router.push("/login");
     };
 
+    const userAny = user as any;
+    const rawFamily = userAny?.family;
+    const parsedFamily = typeof rawFamily === 'string' ? (() => { try { return JSON.parse(rawFamily); } catch { return {}; } })() : (rawFamily || {});
+
     const displayName = user
-        ? user.passportOriginalName || user.nameAsInPassport || (user.firstName && user.lastName
-            ? `${user.firstName} ${user.lastName}`
-            : user.firstName || user.email)
+        ? (
+            parsedFamily.identityAnchorName ||
+            user.passportOriginalName ||
+            user.nameAsInPassport ||
+            parsedFamily.passportOriginalName ||
+            userAny.aadhaarOriginalName ||
+            userAny.nameAsInAadhaar ||
+            parsedFamily.aadhaarOriginalName ||
+            (user.firstName && user.lastName
+                ? `${user.firstName} ${user.lastName}`
+                : user.firstName || user.email?.split('@')[0])
+        )
         : "";
+
+    const userInitials = (() => {
+        if (!displayName) return (user?.email?.[0]?.toUpperCase() || "U");
+        const clean = displayName.replace(/^(mr|ms|mrs|dr|shri)\.?\s+/i, '').trim();
+        const parts = clean.split(/\s+/).filter(Boolean);
+        if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+        return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+    })();
 
     return (
         <nav
@@ -459,7 +480,7 @@ export default function Navbar() {
                                         ? "bg-gradient-to-tr from-[#6605c7] to-[#8b24e5] scale-110 shadow-purple-500/30"
                                         : "bg-gradient-to-tr from-[#6605c7] via-[#a855f7] to-[#fbbf24] shadow-purple-500/10 group-hover:rotate-12 group-hover:scale-110"
                                         }`}>
-                                        {(user?.firstName?.[0] || user?.email?.[0]?.toUpperCase() || "U")}{(user?.lastName?.[0] || "")}
+                                        {userInitials}
                                     </div>
                                     <span className={`text-xs font-extrabold tracking-tight transition-colors duration-150 ${profileOpen ? "text-[#6605c7]" : "text-gray-800"
                                         }`}>

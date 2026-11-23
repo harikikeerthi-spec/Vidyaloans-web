@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { format, differenceInDays, parseISO } from "date-fns";
 import { StatusBadge } from "@/components/bank/SharedUI";
 import Link from "next/link";
+import { getToken } from "@/lib/api";
 
 interface BankApplicationDetailViewProps {
     app: any;
@@ -964,8 +965,17 @@ export default function BankApplicationDetailView({
                                     const docTitle = doc.docName || doc.title || doc.fileName || doc.name || doc.docType || `Document ${idx + 1}`;
                                     const docFileName = doc.fileName || doc.filePath?.split("/").pop() || `${doc.docType || "Document"}.pdf`;
                                     const docTypeLabel = doc.docType || doc.category || "Uploaded File";
-                                    const fileTarget = doc.filePath || doc.url || docFileName;
-                                    const downloadUrl = `/api/documents/download?appId=${app.id}&file=${encodeURIComponent(fileTarget)}`;
+                                    
+                                    const token = typeof window !== "undefined"
+                                        ? (getToken() || localStorage.getItem("bankAccessToken") || localStorage.getItem("adminAccessToken") || localStorage.getItem("staffAccessToken") || "")
+                                        : "";
+                                    const docIdentifier = doc.id || doc.docType;
+                                    const tokenParam = token ? `?token=${encodeURIComponent(token)}` : "";
+                                    const backendViewUrl = `/api/applications/admin/${app.id || app._id}/documents/${encodeURIComponent(docIdentifier)}/view${tokenParam}`;
+                                    const backendDownloadUrl = `/api/applications/admin/${app.id || app._id}/documents/${encodeURIComponent(docIdentifier)}/view?download=true${token ? `&token=${encodeURIComponent(token)}` : ""}`;
+                                    
+                                    const viewUrl = doc.url && String(doc.url).startsWith("http") ? doc.url : backendViewUrl;
+                                    const downloadUrl = doc.url && String(doc.url).startsWith("http") ? doc.url : backendDownloadUrl;
 
                                     return (
                                         <div
@@ -999,13 +1009,23 @@ export default function BankApplicationDetailView({
 
                                             <div className="flex items-center gap-1.5 shrink-0">
                                                 <a
-                                                    href={downloadUrl}
+                                                    href={viewUrl}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
                                                     className="px-3 py-1.5 bg-white hover:bg-slate-900 text-slate-700 hover:text-white rounded-lg font-bold text-xs transition-all flex items-center gap-1 border border-slate-200 cursor-pointer shadow-2xs"
+                                                    title="View document from AWS S3"
                                                 >
                                                     <span className="material-symbols-outlined text-xs">visibility</span>
                                                     <span>View</span>
+                                                </a>
+                                                <a
+                                                    href={downloadUrl}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="p-1.5 bg-white hover:bg-slate-100 text-slate-500 hover:text-slate-800 rounded-lg text-xs transition-all border border-slate-200 cursor-pointer shadow-2xs"
+                                                    title="Download document from AWS S3"
+                                                >
+                                                    <span className="material-symbols-outlined text-sm">download</span>
                                                 </a>
                                             </div>
                                         </div>

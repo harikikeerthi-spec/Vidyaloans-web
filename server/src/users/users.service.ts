@@ -1,5 +1,5 @@
 import { Injectable, BadRequestException, OnModuleInit, Inject, Optional, forwardRef } from '@nestjs/common';
-import { randomInt, randomUUID } from 'crypto';
+import { randomInt, randomUUID, createHash } from 'crypto';
 import { extractFullNameFromOcrRaw } from '../ai/utils/ocr-fields.util';
 import { SupabaseService } from '../supabase/supabase.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -599,12 +599,14 @@ export class UsersService implements OnModuleInit {
     if (email) {
       if (role === 'agent') return `VL-AGT-${this.emailToNum(email, 5)}`;
       if (role === 'bank') return `VL-BNK-${this.emailToNum(email, 3)}`;
+      if (role === 'it' || role === 'it_admin') return `VL-IT-${this.emailToNum(email, 4)}`;
     }
 
     // Fallback: random (no email supplied)
     const seq5 = String(randomInt(0, 100_000)).padStart(5, '0');
     if (role === 'agent') return `VL-AGT-${seq5}`;
     if (role === 'bank') return `VL-BNK-${String(randomInt(0, 1_000)).padStart(3, '0')}`;
+    if (role === 'it' || role === 'it_admin') return `VL-IT-${String(randomInt(0, 10_000)).padStart(4, '0')}`;
     return `VL-AGT-${seq5}`; // default fallback
   }
 
@@ -889,6 +891,8 @@ export class UsersService implements OnModuleInit {
         query = query.or('role.eq.student,role.eq.user');
       } else if (role === 'staff') {
         query = query.or('role.eq.staff,role.eq.staff_admin');
+      } else if (role === 'it') {
+        query = query.or('role.eq.it,role.eq.it_admin');
       } else if (role === 'admin') {
         query = query.or('role.eq.admin,role.eq.super_admin');
       } else if (role.includes(',')) {
@@ -3791,6 +3795,90 @@ export class UsersService implements OnModuleInit {
       console.error(`[CrossDocValidation] Error validating documents for user ${userId}:`, err.message);
       return { issues: [], hardReject: false };
     }
+  }
+
+  // ─── IT Personnel Credentials & Management ──────────────────────────────
+  hashPassword(password: string): string {
+    const salt = process.env.JWT_SECRET || 'vidyaloans_executive_secure_salt_2026';
+    return createHash('sha256').update(password + salt).digest('hex');
+  }
+
+  verifyPassword(rawPassword: string, storedHash: string): boolean {
+    if (!storedHash || !rawPassword) return false;
+    const clean = rawPassword.trim();
+    const primary = this.hashPassword(clean);
+    const fallback = createHash('sha256').update(clean + 'vidyaloans_executive_secure_salt_2026').digest('hex');
+    const plainHash = createHash('sha256').update(clean).digest('hex');
+    return storedHash === primary || storedHash === fallback || storedHash === plainHash || storedHash === clean;
+  }
+
+  async createItUser(data: {
+    email: string;
+    password: string;
+    firstName: string;
+    lastName?: string;
+    mobile?: string;
+  }) {
+    const cleanEmail = data.email.trim().toLowerCase();
+    const existing = await this.findOne(cleanEmail);
+    if (existing) {
+      throw new BadRequestException('User with this email already exists');
+    }
+    const hashedPassword = this.hashPassword(data.password.trim());
+    const newUser = await this.create({
+      email: cleanEmail,
+      firstName: data.firstName.trim(),
+      lastName: data.lastName ? data.lastName.trim() : '',
+      mobile: data.mobile ? data.mobile.trim() : '',
+      phoneNumber: data.mobile ? data.mobile.trim() : '',
+      password: hashedPassword,
+      role: 'it',
+    });
+    return newUser;
+  }
+
+  async findItUsers() {
+    const { data, error } = await this.db
+      .from('User')
+      .select('id, email, firstName, lastName, phoneNumber, mobile, role, createdAt, updatedAt')
+      .or('role.eq.it,role.eq.it_admin')
+      .order('createdAt', { ascending: false });
+    if (error) {
+      console.error('[UsersService.findItUsers] Error fetching IT users:', error);
+      return [];
+    }
+    return data || [];
+  }
+
+  async deleteItUser(id: string) {
+    const user = await this.findById(id);
+    if (!user) {
+      throw new BadRequestException('IT User not found');
+    }
+    if (user.role !== 'it' && user.role !== 'it_admin') {
+      throw new BadRequestException('User is not an IT account');
+    }
+    const { error } = await this.db.from('User').delete().eq('id', id);
+    if (error) throw error;
+    this.userCache.delete(user.email.toLowerCase());
+    return { success: true, message: 'IT member removed successfully' };
+  }
+
+  async updateItPassword(id: string, newPassword: string) {
+    const user = await this.findById(id);
+    if (!user) {
+      throw new BadRequestException('IT User not found');
+    }
+    const hashedPassword = this.hashPassword(newPassword.trim());
+    const { data, error } = await this.db
+      .from('User')
+      .update({ password: hashedPassword, updatedAt: new Date().toISOString() })
+      .eq('id', id)
+      .select('id, email, firstName, lastName, role, updatedAt')
+      .single();
+    if (error) throw error;
+    this.userCache.delete(user.email.toLowerCase());
+    return { success: true, message: 'Password updated successfully', user: data };
   }
 }
 

@@ -15,6 +15,7 @@ import SiteSettingsSection from "@/components/Admin/SiteSettingsSection";
 import RegistrationLeadsSection from "@/components/Admin/RegistrationLeadsSection";
 import AdminErrorLogsSection from "@/components/Admin/AdminErrorLogsSection";
 import WebmailAdminManager from "@/components/Admin/WebmailAdminManager";
+import AdminITManagement from "@/components/Admin/AdminITManagement";
 import ProgressTracker from "@/components/ProgressTracker";
 import {
     Building2,
@@ -243,6 +244,7 @@ const sectionToPathMap: Record<string, string> = {
     users_staff: '/admin/users/staff',
     users_agents: '/admin/users/agents',
     users_banks: '/admin/users/banks',
+    users_it: '/admin/it',
     webmail: '/admin/webmail',
     analytics: '/admin/analytics',
     system: '/admin/system',
@@ -283,6 +285,8 @@ const pathToSectionMap: Record<string, string> = {
     '/admin/agents': 'users_agents',
     '/admin/users/banks': 'users_banks',
     '/admin/users/bank': 'users_banks',
+    '/admin/users/it': 'users_it',
+    '/admin/it': 'users_it',
     '/admin/webmail': 'webmail',
     '/admin/analytics': 'analytics',
     '/admin/system': 'system',
@@ -1897,11 +1901,12 @@ export default function AdminDashboardPage() {
         { section: "users_staff", icon: "badge", label: "Staff Operations" },
         { section: "users_agents", icon: "support_agent", label: "Agents & Partners" },
         { section: "users_banks", icon: "account_balance", label: "Bank Representatives" },
+        { section: "users_it", icon: "terminal", label: "IT Operations" },
         { section: "webmail", icon: "mail", label: "Official Webmail" },
     ];
 
     const isUserSection = activeSection === "users_students" || activeSection === "users_staff" || activeSection === "users_agents" || activeSection === "users_banks" || activeSection === "users";
-    const isUserOrWebmailSection = isUserSection || activeSection === "webmail";
+    const isUserOrWebmailSection = isUserSection || activeSection === "webmail" || activeSection === "users_it";
 
     // Marketing sub-nav items
     const marketingNavItems = [
@@ -2897,6 +2902,10 @@ export default function AdminDashboardPage() {
 
                     {activeSection === "webmail" && (
                         <WebmailAdminManager />
+                    )}
+
+                    {activeSection === "users_it" && (
+                        <AdminITManagement />
                     )}
 
                     {/* ─── USERS MANAGEMENT DASHBOARD ──────────────────────────────────────── */}

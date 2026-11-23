@@ -747,13 +747,16 @@ export default function DocumentVaultPage() {
         }
     };
 
-    const handleOpenExtractedDetails = (docType: string) => {
-        const doc = docs.find(d => d.docType.toLowerCase() === docType.toLowerCase());
+    const handleOpenExtractedDetails = (docType: string, isVerifiedDoc?: boolean) => {
+        const doc = findDocForRequirement(docType) || docs.find(d => d.docType.toLowerCase() === docType.toLowerCase());
         if (!doc) return;
         const activeProfile = getActiveProfile();
         const docTitle = doc.docName || doc.verificationMetadata?.docName || getDocumentRequirementName(docType, docType, activeProfile) || docType.replace(/_/g, ' ').toUpperCase();
         const extracted = doc.verificationMetadata?.details?.extractedFields || doc.verificationMetadata?.extractedFields || {};
         const confidence = doc.verificationMetadata?.confidence || 95;
+
+        // When document is verified, show details in read-only mode (view only, cannot edit)
+        const isVerified = isVerifiedDoc ?? (doc.status === 'verified' || doc.verificationStatus === 'verified');
 
         setExtractedModalData({
             isOpen: true,
@@ -761,7 +764,7 @@ export default function DocumentVaultPage() {
             docTitle,
             confidence,
             extracted,
-            readOnly: false,
+            readOnly: isVerified,
         });
     };
 
@@ -1682,11 +1685,11 @@ export default function DocumentVaultPage() {
                                         </button>
                                         {(existing?.verificationMetadata?.details?.extractedFields || existing?.verificationMetadata?.extractedFields) && (
                                             <button
-                                                onClick={() => handleOpenExtractedDetails(req.type)}
+                                                onClick={() => handleOpenExtractedDetails(req.type, isVerified)}
                                                 className="px-2.5 py-2 bg-purple-50 hover:bg-purple-100 active:scale-95 text-purple-700 text-[11px] font-bold rounded-lg transition-all flex items-center justify-center gap-1 border border-purple-200/80 cursor-pointer"
-                                                title="View Extracted Details"
+                                                title={isVerified ? "View Verified Details" : "View Extracted Details"}
                                             >
-                                                <span className="material-symbols-outlined text-[15px]">fact_check</span> Details
+                                                <span className="material-symbols-outlined text-[15px]">{isVerified ? "verified" : "fact_check"}</span> Details
                                             </button>
                                         )}
                                         {!isVerified && (

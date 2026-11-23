@@ -27,13 +27,13 @@ export default function ITTicketsPage() {
     const [activeView, setActiveView] = useState("support_dashboard");
 
     return (
-        <div className="max-w-[1400px] mx-auto space-y-6 animate-fade-in pb-16">
+        <div className="max-w-[1400px] mx-auto space-y-6 animate-fade-in pb-16 font-sans">
             {/* Header & Sub-navigation Toolbar */}
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-4">
+            <div className="bg-white/90 backdrop-blur-xl rounded-2xl border border-purple-100/70 shadow-sm p-6 space-y-4">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                         <h2 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2.5">
-                            <span className="material-symbols-outlined text-2xl text-indigo-600">headset_mic</span>
+                            <span className="material-symbols-outlined text-2xl text-[#6605c7]">headset_mic</span>
                             IT Support Operations Center
                         </h2>
                         <p className="text-xs text-slate-500 font-semibold mt-0.5">
@@ -43,7 +43,7 @@ export default function ITTicketsPage() {
                 </div>
 
                 {/* Sub-nav tabs scrollable row */}
-                <div className="flex items-center gap-1.5 overflow-x-auto custom-scrollbar pt-2 border-t border-slate-100 pb-1">
+                <div className="flex items-center gap-1.5 overflow-x-auto custom-scrollbar pt-2 border-t border-purple-100/50 pb-1">
                     {SUPPORT_TABS.map((tab) => {
                         const isActive = activeView === tab.section;
                         return (
@@ -52,8 +52,8 @@ export default function ITTicketsPage() {
                                 onClick={() => setActiveView(tab.section)}
                                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
                                     isActive
-                                        ? "bg-indigo-600 text-white shadow-sm"
-                                        : "bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200/60"
+                                        ? "bg-[#6605c7] text-white shadow-xs"
+                                        : "bg-slate-50 text-slate-600 hover:bg-purple-50/60 hover:text-[#6605c7] border border-slate-200/60"
                                 }`}
                             >
                                 <span className={`material-symbols-outlined text-[16px] ${isActive ? "text-white" : "text-slate-500"}`}>

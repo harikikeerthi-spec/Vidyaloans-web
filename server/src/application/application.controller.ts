@@ -463,45 +463,61 @@ export class ApplicationController {
             return res.send(html);
         }
 
-        const candidatePaths = [
-            resolve(doc.filePath),
-            resolve(process.cwd(), doc.filePath),
-            resolve(process.cwd(), doc.filePath.replace(/^[/\\]+/, '')),
-        ];
-        let foundPath: string | null = null;
-        for (const p of candidatePaths) {
-            if (existsSync(p)) {
-                foundPath = p;
-                break;
-            }
-        }
+        const isDownload = download === 'true';
+        const filename = doc.fileName || doc.docName || (doc.docType ? `${doc.docType}.pdf` : 'document.pdf');
+        const userId = doc.userId;
+        const docType = doc.docType;
+        const fileExt = doc.filePath ? extname(doc.filePath) : '';
 
-        if (foundPath) {
-            if (download === 'true') {
-                const filename = doc.fileName || doc.docName || 'document.pdf';
-                return res.download(foundPath, filename);
-            }
-            return res.sendFile(foundPath);
-        }
-
-        // Try S3 bucket integration
-        try {
-            console.log(`[viewDocumentAdmin] Document not found locally at ${candidatePaths[0]}. Generating presigned URL (download=${download}) for S3 key: ${doc.filePath}`);
-            const filename = doc.fileName || doc.docName || 'document.pdf';
-            const presignedUrl = await this.s3Service.getPresignedUrl(
+        // Prioritize AWS S3 storage directly — do not use local files
+        const s3CandidateKeys = Array.from(
+            new Set([
                 doc.filePath,
-                3600,
-                download === 'true' ? filename : undefined
-            );
-            return res.redirect(302, presignedUrl);
-        } catch (s3Error) {
-            console.error(`[viewDocumentAdmin] S3 presigned URL generation failed for ${doc.filePath}:`, s3Error);
-            const fallbackPath = resolve(process.cwd(), 'public/mock/document_missing.pdf');
-            if (existsSync(fallbackPath)) {
-                return res.sendFile(fallbackPath);
+                doc.filePath ? doc.filePath.replace(/^[/\\]+/, '') : null,
+                doc.filePath ? doc.filePath.replace(/^uploads[/\\]/, '') : null,
+                userId && docType ? `vault/${userId}/${docType}${fileExt}` : null,
+                userId && docType ? `vault/${userId}/${docType}.pdf` : null,
+                userId && docType ? `vault/${userId}/${docType}` : null,
+                userId && docType ? `documents/${userId}/${docType}` : null,
+                userId && docType ? `documents/${userId}/${docType}${fileExt}` : null,
+                userId && docType ? `documents/${userId}/${docType}.pdf` : null,
+            ])
+        ).filter(Boolean) as string[];
+
+        // 1. Fetch and stream document buffer directly from AWS S3
+        for (const s3Key of s3CandidateKeys) {
+            try {
+                const s3Data = await this.s3Service.getFileBuffer(s3Key);
+                if (s3Data && s3Data.buffer) {
+                    res.setHeader('Content-Type', s3Data.contentType || 'application/pdf');
+                    res.setHeader(
+                        'Content-Disposition',
+                        isDownload ? `attachment; filename="${filename}"` : `inline; filename="${filename}"`
+                    );
+                    return res.send(s3Data.buffer);
+                }
+            } catch (err: any) {
+                console.warn(`[viewDocumentAdmin] S3 getFileBuffer notice for key ${s3Key}: ${err.message}`);
             }
-            throw new NotFoundException('Document file not found on disk or S3');
         }
+
+        // 2. Fallback to AWS S3 presigned URL redirect
+        for (const s3Key of s3CandidateKeys) {
+            try {
+                const presignedUrl = await this.s3Service.getPresignedUrl(
+                    s3Key,
+                    3600,
+                    isDownload ? filename : undefined
+                );
+                if (presignedUrl) {
+                    return res.redirect(302, presignedUrl);
+                }
+            } catch (s3Error: any) {
+                // Try next candidate
+            }
+        }
+
+        throw new NotFoundException('Document file not found in AWS S3 storage');
     }
 
     /**

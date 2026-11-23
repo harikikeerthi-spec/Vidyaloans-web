@@ -82,7 +82,7 @@ function getStorageKeys(portal: Portal) {
             email: "itUserEmail",
             userId: "itUserId",
             user: "itAuthUser",
-            loginPath: "/it",
+            loginPath: "/it/login",
         };
     }
     return {
@@ -96,7 +96,7 @@ function getStorageKeys(portal: Portal) {
 }
 
 function clearAllPortalAuthStorage() {
-    const portals: Portal[] = ["student", "staff", "admin", "bank", "agent"];
+    const portals: Portal[] = ["student", "staff", "admin", "bank", "agent", "it"];
     for (const portal of portals) {
         const keys = getStorageKeys(portal);
         localStorage.removeItem(keys.token);
@@ -786,6 +786,12 @@ export const authApi = {
             body: JSON.stringify({ email, otp, referralCode }),
         }),
 
+    itLogin: (email: string, password: string) =>
+        apiFetch(HttpApiPaths.auth.itLogin(), {
+            method: "POST",
+            body: JSON.stringify({ email, password }),
+        }),
+
     firebaseLogin: (idToken: string) =>
         apiFetch(HttpApiPaths.auth.firebase(), {
             method: "POST",
@@ -1314,6 +1320,23 @@ export const adminApi = {
     deleteWebmailUser: (id: string) =>
         apiFetch(`${API_URL}/webmail/admin/users/${id}`, {
             method: "DELETE",
+        }),
+
+    // IT Personnel Operations
+    getItUsers: () => apiFetch(HttpApiPaths.admin.getItUsers()),
+    createItUser: (data: { email: string; password: string; firstName: string; lastName?: string; mobile?: string }) =>
+        apiFetch(HttpApiPaths.admin.createIt(), {
+            method: "POST",
+            body: JSON.stringify(data),
+        }),
+    deleteItUser: (id: string) =>
+        apiFetch(HttpApiPaths.admin.deleteItUser(id), {
+            method: "DELETE",
+        }),
+    resetItPassword: (id: string, password: string) =>
+        apiFetch(HttpApiPaths.admin.resetItPassword(id), {
+            method: "PATCH",
+            body: JSON.stringify({ password }),
         }),
 
     // Banks Management
@@ -2486,6 +2509,30 @@ export const statementApi = {
         apiFetch(`${API_URL}/statements/verify-document`, {
             method: "POST",
             body: JSON.stringify(data),
+        }),
+};
+
+// ─── IT Portal Operations ──────────────────────────────────────────────────
+export const itApi = {
+    login: (email: string, password: string) =>
+        apiFetch(HttpApiPaths.auth.itLogin(), {
+            method: "POST",
+            body: JSON.stringify({ email, password }),
+        }),
+    getUsers: () => apiFetch(HttpApiPaths.admin.getItUsers()),
+    createUser: (data: { email: string; password: string; firstName: string; lastName?: string; mobile?: string }) =>
+        apiFetch(HttpApiPaths.admin.createIt(), {
+            method: "POST",
+            body: JSON.stringify(data),
+        }),
+    deleteUser: (id: string) =>
+        apiFetch(HttpApiPaths.admin.deleteItUser(id), {
+            method: "DELETE",
+        }),
+    resetPassword: (id: string, password: string) =>
+        apiFetch(HttpApiPaths.admin.resetItPassword(id), {
+            method: "PATCH",
+            body: JSON.stringify({ password }),
         }),
 };
 

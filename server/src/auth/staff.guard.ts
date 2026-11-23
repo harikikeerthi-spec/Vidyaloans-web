@@ -27,11 +27,17 @@ export class StaffGuard implements CanActivate {
             }
             token = tokenStr;
         } else if (request.query && request.query.token) {
-            // Only allow token in query string for specific file download/export routes
+            // Allow token in query string for file preview, view, download, zip, and export routes
             const path = (request.path || request.url || '').toLowerCase();
-            const isDownloadRoute = path.includes('/download') || path.includes('/export');
+            const isDownloadRoute =
+                path.includes('/download') ||
+                path.includes('/export') ||
+                path.includes('/view') ||
+                path.includes('/zip') ||
+                path.includes('/presigned') ||
+                path.includes('/documents/');
             if (isDownloadRoute) {
-                token = request.query.token as string;
+                token = Array.isArray(request.query.token) ? request.query.token[0] : (request.query.token as string);
             }
         } else if (request.cookies) {
             token =

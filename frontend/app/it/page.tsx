@@ -115,23 +115,45 @@ export default function ITOverviewPage() {
     };
 
     return (
-        <div className="max-w-[1400px] mx-auto space-y-6 animate-fade-in pb-12">
-            {/* Header banner */}
-            <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-6 md:p-8 shadow-xl relative overflow-hidden font-sans">
-                <div className="relative z-10">
-
-                    <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight mt-2">
-                        Welcome to IT Dashboard
-                    </h1>
-                    <p className="text-slate-300 text-xs md:text-sm mt-1 max-w-xl">
-                        Monitor platform Support Tickets, inspect user uploaded issue images & screenshots, resolve technical queries, and publish Blog CMS content in real-time.
-                    </p>
+        <div className="max-w-[1400px] mx-auto space-y-6 animate-fade-in pb-12 font-sans">
+            {/* Header banner matching user dashboard */}
+            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#1A0338] via-[#43088C] to-[#6605c7] p-6 md:p-8 text-white shadow-xl shadow-purple-900/15 border border-white/10">
+                <div className="absolute -right-12 -bottom-12 w-64 h-64 bg-purple-400/20 rounded-full blur-3xl pointer-events-none" />
+                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                    <div>
+                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-purple-200 text-[11px] font-bold tracking-wide uppercase mb-3">
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                            IT Operations Command Center
+                        </div>
+                        <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
+                            Welcome to IT Command Dashboard
+                        </h1>
+                        <p className="text-purple-200 text-xs md:text-sm mt-1.5 max-w-xl leading-relaxed">
+                            Monitor real-time support tickets, review user uploaded issue screenshots, resolve technical queries, and publish official CMS blogs.
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                        <Link
+                            href="/it/tickets"
+                            className="px-5 py-2.5 bg-white text-[#6605c7] hover:bg-purple-50 font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-2"
+                        >
+                            <span className="material-symbols-outlined text-base">confirmation_number</span>
+                            Support Tickets
+                        </Link>
+                        <Link
+                            href="/it/blogs?action=create"
+                            className="px-5 py-2.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-amber-950 font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-2"
+                        >
+                            <span className="material-symbols-outlined text-base">add_circle</span>
+                            New Blog Post
+                        </Link>
+                    </div>
                 </div>
             </div>
 
             {/* Metrics cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 font-sans">
-                <div className="bg-white border border-slate-100 p-5 rounded-2xl shadow-sm">
+                <div className="bg-white/90 backdrop-blur-xl border border-purple-100/70 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all">
                     <div className="flex items-center justify-between mb-2">
                         <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Open Tickets</span>
                         <span className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center material-symbols-outlined text-[18px]">
@@ -142,7 +164,7 @@ export default function ITOverviewPage() {
                     <p className="text-[11px] text-slate-500 font-semibold mt-1">Requires IT response</p>
                 </div>
 
-                <div className="bg-white border border-slate-100 p-5 rounded-2xl shadow-sm">
+                <div className="bg-white/90 backdrop-blur-xl border border-purple-100/70 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all">
                     <div className="flex items-center justify-between mb-2">
                         <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Critical Tickets</span>
                         <span className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center material-symbols-outlined text-[18px]">
@@ -153,7 +175,7 @@ export default function ITOverviewPage() {
                     <p className="text-[11px] text-slate-500 font-semibold mt-1">High priority items</p>
                 </div>
 
-                <div className="bg-white border border-slate-100 p-5 rounded-2xl shadow-sm">
+                <div className="bg-white/90 backdrop-blur-xl border border-purple-100/70 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all">
                     <div className="flex items-center justify-between mb-2">
                         <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Resolved Tickets</span>
                         <span className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center material-symbols-outlined text-[18px]">
@@ -164,10 +186,10 @@ export default function ITOverviewPage() {
                     <p className="text-[11px] text-slate-500 font-semibold mt-1">Successfully closed</p>
                 </div>
 
-                <div className="bg-white border border-slate-100 p-5 rounded-2xl shadow-sm">
+                <div className="bg-white/90 backdrop-blur-xl border border-purple-100/70 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all">
                     <div className="flex items-center justify-between mb-2">
                         <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Blog Articles</span>
-                        <span className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center material-symbols-outlined text-[18px]">
+                        <span className="w-8 h-8 rounded-lg bg-purple-50 text-[#6605c7] flex items-center justify-center material-symbols-outlined text-[18px]">
                             newspaper
                         </span>
                     </div>
@@ -179,7 +201,7 @@ export default function ITOverviewPage() {
             {/* Quick Actions Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 font-sans">
                 {/* Support Tickets Section */}
-                <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm space-y-4">
+                <div className="bg-white/90 backdrop-blur-xl rounded-2xl border border-purple-100/70 p-6 shadow-sm space-y-4">
                     <div className="flex items-center justify-between">
                         <div>
                             <h3 className="text-base font-bold text-slate-900">Support Tickets Center</h3>
@@ -187,7 +209,7 @@ export default function ITOverviewPage() {
                         </div>
                         <Link
                             href="/it/tickets"
-                            className="px-3.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-xl transition-all"
+                            className="px-3.5 py-1.5 bg-[#6605c7]/10 hover:bg-[#6605c7]/20 text-[#6605c7] text-xs font-bold rounded-xl transition-all"
                         >
                             View All Tickets →
                         </Link>
@@ -259,7 +281,7 @@ export default function ITOverviewPage() {
                 </div>
 
                 {/* Blog CMS Section */}
-                <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm space-y-4">
+                <div className="bg-white/90 backdrop-blur-xl rounded-2xl border border-purple-100/70 p-6 shadow-sm space-y-4">
                     <div className="flex items-center justify-between">
                         <div>
                             <h3 className="text-base font-bold text-slate-900">Blog CMS Management</h3>
@@ -267,7 +289,7 @@ export default function ITOverviewPage() {
                         </div>
                         <Link
                             href="/it/blogs?action=create"
-                            className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-all"
+                            className="px-3.5 py-1.5 bg-[#6605c7] hover:bg-[#5504a6] text-white text-xs font-bold rounded-xl transition-all shadow-xs"
                         >
                             + New Blog Post
                         </Link>

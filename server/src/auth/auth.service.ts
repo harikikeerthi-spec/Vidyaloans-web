@@ -1587,5 +1587,40 @@ export class AuthService {
       }
     };
   }
+
+  // ─── IT Personnel Authentication ──────────────────────────────────────────
+  async itLogin(email: string, rawPassword: string) {
+    if (!email || !rawPassword) {
+      throw new BadRequestException('Email and password are required');
+    }
+    const cleanEmail = email.trim().toLowerCase();
+    const user = await this.usersService.findOne(cleanEmail);
+    if (!user) {
+      throw new UnauthorizedException('Invalid email or password');
+    }
+    const allowedRoles = ['it', 'it_admin', 'admin', 'super_admin'];
+    if (!allowedRoles.includes((user.role || '').toLowerCase())) {
+      throw new UnauthorizedException('Access denied. This account does not have IT dashboard access.');
+    }
+    const isPasswordValid = this.usersService.verifyPassword(rawPassword, user.password);
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Invalid email or password');
+    }
+    const tokens = await this.generateTokens(user);
+    this.eventEmitter.emit('user.login', {
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+    });
+    const { password, refreshToken, ...safeUser } = user as any;
+    return {
+      success: true,
+      message: 'IT Login successful',
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      user: safeUser,
+    };
+  }
 }
 

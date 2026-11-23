@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, UseGuards, Param, Put, Delete, Query, Req } from '@nestjs/common';
+import { Controller, Get, Post, Body, UseGuards, Param, Put, Patch, Delete, Query, Req, BadRequestException } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { AdminGuard } from '../auth/admin.guard';
 import { SuperAdminGuard } from '../auth/super-admin.guard';
@@ -136,7 +136,7 @@ export class UsersController {
     }
 
     @Get('admin/stats')
-    @UseGuards(AdminGuard)
+    @UseGuards(StaffGuard)
     async getUserStats() {
         return this.usersService.getUserStats();
     }
@@ -296,6 +296,62 @@ export class UsersController {
             console.error('Error sending admin email:', error);
             return { success: false, message: 'Failed to send email' };
         }
+    }
+
+    // ─── IT Personnel Management Endpoints ─────────────────────────────────
+    @UseGuards(AdminGuard)
+    @Get('admin/it-users')
+    async getItUsers() {
+        const users = await this.usersService.findItUsers();
+        return { success: true, data: users };
+    }
+
+    @UseGuards(AdminGuard)
+    @Post('admin/create-it')
+    async createItUser(
+        @Body() body: {
+            email: string;
+            password: string;
+            firstName: string;
+            lastName?: string;
+            mobile?: string;
+        }
+    ) {
+        if (!body.email || !body.password || !body.firstName) {
+            throw new BadRequestException('Email, password, and first name are required');
+        }
+        if (body.password.trim().length < 6) {
+            throw new BadRequestException('Password must be at least 6 characters');
+        }
+        const newUser = await this.usersService.createItUser(body);
+        try {
+            await this.emailService.sendItWelcomeEmail(
+                newUser.email,
+                `${newUser.firstName || ''} ${newUser.lastName || ''}`.trim() || 'IT Team Member',
+                newUser.id
+            );
+        } catch (emailErr: any) {
+            console.warn('[createItUser] IT welcome email non-blocking failed:', emailErr?.message);
+        }
+        return { success: true, message: 'IT user created successfully', user: newUser };
+    }
+
+    @UseGuards(AdminGuard)
+    @Delete('admin/it-users/:id')
+    async deleteItUser(@Param('id') id: string) {
+        return this.usersService.deleteItUser(id);
+    }
+
+    @UseGuards(AdminGuard)
+    @Patch('admin/it-users/:id/password')
+    async resetItPassword(
+        @Param('id') id: string,
+        @Body() body: { password: string }
+    ) {
+        if (!body.password || body.password.trim().length < 6) {
+            throw new BadRequestException('Password must be at least 6 characters');
+        }
+        return this.usersService.updateItPassword(id, body.password);
     }
 
     @UseGuards(AdminGuard)

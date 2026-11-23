@@ -66,6 +66,8 @@ interface AuthUser {
     passportOriginalName?: string;
     nameAsInPassport?: string;
     passport?: any;
+    aadhaarOriginalName?: string;
+    nameAsInAadhaar?: string;
     mailboxEmail?: string;
     mailboxPrefix?: string;
     canAccessSupport?: boolean;
@@ -82,6 +84,7 @@ interface AuthContextType {
     isAgent: boolean;
     isAnalyst: boolean;
     isMarketing: boolean;
+    isIt: boolean;
     isLoading: boolean;
     login: (accessToken: string, userData?: Partial<AuthUser> & { refresh_token?: string }) => void;
     logout: () => Promise<void>;
@@ -157,7 +160,7 @@ function getStorageKeys(portal: Portal) {
             email: "itUserEmail",
             userId: "itUserId",
             user: "itAuthUser",
-            loginPath: "/it",
+            loginPath: "/it/login",
         };
     }
     if (portal === "analyst") {
@@ -515,10 +518,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const isAgent = user?.role === 'agent' || user?.role === 'partner_agent' || isAdmin;
     const isAnalyst = user?.role === 'analyst' || user?.role === 'data_analyst' || isAdmin || isStaff;
     const isMarketing = user?.role === 'marketing' || user?.role === 'marketing_lead' || isAdmin || isStaff;
+    const isIt = user?.role === 'it' || user?.role === 'it_admin' || isAdmin;
 
     return (
         <AuthContext.Provider
-            value={{ user, token, isAuthenticated, isAdmin, isBank, isStaff, isAgent, isAnalyst, isMarketing, isLoading, login, logout, refreshAuth, refreshUser }}
+            value={{ user, token, isAuthenticated, isAdmin, isBank, isStaff, isAgent, isAnalyst, isMarketing, isIt, isLoading, login, logout, refreshAuth, refreshUser }}
         >
             {children}
         </AuthContext.Provider>

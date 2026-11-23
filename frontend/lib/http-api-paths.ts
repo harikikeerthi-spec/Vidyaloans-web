@@ -27,6 +27,7 @@ export const HttpApiPaths = {
     auth: {
         sendOtp: () => `${HTTP_API_PREFIX}/auth/send-otp`,
         verifyOtp: () => `${HTTP_API_PREFIX}/auth/verify-otp`,
+        itLogin: () => `${HTTP_API_PREFIX}/auth/it/login`,
         firebase: () => `${HTTP_API_PREFIX}/auth/firebase`,
         refresh: () => `${HTTP_API_PREFIX}/auth/refresh`,
         logout: () => `${HTTP_API_PREFIX}/auth/logout`,
@@ -152,6 +153,10 @@ export const HttpApiPaths = {
         blogById: (id: string) => `${HTTP_API_PREFIX}/blogs/${enc(id)}`,
         blogsCreate: () => `${HTTP_API_PREFIX}/blogs`,
         usersStats: () => `${HTTP_API_PREFIX}/users/admin/stats`,
+        createIt: () => `${HTTP_API_PREFIX}/users/admin/create-it`,
+        getItUsers: () => `${HTTP_API_PREFIX}/users/admin/it-users`,
+        deleteItUser: (id: string) => `${HTTP_API_PREFIX}/users/admin/it-users/${enc(id)}`,
+        resetItPassword: (id: string) => `${HTTP_API_PREFIX}/users/admin/it-users/${enc(id)}/password`,
         usersList: (limit: number, offset: number, search?: string, role?: string) =>
             `${HTTP_API_PREFIX}/users/admin/list${httpApiQuery({
                 limit,

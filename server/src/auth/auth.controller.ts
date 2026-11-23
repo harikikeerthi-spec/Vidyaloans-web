@@ -259,6 +259,15 @@ export class AuthController {
   }
 
   /**
+   * Dedicated IT Portal Login with Email and Password
+   * POST /auth/it/login
+   */
+  @Post('it/login')
+  async itLogin(@Body() body: { email: string; password: string }) {
+    return this.authService.itLogin(body.email, body.password);
+  }
+
+  /**
    * Refresh access token using refresh token
    * POST /auth/refresh
    * @body refresh_token: string (required)

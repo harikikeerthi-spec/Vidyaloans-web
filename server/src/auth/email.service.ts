@@ -4034,4 +4034,96 @@ https://www.vidyaloans.in/
       return false;
     }
   }
+
+  async sendItWelcomeEmail(
+    email: string,
+    itName: string,
+    itId: string,
+  ) {
+    const frontendUrl = (process.env.FRONTEND_URL || 'https://www.vidyaloans.in').replace(/\/$/, '');
+    const itLoginUrl = `${frontendUrl}/it/login`;
+    const logoUrl = 'https://vidyaloans.in/images/vidyaloans-logo-transparent.png';
+
+    const mailOptions = {
+      from: this.getFromAddress('VidyaLoans IT Operations'),
+      replyTo: this.getReplyToAddress(),
+      to: email,
+      subject: `🛡️ Welcome ${itName}! You have been granted VidyaLoans IT Access`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Welcome to VidyaLoans IT Dashboard</title>
+        </head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0f172a; margin: 0; padding: 30px 10px; color: #f8fafc;">
+          <div style="max-width: 600px; margin: 0 auto; background-color: #1e293b; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4); border: 1px solid #334155;">
+            <!-- Header Banner -->
+            <div style="background: linear-gradient(135deg, #312e81 0%, #4338ca 50%, #6366f1 100%); padding: 35px 30px; text-align: center;">
+              <div style="margin-bottom: 14px;">
+                <img src="${logoUrl}" alt="VidyaLoans" width="56" height="56" style="display:inline-block;vertical-align:middle;border-radius:12px;background:rgba(255,255,255,0.15);padding:4px;border:1px solid rgba(255,255,255,0.25);" />
+              </div>
+              <span style="display: inline-block; background: rgba(99, 102, 241, 0.3); border: 1px solid #818cf8; color: #e0e7ff; padding: 5px 14px; border-radius: 20px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px;">
+                ⚡ IT OPERATIONS &bull; ACCESS GRANTED
+              </span>
+              <h1 style="color: #ffffff; margin: 0 0 8px 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px;">
+                Welcome, ${itName}!
+              </h1>
+              <p style="color: #c7d2fe; margin: 0; font-size: 14px; font-weight: 500;">
+                Your IT Operations account has been created by the Administrator.
+              </p>
+            </div>
+
+            <!-- Body Content -->
+            <div style="padding: 30px; background-color: #1e293b; color: #cbd5e1;">
+              <p style="font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+                You have been authorized to access the VidyaLoans IT Dashboard to manage support tickets, technical operations, and system content.
+              </p>
+              
+              <div style="background-color: #0f172a; border-radius: 12px; padding: 20px; border: 1px solid #334155; margin-bottom: 25px;">
+                <p style="margin: 0 0 8px 0; font-size: 13px; color: #94a3b8;">
+                  <strong>Registered Email:</strong> <span style="color: #818cf8;">${email}</span>
+                </p>
+                <p style="margin: 0 0 8px 0; font-size: 13px; color: #94a3b8;">
+                  <strong>IT Member ID:</strong> <span style="color: #e2e8f0; font-family: monospace;">${itId}</span>
+                </p>
+                <p style="margin: 0; font-size: 13px; color: #94a3b8;">
+                  <strong>Access Portal:</strong> <a href="${itLoginUrl}" style="color: #818cf8; text-decoration: underline;">${itLoginUrl}</a>
+                </p>
+              </div>
+
+              <div style="text-align: center; margin-bottom: 25px;">
+                <a href="${itLoginUrl}" style="display: inline-block; background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%); color: #ffffff; padding: 14px 32px; border-radius: 10px; font-weight: 700; font-size: 15px; text-decoration: none; box-shadow: 0 4px 14px rgba(79, 70, 229, 0.4);">
+                  Open IT Dashboard Login &rarr;
+                </a>
+              </div>
+
+              <p style="font-size: 13px; color: #64748b; line-height: 1.5; margin: 0; text-align: center;">
+                Use your registered email and administrator-assigned password to sign in securely.
+              </p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+      text: `Welcome ${itName}!\n\nYou have been granted IT access to VidyaLoans.\nIT Member ID: ${itId}\nRegistered Email: ${email}\nLogin URL: ${itLoginUrl}\n\nSign in with your email and password provided by the administrator.`,
+    };
+
+    try {
+      console.log(`[EmailService] Sending IT welcome email to: ${email} (IT ID: ${itId})`);
+      if (this.hasCredentials()) {
+        await this.transporter.sendMail(mailOptions);
+        console.log(`[EmailService] IT welcome email sent successfully to ${email}`);
+        return true;
+      } else {
+        console.log(`[EmailService] EMAIL CREDENTIALS NOT CONFIGURED – IT Welcome Email logged to console:`);
+        console.log(`Target: ${email} | Login Link: ${itLoginUrl}`);
+        return true;
+      }
+    } catch (err: any) {
+      console.error(`[EmailService] Failed to send IT welcome email to ${email}:`, err?.message || err);
+      return false;
+    }
+  }
 }

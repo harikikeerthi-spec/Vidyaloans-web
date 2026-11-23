@@ -170,11 +170,11 @@ export default function DocumentExtractedDetailsModal({
                         </div>
                         <div className="flex-1">
                             <h4 className="text-[13px] font-bold text-emerald-950">
-                                Document Uploaded & Processed Successfully!
+                                {readOnly ? "Verified Document Details" : "Document Uploaded & Processed Successfully!"}
                             </h4>
                             <p className="text-[11px] text-emerald-800/90 font-medium mt-0.5 leading-relaxed">
                                 {readOnly
-                                    ? "These details were automatically extracted and verified from this document."
+                                    ? "These details have been verified and securely locked in your profile."
                                     : "We extracted the following information from your uploaded file. Please review or adjust any details before confirming to sync them with your profile."}
                             </p>
                         </div>
@@ -188,7 +188,12 @@ export default function DocumentExtractedDetailsModal({
                                     <span className="material-symbols-outlined text-[16px] text-purple-600">fact_check</span>
                                     Extracted Fields ({fieldEntries.length})
                                 </span>
-                                {!readOnly && (
+                                {readOnly ? (
+                                    <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+                                        <span className="material-symbols-outlined text-[12px]">lock</span>
+                                        Verified & Locked
+                                    </span>
+                                ) : (
                                     <span className="text-[10px] text-purple-700 font-bold bg-purple-50 px-2 py-0.5 rounded-full border border-purple-100">
                                         ✎ Editable before saving
                                     </span>
@@ -222,16 +227,12 @@ export default function DocumentExtractedDetailsModal({
                                                         {meta.label}
                                                     </label>
                                                 </div>
-                                                {/* {!readOnly && (
-                                                    <span className="text-[10px] text-purple-600 font-bold bg-purple-50 px-1.5 py-0.5 rounded-md border border-purple-100">
-                                                        Editable
-                                                    </span>
-                                                )} */}
                                             </div>
 
                                             {readOnly ? (
-                                                <div className="text-[13px] font-bold text-slate-800 bg-white px-3 py-1.5 rounded-xl border border-slate-100 break-words">
-                                                    {val || "—"}
+                                                <div className="text-[13px] font-bold text-slate-800 bg-white px-3 py-2 rounded-xl border border-slate-100 break-words flex items-center justify-between">
+                                                    <span>{val || "—"}</span>
+                                                    <span className="material-symbols-outlined text-[14px] text-slate-400" title="Locked">lock</span>
                                                 </div>
                                             ) : isMultiline ? (
                                                 <textarea

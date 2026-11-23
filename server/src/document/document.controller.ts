@@ -730,34 +730,6 @@ export class DocumentController {
       } as any;
     }
 
-    // Check local fallback first (exact and fuzzy matching subfolders)
-    const userUploadsDir = path.join(process.cwd(), 'uploads', userId);
-    if (fs.existsSync(userUploadsDir)) {
-      const subdirs = fs.readdirSync(userUploadsDir);
-      const normalizedReq = docType.toLowerCase().replace(/[^a-z0-9]/g, '');
-      const matchedSubdir = subdirs.find((sd) => {
-        const normSd = sd.toLowerCase().replace(/[^a-z0-9]/g, '');
-        return normSd === normalizedReq || normSd.includes(normalizedReq) || normalizedReq.includes(normSd);
-      });
-      if (matchedSubdir) {
-        const targetDir = path.join(userUploadsDir, matchedSubdir);
-        const files = fs.readdirSync(targetDir);
-        if (files.length > 0) {
-          const localFilePath = path.join(targetDir, files[0]);
-          const ext = path.extname(localFilePath).toLowerCase();
-          if (ext === '.pdf') {
-            res.setHeader('Content-Type', 'application/pdf');
-          } else if (ext === '.png') {
-            res.setHeader('Content-Type', 'image/png');
-          } else if (ext === '.jpg' || ext === '.jpeg') {
-            res.setHeader('Content-Type', 'image/jpeg');
-          }
-          res.setHeader('Content-Disposition', `inline; filename="${path.basename(localFilePath)}"`);
-          return res.sendFile(localFilePath);
-        }
-      }
-    }
-
     // DigiLocker virtual record
     if (doc.filePath && doc.filePath.startsWith('in.gov.')) {
       const html = `<!DOCTYPE html><html><head><title>DigiLocker Record - ${doc.docName || doc.docType}</title>
@@ -769,15 +741,17 @@ export class DocumentController {
       return res.send(html);
     }
 
-    // Try fetching file buffer from S3 using doc.filePath, vault, and documents paths
+    // Prioritize AWS S3 — fetch file buffer directly from S3
     const fileExt = doc.filePath ? path.extname(doc.filePath) : '';
     const s3CandidateKeys = Array.from(
       new Set([
         doc.filePath,
         `vault/${userId}/${docType}${fileExt}`,
         `vault/${userId}/${docType}`,
+        `vault/${userId}/${docType}.pdf`,
         `documents/${userId}/${docType}`,
         `documents/${userId}/${docType}${fileExt}`,
+        `documents/${userId}/${docType}.pdf`,
       ]),
     ).filter(Boolean);
 
@@ -792,6 +766,16 @@ export class DocumentController {
       } catch (err: any) {
         console.warn(`[VIEW] S3 lookup notice for key ${s3KeyCandidate}: ${err.message}`);
       }
+    }
+
+    // Try AWS S3 presigned URL redirect
+    for (const s3KeyCandidate of s3CandidateKeys) {
+      try {
+        const presigned = await this.s3Service.getPresignedUrl(s3KeyCandidate, 3600);
+        if (presigned) {
+          return res.redirect(302, presigned);
+        }
+      } catch (_) {}
     }
 
     // Fallback: Render clean PDF document viewer if physical file key does not exist in S3

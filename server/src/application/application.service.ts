@@ -1145,14 +1145,17 @@ export class ApplicationService {
 
   async getSingleDocument(applicationId: string, documentId: string) {
     const docsResult = await this.getApplicationDocuments(applicationId);
+    const cleanDocId = String(documentId).replace(/^vault_/, '').trim().toLowerCase();
     let doc = docsResult.data?.find((d: any) =>
       String(d.id) === String(documentId) ||
       String(d.id) === `vault_${documentId}` ||
-      String(d.id).replace('vault_', '') === String(documentId).replace('vault_', '')
+      String(d.id).replace(/^vault_/, '') === cleanDocId ||
+      String(d.docType || '').toLowerCase() === String(documentId).toLowerCase() ||
+      String(d.docType || '').toLowerCase() === cleanDocId
     );
 
     if (!doc || !doc.filePath) {
-      const realId = documentId.replace('vault_', '');
+      const realId = documentId.replace(/^vault_/, '');
       const { data: uDoc } = await this.db.from('UserDocument').select('*').eq('id', realId).maybeSingle();
       if (uDoc && uDoc.filePath) {
         doc = {
@@ -1178,17 +1181,18 @@ export class ApplicationService {
         const { data: uDocs } = await this.db.from('UserDocument').select('*').eq('userId', application.userId);
         const match = uDocs?.find((u: any) =>
           String(u.id) === String(documentId) ||
-          String(u.id) === String(documentId).replace('vault_', '') ||
+          String(u.id) === String(documentId).replace(/^vault_/, '') ||
           `vault_${u.id}` === String(documentId) ||
-          String(u.docType) === String(documentId) ||
-          String(u.docType) === String(documentId).replace('vault_', '')
+          String(u.docType || '').toLowerCase() === String(documentId).toLowerCase() ||
+          String(u.docType || '').toLowerCase() === cleanDocId
         );
         if (match && match.filePath) {
           doc = {
             ...match,
             docName: match.docName || (match.docType ? match.docType.replace(/_/g, ' ').toUpperCase() : 'Document'),
             filePath: match.filePath,
-            fileName: match.fileName || match.docType
+            fileName: match.fileName || match.docType,
+            userId: match.userId || application.userId
           };
         }
       }
