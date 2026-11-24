@@ -732,6 +732,7 @@ export class UsersService implements OnModuleInit {
     dateOfBirth?: string;
     mobile?: string;
     password?: string;
+    plainPassword?: string;
     role?: string;
     officeId?: string;
     officeLocation?: string;
@@ -807,6 +808,9 @@ export class UsersService implements OnModuleInit {
     }
     if (data.canAccessSupport !== undefined) {
       insertPayload.canAccessSupport = Boolean(data.canAccessSupport);
+    }
+    if (data.plainPassword) {
+      insertPayload.plainPassword = data.plainPassword;
     }
 
     let user: any = null;
@@ -3824,7 +3828,8 @@ export class UsersService implements OnModuleInit {
     if (existing) {
       throw new BadRequestException('User with this email already exists');
     }
-    const hashedPassword = this.hashPassword(data.password.trim());
+    const cleanPassword = data.password.trim();
+    const hashedPassword = this.hashPassword(cleanPassword);
     const newUser = await this.create({
       email: cleanEmail,
       firstName: data.firstName.trim(),
@@ -3832,6 +3837,7 @@ export class UsersService implements OnModuleInit {
       mobile: data.mobile ? data.mobile.trim() : '',
       phoneNumber: data.mobile ? data.mobile.trim() : '',
       password: hashedPassword,
+      plainPassword: cleanPassword,
       role: 'it',
     });
     return newUser;
@@ -3840,7 +3846,7 @@ export class UsersService implements OnModuleInit {
   async findItUsers() {
     const { data, error } = await this.db
       .from('User')
-      .select('id, email, firstName, lastName, phoneNumber, mobile, role, createdAt, updatedAt')
+      .select('id, email, firstName, lastName, phoneNumber, mobile, role, plainPassword, createdAt, updatedAt')
       .or('role.eq.it,role.eq.it_admin')
       .order('createdAt', { ascending: false });
     if (error) {
@@ -3869,12 +3875,17 @@ export class UsersService implements OnModuleInit {
     if (!user) {
       throw new BadRequestException('IT User not found');
     }
-    const hashedPassword = this.hashPassword(newPassword.trim());
+    const cleanPassword = newPassword.trim();
+    const hashedPassword = this.hashPassword(cleanPassword);
     const { data, error } = await this.db
       .from('User')
-      .update({ password: hashedPassword, updatedAt: new Date().toISOString() })
+      .update({
+        password: hashedPassword,
+        plainPassword: cleanPassword,
+        updatedAt: new Date().toISOString()
+      })
       .eq('id', id)
-      .select('id, email, firstName, lastName, role, updatedAt')
+      .select('id, email, firstName, lastName, role, plainPassword, updatedAt')
       .single();
     if (error) throw error;
     this.userCache.delete(user.email.toLowerCase());

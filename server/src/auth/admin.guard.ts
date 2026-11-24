@@ -42,9 +42,10 @@ export class AdminGuard implements CanActivate {
             }
         } else if (request.cookies) {
             token =
-                request.cookies.itAccessToken ||
                 request.cookies.adminAccessToken ||
+                request.cookies.superAdminAccessToken ||
                 request.cookies.staffAccessToken ||
+                request.cookies.itAccessToken ||
                 request.cookies.bankAccessToken ||
                 request.cookies.agentAccessToken ||
                 request.cookies.analystAccessToken ||
@@ -61,9 +62,10 @@ export class AdminGuard implements CanActivate {
         if (!token && request.headers.cookie) {
             const rawCookies = request.headers.cookie.split(';');
             const candidateKeys = [
-                'itAccessToken',
                 'adminAccessToken',
+                'superAdminAccessToken',
                 'staffAccessToken',
+                'itAccessToken',
                 'bankAccessToken',
                 'agentAccessToken',
                 'analystAccessToken',
@@ -95,8 +97,8 @@ export class AdminGuard implements CanActivate {
             throw new UnauthorizedException('No authorization token provided');
         }
 
-        // AdminGuard allows admin, super_admin, and IT portal operational administrators
-        const allowedRoles = ['admin', 'super_admin', 'it'];
+        // AdminGuard allows admin, super_admin, operational staff, and IT administrators
+        const allowedRoles = ['admin', 'super_admin', 'staff_admin', 'staff', 'it', 'it_admin'];
 
         try {
             // Verify JWT token signature and expiry

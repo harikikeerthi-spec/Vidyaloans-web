@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { blogApi, adminApi } from "@/lib/api";
+import { blogApi, adminApi, getToken, tryRefreshAccessToken } from "@/lib/api";
 import Link from "next/link";
 import DynamicBlogEditor from "@/components/DynamicBlogEditor";
 import AdminBlogBuilder from "@/components/AdminBlogBuilder";
@@ -2315,6 +2315,39 @@ export default function ITBlogsPage() {
   const handleSaveBlog = async (publishStatus: boolean = false) => {
     if (!blogTitle.trim()) {
       alert("Please enter a blog title.");
+      return;
+    }
+
+    // Proactively verify or refresh authentication before sending request
+    let currentToken = getToken();
+    if (!currentToken) {
+      currentToken = await tryRefreshAccessToken();
+    }
+    if (!currentToken) {
+      // Safely preserve draft locally in browser storage
+      try {
+        localStorage.setItem(
+          "it_blog_draft_backup",
+          JSON.stringify({
+            title: blogTitle,
+            slug: blogSlug,
+            subtitle: blogSubtitle,
+            category: blogCategory,
+            coverImage,
+            tags: blogTags,
+            blocks,
+            savedAt: new Date().toISOString(),
+          })
+        );
+        setSavedDraftNotice({
+          title: blogTitle || "Current Draft",
+          savedAt: new Date().toLocaleTimeString(),
+        });
+      } catch (_) { }
+
+      alert(
+        "⚠️ Login Session Expired\n\nYour article draft with all content and widgets has been safely saved to your browser storage.\n\nPlease log in again at /it/login (or /staff/login) in a new tab, then return here and click 'Publish' or 'Save Draft' again."
+      );
       return;
     }
 

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, UseGuards, Param, Put, Patch, Delete, Query, Req, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Body, UseGuards, Param, Put, Patch, Delete, Query, Req, BadRequestException, NotFoundException } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { AdminGuard } from '../auth/admin.guard';
 import { SuperAdminGuard } from '../auth/super-admin.guard';
@@ -334,6 +334,19 @@ export class UsersController {
             console.warn('[createItUser] IT welcome email non-blocking failed:', emailErr?.message);
         }
         return { success: true, message: 'IT user created successfully', user: newUser };
+    }
+
+    @UseGuards(AdminGuard)
+    @Get('admin/it-users/:id/password')
+    async getItUserPassword(@Param('id') id: string) {
+        const user = await this.usersService.findById(id);
+        if (!user || (user.role !== 'it' && user.role !== 'it_admin')) {
+            throw new NotFoundException('IT User not found');
+        }
+        return {
+            success: true,
+            password: (user as any).plainPassword || null,
+        };
     }
 
     @UseGuards(AdminGuard)

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, DragEvent, useMemo, useCallback } from "re
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { adminApi, blogApi } from "@/lib/api";
+import { adminApi, blogApi, getToken, tryRefreshAccessToken } from "@/lib/api";
 import { cleanHtmlContent, RichTextBlock, TEXT_COLORS, FONT_SIZES, FONT_FAMILIES, TableData, CURATED_COVERS } from "./DynamicBlogEditor";
 import BlogTableOfContents from "./BlogTableOfContents";
 import { cleanBlogContent, extractHeadingsAndEnhanceHtml } from "@/lib/blogUtils";
@@ -2619,7 +2619,7 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
             return;
         }
 
-        // Backup draft to local storage so work is never lost
+        // Backup draft to local storage immediately so work is never lost
         try {
             localStorage.setItem("it_blog_draft_backup", JSON.stringify({
                 title,
@@ -2633,6 +2633,18 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                 savedAt: new Date().toISOString(),
             }));
         } catch (_) { }
+
+        // Proactively verify or refresh authentication before sending request
+        let currentToken = getToken();
+        if (!currentToken) {
+            currentToken = await tryRefreshAccessToken();
+        }
+        if (!currentToken) {
+            alert(
+                "⚠️ Login Session Expired\n\nYour article draft with all content and SEO settings is safely saved in your browser storage.\n\nPlease log in again at /it/login (or /staff/login) in a new tab, then return here and click Publish again."
+            );
+            return;
+        }
 
         setLoading(true);
         try {
@@ -2706,7 +2718,16 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
             } else {
                 const errMsg = res?.message || res?.error || "Failed to publish blog. Please try again.";
                 const isDbDown = errMsg.toLowerCase().includes("connect") || errMsg.toLowerCase().includes("network") || errMsg.toLowerCase().includes("database") || errMsg.toLowerCase().includes("enotfound");
-                if (isDbDown) {
+                const isAuthError =
+                    errMsg.toLowerCase().includes("token") ||
+                    errMsg.toLowerCase().includes("unauthor") ||
+                    errMsg.toLowerCase().includes("expired") ||
+                    errMsg.toLowerCase().includes("no authorization") ||
+                    (res?.statusCode === 401) ||
+                    (res?.status === 401);
+                if (isAuthError) {
+                    alert("⚠️ Your session has expired. Your draft is safely backed up in browser storage!\n\nPlease log in again at /it/login, then return here and click Publish once more.");
+                } else if (isDbDown) {
                     alert("⚠️ The database server is temporarily unavailable. Your draft has been backed up in your browser — please try publishing again in a few moments.");
                 } else {
                     alert(errMsg);

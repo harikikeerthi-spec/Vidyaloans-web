@@ -12,6 +12,7 @@ interface ITUser {
     phoneNumber: string | null;
     mobile: string | null;
     role: string;
+    plainPassword?: string | null;
     createdAt: string;
     updatedAt?: string;
 }
@@ -32,9 +33,13 @@ export default function AdminITManagement() {
     const [newMobile, setNewMobile] = useState("");
     const [showNewPassword, setShowNewPassword] = useState(false);
 
-    // Modal state for resetting password
-    const [showResetModal, setShowResetModal] = useState(false);
+    // Modal state for viewing & changing password
+    const [showPasswordModal, setShowPasswordModal] = useState(false);
     const [selectedUser, setSelectedUser] = useState<ITUser | null>(null);
+    const [viewPlainPassword, setViewPlainPassword] = useState<string | null>(null);
+    const [showPlainPassword, setShowPlainPassword] = useState(true);
+    const [copiedPassword, setCopiedPassword] = useState(false);
+    const [isChangingPassword, setIsChangingPassword] = useState(false);
     const [resetPassword, setResetPassword] = useState("");
     const [resetLoading, setResetLoading] = useState(false);
     const [resetError, setResetError] = useState("");
@@ -125,12 +130,40 @@ export default function AdminITManagement() {
         }
     };
 
-    const handleOpenResetModal = (user: ITUser) => {
+    const handleOpenPasswordModal = async (user: ITUser) => {
         setSelectedUser(user);
-        setResetPassword(generateRandomPassword());
+        setIsChangingPassword(false);
         setResetError("");
-        setShowResetPassword(true);
-        setShowResetModal(true);
+        setResetPassword(generateRandomPassword());
+        setShowResetPassword(false);
+        setShowPlainPassword(true);
+        setCopiedPassword(false);
+        setShowPasswordModal(true);
+
+        if (user.plainPassword) {
+            setViewPlainPassword(user.plainPassword);
+        } else {
+            try {
+                const res: any = await itApi.getPassword(user.id);
+                if (res && res.success && res.password) {
+                    setViewPlainPassword(res.password);
+                    setItUsers((prev) =>
+                        prev.map((u) => (u.id === user.id ? { ...u, plainPassword: res.password } : u))
+                    );
+                } else {
+                    setViewPlainPassword(null);
+                }
+            } catch {
+                setViewPlainPassword(null);
+            }
+        }
+    };
+
+    const handleCopyPassword = (text: string) => {
+        if (!text) return;
+        navigator.clipboard.writeText(text);
+        setCopiedPassword(true);
+        setTimeout(() => setCopiedPassword(false), 2200);
     };
 
     const handleResetPassword = async (e: React.FormEvent) => {
@@ -143,11 +176,18 @@ export default function AdminITManagement() {
             return;
         }
 
+        const newPwd = resetPassword.trim();
         setResetLoading(true);
         try {
-            const res: any = await itApi.resetPassword(selectedUser.id, resetPassword.trim());
+            const res: any = await itApi.resetPassword(selectedUser.id, newPwd);
             if (res && res.success) {
-                setShowResetModal(false);
+                // Update local list & modal
+                setViewPlainPassword(newPwd);
+                setSelectedUser({ ...selectedUser, plainPassword: newPwd });
+                setItUsers((prev) =>
+                    prev.map((u) => (u.id === selectedUser.id ? { ...u, plainPassword: newPwd } : u))
+                );
+                setIsChangingPassword(false);
                 setSuccessMessage(`Password updated successfully for ${selectedUser.email}.`);
                 setTimeout(() => setSuccessMessage(""), 5000);
             } else {
@@ -356,11 +396,11 @@ export default function AdminITManagement() {
                                         <td className="py-3.5 px-5 text-right">
                                             <div className="inline-flex items-center gap-2">
                                                 <button
-                                                    onClick={() => handleOpenResetModal(user)}
-                                                    className="px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 text-xs font-semibold flex items-center gap-1 transition-all"
-                                                    title="Change or reset password"
+                                                    onClick={() => handleOpenPasswordModal(user)}
+                                                    className="px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-[#6605c7]/5 hover:border-[#6605c7]/30 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-2xs group cursor-pointer"
+                                                    title="View real password or change password"
                                                 >
-                                                    <span className="material-symbols-outlined text-[15px] text-slate-500">key</span>
+                                                    <span className="material-symbols-outlined text-[15px] text-[#6605c7] group-hover:scale-110 transition-transform">key</span>
                                                     <span>Password</span>
                                                 </button>
                                                 <button
@@ -524,88 +564,177 @@ export default function AdminITManagement() {
                 </div>
             )}
 
-            {/* Reset Password Modal */}
-            {showResetModal && selectedUser && (
+            {/* View Real Password & Change Password Modal */}
+            {showPasswordModal && selectedUser && (
                 <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
                     <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 animate-scaleUp">
+                        {/* Header */}
                         <div className="flex items-center justify-between pb-4 border-b border-slate-100">
                             <div className="flex items-center gap-2.5">
-                                <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                                <div className="w-10 h-10 rounded-xl bg-[#6605c7]/10 text-[#6605c7] flex items-center justify-center">
                                     <span className="material-symbols-outlined text-xl">key</span>
                                 </div>
                                 <div>
-                                    <h3 className="text-base font-bold text-slate-900">Reset IT Password</h3>
-                                    <p className="text-xs text-slate-500">{selectedUser.email}</p>
+                                    <h3 className="text-base font-bold text-slate-900">IT Account Credentials</h3>
+                                    <p className="text-xs text-slate-500">{selectedUser.firstName} {selectedUser.lastName || ""} • {selectedUser.email}</p>
                                 </div>
                             </div>
                             <button
-                                onClick={() => setShowResetModal(false)}
-                                className="w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center transition-colors"
+                                onClick={() => setShowPasswordModal(false)}
+                                className="w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center transition-colors cursor-pointer"
                             >
                                 <span className="material-symbols-outlined text-lg">close</span>
                             </button>
                         </div>
 
-                        {resetError && (
-                            <div className="mt-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
-                                <span className="material-symbols-outlined text-sm">error</span>
-                                <span>{resetError}</span>
-                            </div>
-                        )}
-
-                        <form onSubmit={handleResetPassword} className="space-y-4 mt-5">
-                            <div>
-                                <div className="flex items-center justify-between mb-1">
-                                    <label className="block text-xs font-bold text-slate-700">
-                                        New Password <span className="text-rose-500">*</span>
+                        {/* Mode 1: Display Real Password */}
+                        {!isChangingPassword ? (
+                            <div className="mt-5 space-y-5">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                                        Login Password
                                     </label>
-                                    <button
-                                        type="button"
-                                        onClick={() => setResetPassword(generateRandomPassword())}
-                                        className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 transition-colors"
-                                    >
-                                        Generate New
-                                    </button>
-                                </div>
-                                <div className="relative">
-                                    <input
-                                        type={showResetPassword ? "text" : "password"}
-                                        required
-                                        minLength={6}
-                                        value={resetPassword}
-                                        onChange={(e) => setResetPassword(e.target.value)}
-                                        placeholder="Minimum 6 characters"
-                                        className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 font-mono"
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowResetPassword(!showResetPassword)}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                                    >
-                                        <span className="material-symbols-outlined text-base">
-                                            {showResetPassword ? "visibility_off" : "visibility"}
-                                        </span>
-                                    </button>
-                                </div>
-                            </div>
 
-                            <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-100 mt-6">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowResetModal(false)}
-                                    className="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-bold transition-all"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={resetLoading}
-                                    className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-all flex items-center gap-2 disabled:opacity-50"
-                                >
-                                    {resetLoading ? "Updating..." : "Update Password"}
-                                </button>
+                                    {viewPlainPassword ? (
+                                        <div className="flex items-center gap-2">
+                                            <div className="flex-1 px-3.5 py-3 bg-slate-50 border border-slate-200 rounded-xl font-mono text-sm font-bold text-slate-900 flex items-center justify-between shadow-2xs">
+                                                <span className="tracking-wider select-all">
+                                                    {showPlainPassword ? viewPlainPassword : "••••••••••••"}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowPlainPassword(!showPlainPassword)}
+                                                    className="text-slate-400 hover:text-slate-700 transition-colors p-1 cursor-pointer"
+                                                    title={showPlainPassword ? "Hide password" : "Show real password"}
+                                                >
+                                                    <span className="material-symbols-outlined text-lg">
+                                                        {showPlainPassword ? "visibility_off" : "visibility"}
+                                                    </span>
+                                                </button>
+                                            </div>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => handleCopyPassword(viewPlainPassword)}
+                                                className={`px-3 py-3 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                                                    copiedPassword
+                                                        ? "bg-emerald-50 border-emerald-300 text-emerald-700"
+                                                        : "bg-white border-slate-200 hover:bg-slate-50 text-slate-700"
+                                                }`}
+                                                title="Copy password to clipboard"
+                                            >
+                                                <span className="material-symbols-outlined text-base">
+                                                    {copiedPassword ? "check" : "content_copy"}
+                                                </span>
+                                                <span>{copiedPassword ? "Copied!" : "Copy"}</span>
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs">
+                                            <div className="flex items-start gap-2">
+                                                <span className="material-symbols-outlined text-amber-600 text-lg shrink-0 mt-0.5">info</span>
+                                                <div>
+                                                    <p className="font-bold">Legacy Password Recorded</p>
+                                                    <p className="mt-0.5 text-amber-700">
+                                                        This account was created before plaintext password storage was enabled. Click &ldquo;Change Password&rdquo; below to assign a known password that will be visible here.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-150 flex items-center justify-between text-xs text-slate-600">
+                                    <div className="flex items-center gap-2">
+                                        <span className="material-symbols-outlined text-base text-slate-400">login</span>
+                                        <span>Portal Login URL</span>
+                                    </div>
+                                    <span className="font-mono font-bold text-[#6605c7]">/it/login</span>
+                                </div>
+
+                                <div className="pt-4 flex items-center justify-between border-t border-slate-100">
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsChangingPassword(true)}
+                                        className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#6605c7] to-[#8b5cf6] hover:from-[#5504a6] hover:to-[#7c3aed] text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+                                    >
+                                        <span className="material-symbols-outlined text-base">lock_reset</span>
+                                        <span>Change Password</span>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPasswordModal(false)}
+                                        className="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-bold transition-all cursor-pointer"
+                                    >
+                                        Close
+                                    </button>
+                                </div>
                             </div>
-                        </form>
+                        ) : (
+                            /* Mode 2: Change Password Form */
+                            <form onSubmit={handleResetPassword} className="space-y-4 mt-5">
+                                {resetError && (
+                                    <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
+                                        <span className="material-symbols-outlined text-sm">error</span>
+                                        <span>{resetError}</span>
+                                    </div>
+                                )}
+
+                                <div>
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <label className="block text-xs font-bold text-slate-700">
+                                            New Password <span className="text-rose-500">*</span>
+                                        </label>
+                                        <button
+                                            type="button"
+                                            onClick={() => setResetPassword(generateRandomPassword())}
+                                            className="text-[11px] font-bold text-[#6605c7] hover:underline transition-colors flex items-center gap-1 cursor-pointer"
+                                        >
+                                            <span className="material-symbols-outlined text-[13px]">autorenew</span>
+                                            Generate New
+                                        </button>
+                                    </div>
+                                    <div className="relative">
+                                        <input
+                                            type={showResetPassword ? "text" : "password"}
+                                            required
+                                            minLength={6}
+                                            value={resetPassword}
+                                            onChange={(e) => setResetPassword(e.target.value)}
+                                            placeholder="Minimum 6 characters"
+                                            className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-[#6605c7] focus:ring-1 focus:ring-[#6605c7] font-mono"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowResetPassword(!showResetPassword)}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                                        >
+                                            <span className="material-symbols-outlined text-base">
+                                                {showResetPassword ? "visibility_off" : "visibility"}
+                                            </span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="pt-4 flex items-center justify-end gap-2.5 border-t border-slate-100 mt-6">
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsChangingPassword(false)}
+                                        className="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-bold transition-all cursor-pointer"
+                                    >
+                                        Back
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={resetLoading}
+                                        className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#6605c7] to-[#8b5cf6] hover:from-[#5504a6] hover:to-[#7c3aed] text-white text-xs font-bold transition-all flex items-center gap-2 shadow-sm disabled:opacity-50 cursor-pointer"
+                                    >
+                                        {resetLoading ? "Updating..." : "Save New Password"}
+                                    </button>
+                                </div>
+                            </form>
+                        )}
                     </div>
                 </div>
             )}
