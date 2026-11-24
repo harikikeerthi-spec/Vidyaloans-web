@@ -328,8 +328,7 @@ export default function UserDirectoryPage() {
                                                     <button
                                                         onClick={() => {
                                                             const uid = item.id || item._id;
-                                                            const email = item.email;
-                                                            window.open(`/staff/users/${uid}${email ? `?email=${email}` : ''}`, '_blank');
+                                                            window.open(`/staff/users/${uid}`, '_blank');
                                                         }}
                                                         className="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50 flex items-center justify-center transition-all shadow-sm"
                                                         title="View Profile"

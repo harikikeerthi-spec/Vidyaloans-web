@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Param, Delete, Req, Res, Inject, forwardRef, UseGuards, UnauthorizedException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, Query, Delete, Req, Res, Inject, forwardRef, UseGuards, UnauthorizedException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';

@@ -8,20 +8,12 @@
   <meta name="supported-color-schemes" content="light dark">
   <title>Your verification code is {{OTP}}</title>
   
-  <!-- Schema.org JSON-LD Email Markup for Gmail OTP & Action Cards -->
+  <!-- Schema.org JSON-LD Email Markup for Gmail OTP -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
     "@type": "EmailMessage",
-    "description": "Your verification code is {{OTP}}",
-    "potentialAction": {
-      "@type": "ConfirmAction",
-      "name": "Copy code: {{OTP}}",
-      "handler": {
-        "@type": "HttpActionHandler",
-        "url": "https://www.vidyaloans.in"
-      }
-    }
+    "description": "Your verification code is {{OTP}}"
   }
   </script>
 

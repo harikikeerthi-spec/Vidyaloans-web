@@ -1049,15 +1049,15 @@ export default function BankSettings() {
                         </h4>
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <span className="text-xs font-black text-[#6605c7] block">98.5%</span>
+                                <span className="text-xs font-black text-[#6605c7] block">—</span>
                                 <span className="text-[9px] text-gray-400 font-bold block uppercase tracking-wide">SLA Met</span>
                             </div>
                             <div>
-                                <span className="text-xs font-black text-[#6605c7] block">142</span>
+                                <span className="text-xs font-black text-[#6605c7] block">—</span>
                                 <span className="text-[9px] text-gray-400 font-bold block uppercase tracking-wide">Files Audited</span>
                             </div>
                             <div>
-                                <span className="text-xs font-black text-[#6605c7] block">1.8 Days</span>
+                                <span className="text-xs font-black text-[#6605c7] block">—</span>
                                 <span className="text-[9px] text-gray-400 font-bold block uppercase tracking-wide">Avg Turnaround</span>
                             </div>
                             <div>

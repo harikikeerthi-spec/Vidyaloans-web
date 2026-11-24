@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { randomUUID } from 'crypto';
@@ -180,6 +180,146 @@ export class BankService {
       success: true,
       message: 'File logged successfully with LAN number',
       application: updatedApp
+    };
+  }
+
+  /**
+   * Scoped update for Bank Portal (CG-04 / S-03 / DEF-021)
+   * Ensures bank user can only update applications assigned to their session bank,
+   * updates allowed bank fields, keeps BankSubmission in sync, and records status history.
+   */
+  async bankScopedUpdateApplication(
+    applicationId: string,
+    payload: any,
+    sessionBankName: string,
+    bankUser: any
+  ): Promise<any> {
+    const { data: application, error: fetchError } = await this.db
+      .from('LoanApplication')
+      .select('*')
+      .eq('id', applicationId)
+      .single();
+
+    if (fetchError || !application) {
+      throw new NotFoundException(`Application ${applicationId} not found`);
+    }
+
+    // Verify session scoping (CG-04 / S-03)
+    const appBank = (application.bank || '').toLowerCase().trim();
+    const targetBank = (application.targetBank || '').toLowerCase().trim();
+    const sessionBankLower = (sessionBankName || '').toLowerCase().trim();
+
+    // Check if matching session bank directly or via BankSubmission
+    const { data: bankSub } = await this.db
+      .from('BankSubmission')
+      .select('*')
+      .eq('applicationId', applicationId)
+      .maybeSingle();
+
+    const subBank = (bankSub?.bankName || bankSub?.bankId || '').toLowerCase().trim();
+
+    const isAuthorized =
+      !sessionBankLower ||
+      appBank.includes(sessionBankLower) ||
+      sessionBankLower.includes(appBank) ||
+      targetBank.includes(sessionBankLower) ||
+      sessionBankLower.includes(targetBank) ||
+      subBank.includes(sessionBankLower) ||
+      sessionBankLower.includes(subBank) ||
+      ['staff', 'staff_admin', 'admin', 'super_admin'].includes((bankUser?.role || '').toLowerCase());
+
+    if (!isAuthorized) {
+      throw new ForbiddenException(
+        `Access denied: Application is assigned to another bank partner.`
+      );
+    }
+
+    const updateData: any = {
+      updatedAt: new Date().toISOString(),
+    };
+
+    // Allowable banker update fields
+    if (payload.lanNumber !== undefined) {
+      updateData.lanNumber = String(payload.lanNumber).trim();
+      updateData.lanEnteredAt = payload.lanEnteredAt || new Date().toISOString();
+    }
+    if (payload.status !== undefined) {
+      updateData.status = payload.status;
+      if (payload.progress !== undefined) {
+        updateData.progress = payload.progress;
+      }
+      if (payload.stage !== undefined) {
+        updateData.stage = payload.stage;
+      }
+    }
+    if (payload.stage !== undefined && !updateData.stage) {
+      updateData.stage = payload.stage;
+    }
+    if (payload.remarks !== undefined) {
+      updateData.remarks = payload.remarks;
+    }
+    if (payload.priority !== undefined) {
+      updateData.priority = payload.priority;
+    }
+    if (payload.tags !== undefined) {
+      updateData.tags = payload.tags;
+    }
+    if (payload.assignedOfficer !== undefined) {
+      updateData.assignedOfficer = payload.assignedOfficer;
+    }
+
+    // Update LoanApplication
+    const { data: updatedApp, error: updateError } = await this.db
+      .from('LoanApplication')
+      .update(updateData)
+      .eq('id', applicationId)
+      .select()
+      .single();
+
+    if (updateError) {
+      throw updateError;
+    }
+
+    // Sync to BankSubmission if exists
+    if (bankSub || updateData.lanNumber || updateData.status) {
+      const subUpdate: any = {
+        updatedAt: new Date().toISOString(),
+      };
+      if (updateData.lanNumber) {
+        subUpdate.lanNumber = updateData.lanNumber;
+        subUpdate.lanEnteredAt = updateData.lanEnteredAt;
+      }
+      if (payload.status) {
+        subUpdate.workflowStatus = payload.status.toUpperCase();
+      }
+      if (payload.stage) {
+        subUpdate.currentStage = payload.stage.toUpperCase();
+      }
+      if (bankSub) {
+        await this.db
+          .from('BankSubmission')
+          .update(subUpdate)
+          .eq('id', bankSub.id);
+      }
+    }
+
+    // Log history
+    try {
+      const authorName = `${bankUser?.firstName || ''} ${bankUser?.lastName || ''}`.trim() || bankUser?.email || 'Banker';
+      await this.db.from('ApplicationNote').insert({
+        applicationId,
+        authorId: bankUser?.id || 'bank-user',
+        authorName,
+        content: `Bank update (${sessionBankName || 'Bank'}): ${Object.keys(updateData).filter(k => k !== 'updatedAt').join(', ')}`,
+        type: 'bank_action',
+        isInternal: true,
+      });
+    } catch (_) {}
+
+    return {
+      success: true,
+      message: 'Application updated successfully by bank partner',
+      data: updatedApp,
     };
   }
 
@@ -1390,15 +1530,57 @@ export class BankService {
   async getSlaTrackingMetrics(bankName: string): Promise<any> {
     console.log(`[BankService] Querying SLA track logs for bank: ${bankName}`);
 
-    // Returns simulated average response benchmarks matching blueprint Section 3
+    // Check if real completed applications exist
+    let query = this.db
+      .from('LoanApplication')
+      .select('status, createdAt, submittedAt, approvedAt, rejectedAt, disbursedAt, sanctionedAt');
+
+    if (bankName && bankName !== 'All Partner Banks') {
+      query = query.or(`assignedBank.ilike.%${bankName}%,preferredBank.ilike.%${bankName}%`);
+    }
+
+    const { data: apps } = await query;
+    const decided = (apps || []).filter((a: any) => 
+      ['approved', 'sanctioned', 'disbursed', 'rejected'].includes(a.status) &&
+      (a.approvedAt || a.rejectedAt || a.disbursedAt || a.sanctionedAt)
+    );
+
+    if (!decided || decided.length === 0) {
+      return {
+        success: true,
+        bank: bankName || 'All Partner Banks',
+        promisedTAT: '5.0 Days',
+        averageVerificationTAT: '—',
+        averageSanctionTAT: '—',
+        averageDisbursementTAT: '—',
+        slaComplianceRate: '—',
+        activeBreachesCount: 0
+      };
+    }
+
+    const totalDays = decided.reduce((acc: number, app: any) => {
+      const start = new Date(app.submittedAt || app.createdAt).getTime();
+      const end = new Date(app.approvedAt || app.rejectedAt || app.disbursedAt || app.sanctionedAt).getTime();
+      const diffDays = Math.max(0, (end - start) / (1000 * 60 * 60 * 24));
+      return acc + diffDays;
+    }, 0);
+
+    const avgTAT = (totalDays / decided.length).toFixed(1);
+    const metCount = decided.filter((app: any) => {
+      const start = new Date(app.submittedAt || app.createdAt).getTime();
+      const end = new Date(app.approvedAt || app.rejectedAt || app.disbursedAt || app.sanctionedAt).getTime();
+      return ((end - start) / (1000 * 60 * 60 * 24)) <= 5.0;
+    }).length;
+    const compliance = Math.round((metCount / decided.length) * 100);
+
     return {
       success: true,
       bank: bankName || 'All Partner Banks',
       promisedTAT: '5.0 Days',
-      averageVerificationTAT: '2.4 Days',
-      averageSanctionTAT: '4.2 Days',
-      averageDisbursementTAT: '1.8 Days',
-      slaComplianceRate: '96.4%',
+      averageVerificationTAT: `${avgTAT} Days`,
+      averageSanctionTAT: `${avgTAT} Days`,
+      averageDisbursementTAT: `${avgTAT} Days`,
+      slaComplianceRate: `${compliance}%`,
       activeBreachesCount: 0
     };
   }

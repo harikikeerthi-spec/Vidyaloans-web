@@ -23,7 +23,7 @@ function SupportChatContent() {
     const isBankChat = Boolean(cleanBankName && !userId);
 
     const [resolvedUser, setResolvedUser] = useState<any>(null);
-    const [loading, setLoading] = useState(isStudentChat && !!userId && !phone);
+    const [loading, setLoading] = useState(isStudentChat && !!userId);
 
     useEffect(() => {
         if (!isStudentChat) {
@@ -32,7 +32,7 @@ function SupportChatContent() {
             return;
         }
 
-        if (userId && !phone) {
+        if (userId) {
             setLoading(true);
             adminApi.getUserById(userId)
                 .then((res: any) => {

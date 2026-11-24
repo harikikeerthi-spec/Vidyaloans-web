@@ -124,6 +124,40 @@ export class MailService implements OnModuleInit {
 
   async onModuleInit() {
     await this.ensureDraftEmailsTable();
+    await this.ensureSentEmailsTable();
+  }
+
+  async ensureSentEmailsTable() {
+    try {
+      await this.prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "sent_emails" (
+          "id" TEXT PRIMARY KEY,
+          "userId" TEXT,
+          "senderEmail" TEXT NOT NULL,
+          "senderName" TEXT,
+          "to" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+          "cc" TEXT[] DEFAULT ARRAY[]::TEXT[],
+          "bcc" TEXT[] DEFAULT ARRAY[]::TEXT[],
+          "subject" TEXT NOT NULL,
+          "text" TEXT,
+          "html" TEXT,
+          "replyTo" TEXT,
+          "attachments" JSONB,
+          "priority" TEXT DEFAULT 'normal',
+          "requestReadReceipt" BOOLEAN DEFAULT false,
+          "messageId" TEXT,
+          "sentAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS "sent_emails_senderEmail_idx" ON "sent_emails"("senderEmail");
+        CREATE INDEX IF NOT EXISTS "sent_emails_userId_idx" ON "sent_emails"("userId");
+        CREATE INDEX IF NOT EXISTS "sent_emails_sentAt_idx" ON "sent_emails"("sentAt");
+      `);
+      this.logger.log('[MailService] Initialized "sent_emails" table in PostgreSQL database.');
+    } catch (err: any) {
+      this.logger.warn(`[MailService] Notice verifying sent_emails table: ${err.message}`);
+    }
   }
 
   async ensureDraftEmailsTable() {
@@ -766,6 +800,7 @@ export class MailService implements OnModuleInit {
       // Dynamic Sent Count from Database
       let sent = 0;
       try {
+        await this.ensureSentEmailsTable();
         const mailbox = (currentUser?.mailboxEmail || (currentUser?.email?.endsWith('@vidyaloans.in') ? currentUser.email : null) || currentUser?.email || '').trim().toLowerCase();
         let sentRows: any[] = [];
         if (mailbox) {
@@ -1448,20 +1483,29 @@ export class MailService implements OnModuleInit {
 
     try {
       let rows: any[] = [];
-      if (cleanTarget) {
-        rows = await this.prisma.$queryRawUnsafe<any[]>(
-          `SELECT * FROM "sent_emails"
-           WHERE LOWER("senderEmail") = LOWER($1)
-           ORDER BY "sentAt" DESC
-           LIMIT 100`,
-          cleanTarget,
-        );
-      } else if (isAdmin) {
-        rows = await this.prisma.$queryRawUnsafe<any[]>(
-          `SELECT * FROM "sent_emails"
-           ORDER BY "sentAt" DESC
-           LIMIT 100`,
-        );
+      try {
+        if (cleanTarget) {
+          rows = await this.prisma.$queryRawUnsafe<any[]>(
+            `SELECT * FROM "sent_emails"
+             WHERE LOWER("senderEmail") = LOWER($1)
+             ORDER BY "sentAt" DESC
+             LIMIT 100`,
+            cleanTarget,
+          );
+        } else if (isAdmin) {
+          rows = await this.prisma.$queryRawUnsafe<any[]>(
+            `SELECT * FROM "sent_emails"
+             ORDER BY "sentAt" DESC
+             LIMIT 100`,
+          );
+        }
+      } catch (queryErr: any) {
+        if (queryErr.message?.includes('sent_emails') || queryErr.code === '42P01') {
+          await this.ensureSentEmailsTable();
+          rows = [];
+        } else {
+          throw queryErr;
+        }
       }
 
       return rows.map((r) => ({

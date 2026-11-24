@@ -13,6 +13,7 @@ import {
 import type { Response } from 'express';
 import { BankWorkflowService } from './bank-workflow.service';
 import { StaffGuard } from '../auth/staff.guard';
+import { sanitizeErrorMessage } from '../common/sanitize-error';
 
 @Controller('bank/workflow')
 @UseGuards(StaffGuard)
@@ -46,7 +47,7 @@ export class BankWorkflowController {
     } catch (error: any) {
       return res.status(error.status || 400).json({
         success: false,
-        message: error.message,
+        message: sanitizeErrorMessage(error.message),
       });
     }
   }
@@ -78,7 +79,7 @@ export class BankWorkflowController {
     } catch (error: any) {
       return res.status(error.status || 400).json({
         success: false,
-        message: error.message,
+        message: sanitizeErrorMessage(error.message),
       });
     }
   }
@@ -108,7 +109,7 @@ export class BankWorkflowController {
     } catch (error: any) {
       return res.status(error.status || 400).json({
         success: false,
-        message: error.message,
+        message: sanitizeErrorMessage(error.message),
       });
     }
   }
@@ -136,7 +137,7 @@ export class BankWorkflowController {
     } catch (error: any) {
       return res.status(error.status || 400).json({
         success: false,
-        message: error.message,
+        message: sanitizeErrorMessage(error.message),
       });
     }
   }
@@ -172,7 +173,7 @@ export class BankWorkflowController {
     } catch (error: any) {
       return res.status(error.status || 400).json({
         success: false,
-        message: error.message,
+        message: sanitizeErrorMessage(error.message),
       });
     }
   }
@@ -204,7 +205,7 @@ export class BankWorkflowController {
     } catch (error: any) {
       return res.status(error.status || 400).json({
         success: false,
-        message: error.message,
+        message: sanitizeErrorMessage(error.message),
       });
     }
   }
@@ -246,7 +247,7 @@ export class BankWorkflowController {
     } catch (error: any) {
       return res.status(error.status || 400).json({
         success: false,
-        message: error.message,
+        message: sanitizeErrorMessage(error.message),
       });
     }
   }
@@ -288,7 +289,7 @@ export class BankWorkflowController {
     } catch (error: any) {
       return res.status(error.status || 400).json({
         success: false,
-        message: error.message,
+        message: sanitizeErrorMessage(error.message),
       });
     }
   }
@@ -328,7 +329,7 @@ export class BankWorkflowController {
     } catch (error: any) {
       return res.status(error.status || 400).json({
         success: false,
-        message: error.message,
+        message: sanitizeErrorMessage(error.message),
       });
     }
   }
@@ -469,7 +470,7 @@ export class BankWorkflowController {
     } catch (error: any) {
       return res.status(error.status || 400).json({
         success: false,
-        message: error.message,
+        message: sanitizeErrorMessage(error.message),
       });
     }
   }
@@ -497,7 +498,7 @@ export class BankWorkflowController {
     } catch (error: any) {
       return res.status(error.status || 400).json({
         success: false,
-        message: error.message,
+        message: sanitizeErrorMessage(error.message),
       });
     }
   }
@@ -523,7 +524,7 @@ export class BankWorkflowController {
     } catch (error: any) {
       return res.status(error.status || 400).json({
         success: false,
-        message: error.message,
+        message: sanitizeErrorMessage(error.message),
       });
     }
   }
@@ -555,7 +556,7 @@ export class BankWorkflowController {
     } catch (error: any) {
       return res.status(error.status || 400).json({
         success: false,
-        message: error.message,
+        message: sanitizeErrorMessage(error.message),
       });
     }
   }
@@ -581,7 +582,7 @@ export class BankWorkflowController {
     } catch (error: any) {
       return res.status(error.status || 400).json({
         success: false,
-        message: error.message,
+        message: sanitizeErrorMessage(error.message),
       });
     }
   }
@@ -603,7 +604,7 @@ export class BankWorkflowController {
     } catch (error: any) {
       return res.status(error.status || 400).json({
         success: false,
-        message: error.message,
+        message: sanitizeErrorMessage(error.message),
       });
     }
   }
@@ -633,7 +634,7 @@ export class BankWorkflowController {
     } catch (error: any) {
       return res.status(error.status || 400).json({
         success: false,
-        message: error.message,
+        message: sanitizeErrorMessage(error.message),
       });
     }
   }
@@ -653,7 +654,7 @@ export class BankWorkflowController {
     } catch (error: any) {
       return res.status(error.status || 400).json({
         success: false,
-        message: error.message,
+        message: sanitizeErrorMessage(error.message),
       });
     }
   }
@@ -683,7 +684,7 @@ export class BankWorkflowController {
     } catch (error: any) {
       return res.status(error.status || 400).json({
         success: false,
-        message: error.message,
+        message: sanitizeErrorMessage(error.message),
       });
     }
   }
@@ -709,7 +710,7 @@ export class BankWorkflowController {
     } catch (error: any) {
       return res.status(error.status || 400).json({
         success: false,
-        message: error.message,
+        message: sanitizeErrorMessage(error.message),
       });
     }
   }
@@ -729,7 +730,7 @@ export class BankWorkflowController {
     } catch (error: any) {
       return res.status(error.status || 400).json({
         success: false,
-        message: error.message,
+        message: sanitizeErrorMessage(error.message),
       });
     }
   }
@@ -755,7 +756,7 @@ export class BankWorkflowController {
     } catch (error: any) {
       return res.status(error.status || 400).json({
         success: false,
-        message: error.message,
+        message: sanitizeErrorMessage(error.message),
       });
     }
   }
@@ -775,7 +776,7 @@ export class BankWorkflowController {
     } catch (error: any) {
       return res.status(error.status || 400).json({
         success: false,
-        message: error.message,
+        message: sanitizeErrorMessage(error.message),
       });
     }
   }
@@ -800,7 +801,7 @@ export class BankWorkflowController {
     } catch (error: any) {
       return res.status(error.status || 400).json({
         success: false,
-        message: error.message,
+        message: sanitizeErrorMessage(error.message),
       });
     }
   }
@@ -824,7 +825,7 @@ export class BankWorkflowController {
     } catch (error: any) {
       return res.status(error.status || 400).json({
         success: false,
-        message: error.message,
+        message: sanitizeErrorMessage(error.message),
       });
     }
   }
@@ -854,7 +855,7 @@ export class BankWorkflowController {
     } catch (error: any) {
       return res.status(error.status || 400).json({
         success: false,
-        message: error.message,
+        message: sanitizeErrorMessage(error.message),
       });
     }
   }
@@ -884,7 +885,7 @@ export class BankWorkflowController {
     } catch (error: any) {
       return res.status(error.status || 400).json({
         success: false,
-        message: error.message,
+        message: sanitizeErrorMessage(error.message),
       });
     }
   }
@@ -914,7 +915,7 @@ export class BankWorkflowController {
     } catch (error: any) {
       return res.status(error.status || 400).json({
         success: false,
-        message: error.message,
+        message: sanitizeErrorMessage(error.message),
       });
     }
   }
@@ -944,7 +945,7 @@ export class BankWorkflowController {
     } catch (error: any) {
       return res.status(error.status || 400).json({
         success: false,
-        message: error.message,
+        message: sanitizeErrorMessage(error.message),
       });
     }
   }
@@ -964,7 +965,7 @@ export class BankWorkflowController {
     } catch (error: any) {
       return res.status(error.status || 400).json({
         success: false,
-        message: error.message,
+        message: sanitizeErrorMessage(error.message),
       });
     }
   }
@@ -1000,7 +1001,7 @@ export class BankWorkflowController {
     } catch (error: any) {
       return res.status(error.status || 400).json({
         success: false,
-        message: error.message,
+        message: sanitizeErrorMessage(error.message),
       });
     }
   }
@@ -1025,7 +1026,7 @@ export class BankWorkflowController {
     } catch (error: any) {
       return res.status(error.status || 400).json({
         success: false,
-        message: error.message,
+        message: sanitizeErrorMessage(error.message),
       });
     }
   }
@@ -1049,7 +1050,7 @@ export class BankWorkflowController {
     } catch (error: any) {
       return res.status(error.status || 400).json({
         success: false,
-        message: error.message,
+        message: sanitizeErrorMessage(error.message),
       });
     }
   }
@@ -1084,7 +1085,7 @@ export class BankWorkflowController {
     } catch (error: any) {
       return res.status(error.status || 400).json({
         success: false,
-        message: error.message,
+        message: sanitizeErrorMessage(error.message),
       });
     }
   }
@@ -1104,7 +1105,7 @@ export class BankWorkflowController {
     } catch (error: any) {
       return res.status(error.status || 400).json({
         success: false,
-        message: error.message,
+        message: sanitizeErrorMessage(error.message),
       });
     }
   }
@@ -1136,7 +1137,7 @@ export class BankWorkflowController {
     } catch (error: any) {
       return res.status(error.status || 400).json({
         success: false,
-        message: error.message,
+        message: sanitizeErrorMessage(error.message),
       });
     }
   }
@@ -1157,7 +1158,7 @@ export class BankWorkflowController {
     } catch (error: any) {
       return res.status(error.status || 400).json({
         success: false,
-        message: error.message,
+        message: sanitizeErrorMessage(error.message),
       });
     }
   }
@@ -1177,7 +1178,7 @@ export class BankWorkflowController {
     } catch (error: any) {
       return res.status(error.status || 400).json({
         success: false,
-        message: error.message,
+        message: sanitizeErrorMessage(error.message),
       });
     }
   }
@@ -1194,7 +1195,7 @@ export class BankWorkflowController {
     } catch (error: any) {
       return res.status(error.status || 400).json({
         success: false,
-        message: error.message,
+        message: sanitizeErrorMessage(error.message),
       });
     }
   }
@@ -1214,7 +1215,7 @@ export class BankWorkflowController {
     } catch (error: any) {
       return res.status(error.status || 400).json({
         success: false,
-        message: error.message,
+        message: sanitizeErrorMessage(error.message),
       });
     }
   }
@@ -1242,7 +1243,7 @@ export class BankWorkflowController {
     } catch (error: any) {
       return res.status(error.status || 400).json({
         success: false,
-        message: error.message,
+        message: sanitizeErrorMessage(error.message),
       });
     }
   }

@@ -4,7 +4,7 @@ import { useUserDossier } from "../DossierContext";
 import { useState, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { documentApi, staffProfileApi } from "@/lib/api";
-import { getProfileDocumentRequirements, getDocumentRequirementName } from "@/lib/documentRequirements";
+import { getProfileDocumentRequirements, getDocumentRequirementName, isDocTypeMatchingRequirement } from "@/lib/documentRequirements";
 import JSZip from "jszip";
 
 export const DOCUMENT_OPTIONS_GROUPED = [
@@ -372,7 +372,11 @@ export default function DocumentsTab() {
         if (!file) return;
         setDirectUploadingDocId(docType);
         try {
-            await documentApi.upload(userId, docType, file);
+            const res = await documentApi.upload(userId, docType, file) as any;
+            if (res?.isDuplicate || res?.warning || res?.data?.isDuplicate) {
+                const dupLabel = res?.duplicateOfLabel || res?.data?.duplicateOfLabel || "another slot";
+                alert(`⚠️ Warning: Duplicate File Detected!\n\nThis file is byte-identical (same SHA-256 hash) to the file in "${dupLabel}".\n\nA "duplicate of ${dupLabel}" warning badge has been flagged for reviewer attention.`);
+            }
             await refreshData();
         } catch (err: any) {
             console.error("Direct upload error:", err);
@@ -425,7 +429,7 @@ export default function DocumentsTab() {
             const reqNorm = normalizedType(req.type);
             const matchingDoc = userDocuments.find(d => {
                 const docNorm = normalizedType(d.docType || d.type || "");
-                return docNorm === reqNorm || docNorm === req.type.toLowerCase();
+                return docNorm === reqNorm || docNorm === req.type.toLowerCase() || isDocTypeMatchingRequirement(d.docType || d.type || "", req.type, d.docName);
             });
 
             if (matchingDoc) {
@@ -465,6 +469,39 @@ export default function DocumentsTab() {
 
         return result;
     }, [userData, userDocuments]);
+
+    // Cross-slot duplicate content detector: identifies byte-identical files (same SHA-256) across slots
+    const duplicateMap = useMemo(() => {
+        const map: Record<string, { duplicateOf: string; duplicateOfLabel: string; hash?: string }> = {};
+        const uploadedDocs = allDocuments.filter((d: any) => Boolean(d.uploaded || d.filePath));
+
+        for (let i = 0; i < uploadedDocs.length; i++) {
+            const docA = uploadedDocs[i];
+            const hashA = docA.fileHash || docA.verificationMetadata?.fileHash;
+
+            for (let j = 0; j < uploadedDocs.length; j++) {
+                if (i === j) continue;
+                const docB = uploadedDocs[j];
+                const hashB = docB.fileHash || docB.verificationMetadata?.fileHash;
+
+                const isHashMatch = Boolean(hashA && hashB && String(hashA).toLowerCase() === String(hashB).toLowerCase());
+                const isServerFlagMatch = (docA.duplicateOf === docB.docType) ||
+                    (docA.verificationMetadata?.duplicateOf === docB.docType) ||
+                    (docA.isDuplicate && docA.duplicateOf === docB.docType);
+
+                if ((isHashMatch || isServerFlagMatch) && (docA.docType || "").toLowerCase() !== (docB.docType || "").toLowerCase()) {
+                    const labelB = getDocLabel(docB, userData);
+                    map[docA.docType] = {
+                        duplicateOf: docB.docType,
+                        duplicateOfLabel: labelB,
+                        hash: hashA || hashB,
+                    };
+                    break;
+                }
+            }
+        }
+        return map;
+    }, [allDocuments, userData]);
 
     // Filter logic
     const filtered = useMemo(() => {
@@ -560,6 +597,11 @@ export default function DocumentsTab() {
                 await documentApi.accept(docId).catch(() => {});
             }
 
+            if (res?.isDuplicate || res?.warning || res?.data?.isDuplicate) {
+                const dupLabel = res?.duplicateOfLabel || res?.data?.duplicateOfLabel || "another slot";
+                alert(`⚠️ Warning: Duplicate File Detected!\n\nThis file is byte-identical (same SHA-256 hash) to the file in "${dupLabel}".\n\nA "duplicate of ${dupLabel}" warning badge has been flagged for reviewer attention.`);
+            }
+
             // Log activity in DB
             const studentName = userData ? `${userData.firstName || ''} ${userData.lastName || ''}`.trim() : 'student';
             staffProfileApi.logActivity({
@@ -585,6 +627,15 @@ export default function DocumentsTab() {
     const handleApprove = async (doc: any) => {
         const docId = doc.id || doc._id;
         if (!docId) return;
+
+        const dup = duplicateMap[doc.docType];
+        if (dup) {
+            const confirmed = window.confirm(
+                `⚠️ Warning: Duplicate Document Detected!\n\nThis document is byte-identical (same SHA-256 hash) to the file in "${dup.duplicateOfLabel}".\n\nBoth slots hold the exact same document file.\n\nAre you sure you want to approve and verify this duplicate file?`
+            );
+            if (!confirmed) return;
+        }
+
         setActionLoading(docId);
         try {
             await documentApi.accept(docId);
@@ -868,11 +919,20 @@ export default function DocumentsTab() {
                                                 {docLabel}
                                             </h4>
                                             {/* Single Status Badge below document name */}
-                                            <div>
+                                            <div className="flex items-center gap-1.5 flex-wrap">
                                                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold border ${className}`}>
                                                     <span className={`material-symbols-outlined text-[13px] ${iconColor}`}>{icon}</span>
                                                     {label}
                                                 </span>
+                                                {duplicateMap[doc.docType] && (
+                                                    <span
+                                                        className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs"
+                                                        title={`Duplicate document: Identical file (same SHA-256) to "${duplicateMap[doc.docType].duplicateOfLabel}"`}
+                                                    >
+                                                        <span className="material-symbols-outlined text-[13px] text-amber-700">warning</span>
+                                                        <span>duplicate of {duplicateMap[doc.docType].duplicateOfLabel}</span>
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
 
@@ -940,6 +1000,14 @@ export default function DocumentsTab() {
                                     ) : (
                                         /* Uploaded Document Info Card */
                                         <div className="space-y-2.5">
+                                            {duplicateMap[doc.docType] && (
+                                                <div className="p-2.5 bg-amber-50 rounded-lg border border-amber-200 flex items-start gap-2">
+                                                    <span className="material-symbols-outlined text-amber-600 text-[18px] shrink-0 mt-0.5">warning</span>
+                                                    <div className="text-xs text-amber-900 leading-snug">
+                                                        <strong className="font-bold">Duplicate File:</strong> Same content (SHA-256) as <strong>{duplicateMap[doc.docType].duplicateOfLabel}</strong>. Both slots hold byte-identical files.
+                                                    </div>
+                                                </div>
+                                            )}
                                             <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 flex items-center justify-between gap-3">
                                                 <div className="flex items-center gap-2.5 min-w-0">
                                                     <div className="w-8 h-8 rounded-lg bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-600 shrink-0">
@@ -1095,11 +1163,20 @@ export default function DocumentsTab() {
                                 </div>
 
                                 {/* Middle: Status Badge */}
-                                <div className="flex items-center gap-2 shrink-0 md:w-36">
+                                <div className="flex flex-col gap-1 shrink-0 md:w-56">
                                     <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold border ${className}`}>
                                         <span className={`material-symbols-outlined text-[14px] ${iconColor}`}>{icon}</span>
                                         {label}
                                     </span>
+                                    {duplicateMap[doc.docType] && (
+                                        <span
+                                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 w-fit"
+                                            title={`Duplicate document: Identical file (same SHA-256) to "${duplicateMap[doc.docType].duplicateOfLabel}"`}
+                                        >
+                                            <span className="material-symbols-outlined text-[12px] text-amber-700">warning</span>
+                                            <span>duplicate of {duplicateMap[doc.docType].duplicateOfLabel}</span>
+                                        </span>
+                                    )}
                                 </div>
 
                                 {/* Right: Outlined Upload or Actions */}

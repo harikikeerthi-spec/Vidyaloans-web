@@ -7,7 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useSiteSettings } from "@/contexts/SiteSettingsContext";
 import { authApi, chatApi, documentApi } from "@/lib/api";
 import Navbar from "@/components/Navbar";
-import ProgressTracker from "@/components/ProgressTracker";
+import ProgressTracker, { getDynamicProgress, getStageKeyForApp, isApplicationDocumentsComplete } from "@/components/ProgressTracker";
 import UserActivityLog from "@/components/User/UserActivityLog";
 import UserProfileView from "@/components/User/UserProfileView";
 import { io } from "socket.io-client";
@@ -81,42 +81,15 @@ const STAGES_LIST = Object.entries(STAGES_CONFIG)
     .sort(([, a], [, b]) => a.order - b.order)
     .map(([key, value]) => ({ id: key, ...value }));
 
-function ApplicationProgressCollapse({ app }: { app: any }) {
+function ApplicationProgressCollapse({ app, documents = [], profile }: { app: any; documents?: any[]; profile?: any }) {
     const isRejected = app.status?.toLowerCase() === 'rejected' || app.status?.toLowerCase() === 'cancelled';
     const statusLower = app.status?.toLowerCase() || '';
     const isSanctionedOrApproved = ['sanctioned', 'approved', 'sanction', 'conditional_sanction', 'partial_sanction', 'counter_offer', 'sanction_issued'].includes(statusLower) || app.stage === 'sanction' || app.stage === 'sanctioned';
     const isDisbursedOrClosed = ['disbursed', 'disbursement_confirmed', 'closed'].includes(statusLower) || app.stage === 'disbursement' || app.stage === 'disbursed';
 
-    const currentStageKey = (() => {
-        if (!app) return null;
-        if (app.status?.toLowerCase() === 'rejected' || app.status?.toLowerCase() === 'cancelled') return null;
-
-        let stageKey = app.stage;
-        const status = app.status?.toLowerCase() || '';
-        if (['sanctioned', 'approved', 'sanction', 'conditional_sanction', 'partial_sanction', 'counter_offer', 'sanction_issued'].includes(status) || stageKey === 'sanction' || stageKey === 'sanctioned') return 'sanction';
-        if (['disbursed', 'disbursement_confirmed', 'closed'].includes(status) || stageKey === 'disbursement' || stageKey === 'disbursed') return 'disbursement';
-        if (['file_logged', 'under_bank_review', 'bank_review', 'processing'].includes(status) || stageKey === 'bank_review') return 'bank_review';
-        if (['submitted_to_bank', 'routed_multiparty', 'credit_check', 'query_raised'].includes(status) || stageKey === 'credit_check') return 'credit_check';
-        if (['submit_to_bank', 'bank_submission'].includes(status) || stageKey === 'submit_to_bank') return 'submit_to_bank';
-        if (status === 'submitted' || status === 'application_submitted' || stageKey === 'application_submitted') return 'application_submitted';
-        if (status.includes('document') || status.includes('verification') || stageKey === 'document_verification') return 'document_verification';
-
-        if (!stageKey || !STAGES_CONFIG[stageKey]) {
-            if (app.progress >= 100) return 'disbursement';
-            if (app.progress >= 95) return 'sanction';
-            if (app.progress >= 90) return 'bank_review';
-            if (app.progress >= 75) return 'credit_check';
-            if (app.progress >= 50) return 'submit_to_bank';
-            if (app.progress >= 40) return 'document_verification';
-            if (app.progress >= 25) return 'application_submitted';
-
-            return 'application_created';
-        }
-        return stageKey;
-    })();
-
+    const currentProgress = getDynamicProgress(app, documents, profile);
+    const currentStageKey = isRejected ? null : getStageKeyForApp(app, currentProgress, documents, profile);
     const currentStage = currentStageKey ? STAGES_CONFIG[currentStageKey] : null;
-    const currentProgress = getDynamicProgress(app, [], null);
 
     const maxCompletedOrder = isDisbursedOrClosed
         ? 8
@@ -286,40 +259,6 @@ function ApplicationProgressCollapse({ app }: { app: any }) {
     );
 }
 
-const getDynamicProgress = (app: any, documents: any[] = [], profile?: any) => {
-    if (!app) return 10;
-    const s = String(app.status || '').toLowerCase();
-    const stg = String(app.stage || '').toLowerCase();
-    if (['disbursed', 'closed', 'disbursement_confirmed'].includes(s) || stg === 'disbursement') return 100;
-    if (['sanctioned', 'approved', 'sanction', 'conditional_sanction', 'partial_sanction', 'counter_offer'].includes(s) || stg === 'sanction') return 95;
-    if (['file_logged', 'under_bank_review', 'bank_review', 'processing'].includes(s) || stg === 'bank_review') return 90;
-    if (['submitted_to_bank', 'routed_multiparty', 'credit_check', 'query_raised'].includes(s) || stg === 'credit_check') return 75;
-    if (['submit_to_bank', 'bank_submission'].includes(s) || stg === 'submit_to_bank') return 50;
-    if (['staff_verified', 'verification', 'documents_verified', 'document_verification'].includes(s) || stg === 'document_verification') return 50;
-
-    let baseProgress = typeof app.progress === 'number' && app.progress > 0 ? app.progress : 10;
-    if (['docs_received', 'docs_uploaded', 'under_review'].includes(s)) baseProgress = Math.max(baseProgress, 40);
-    if (['submitted', 'application_submitted'].includes(s)) baseProgress = Math.max(baseProgress, 25);
-
-    if (documents && documents.length > 0) {
-        const uploadedCount = documents.filter(d => d.uploaded === true || d.status === 'uploaded' || d.status === 'verified').length;
-        if (uploadedCount > 0) {
-            let requiredCount = 3;
-            try {
-                if (profile) {
-                    const reqs = getProfileDocumentRequirements(profile);
-                    if (reqs && reqs.length > 0) requiredCount = reqs.length;
-                }
-            } catch { }
-
-            const isAllDocsUploaded = uploadedCount >= requiredCount;
-            const docProgress = isAllDocsUploaded ? 50 : Math.min(50, 25 + Math.round((uploadedCount / Math.max(requiredCount, 1)) * 25));
-            return Math.max(baseProgress, docProgress);
-        }
-    }
-
-    return baseProgress;
-};
 
 const getBankDisplayName = (bank?: string) => {
     if (!bank) return "";
@@ -783,17 +722,7 @@ export default function DashboardPage() {
             }
         };
 
-        const requiredDocs = getProfileDocumentRequirements(mergedProfile);
-        if (requiredDocs.length === 0) return true;
-
-        // 2. Get the uploaded docTypes (or those synced/uploaded)
-        const uploadedDocTypes = new Set(
-            (data.documents || [])
-                .map(d => d.docType)
-        );
-
-        // 3. Verify all requiredDocs types are in uploadedDocTypes
-        return requiredDocs.every(req => uploadedDocTypes.has(req.type));
+        return isApplicationDocumentsComplete(data.documents || [], mergedProfile);
     })();
     const profileCompleteness = (() => {
         let count = 0;
@@ -979,7 +908,7 @@ export default function DashboardPage() {
                                 <span className="material-symbols-outlined text-sm">lock</span> Locked
                             </div>
                         </div>
-                    ) : isApproved ? (
+                    ) : allDocsUploaded ? (
                         <div className="bg-emerald-50/20 rounded-3xl p-6 border border-emerald-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-all">
                             <div>
                                 <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600 mb-5 border border-emerald-100">
@@ -1350,7 +1279,7 @@ export default function DashboardPage() {
 
                                                     {/* Expanded Stepper timeline */}
                                                     {expandedApps[app.id] && (
-                                                        <ApplicationProgressCollapse app={app} />
+                                                        <ApplicationProgressCollapse app={app} documents={data.documents || []} profile={data.profile || user} />
                                                     )}
                                                 </div>
                                             );
@@ -1537,7 +1466,7 @@ export default function DashboardPage() {
 
                                             {/* Expanded Stepper timeline */}
                                             {expandedApps[app.id] && (
-                                                <ApplicationProgressCollapse app={app} />
+                                                <ApplicationProgressCollapse app={app} documents={data.documents || []} profile={data.profile || user} />
                                             )}
                                         </div>
                                     );

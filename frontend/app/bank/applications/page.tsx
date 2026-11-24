@@ -421,8 +421,8 @@ export default function ApplicationManagement() {
                 remarks: mergedRemarks
             };
             const appId = selectedApp.id || selectedApp._id;
-            const res: any = await adminApi.updateApplication(appId, payload);
-            if (res && res.success) {
+            const res: any = await bankApi.updateApplication(appId, payload);
+            if (res && res.success !== false) {
                 setShowLanModal(false);
                 setLanNumber("");
                 setConfirmingLog(false);
@@ -443,10 +443,12 @@ export default function ApplicationManagement() {
                 } else if (fullPageAppId || fullPageApp) {
                     loadFullPageDossier(fullPageAppId || fullPageApp?.id, updatedApp);
                 }
+            } else {
+                alert(res?.message || "Failed to log file with LAN. Please try again.");
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error("Error logging file:", err);
-            alert("Failed to log file");
+            alert(err?.message || "Failed to log file");
         }
     };
 
@@ -597,8 +599,8 @@ export default function ApplicationManagement() {
         if (currentTags.includes(tag.trim())) return;
         const updated = [...currentTags, tag.trim()].join(",");
         try {
-            const res: any = await adminApi.updateApplication(selectedApp.id, { tags: updated });
-            if (res && res.success) {
+            const res: any = await bankApi.updateApplication(selectedApp.id, { tags: updated });
+            if (res && res.success !== false) {
                 setSelectedApp({ ...selectedApp, tags: updated });
                 handleRefresh();
             }
@@ -614,8 +616,8 @@ export default function ApplicationManagement() {
             : [];
         const updated = currentTags.filter((t: string) => t !== tagToRemove).join(",");
         try {
-            const res: any = await adminApi.updateApplication(selectedApp.id, { tags: updated });
-            if (res && res.success) {
+            const res: any = await bankApi.updateApplication(selectedApp.id, { tags: updated });
+            if (res && res.success !== false) {
                 setSelectedApp({ ...selectedApp, tags: updated });
                 handleRefresh();
             }
@@ -652,8 +654,8 @@ export default function ApplicationManagement() {
                 ? `${selectedApp.remarks}\n[Bank Note - ${format(new Date(), 'MMM dd, HH:mm')}]: ${newRemark.trim()}`
                 : `[Bank Note - ${format(new Date(), 'MMM dd, HH:mm')}]: ${newRemark.trim()}`;
 
-            const res: any = await adminApi.updateApplication(selectedApp.id, { remarks: mergedRemarks });
-            if (res && res.success) {
+            const res: any = await bankApi.updateApplication(selectedApp.id, { remarks: mergedRemarks });
+            if (res && res.success !== false) {
                 setNewRemark("");
                 // Refresh list & drawer
                 handleRefresh();

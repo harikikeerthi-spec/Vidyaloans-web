@@ -45,6 +45,9 @@ export class AdminGuard implements CanActivate {
                 request.cookies.itAccessToken ||
                 request.cookies.adminAccessToken ||
                 request.cookies.staffAccessToken ||
+                request.cookies.bankAccessToken ||
+                request.cookies.agentAccessToken ||
+                request.cookies.analystAccessToken ||
                 request.cookies.accessToken ||
                 request.cookies.token ||
                 request.cookies.jwt ||
@@ -57,7 +60,18 @@ export class AdminGuard implements CanActivate {
 
         if (!token && request.headers.cookie) {
             const rawCookies = request.headers.cookie.split(';');
-            const candidateKeys = ['itAccessToken', 'adminAccessToken', 'staffAccessToken', 'accessToken', 'token', 'jwt', 'auth_token'];
+            const candidateKeys = [
+                'itAccessToken',
+                'adminAccessToken',
+                'staffAccessToken',
+                'bankAccessToken',
+                'agentAccessToken',
+                'analystAccessToken',
+                'accessToken',
+                'token',
+                'jwt',
+                'auth_token',
+            ];
             for (const c of rawCookies) {
                 const eqIdx = c.indexOf('=');
                 if (eqIdx !== -1) {

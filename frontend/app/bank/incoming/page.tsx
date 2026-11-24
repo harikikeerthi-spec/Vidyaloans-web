@@ -335,15 +335,17 @@ export default function IncomingQueuePage() {
                 remarks: mergedRemarks
             };
             const appId = selectedApp.id || selectedApp._id;
-            const res: any = await adminApi.updateApplication(appId, payload);
-            if (res && res.success) {
+            const res: any = await bankApi.updateApplication(appId, payload);
+            if (res && res.success !== false) {
                 setShowLogModal(false);
                 setSelectedApp(null);
                 fetchApplications(currentBankId);
+            } else {
+                alert(res?.message || "Failed to log file with LAN. Please try again.");
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error("Error logging application file:", err);
-            alert("Failed to log file. Try again.");
+            alert(err?.message || "Failed to log file. Try again.");
         } finally {
             setSavingLog(false);
             setConfirmingLog(false);

@@ -9,7 +9,7 @@ import DigilockerConsentModal from "@/components/DigilockerConsentModal";
 import DocumentExtractedDetailsModal from "@/components/DocumentExtractedDetailsModal";
 import AlertModal from "@/components/AlertModal";
 import Swal from "sweetalert2";
-import { getDocumentRequirementName, getProfileDocumentRequirements } from "@/lib/documentRequirements";
+import { getDocumentRequirementName, getProfileDocumentRequirements, isDocTypeMatchingRequirement } from "@/lib/documentRequirements";
 
 export default function DocumentVaultPage() {
     const { user, refreshUser } = useAuth();
@@ -486,12 +486,15 @@ export default function DocumentVaultPage() {
         if (t.includes("passport")) return "travel_explore";
         if (t.includes("aadhar") || t.includes("national_id")) return "fingerprint";
         if (t.includes("pan")) return "credit_card";
+        if (t.includes("photo")) return "photo_camera";
         if (t.includes("marksheet") || t.includes("transcript") || t.includes("degree")) return "school";
-        if (t.includes("test") || t.includes("score")) return "analytics";
-        if (t.includes("offer") || t.includes("letter") || t.includes("cv") || t.includes("resume")) return "description";
-        if (t.includes("salary") || t.includes("slip")) return "payments";
-        if (t.includes("bank") || t.includes("statement")) return "account_balance";
-        if (t.includes("itr") || t.includes("tax")) return "receipt_long";
+        if (t.includes("admission") || t.includes("offer") || t.includes("acceptance")) return "assignment_turned_in";
+        if (t.includes("cost") || t.includes("fee") || t.includes("tuition")) return "request_quote";
+        if (t.includes("test") || t.includes("score") || t.includes("ielts") || t.includes("gre") || t.includes("toefl")) return "analytics";
+        if (t.includes("letter") || t.includes("cv") || t.includes("resume")) return "description";
+        if (t.includes("salary") || t.includes("slip") || t.includes("income")) return "payments";
+        if (t.includes("bank") || t.includes("statement") || t.includes("passbook")) return "account_balance";
+        if (t.includes("itr") || t.includes("tax") || t.includes("form_16") || t.includes("form16")) return "receipt_long";
         if (t.includes("business") || t.includes("license") || t.includes("udyam")) return "store";
         if (t.includes("balance") || t.includes("sheet") || t.includes("monitoring")) return "monitoring";
         if (t.includes("bill") || t.includes("electricity")) return "receipt_long";
@@ -856,16 +859,30 @@ export default function DocumentVaultPage() {
         }
 
         // Pre-upload check: Detect if the same file is already uploaded under ANOTHER document slot
+        let incomingFileHash: string | null = null;
+        try {
+            if (typeof crypto !== "undefined" && crypto.subtle) {
+                const arrayBuf = await file.arrayBuffer();
+                const hashBuf = await crypto.subtle.digest("SHA-256", arrayBuf);
+                incomingFileHash = Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, "0")).join("");
+            }
+        } catch { }
+
         const duplicateSlotDoc = docs.find(
             d => d.docType.toLowerCase() !== docType.toLowerCase() &&
                 (d.uploaded === true || d.status === 'uploaded' || d.status === 'verified') &&
-                d.fileName && d.fileName.toLowerCase() === file.name.toLowerCase()
+                ((d.fileName && d.fileName.toLowerCase() === file.name.toLowerCase()) ||
+                 (incomingFileHash && (d.fileHash === incomingFileHash || d.verificationMetadata?.fileHash === incomingFileHash)))
         );
         if (duplicateSlotDoc) {
             const slotTitle = duplicateSlotDoc.docName || duplicateSlotDoc.verificationMetadata?.docName || getDocumentRequirementName(duplicateSlotDoc.docType, duplicateSlotDoc.docType, activeProfile);
+            const isContentMatch = incomingFileHash && (duplicateSlotDoc.fileHash === incomingFileHash || duplicateSlotDoc.verificationMetadata?.fileHash === incomingFileHash);
+            const msg = isContentMatch
+                ? `Duplicate File Content Detected: This exact file (same SHA-256 hash) is already uploaded under "${slotTitle}". Please select and upload the correct document for ${docName || docType.replace(/_/g, ' ').toUpperCase()}.`
+                : `The file "${file.name}" is already uploaded under "${slotTitle}". Please select the correct document file for ${docName || docType.replace(/_/g, ' ').toUpperCase()}.`;
             showAlert(
                 "Duplicate Document Selected",
-                `The file "${file.name}" is already uploaded under "${slotTitle}". Please select the correct document file for ${docName || docType.replace(/_/g, ' ').toUpperCase()}.`,
+                msg,
                 "warning"
             );
             e.target.value = "";
@@ -982,6 +999,14 @@ export default function DocumentVaultPage() {
 
             const result = await response.json();
             console.log("Upload successful:", result);
+
+            if (result.isDuplicate || result.warning) {
+                showAlert(
+                    "Duplicate Document Warning",
+                    result.warning || `Warning: This file has identical content (same SHA-256 hash) to the file in "${result.duplicateOfLabel || 'another slot'}". Reviewers will see a duplicate warning badge.`,
+                    "warning"
+                );
+            }
 
             await loadDocs(true);
 
@@ -1528,7 +1553,7 @@ export default function DocumentVaultPage() {
     const staffRequestedDocs = docs
         .filter((doc) =>
             doc?.docType &&
-            !allRequiredDocs.some((req) => req.type === doc.docType) &&
+            !allRequiredDocs.some((req) => isDocTypeMatchingRequirement(doc.docType, req.type, doc.docName || doc.verificationMetadata?.docName)) &&
             !doc.docType.startsWith('student_other_') && !doc.docType.startsWith('other_student_') &&
             !doc.docType.startsWith('coapplicant_other_') && !doc.docType.startsWith('other_coapplicant_') &&
             !doc.docType.startsWith('parent_other_') && !doc.docType.startsWith('other_parent_')
@@ -1542,35 +1567,16 @@ export default function DocumentVaultPage() {
     const uploadedCount = docs.filter(d => d.uploaded).length;
 
     const findDocForRequirement = (reqType: string) => {
-        const direct = docs.find(d => d.docType === reqType);
-        if (direct && direct.uploaded) return direct;
+        // Direct match with uploaded file
+        const direct = docs.find(d => d.docType === reqType && d.uploaded);
+        if (direct) return direct;
 
-        const rel = String(activeProfile?.coApplicant?.relation || coappRelation || '').toLowerCase().trim();
-        const fatherName = String(activeProfile?.family?.fatherName || '').toLowerCase().trim();
-        const motherName = String(activeProfile?.family?.motherName || '').toLowerCase().trim();
-        const coappName = String(activeProfile?.coApplicant?.name || '').toLowerCase().trim();
+        // Smart alias match with uploaded file
+        const aliasMatch = docs.find(d => d.uploaded && isDocTypeMatchingRequirement(d.docType, reqType, d.docName || d.verificationMetadata?.docName));
+        if (aliasMatch) return aliasMatch;
 
-        const isFatherCoapp = rel === 'father' || (fatherName && coappName && fatherName === coappName);
-        const isMotherCoapp = rel === 'mother' || (motherName && coappName && motherName === coappName);
-
-        if (isFatherCoapp) {
-            if (reqType === 'father_aadhar' || reqType === 'coapplicant_aadhar') {
-                return docs.find(d => d.docType === 'father_aadhar' || d.docType === 'father_aadhaar' || d.docType === 'coapplicant_aadhar' || d.docType === 'coapplicant_aadhaar') || direct;
-            }
-            if (reqType === 'father_pan' || reqType === 'coapplicant_pan') {
-                return docs.find(d => d.docType === 'father_pan' || d.docType === 'coapplicant_pan') || direct;
-            }
-        }
-        if (isMotherCoapp) {
-            if (reqType === 'mother_aadhar' || reqType === 'coapplicant_aadhar') {
-                return docs.find(d => d.docType === 'mother_aadhar' || d.docType === 'mother_aadhaar' || d.docType === 'coapplicant_aadhar' || d.docType === 'coapplicant_aadhaar') || direct;
-            }
-            if (reqType === 'mother_pan' || reqType === 'coapplicant_pan') {
-                return docs.find(d => d.docType === 'mother_pan' || d.docType === 'coapplicant_pan') || direct;
-            }
-        }
-
-        return direct;
+        // Pending or requirement placeholder fallback
+        return docs.find(d => d.docType === reqType) || docs.find(d => isDocTypeMatchingRequirement(d.docType, reqType, d.docName || d.verificationMetadata?.docName));
     };
 
     const renderDocGroup = (title: string, icon: string, docList: any[], onAddOther?: () => void) => {

@@ -180,7 +180,7 @@ export default function AnalyticsReports() {
         });
 
         const totalCases = metCount + breachesCount;
-        const complianceRate = totalCases > 0 ? Math.round((metCount / totalCases) * 100) : 92;
+        const complianceRate = totalCases > 0 ? Math.round((metCount / totalCases) * 100) : null;
 
         const decided = applications.filter(app => (app.status === "approved" || app.status === "disbursed" || app.status === "rejected") && (app.approvedAt || app.rejectedAt || app.disbursedAt));
         const totalDays = decided.reduce((acc, app) => {
@@ -189,7 +189,7 @@ export default function AnalyticsReports() {
             const diff = differenceInDays(end, start);
             return acc + (diff >= 0 ? diff : 0);
         }, 0);
-        const avgTAT = decided.length > 0 ? parseFloat((totalDays / decided.length).toFixed(1)) : 4.2;
+        const avgTAT = decided.length > 0 ? parseFloat((totalDays / decided.length).toFixed(1)) : null;
 
         return {
             complianceRate,
@@ -197,6 +197,13 @@ export default function AnalyticsReports() {
             breachesCount: breachList.length,
             breachList
         };
+    }, [applications]);
+
+    const avgYield = useMemo(() => {
+        const sanctioned = applications.filter(a => (a.status === "approved" || a.status === "disbursed" || a.status === "sanctioned") && (a.interestRate || a.roi));
+        if (sanctioned.length === 0) return null;
+        const totalRate = sanctioned.reduce((acc, a) => acc + Number(a.interestRate || a.roi || 0), 0);
+        return (totalRate / sanctioned.length).toFixed(2);
     }, [applications]);
 
     // Charts Configuration
@@ -339,10 +346,10 @@ export default function AnalyticsReports() {
                                 <div className="glass-card bg-white p-6 rounded-[2.5rem] border-[#6605c7]/10 flex flex-col justify-between shadow-sm">
                                     <div>
                                         <span className="text-[8px] font-black uppercase tracking-widest text-gray-400">Average Yield</span>
-                                        <h3 className="text-2xl font-black text-[#6605c7] mt-1">10.25% ROI</h3>
+                                        <h3 className="text-2xl font-black text-[#6605c7] mt-1">{avgYield ? `${avgYield}% ROI` : "—"}</h3>
                                     </div>
                                     <div className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mt-4">
-                                        Weighted average allocation spread
+                                        {avgYield ? "Weighted average allocation spread" : "No sanctioned files"}
                                     </div>
                                 </div>
                             </div>
@@ -471,26 +478,30 @@ export default function AnalyticsReports() {
                                 <div className="glass-card bg-white p-6 rounded-[2.5rem] border-[#6605c7]/10 flex flex-col justify-between shadow-sm">
                                     <div>
                                         <span className="text-[8px] font-black uppercase tracking-widest text-gray-400 font-display">Compliance Rate %</span>
-                                        <h3 className="text-3xl font-black text-[#6605c7] mt-1">{slaStats.complianceRate}%</h3>
+                                        <h3 className="text-3xl font-black text-[#6605c7] mt-1">
+                                            {slaStats.complianceRate !== null ? `${slaStats.complianceRate}%` : "—"}
+                                        </h3>
                                         <p className="text-[10px] text-gray-400 mt-1 uppercase tracking-wider leading-relaxed">
                                             Caseload decisions finalized within target 5.0 days limit.
                                         </p>
                                     </div>
                                     <div className="w-full bg-purple-100 h-2 rounded-full mt-4 overflow-hidden">
-                                        <div className="bg-[#6605c7] h-full rounded-full" style={{ width: `${slaStats.complianceRate}%` }} />
+                                        <div className="bg-[#6605c7] h-full rounded-full" style={{ width: `${slaStats.complianceRate ?? 0}%` }} />
                                     </div>
                                 </div>
 
                                 <div className="glass-card bg-white p-6 rounded-[2.5rem] border-[#6605c7]/10 flex flex-col justify-between shadow-sm">
                                     <div>
                                         <span className="text-[8px] font-black uppercase tracking-widest text-gray-400">Moving Average TAT</span>
-                                        <h3 className="text-3xl font-black text-emerald-500 mt-1">{slaStats.avgTAT} Days</h3>
+                                        <h3 className="text-3xl font-black text-emerald-500 mt-1">
+                                            {slaStats.avgTAT !== null ? `${slaStats.avgTAT} Days` : "—"}
+                                        </h3>
                                         <p className="text-[10px] text-gray-400 mt-1 uppercase tracking-wider leading-relaxed">
                                             Average turnaround interval across overall decided cases.
                                         </p>
                                     </div>
                                     <div className="w-full bg-emerald-100 h-2 rounded-full mt-4 overflow-hidden">
-                                        <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${(slaStats.avgTAT / 5) * 100}%` }} />
+                                        <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${slaStats.avgTAT ? Math.min(100, (slaStats.avgTAT / 5) * 100) : 0}%` }} />
                                     </div>
                                 </div>
 

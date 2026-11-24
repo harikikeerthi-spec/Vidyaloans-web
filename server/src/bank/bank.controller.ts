@@ -339,6 +339,20 @@ export class BankController {
     return this.bankService.getFileDetail(id);
   }
 
+  /**
+   * Scoped Bank Portal Application Update (CG-04 / S-03 / DEF-021)
+   * PUT /api/bank/applications/:id
+   */
+  @Put('applications/:id')
+  async bankUpdateApplication(
+    @Param('id') id: string,
+    @Body() body: any,
+    @Request() req: any
+  ) {
+    const sessionBank = this.resolveBankName(req);
+    return this.bankService.bankScopedUpdateApplication(id, body, sessionBank, req.user);
+  }
+
   @Get('lookup/:lan')
   async lookupByLan(@Param('lan') lan: string) {
     return this.bankService.lookupByLan(lan);

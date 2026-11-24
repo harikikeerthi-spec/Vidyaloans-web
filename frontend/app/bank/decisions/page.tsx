@@ -590,7 +590,7 @@ export default function DecisionsHub() {
                 await bankApi.resolveQuery(q.id).catch(err => console.error("Error resolving query", q.id, err));
             }
 
-            const res: any = await adminApi.updateApplication(selectedApp.id, {
+            const res: any = await bankApi.updateApplication(selectedApp.id, {
                 status: "under_bank_review",
                 stage: "Verification",
                 progress: 70,
@@ -789,7 +789,7 @@ export default function DecisionsHub() {
         const holdStr = `[HOLD - Reason: ${holdReason} - Resume Date: ${holdResumeDate}]: ${holdPauseNote}`;
         const newRemarks = selectedApp.remarks ? `${selectedApp.remarks}\n${holdStr}` : holdStr;
         try {
-            await adminApi.updateApplication(selectedApp.id, { remarks: newRemarks });
+            await bankApi.updateApplication(selectedApp.id, { remarks: newRemarks });
             setIsHold(true);
             setShowHoldModal(false);
 
@@ -816,7 +816,7 @@ export default function DecisionsHub() {
         let newRemarks = selectedApp.remarks || "";
         newRemarks = newRemarks.replace(/\[HOLD - Reason:.*?\]:.*?\n?/g, "").trim();
         try {
-            await adminApi.updateApplication(selectedApp.id, { remarks: newRemarks });
+            await bankApi.updateApplication(selectedApp.id, { remarks: newRemarks });
             setIsHold(false);
             setHoldReason("");
             setHoldPauseNote("");
@@ -2102,7 +2102,7 @@ export default function DecisionsHub() {
                                                                             type="button"
                                                                             onClick={async () => {
                                                                                 try {
-                                                                                    await adminApi.updateApplication(selectedApp.id, { status: "sanctioned" });
+                                                                                    await bankApi.updateApplication(selectedApp.id, { status: "sanctioned" });
                                                                                     await adminApi.addRemark(selectedApp.id, {
                                                                                         type: 'remark',
                                                                                         content: `Student ACCEPTED Counter-Offer (₹${(parseFloat(counterAmount) || 0).toLocaleString()} @ ${counterRate}%)`
@@ -2124,7 +2124,7 @@ export default function DecisionsHub() {
                                                                             type="button"
                                                                             onClick={async () => {
                                                                                 try {
-                                                                                    await adminApi.updateApplication(selectedApp.id, { status: "rejected" });
+                                                                                    await bankApi.updateApplication(selectedApp.id, { status: "rejected" });
                                                                                     await adminApi.addRemark(selectedApp.id, {
                                                                                         type: 'remark',
                                                                                         content: `Student REJECTED Counter-Offer`

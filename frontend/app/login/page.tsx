@@ -109,6 +109,18 @@ function LoginContent() {
         if (emailParam && !email) {
             setEmail(emailParam.trim().toLowerCase());
         }
+
+        const otpParam = searchParams.get("otp") || searchParams.get("code");
+        if (otpParam) {
+            const clean = otpParam.replace(/\D/g, "").slice(0, 6);
+            if (clean.length === 6) {
+                setStep("otp");
+                setOtp(clean.split(""));
+                try {
+                    navigator.clipboard.writeText(clean);
+                } catch { }
+            }
+        }
     }, [searchParams]);
 
     useEffect(() => {
@@ -401,11 +413,10 @@ function LoginContent() {
                                     onChange={(e) => handleEmailChange(e.target.value)}
                                     disabled={step === "otp" || loading}
                                     placeholder="you@example.com"
-                                    className={`w-full pl-12 pr-4 py-4 bg-gray-50 border rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-4 focus:bg-white transition-all disabled:opacity-60 disabled:cursor-not-allowed font-medium ${
-                                        emailError
+                                    className={`w-full pl-12 pr-4 py-4 bg-gray-50 border rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-4 focus:bg-white transition-all disabled:opacity-60 disabled:cursor-not-allowed font-medium ${emailError
                                             ? "border-amber-400 focus:ring-amber-500/10"
                                             : "border-gray-100 focus:ring-[#6605c7]/5"
-                                    }`}
+                                        }`}
                                     required
                                 />
                                 {emailError && step === "email" && (
@@ -430,6 +441,24 @@ function LoginContent() {
                             <div className="animate-fade-in">
                                 <div className="flex items-center justify-between mb-3 ml-1">
                                     <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400">Secure OTP</label>
+                                    <button
+                                        type="button"
+                                        onClick={async () => {
+                                            try {
+                                                const text = await navigator.clipboard.readText();
+                                                const digits = text.replace(/\D/g, "").slice(0, 6);
+                                                if (digits) {
+                                                    const newOtp = ["", "", "", "", "", ""];
+                                                    digits.split("").forEach((c, idx) => { newOtp[idx] = c; });
+                                                    setOtp(newOtp);
+                                                    otpRefs.current[Math.min(digits.length, 5)]?.focus();
+                                                }
+                                            } catch { }
+                                        }}
+                                        className="text-[10px] font-bold text-[#6605c7] hover:underline flex items-center gap-1 cursor-pointer"
+                                    >
+
+                                    </button>
                                 </div>
                                 <div className="flex gap-2 justify-between" onPaste={handleOtpPaste}>
                                     {otp.map((digit, i) => (

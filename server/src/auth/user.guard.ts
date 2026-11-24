@@ -39,6 +39,7 @@ export class UserGuard implements CanActivate {
             }
         } else if (request.cookies) {
             token =
+                request.cookies.bankAccessToken ||
                 request.cookies.itAccessToken ||
                 request.cookies.accessToken ||
                 request.cookies.token ||
@@ -50,7 +51,7 @@ export class UserGuard implements CanActivate {
             const rawCookies = request.headers.cookie.split(';');
             for (const c of rawCookies) {
                 const [k, v] = c.trim().split('=');
-                if (['itAccessToken', 'accessToken', 'token', 'staffAccessToken', 'adminAccessToken'].includes(k)) {
+                if (['bankAccessToken', 'itAccessToken', 'accessToken', 'token', 'staffAccessToken', 'adminAccessToken'].includes(k)) {
                     token = decodeURIComponent(v || '');
                     break;
                 }

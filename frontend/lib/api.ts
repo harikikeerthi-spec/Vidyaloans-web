@@ -2216,6 +2216,7 @@ export const assignmentApi = {
 };
 
 export const bankApi = {
+    updateApplication: (id: string, data: any) => apiFetch(`/api/bank/applications/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(data) }),
     getIncomingFiles: (limit?: number, offset?: number) => apiFetch(HttpApiPaths.bank.incomingFiles(limit, offset)),
     logFile: (id: string, data: { lanNumber: string }) => apiFetch(HttpApiPaths.bank.logFile(id), { method: "POST", body: JSON.stringify(data) }),
     getDocuments: (applicationId: string) => apiFetch(HttpApiPaths.bank.documents(applicationId)),

@@ -716,14 +716,14 @@ export class BankDashboardService {
     if (error) throw error;
 
     // Calculate average TAT for different stages
-    const avgDecisionTime = decisions?.reduce((sum: number, d: any) => {
-      const decidedAt = new Date(d.decidedAt).getTime();
-      return sum + decidedAt;
-    }, 0) / (decisions?.length || 1);
+    const hasDecisions = decisions && decisions.length > 0;
+    const avgTAT = hasDecisions 
+      ? Math.max(0, Math.floor((new Date().getTime() - (decisions.reduce((sum: number, d: any) => sum + new Date(d.decidedAt).getTime(), 0) / decisions.length)) / (1000 * 60 * 60 * 24))) + ' days'
+      : '—';
 
     return {
       totalDecisions: decisions?.length || 0,
-      averageTAT: Math.floor((new Date().getTime() - avgDecisionTime) / (1000 * 60 * 60 * 24)) + ' days'
+      averageTAT: avgTAT
     };
   }
 

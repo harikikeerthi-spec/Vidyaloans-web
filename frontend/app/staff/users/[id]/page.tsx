@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { adminApi, authApi, documentApi } from "@/lib/api";
 import { parseNumberFromWords } from "@/lib/academic-ocr";
+import ProgressTracker from "@/components/ProgressTracker";
 
 // Premium 3D Interactive Card Component
 function TiltCard({ children, className = "" }: { children: React.ReactNode; className?: string }) {
@@ -58,52 +59,6 @@ function TiltCard({ children, className = "" }: { children: React.ReactNode; cla
     );
 }
 
-interface Stage {
-    order: number;
-    label: string;
-    icon: string;
-    progress: number;
-}
-
-const STAGES_CONFIG: Record<string, Stage> = {
-    application_created: { order: 1, label: 'Created', icon: 'bolt', progress: 10 },
-    application_submitted: { order: 2, label: 'Submitted', icon: 'send', progress: 25 },
-    document_verification: { order: 3, label: 'Documents', icon: 'verified', progress: 40 },
-    submit_to_bank: { order: 4, label: 'Submit to Bank', icon: 'account_balance', progress: 50 },
-    credit_check: { order: 5, label: 'Credit Check', icon: 'credit_score', progress: 75 },
-    bank_review: { order: 6, label: 'Review', icon: 'rate_review', progress: 90 },
-    sanction: { order: 7, label: 'Sanction', icon: 'assignment_turned_in', progress: 95 },
-    disbursement: { order: 8, label: 'Disbursed', icon: 'payments', progress: 100 },
-};
-
-const getStageKeyForApp = (app: any) => {
-    if (!app) return 'application_created';
-    if (app.status?.toLowerCase() === 'rejected' || app.status?.toLowerCase() === 'cancelled') return 'application_created';
-
-    let stageKey = app.stage;
-    if (!stageKey || !STAGES_CONFIG[stageKey]) {
-        const status = (app.status || '').toLowerCase();
-        if (status.includes('approve') || status.includes('sanction')) return 'sanction';
-        if (status.includes('disburse')) return 'disbursement';
-        if (status.includes('process') || status.includes('review')) return 'bank_review';
-        if (status.includes('submit_to_bank') || status.includes('submitted_to_bank')) return 'submit_to_bank';
-        if (status === 'submitted') return 'application_submitted';
-        if (status.includes('document')) return 'document_verification';
-        if (status.includes('credit')) return 'credit_check';
-
-        const p = app.progress !== undefined && app.progress !== null ? app.progress : 0;
-        if (p >= 100) return 'disbursement';
-        if (p >= 95) return 'sanction';
-        if (p >= 90) return 'bank_review';
-        if (p >= 75) return 'credit_check';
-        if (p >= 50) return 'submit_to_bank';
-        if (p >= 40) return 'document_verification';
-        if (p >= 25) return 'application_submitted';
-
-        return 'application_created';
-    }
-    return stageKey;
-};
 
 export default function ProfileTab() {
     const { userData, setUserData, userApplications, setUserApplications, userDocuments, refreshData } = useUserDossier();
@@ -1468,154 +1423,14 @@ export default function ProfileTab() {
                 {/* Application Progress Widget */}
                 <div>
                     <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-4">Application Progress</h4>
-                    {userApplications.length > 0 ? (() => {
-                        const activeApp = userApplications[0];
-                        const statusLower = activeApp.status?.toLowerCase() || '';
-                        const isSanctioned = ['sanctioned', 'approved', 'sanction', 'conditional_sanction', 'partial_sanction', 'counter_offer', 'sanction_issued'].includes(statusLower) || activeApp.stage === 'sanction' || activeApp.stage === 'sanctioned';
-                        const isDisbursed = ['disbursed', 'disbursement_confirmed', 'closed'].includes(statusLower) || activeApp.stage === 'disbursement' || activeApp.stage === 'disbursed';
-
-                        const stageKey = getStageKeyForApp(activeApp);
-                        const currentStage = STAGES_CONFIG[stageKey] || STAGES_CONFIG.application_created;
-                        const currentProgress = isDisbursed ? 100 : isSanctioned ? 95 : currentStage.progress;
-
-                        const maxCompletedOrder = isDisbursed ? 8 : isSanctioned ? 7 : (currentStage ? currentStage.order - 1 : 0);
-
-                        const stagesList = Object.entries(STAGES_CONFIG)
-                            .sort(([, a], [, b]) => a.order - b.order)
-                            .map(([key, val]) => ({
-                                id: key,
-                                ...val,
-                                active: val.order <= maxCompletedOrder,
-                                isCurrent: !(val.order <= maxCompletedOrder) && (isSanctioned ? key === 'disbursement' : key === stageKey)
-                            }));
-
-                        const appCreatedAt = activeApp.createdAt || activeApp.created_at || activeApp.submittedAt || activeApp.submitted_at || activeApp.date;
-                        const appUpdatedAt = activeApp.updatedAt || activeApp.updated_at || appCreatedAt;
-
-                        const lastCompletedIdx = maxCompletedOrder - 1;
-
-                        const getStageTimestamp = (stageIdx: number, completed: boolean, active?: boolean): string | undefined => {
-                            if (!completed && !active) return undefined;
-                            if (stageIdx === 0) return appCreatedAt;
-                            if (active || stageIdx === lastCompletedIdx) return appUpdatedAt || appCreatedAt;
-
-                            try {
-                                const baseDate = new Date(appCreatedAt);
-                                if (stageIdx > 0 && !isNaN(baseDate.getTime())) {
-                                    const offsetDate = new Date(baseDate.getTime() + stageIdx * 18 * 60 * 60 * 1000);
-                                    const updatedDate = new Date(appUpdatedAt);
-                                    if (offsetDate.getTime() < updatedDate.getTime()) {
-                                        return offsetDate.toISOString();
-                                    }
-                                }
-                            } catch { }
-                            return appCreatedAt;
-                        };
-
-                        const formatToIST = (dateVal: any): { date: string; time: string } | null => {
-                            if (!dateVal) return null;
-                            try {
-                                let str = String(dateVal).trim();
-                                if (!str) return null;
-                                if (/^\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}/.test(str) && !/[Zz+\-]\d{0,2}:?\d{0,2}$/.test(str)) {
-                                    str = str.replace(' ', 'T') + 'Z';
-                                }
-                                const d = new Date(str);
-                                if (isNaN(d.getTime())) return null;
-
-                                const parts = new Intl.DateTimeFormat("en-US", {
-                                    timeZone: "Asia/Kolkata",
-                                    year: "numeric",
-                                    month: "short",
-                                    day: "numeric",
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                    hour12: true
-                                }).formatToParts(d);
-
-                                const getPart = (type: string) => parts.find(p => p.type === type)?.value || "";
-
-                                const month = getPart("month");
-                                const day = getPart("day");
-                                const hour = getPart("hour");
-                                const minute = getPart("minute");
-                                const dayPeriod = getPart("dayPeriod").toUpperCase();
-
-                                return {
-                                    date: `${month} ${day}`,
-                                    time: `${hour}:${minute} ${dayPeriod}`
-                                };
-                            } catch {
-                                return null;
-                            }
-                        };
-
-                        return (
-                            <div className="space-y-4 font-sans">
-                                <div className={`flex items-center justify-between p-3.5 rounded-xl border ${isDisbursed || isSanctioned
-                                        ? 'bg-emerald-50/60 border-emerald-200/70'
-                                        : 'bg-[#F3E8FF]/40 border-purple-100'
-                                    }`}>
-                                    <div>
-                                        <span className={`text-[10px] font-bold uppercase tracking-wider block ${isDisbursed || isSanctioned ? 'text-emerald-700' : 'text-[#7C3AED]'
-                                            }`}>Current Status</span>
-                                        <span className="text-xs font-extrabold text-slate-800">
-                                            {isDisbursed ? 'Loan Disbursed' : isSanctioned ? 'Sanctioned & Approved' : currentStage.label}
-                                        </span>
-                                    </div>
-                                    <span className={`text-xl font-black ${isDisbursed || isSanctioned ? 'text-emerald-600' : 'text-[#7C3AED]'
-                                        }`}>{currentProgress}%</span>
-                                </div>
-
-                                {/* Stepper Funnel */}
-                                <div className="relative pl-6 space-y-3.5 py-2">
-                                    {/* Stepper Connector Line */}
-                                    <div className="absolute left-[9px] top-4 bottom-4 w-[2px] bg-slate-100" />
-
-                                    {stagesList.map((stg) => {
-                                        const stageTimestamp = getStageTimestamp(stg.order - 1, stg.active, stg.isCurrent);
-                                        const stageTimestampFormatted = formatToIST(stageTimestamp);
-
-                                        return (
-                                            <div key={stg.id} className="flex items-start justify-between gap-3 relative py-0.5">
-                                                <div className="flex items-start gap-3 min-w-0">
-                                                    {/* Step Circle */}
-                                                    <div className={`absolute -left-[21px] top-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${stg.active
-                                                        ? "bg-emerald-500 border-emerald-500 text-white shadow-sm shadow-emerald-600/20"
-                                                        : stg.isCurrent
-                                                            ? "bg-white border-[#7C3AED] text-[#7C3AED] shadow-sm shadow-purple-600/20"
-                                                            : "bg-white border-slate-200 text-slate-400"
-                                                        }`}>
-                                                        {stg.active ? (
-                                                            <span className="material-symbols-outlined text-[10px] font-black">check</span>
-                                                        ) : (
-                                                            <span className="w-1.5 h-1.5 rounded-full bg-slate-200" />
-                                                        )}
-                                                    </div>
-                                                    <div>
-                                                        <span className={`text-xs block transition-all ${stg.isCurrent
-                                                            ? "font-extrabold text-[#7C3AED]"
-                                                            : stg.active
-                                                                ? "font-semibold text-emerald-700"
-                                                                : "font-medium text-slate-400"
-                                                            }`}>
-                                                            {stg.label}
-                                                        </span>
-                                                        {stageTimestampFormatted && (stg.active || stg.isCurrent) && (
-                                                            <span className="text-[9px] font-medium text-slate-400 block tracking-tight mt-0.5">
-                                                                {stageTimestampFormatted.date} • {stageTimestampFormatted.time}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                                <span className="text-[10px] font-bold font-mono text-slate-400 shrink-0">{stg.progress}%</span>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        );
-                    })() : (
+                    {userApplications.length > 0 ? (
+                        <ProgressTracker
+                            application={userApplications[0]}
+                            documents={userDocuments || []}
+                            profile={userData}
+                            orientation="vertical"
+                        />
+                    ) : (
                         <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-center text-xs text-slate-400">
                             No active applications
                         </div>

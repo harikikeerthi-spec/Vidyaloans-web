@@ -260,9 +260,8 @@ export default function InactivePipelinePage() {
                                                         <p
                                                             onClick={() => {
                                                                 const uid = item.userId || item.user_id || item.student?.id || item.student?._id;
-                                                                const email = item.email || item.student?.email;
                                                                 if (uid) {
-                                                                    window.open(`/staff/users/${uid}${email ? `?email=${encodeURIComponent(email)}` : ''}`, '_blank');
+                                                                    window.open(`/staff/users/${uid}`, '_blank');
                                                                 } else {
                                                                     router.push(`/staff/users?search=${encodeURIComponent(item.firstName || '')}`);
                                                                 }

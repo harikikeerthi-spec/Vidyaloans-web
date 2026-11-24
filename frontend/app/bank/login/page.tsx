@@ -113,7 +113,7 @@ function BankDropdown({
                                     onClick={() => { onChange(bank.id); setOpen(false); }}
                                     className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-all"
                                     style={{
-                                         background: isSelected
+                                        background: isSelected
                                             ? "linear-gradient(90deg, rgba(102,5,199,0.07) 0%, rgba(139,36,229,0.04) 100%)"
                                             : undefined,
                                         borderBottom: i < banks.length - 1
@@ -201,7 +201,7 @@ function BankLoginContent() {
                     return [...prev, ...additions];
                 });
             }
-        }).catch(() => {});
+        }).catch(() => { });
     }, []);
 
     // Optional domain-based bank hint resolver for corporate emails
@@ -643,9 +643,29 @@ function BankLoginContent() {
                             )}
 
                             <div>
-                                <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-4 ml-1">
-                                    Enter OTP
-                                </label>
+                                <div className="flex items-center justify-between mb-4 ml-1">
+                                    <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest">
+                                        Enter OTP
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={async () => {
+                                            try {
+                                                const text = await navigator.clipboard.readText();
+                                                const digits = text.replace(/\D/g, "").slice(0, 6);
+                                                if (digits) {
+                                                    const newOtp = ["", "", "", "", "", ""];
+                                                    digits.split("").forEach((c, idx) => { newOtp[idx] = c; });
+                                                    setOtp(newOtp);
+                                                    otpRefs.current[Math.min(digits.length, 5)]?.focus();
+                                                }
+                                            } catch { }
+                                        }}
+                                        className="text-[10px] font-bold text-[#6605c7] hover:underline flex items-center gap-1 cursor-pointer"
+                                    >
+
+                                    </button>
+                                </div>
                                 <div className="flex gap-2.5 justify-center" onPaste={handleOtpPaste}>
                                     {otp.map((digit, i) => (
                                         <input

@@ -977,6 +977,26 @@ export default function BankApplicationDetailView({
                                     const viewUrl = doc.url && String(doc.url).startsWith("http") ? doc.url : backendViewUrl;
                                     const downloadUrl = doc.url && String(doc.url).startsWith("http") ? doc.url : backendDownloadUrl;
 
+                                    const handleOpenDoc = (e: React.MouseEvent, targetDoc: any, isDownload = false) => {
+                                        e.preventDefault();
+                                        const freshToken = typeof window !== "undefined"
+                                            ? (getToken() || localStorage.getItem("bankAccessToken") || localStorage.getItem("adminAccessToken") || localStorage.getItem("staffAccessToken") || "")
+                                            : "";
+                                        const docIdentifier = targetDoc.id || targetDoc.docType;
+                                        let finalUrl = targetDoc.url && String(targetDoc.url).startsWith("http")
+                                            ? targetDoc.url
+                                            : `/api/applications/admin/${app.id || app._id}/documents/${encodeURIComponent(docIdentifier)}/view`;
+                                        
+                                        if (!String(finalUrl).startsWith("http")) {
+                                            const params = new URLSearchParams();
+                                            if (isDownload) params.set("download", "true");
+                                            if (freshToken) params.set("token", freshToken);
+                                            const qs = params.toString();
+                                            finalUrl = qs ? `${finalUrl}?${qs}` : finalUrl;
+                                        }
+                                        window.open(finalUrl, "_blank", "noopener,noreferrer");
+                                    };
+
                                     return (
                                         <div
                                             key={doc.id || idx}
@@ -1012,6 +1032,7 @@ export default function BankApplicationDetailView({
                                                     href={viewUrl}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
+                                                    onClick={(e) => handleOpenDoc(e, doc, false)}
                                                     className="px-3 py-1.5 bg-white hover:bg-slate-900 text-slate-700 hover:text-white rounded-lg font-bold text-xs transition-all flex items-center gap-1 border border-slate-200 cursor-pointer shadow-2xs"
                                                     title="View document from AWS S3"
                                                 >
@@ -1022,6 +1043,7 @@ export default function BankApplicationDetailView({
                                                     href={downloadUrl}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
+                                                    onClick={(e) => handleOpenDoc(e, doc, true)}
                                                     className="p-1.5 bg-white hover:bg-slate-100 text-slate-500 hover:text-slate-800 rounded-lg text-xs transition-all border border-slate-200 cursor-pointer shadow-2xs"
                                                     title="Download document from AWS S3"
                                                 >

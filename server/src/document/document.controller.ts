@@ -105,27 +105,35 @@ export class DocumentController {
     );
     const wasAlreadyUploaded = !!existingDocRecord;
 
-    // ── Pre-check 1: Reject duplicate file upload across different slots ──
+    // ── Pre-check 1: Detect duplicate file content across different slots ──
+    let duplicateInfo: { isDuplicate: boolean; duplicateOf?: string; duplicateOfLabel?: string } = { isDuplicate: false };
+
     for (const otherDoc of existingUserDocs) {
       if (otherDoc.docType.toLowerCase() !== docType.toLowerCase() && (otherDoc.uploaded || otherDoc.status === 'uploaded' || otherDoc.status === 'verified')) {
-        let otherHash = otherDoc.verificationMetadata?.fileHash;
-        if (!otherHash) {
+        let otherHash = otherDoc.verificationMetadata?.fileHash || otherDoc.fileHash;
+        if (!otherHash && otherDoc.filePath) {
           try {
-            const localDir = path.join(process.cwd(), 'uploads', userId, otherDoc.docType);
-            const files = await fs.promises.readdir(localDir).catch(() => []);
-            if (files.length > 0) {
-              const buf = await fs.promises.readFile(path.join(localDir, files[0]));
+            const buf = await this.s3Service.getFileBuffer(otherDoc.filePath).catch(() => null);
+            if (buf) {
               otherHash = crypto.createHash('sha256').update(buf).digest('hex');
+              // Cache hash in DB for this document
+              const updatedMeta = { ...(otherDoc.verificationMetadata || {}), fileHash: otherHash };
+              await this.supabase.client.from('UserDocument').update({
+                verificationMetadata: updatedMeta
+              }).eq('id', otherDoc.id);
             }
           } catch { }
         }
 
         if (otherHash && otherHash === incomingHash) {
           const otherSlotLabel = otherDoc.verificationMetadata?.docName || otherDoc.docName || otherDoc.docType.replace(/_/g, ' ').toUpperCase();
-          console.warn(`[UPLOAD] Rejecting duplicate file upload. Incoming file hash matches existing document in ${otherDoc.docType}`);
-          throw new BadRequestException(
-            `Duplicate document error: This exact file is already uploaded under "${otherSlotLabel}". Please select and upload the correct document for ${docName || docType.replace(/_/g, ' ').toUpperCase()}.`
-          );
+          console.warn(`[UPLOAD WARNING] Duplicate file content detected! Incoming file hash (${incomingHash}) matches existing document in slot "${otherDoc.docType}" (${otherSlotLabel})`);
+          duplicateInfo = {
+            isDuplicate: true,
+            duplicateOf: otherDoc.docType,
+            duplicateOfLabel: otherSlotLabel,
+          };
+          break;
         }
       }
     }
@@ -291,13 +299,23 @@ export class DocumentController {
         confidence: kycResult.confidence_score,
         docName: docName || undefined,
         fileHash: incomingHash,
+        isDuplicate: duplicateInfo.isDuplicate,
+        duplicateOf: duplicateInfo.duplicateOf,
+        duplicateOfLabel: duplicateInfo.duplicateOfLabel,
         details: {
-          message: isStaffUpload
-            ? 'Document uploaded directly by staff without OCR.'
-            : 'Document verified by AI OCR pre-storage.',
+          message: duplicateInfo.isDuplicate
+            ? `⚠️ Warning: Duplicate file detected. This document is identical to the file in "${duplicateInfo.duplicateOfLabel}".`
+            : isStaffUpload
+              ? 'Document uploaded directly by staff without OCR.'
+              : 'Document verified by AI OCR pre-storage.',
+          isDuplicate: duplicateInfo.isDuplicate,
+          duplicateOf: duplicateInfo.duplicateOf,
+          duplicateOfLabel: duplicateInfo.duplicateOfLabel,
           extractedFields: maskedExtractedFields,
           document_validation: kycResult.document_validation,
-          ocr_issues: kycResult.ocr_issues,
+          ocr_issues: duplicateInfo.isDuplicate
+            ? [...(kycResult.ocr_issues || []), `Warning: Byte-identical file to slot "${duplicateInfo.duplicateOfLabel}" (same SHA-256 hash)`]
+            : kycResult.ocr_issues,
         },
       };
 
@@ -354,11 +372,23 @@ export class DocumentController {
         success: true,
         wasAlreadyUploaded,
         isReupload: wasAlreadyUploaded,
-        message: wasAlreadyUploaded
-          ? 'Document was already uploaded previously and has been updated successfully.'
-          : 'Document validated, stored in S3, and registered successfully',
+        isDuplicate: duplicateInfo.isDuplicate,
+        duplicateOf: duplicateInfo.duplicateOf,
+        duplicateOfLabel: duplicateInfo.duplicateOfLabel,
+        warning: duplicateInfo.isDuplicate
+          ? `Warning: This file is identical (same SHA-256 hash) to the file already uploaded under "${duplicateInfo.duplicateOfLabel}".`
+          : undefined,
+        message: duplicateInfo.isDuplicate
+          ? `Document uploaded with warning: Content is identical to "${duplicateInfo.duplicateOfLabel}".`
+          : wasAlreadyUploaded
+            ? 'Document was already uploaded previously and has been updated successfully.'
+            : 'Document validated, stored in S3, and registered successfully',
         data: {
           ...document,
+          fileHash: incomingHash,
+          isDuplicate: duplicateInfo.isDuplicate,
+          duplicateOf: duplicateInfo.duplicateOf,
+          duplicateOfLabel: duplicateInfo.duplicateOfLabel,
           wasAlreadyUploaded,
           status: docStatus,
           previewUrl,
@@ -1137,6 +1167,50 @@ export class DocumentController {
   @UseGuards(OwnershipOrStaffGuard)
   async getUserDocuments(@Param('userId') userId: string) {
     const documents = await this.usersService.getUserDocuments(userId);
+
+    // 1. Ensure fileHash is present on all uploaded documents
+    for (const doc of documents) {
+      if (!doc.verificationMetadata?.fileHash && doc.filePath && (doc.uploaded || doc.status === 'uploaded' || doc.status === 'verified')) {
+        try {
+          const buf = await this.s3Service.getFileBuffer(doc.filePath).catch(() => null);
+          if (buf) {
+            const hash = crypto.createHash('sha256').update(buf).digest('hex');
+            doc.fileHash = hash;
+            doc.verificationMetadata = { ...(doc.verificationMetadata || {}), fileHash: hash };
+            await this.supabase.client
+              .from('UserDocument')
+              .update({ verificationMetadata: doc.verificationMetadata })
+              .eq('id', doc.id);
+          }
+        } catch { }
+      } else if (doc.verificationMetadata?.fileHash) {
+        doc.fileHash = doc.verificationMetadata.fileHash;
+      }
+    }
+
+    // 2. Cross-slot duplicate content detection (same SHA-256 hash across different slots)
+    const hashToDocMap = new Map<string, any>();
+    for (const doc of documents) {
+      const hash = doc.fileHash || doc.verificationMetadata?.fileHash;
+      if (hash && (doc.uploaded || doc.status === 'uploaded' || doc.status === 'verified')) {
+        if (hashToDocMap.has(hash)) {
+          const firstDoc = hashToDocMap.get(hash);
+          const firstLabel = firstDoc.verificationMetadata?.docName || firstDoc.docName || firstDoc.docType.replace(/_/g, ' ').toUpperCase();
+          const currentLabel = doc.verificationMetadata?.docName || doc.docName || doc.docType.replace(/_/g, ' ').toUpperCase();
+
+          doc.isDuplicate = true;
+          doc.duplicateOf = firstDoc.docType;
+          doc.duplicateOfLabel = firstLabel;
+
+          firstDoc.isDuplicate = true;
+          firstDoc.duplicateOf = doc.docType;
+          firstDoc.duplicateOfLabel = currentLabel;
+        } else {
+          hashToDocMap.set(hash, doc);
+        }
+      }
+    }
+
     return { success: true, data: documents };
   }
 
@@ -1182,11 +1256,12 @@ export class DocumentController {
 
   // ─── Add document requirement ────────────────────────────────────────────
   @Post('requirement')
-  @UseGuards(StaffGuard)
+  @UseGuards(OwnershipOrStaffGuard)
   async addRequirement(
     @Body('userId') userId: string,
     @Body('docType') docType: string,
     @Body('docName') docName?: string,
+    @Req() req?: any,
   ) {
     if (!userId || !docType)
       throw new BadRequestException('userId and docType are required');
@@ -1208,6 +1283,10 @@ export class DocumentController {
       };
     }
 
+    const isStaff = ['staff', 'admin', 'super_admin', 'support', 'it', 'bank', 'partner_bank'].includes(
+      (req?.user?.role || '').toLowerCase(),
+    );
+
     const document = await this.usersService.upsertUserDocument(
       userId,
       docType,
@@ -1215,8 +1294,9 @@ export class DocumentController {
         uploaded: false,
         status: 'pending',
         verificationMetadata: {
-          message: 'Requirement added by staff',
+          message: isStaff ? 'Requirement added by staff' : 'Requirement added by user',
           docName: docName || docType,
+          addedBy: req?.user?.role || 'user',
         },
       },
     );

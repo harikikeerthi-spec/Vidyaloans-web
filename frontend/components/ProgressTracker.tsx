@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo } from "react";
-import { getProfileDocumentRequirements } from "@/lib/documentRequirements";
+import { getProfileDocumentRequirements, isDocTypeMatchingRequirement } from "@/lib/documentRequirements";
 
 export interface Stage {
     order: number;
@@ -25,68 +25,88 @@ export const STAGES_LIST = Object.entries(STAGES_CONFIG)
     .sort(([, a], [, b]) => a.order - b.order)
     .map(([key, value]) => ({ id: key, ...value }));
 
+export const isApplicationDocumentsComplete = (documents: any[] = [], profile?: any): boolean => {
+    if (!documents || documents.length === 0) return false;
+    const uploadedDocs = documents.filter(d =>
+        d && (d.uploaded === true || d.status === 'uploaded' || d.status === 'verified' || Boolean(d.fileUrl || d.s3Key || d.url))
+    );
+    let requiredCount = 3;
+    if (profile) {
+        try {
+            const reqs = getProfileDocumentRequirements(profile);
+            if (reqs && reqs.length > 0) {
+                requiredCount = reqs.length;
+                return reqs.every(r => uploadedDocs.some(d => isDocTypeMatchingRequirement(d.docType, r.type, d.docName || d.name)));
+            }
+        } catch { }
+    }
+    return uploadedDocs.length >= requiredCount;
+};
+
 export const getDynamicProgress = (app: any, documents: any[] = [], profile?: any): number => {
     if (!app) return 10;
     const s = String(app.status || '').toLowerCase();
     const stg = String(app.stage || '').toLowerCase();
     if (['disbursed', 'closed', 'disbursement_confirmed'].includes(s) || stg === 'disbursement') return 100;
     if (['sanctioned', 'approved', 'sanction', 'conditional_sanction', 'partial_sanction', 'counter_offer', 'sanction_issued'].includes(s) || stg === 'sanction') return 95;
-    if (['file_logged', 'under_bank_review', 'bank_review', 'processing'].includes(s) || stg === 'bank_review') return 90;
+
+    const docsComplete = isApplicationDocumentsComplete(documents, profile);
+
+    // If documents are not yet uploaded, strictly enforce progress cap at 40% (Document stage)
+    if (!docsComplete) {
+        let base = typeof app.progress === 'number' && app.progress > 0 ? app.progress : 10;
+        if (['submitted', 'application_submitted', 'docs_received', 'docs_uploaded', 'under_review', 'processing'].includes(s)) {
+            base = Math.max(base, 25);
+        }
+        if (documents && documents.length > 0) {
+            const uploadedCount = documents.filter(d => d && (d.uploaded === true || d.status === 'uploaded' || d.status === 'verified' || Boolean(d.fileUrl || d.s3Key || d.url))).length;
+            if (uploadedCount > 0) {
+                base = Math.max(base, Math.min(40, 25 + Math.round((uploadedCount / 3) * 15)));
+            }
+        }
+        return Math.min(base, 40);
+    }
+
+    if (['file_logged', 'under_bank_review', 'bank_review'].includes(s) || stg === 'bank_review') return 90;
     if (['submitted_to_bank', 'routed_multiparty', 'credit_check', 'query_raised'].includes(s) || stg === 'credit_check') return 75;
     if (['submit_to_bank', 'bank_submission'].includes(s) || stg === 'submit_to_bank') return 50;
     if (['staff_verified', 'verification', 'documents_verified', 'document_verification'].includes(s) || stg === 'document_verification') return 50;
 
-    let baseProgress = typeof app.progress === 'number' && app.progress > 0 ? app.progress : 10;
-    if (['docs_received', 'docs_uploaded', 'under_review'].includes(s)) baseProgress = Math.max(baseProgress, 40);
-    if (['submitted', 'application_submitted'].includes(s)) baseProgress = Math.max(baseProgress, 25);
-
-    if (documents && documents.length > 0) {
-        const uploadedCount = documents.filter(d => d.uploaded === true || d.status === 'uploaded' || d.status === 'verified').length;
-        if (uploadedCount > 0) {
-            let requiredCount = 3;
-            try {
-                if (profile) {
-                    const reqs = getProfileDocumentRequirements(profile);
-                    if (reqs && reqs.length > 0) requiredCount = reqs.length;
-                }
-            } catch { }
-
-            const isAllDocsUploaded = uploadedCount >= requiredCount;
-            const docProgress = isAllDocsUploaded ? 50 : Math.min(50, 25 + Math.round((uploadedCount / Math.max(requiredCount, 1)) * 25));
-            return Math.max(baseProgress, docProgress);
-        }
-    }
-
-    return baseProgress;
+    let baseProgress = typeof app.progress === 'number' && app.progress > 0 ? app.progress : 50;
+    return Math.max(baseProgress, 50);
 };
 
-export const getStageKeyForApp = (app: any, calculatedProgress?: number): string => {
+export const getStageKeyForApp = (app: any, calculatedProgress?: number, documents: any[] = [], profile?: any): string => {
     if (!app) return 'application_created';
     const status = String(app.status || '').toLowerCase();
     if (status === 'rejected' || status === 'cancelled') return 'application_created';
 
     let stageKey = app.stage;
-    if (['sanctioned', 'approved', 'sanction', 'conditional_sanction', 'partial_sanction', 'counter_offer', 'sanction_issued'].includes(status) || stageKey === 'sanction' || stageKey === 'sanctioned') return 'sanction';
     if (['disbursed', 'disbursement_confirmed', 'closed'].includes(status) || stageKey === 'disbursement' || stageKey === 'disbursed') return 'disbursement';
-    if (['file_logged', 'under_bank_review', 'bank_review', 'processing'].includes(status) || stageKey === 'bank_review') return 'bank_review';
-    if (['submitted_to_bank', 'routed_multiparty', 'credit_check', 'query_raised'].includes(status) || stageKey === 'credit_check') return 'credit_check';
-    if (['submit_to_bank', 'bank_submission'].includes(status) || stageKey === 'submit_to_bank') return 'submit_to_bank';
-    if (status === 'submitted' || status === 'application_submitted' || stageKey === 'application_submitted') return 'application_submitted';
-    if (status.includes('document') || status.includes('verification') || stageKey === 'document_verification') return 'document_verification';
+    if (['sanctioned', 'approved', 'sanction', 'conditional_sanction', 'partial_sanction', 'counter_offer', 'sanction_issued'].includes(status) || stageKey === 'sanction' || stageKey === 'sanctioned') return 'sanction';
 
-    if (!stageKey || !STAGES_CONFIG[stageKey]) {
-        const p = calculatedProgress !== undefined ? calculatedProgress : (app.progress || 10);
-        if (p >= 100) return 'disbursement';
-        if (p >= 95) return 'sanction';
-        if (p >= 90) return 'bank_review';
-        if (p >= 75) return 'credit_check';
-        if (p >= 50) return 'submit_to_bank';
-        if (p >= 40) return 'document_verification';
-        if (p >= 25) return 'application_submitted';
+    const docsComplete = isApplicationDocumentsComplete(documents, profile);
 
+    // Prerequisite: Never allow bank review or submission stages while documents are open/incomplete
+    if (!docsComplete) {
+        if (status === 'submitted' || status === 'application_submitted' || (calculatedProgress && calculatedProgress >= 25)) {
+            return 'document_verification';
+        }
         return 'application_created';
     }
-    return stageKey;
+
+    if (['file_logged', 'under_bank_review', 'bank_review'].includes(status) || stageKey === 'bank_review') return 'bank_review';
+    if (['submitted_to_bank', 'routed_multiparty', 'credit_check', 'query_raised'].includes(status) || stageKey === 'credit_check') return 'credit_check';
+    if (['submit_to_bank', 'bank_submission'].includes(status) || stageKey === 'submit_to_bank') return 'submit_to_bank';
+    if (['staff_verified', 'verification', 'documents_verified', 'document_verification'].includes(status) || stageKey === 'document_verification') return 'submit_to_bank';
+
+    const p = calculatedProgress !== undefined ? calculatedProgress : (app.progress || 50);
+    if (p >= 100) return 'disbursement';
+    if (p >= 95) return 'sanction';
+    if (p >= 90) return 'bank_review';
+    if (p >= 75) return 'credit_check';
+    if (p >= 50) return 'submit_to_bank';
+    return 'document_verification';
 };
 
 export const formatToIST = (dateVal: any): { date: string; time: string } | null => {
@@ -136,6 +156,7 @@ export interface ProgressTrackerProps {
     title?: string;
     showEmptyState?: boolean;
     className?: string;
+    orientation?: 'horizontal' | 'vertical';
 }
 
 export default function ProgressTracker({
@@ -147,6 +168,7 @@ export default function ProgressTracker({
     title = "Application Progress",
     showEmptyState = true,
     className = "",
+    orientation = "horizontal",
 }: ProgressTrackerProps) {
     const targetApp = application || app;
 
@@ -157,8 +179,8 @@ export default function ProgressTracker({
     const currentStageKey = useMemo(() => {
         if (!targetApp) return null;
         if (targetApp.status?.toLowerCase() === 'rejected' || targetApp.status?.toLowerCase() === 'cancelled') return null;
-        return getStageKeyForApp(targetApp, calculatedProgress);
-    }, [targetApp, calculatedProgress]);
+        return getStageKeyForApp(targetApp, calculatedProgress, documents, profile);
+    }, [targetApp, calculatedProgress, documents, profile]);
 
     const statusLower = targetApp?.status?.toLowerCase() || '';
     const isSanctionedOrApproved = ['sanctioned', 'approved', 'sanction', 'conditional_sanction', 'partial_sanction', 'counter_offer', 'sanction_issued'].includes(statusLower) || targetApp?.stage === 'sanction' || targetApp?.stage === 'sanctioned';
@@ -222,6 +244,83 @@ export default function ProgressTracker({
                 </div>
                 <div className="p-3 bg-white/60 rounded-lg border border-red-100">
                     <p className="text-xs text-red-700 font-medium">Please contact our support team or submit a new file.</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (orientation === "vertical") {
+        return (
+            <div className={`space-y-4 font-sans ${className}`}>
+                <div className={`flex items-center justify-between p-3.5 rounded-xl border ${
+                    isDisbursedOrClosed || isSanctionedOrApproved
+                        ? 'bg-emerald-50/60 border-emerald-200/70'
+                        : 'bg-[#F3E8FF]/40 border-purple-100'
+                }`}>
+                    <div>
+                        <span className={`text-[10px] font-bold uppercase tracking-wider block ${
+                            isDisbursedOrClosed || isSanctionedOrApproved ? 'text-emerald-700' : 'text-[#7C3AED]'
+                        }`}>Current Status</span>
+                        <span className="text-xs font-extrabold text-slate-800">
+                            {isDisbursedOrClosed ? 'Loan Disbursed' : isSanctionedOrApproved ? 'Sanctioned & Approved' : (currentStage?.label || 'Created')}
+                        </span>
+                    </div>
+                    <span className={`text-xl font-black ${
+                        isDisbursedOrClosed || isSanctionedOrApproved ? 'text-emerald-600' : 'text-[#7C3AED]'
+                    }`}>{calculatedProgress}%</span>
+                </div>
+
+                {/* Stepper Funnel */}
+                <div className="relative pl-6 space-y-3.5 py-2">
+                    {/* Stepper Connector Line */}
+                    <div className="absolute left-[9px] top-4 bottom-4 w-[2px] bg-slate-100" />
+
+                    {STAGES_LIST.map((stage) => {
+                        const isCompleted = stage.order <= maxCompletedOrder;
+                        const isCurrent = !isCompleted && currentStage && (
+                            isSanctionedOrApproved ? stage.id === 'disbursement' : stage.id === currentStageKey
+                        );
+                        const stageTimestamp = getStageTimestamp(stage.order - 1, isCompleted, Boolean(isCurrent));
+                        const stageTimestampFormatted = formatToIST(stageTimestamp);
+
+                        return (
+                            <div key={stage.id} className="flex items-start justify-between gap-3 relative py-0.5">
+                                <div className="flex items-start gap-3 min-w-0">
+                                    {/* Step Circle */}
+                                    <div className={`absolute -left-[21px] top-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                                        isCompleted
+                                            ? "bg-emerald-500 border-emerald-500 text-white shadow-sm shadow-emerald-600/20"
+                                            : isCurrent
+                                                ? "bg-white border-[#7C3AED] text-[#7C3AED] shadow-sm shadow-purple-600/20"
+                                                : "bg-white border-slate-200 text-slate-400"
+                                    }`}>
+                                        {isCompleted ? (
+                                            <span className="material-symbols-outlined text-[10px] font-black">check</span>
+                                        ) : (
+                                            <span className="w-1.5 h-1.5 rounded-full bg-slate-200" />
+                                        )}
+                                    </div>
+                                    <div>
+                                        <span className={`text-xs block transition-all ${
+                                            isCurrent
+                                                ? "font-extrabold text-[#7C3AED]"
+                                                : isCompleted
+                                                    ? "font-semibold text-emerald-700"
+                                                    : "font-medium text-slate-400"
+                                        }`}>
+                                            {stage.label}
+                                        </span>
+                                        {stageTimestampFormatted && (isCompleted || isCurrent) && (
+                                            <span className="text-[9px] font-medium text-slate-400 block tracking-tight mt-0.5">
+                                                {stageTimestampFormatted.date} • {stageTimestampFormatted.time}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                                <span className="text-[10px] font-bold font-mono text-slate-400 shrink-0">{stage.progress}%</span>
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
         );

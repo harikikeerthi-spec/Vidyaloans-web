@@ -681,7 +681,7 @@ export class SupportService {
 
     const avgResolutionHours = resolved && resolved.length > 0
       ? resolved.reduce((s: number, t: any) => s + (new Date(t.resolvedAt).getTime() - new Date(t.createdAt).getTime()) / 3600000, 0) / resolved.length
-      : 0;
+      : null;
 
     const { data: withFirstResp } = await this.db
       .from('SupportTicket')
@@ -691,7 +691,18 @@ export class SupportService {
 
     const avgFirstResponseHours = withFirstResp && withFirstResp.length > 0
       ? withFirstResp.reduce((s: number, t: any) => s + (new Date(t.firstResponseAt).getTime() - new Date(t.createdAt).getTime()) / 3600000, 0) / withFirstResp.length
-      : 0;
+      : null;
+
+    // Satisfaction score calculated from actual rated tickets
+    const { data: rated } = await this.db
+      .from('SupportTicket')
+      .select('satisfactionScore')
+      .not('satisfactionScore', 'is', null)
+      .limit(100);
+
+    const satisfactionScore = rated && rated.length > 0
+      ? Math.round((rated.reduce((s: number, t: any) => s + (Number(t.satisfactionScore) || 0), 0) / rated.length) * 10) / 10
+      : null;
 
     const recentActivityWithAttachments = await Promise.all(
       (recentTickets || []).map(async (t: any) => {
@@ -712,9 +723,9 @@ export class SupportService {
         resolvedToday: resolvedToday || 0,
         criticalTickets: criticalTickets || 0,
         overdueTickets: overdueTickets || 0,
-        avgResolutionHours: Math.round(avgResolutionHours * 10) / 10,
-        avgFirstResponseHours: Math.round(avgFirstResponseHours * 10) / 10,
-        satisfactionScore: 4.2,
+        avgResolutionHours: avgResolutionHours !== null ? Math.round(avgResolutionHours * 10) / 10 : null,
+        avgFirstResponseHours: avgFirstResponseHours !== null ? Math.round(avgFirstResponseHours * 10) / 10 : null,
+        satisfactionScore: satisfactionScore,
       },
       recentActivity: recentActivityWithAttachments,
       charts: {

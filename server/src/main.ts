@@ -10,6 +10,7 @@ try {
 // Validate security-critical secrets before anything else starts.
 // In production this will throw and abort; in dev it prints a warning.
 import { validateRequiredSecrets } from './common/env-validation';
+import { checkSchemaDrift } from './common/schema-drift-check';
 validateRequiredSecrets();
 
 import { NestFactory } from '@nestjs/core';
@@ -20,6 +21,7 @@ import cookieParser from 'cookie-parser';
 import { doubleCsrfProtection } from './auth/csrf.service';
 
 async function bootstrap() {
+  await checkSchemaDrift().catch((e: any) => console.warn('Schema drift check error:', e.message));
   const app = await NestFactory.create(AppModule);
   app.setGlobalPrefix('api');
 

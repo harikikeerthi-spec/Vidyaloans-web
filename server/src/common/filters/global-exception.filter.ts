@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { ErrorLogService } from '../../error-log/error-log.service';
+import { sanitizeErrorMessage } from '../sanitize-error';
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
@@ -122,7 +123,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       statusCode: status,
       timestamp: new Date().toISOString(),
       path: url,
-      message,
+      message: sanitizeErrorMessage(message),
       error: errorName,
     });
   }

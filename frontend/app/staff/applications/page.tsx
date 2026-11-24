@@ -503,10 +503,6 @@ function ApplicationsPageInner() {
 
                                                         const query = new URLSearchParams();
                                                         if (uid) query.set("userId", uid);
-                                                        if (userEmail) query.set("email", userEmail);
-                                                        if (fName) query.set("firstName", fName);
-                                                        if (lName) query.set("lastName", lName);
-                                                        if (userPhone) query.set("phone", userPhone);
                                                         if (item.id || item._id) query.set("applicationId", item.id || item._id);
                                                         if (appNum) query.set("applicationNumber", appNum);
 
@@ -520,16 +516,15 @@ function ApplicationsPageInner() {
                                                 <div className="min-w-0">
                                                     <div className="flex items-center gap-1.5">
                                                         <p
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                const uid = item.userId || item.user_id || item.student?.id;
-                                                                const email = item.email || item.student?.email;
-                                                                if (uid) {
-                                                                    window.open(`/staff/users/${uid}${email ? `?email=${encodeURIComponent(email)}` : ''}`, '_blank');
-                                                                } else {
-                                                                    router.push(`/staff/users?search=${encodeURIComponent(item.firstName || '')}`);
-                                                                }
-                                                            }}
+                                                             onClick={(e) => {
+                                                                 e.stopPropagation();
+                                                                 const uid = item.userId || item.user_id || item.student?.id;
+                                                                 if (uid) {
+                                                                     window.open(`/staff/users/${uid}`, '_blank');
+                                                                 } else {
+                                                                     router.push(`/staff/users?search=${encodeURIComponent(item.firstName || '')}`);
+                                                                 }
+                                                             }}
                                                             className="text-sm font-semibold text-slate-900 hover:text-indigo-600 cursor-pointer transition-colors whitespace-nowrap truncate max-w-[170px]"
                                                             title={`${item.firstName || ''} ${item.lastName || ''}`}
                                                         >

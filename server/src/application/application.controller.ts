@@ -468,21 +468,71 @@ export class ApplicationController {
         const userId = doc.userId;
         const docType = doc.docType;
         const fileExt = doc.filePath ? extname(doc.filePath) : '';
+        const cleanDocId = String(documentId).replace(/^vault_/, '').trim();
+
+        // Extract S3 key if stored as full AWS URL
+        const extractKeyFromUrl = (urlStr?: string | null): string | null => {
+            if (!urlStr) return null;
+            const match = urlStr.match(/amazonaws\.com\/(?:[^\/]+\/)?(.+)$/);
+            return match ? match[1] : null;
+        };
 
         // Prioritize AWS S3 storage directly — do not use local files
-        const s3CandidateKeys = Array.from(
-            new Set([
-                doc.filePath,
-                doc.filePath ? doc.filePath.replace(/^[/\\]+/, '') : null,
-                doc.filePath ? doc.filePath.replace(/^uploads[/\\]/, '') : null,
-                userId && docType ? `vault/${userId}/${docType}${fileExt}` : null,
-                userId && docType ? `vault/${userId}/${docType}.pdf` : null,
-                userId && docType ? `vault/${userId}/${docType}` : null,
-                userId && docType ? `documents/${userId}/${docType}` : null,
-                userId && docType ? `documents/${userId}/${docType}${fileExt}` : null,
-                userId && docType ? `documents/${userId}/${docType}.pdf` : null,
-            ])
-        ).filter(Boolean) as string[];
+        const candidateSet = new Set<string>();
+
+        const addCandidate = (k?: string | null) => {
+            if (!k) return;
+            const cleaned = k.replace(/^[/\\]+/, '').replace(/^uploads[/\\]/, '').replace(/^public[/\\]/, '');
+            candidateSet.add(cleaned);
+            if (!cleaned.endsWith('.pdf')) {
+                candidateSet.add(`${cleaned}.pdf`);
+            }
+        };
+
+        // 1. Direct path / url from document record
+        if (doc.filePath) {
+            candidateSet.add(doc.filePath);
+            addCandidate(doc.filePath);
+            const urlKey = extractKeyFromUrl(doc.filePath);
+            if (urlKey) addCandidate(urlKey);
+        }
+        if (doc.url) {
+            addCandidate(doc.url);
+            const urlKey = extractKeyFromUrl(doc.url);
+            if (urlKey) addCandidate(urlKey);
+        }
+
+        // 2. User & DocType combinations in AWS S3 vault
+        if (userId && docType) {
+            addCandidate(`vault/${userId}/${docType}${fileExt}`);
+            addCandidate(`vault/${userId}/${docType}.pdf`);
+            addCandidate(`vault/${userId}/${docType}`);
+            addCandidate(`documents/${userId}/${docType}${fileExt}`);
+            addCandidate(`documents/${userId}/${docType}.pdf`);
+            addCandidate(`documents/${userId}/${docType}`);
+        }
+
+        // 3. Document ID / Clean ID candidates
+        if (cleanDocId) {
+            addCandidate(cleanDocId);
+            addCandidate(`vault/${cleanDocId}`);
+            addCandidate(`documents/${cleanDocId}`);
+
+            // Parse formatted IDs like VL-STU-2026-00021_father_aadhar_1795354743012
+            const idParts = cleanDocId.split('_');
+            if (idParts.length >= 2) {
+                const guessedUser = idParts[0];
+                const guessedType = idParts.slice(1, idParts.length > 2 ? idParts.length - 1 : 2).join('_');
+                if (guessedUser && guessedType) {
+                    addCandidate(`vault/${guessedUser}/${guessedType}.pdf`);
+                    addCandidate(`vault/${guessedUser}/${guessedType}`);
+                    addCandidate(`documents/${guessedUser}/${guessedType}.pdf`);
+                    addCandidate(`documents/${guessedUser}/${guessedType}`);
+                }
+            }
+        }
+
+        const s3CandidateKeys = Array.from(candidateSet).filter(Boolean);
 
         // 1. Fetch and stream document buffer directly from AWS S3
         for (const s3Key of s3CandidateKeys) {

@@ -325,7 +325,7 @@ export default function BankDashboard() {
 
     const avgTAT = useMemo(() => {
         const decided = applications.filter(app => (app.status === "approved" || app.status === "sanctioned" || app.status === "disbursed" || app.status === "disbursement_confirmed" || app.status === "rejected") && (app.approvedAt || app.rejectedAt || app.disbursedAt || app.sanctionedAt));
-        if (decided.length === 0) return 4.2;
+        if (decided.length === 0) return null;
         const totalDays = decided.reduce((acc, app) => {
             const start = new Date(app.submittedAt || app.createdAt);
             const end = new Date(app.approvedAt || app.rejectedAt || app.disbursedAt || app.sanctionedAt);
@@ -638,10 +638,10 @@ export default function BankDashboard() {
                 />
                 <StatMiniCard
                     label="Average TAT"
-                    value={`${avgTAT} Days`}
-                    subtext="vs target 5.0 days"
-                    trendType={avgTAT <= 5.0 ? "up" : "down"}
-                    trendLabel={avgTAT <= 5.0 ? "SLA Met" : "SLA Breach"}
+                    value={avgTAT !== null ? `${avgTAT} Days` : "—"}
+                    subtext={avgTAT !== null ? "vs target 5.0 days" : "No completed files"}
+                    trendType={avgTAT !== null ? (avgTAT <= 5.0 ? "up" : "down") : "none"}
+                    trendLabel={avgTAT !== null ? (avgTAT <= 5.0 ? "SLA Met" : "SLA Breach") : ""}
                     icon="schedule"
                     iconColor="text-indigo-600"
                     bgColor="bg-indigo-50"

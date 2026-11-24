@@ -993,10 +993,6 @@ function IncomingQueuePageInner() {
 
                                                             const query = new URLSearchParams();
                                                             if (uid) query.set("userId", uid);
-                                                            if (userEmail) query.set("email", userEmail);
-                                                            if (fName) query.set("firstName", fName);
-                                                            if (lName) query.set("lastName", lName);
-                                                            if (userPhone) query.set("phone", userPhone);
                                                             if (item.id || item._id) query.set("applicationId", item.id || item._id);
                                                             if (appNum) query.set("applicationNumber", appNum);
 
@@ -1013,9 +1009,8 @@ function IncomingQueuePageInner() {
                                                                 <p
                                                                     onClick={() => {
                                                                         const uid = item.userId || item.user_id || item.student?.id || item.student?._id;
-                                                                        const email = item.email || item.student?.email;
                                                                         if (uid) {
-                                                                            window.open(`/staff/users/${uid}${email ? `?email=${encodeURIComponent(email)}` : ''}`, '_blank');
+                                                                            window.open(`/staff/users/${uid}`, '_blank');
                                                                         } else {
                                                                             router.push(`/staff/users?search=${encodeURIComponent(item.firstName || '')}`);
                                                                         }

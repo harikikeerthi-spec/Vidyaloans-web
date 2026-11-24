@@ -79,8 +79,16 @@ type OcrSummaryDoc = {
   accuracy?: number | string;
   fieldsExtracted?: number;
   extractedData?: Record<string, unknown>;
+  isDuplicate?: boolean;
+  duplicateOf?: string;
+  duplicateOfLabel?: string;
+  fileHash?: string;
   verificationMetadata?: {
     extractedFields?: Record<string, unknown>;
+    isDuplicate?: boolean;
+    duplicateOf?: string;
+    duplicateOfLabel?: string;
+    fileHash?: string;
   };
 };
 
@@ -614,7 +622,11 @@ const ApplicationDetailView: React.FC<ApplicationDetailViewProps> = ({
             fieldsExtracted: Object.keys(extractedFields).length,
             extractedData: extractedFields,
             verificationMetadata: metadata,
-            docType
+            docType,
+            isDuplicate: Boolean(d.isDuplicate || metadata?.isDuplicate),
+            duplicateOf: (d.duplicateOf || metadata?.duplicateOf) ? String(d.duplicateOf || metadata?.duplicateOf) : undefined,
+            duplicateOfLabel: (d.duplicateOfLabel || metadata?.duplicateOfLabel) ? String(d.duplicateOfLabel || metadata?.duplicateOfLabel) : undefined,
+            fileHash: String(d.fileHash || metadata?.fileHash || ""),
           };
         });
 
@@ -634,7 +646,11 @@ const ApplicationDetailView: React.FC<ApplicationDetailViewProps> = ({
               fieldsExtracted: 0,
               extractedData: {},
               verificationMetadata: undefined,
-              docType: req.type
+              docType: req.type,
+              isDuplicate: false,
+              duplicateOf: undefined,
+              duplicateOfLabel: undefined,
+              fileHash: ""
             });
           }
         });
@@ -3085,6 +3101,8 @@ const OcrDocumentGroup = ({
             rejectionReason={doc.rejectionReason}
             uploaded={doc.uploaded}
             fileName={doc.fileName}
+            duplicateOf={doc.duplicateOf}
+            duplicateOfLabel={doc.duplicateOfLabel}
             onPreview={() => onPreviewDocument(doc)}
             onViewFile={() => onViewDocument(doc)}
             onDelete={() => onDeleteDocument(doc)}
@@ -3114,6 +3132,8 @@ const OcrMiniDocumentCard = ({
   rejectionReason,
   uploaded,
   fileName,
+  duplicateOf,
+  duplicateOfLabel,
   onPreview,
   onViewFile,
   onDelete,
@@ -3131,6 +3151,8 @@ const OcrMiniDocumentCard = ({
   rejectionReason?: string;
   uploaded?: boolean;
   fileName?: string;
+  duplicateOf?: string;
+  duplicateOfLabel?: string;
   onPreview: () => void;
   onViewFile: () => void;
   onDelete: () => void;
@@ -3185,6 +3207,15 @@ const OcrMiniDocumentCard = ({
                     : "bg-blue-50 text-blue-700 border-blue-100/80"
                   }`}>
                   {["verified", "approved"].includes(statusLower) ? "Verified" : statusLower === "rejected" ? "Rejected" : "Pending Review"}
+                </span>
+              )}
+              {duplicateOfLabel && (
+                <span
+                  className="px-2 py-0.5 rounded-full text-[9px] font-black tracking-wider uppercase bg-amber-100 text-amber-900 border border-amber-300 animate-pulse flex items-center gap-1"
+                  title={`Duplicate document: Identical file (same SHA-256) to ${duplicateOfLabel}`}
+                >
+                  <span className="material-symbols-outlined text-[11px] text-amber-700">warning</span>
+                  duplicate of {duplicateOfLabel}
                 </span>
               )}
             </div>

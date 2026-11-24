@@ -247,11 +247,7 @@ function DossierLayoutInner({ children }: { children: React.ReactNode }) {
                             type="button"
                             onClick={() => {
                                 const targetId = userData.id || userData._id || userId;
-                                const studentPhone = userData.phoneNumber || userData.mobile || userData.phone || "";
-                                const studentEmail = userData.email || "";
-                                const studentFirstName = userData.firstName || "";
-                                const studentLastName = userData.lastName || "";
-                                router.push(`/staff/chat-customer?userId=${targetId}&id=${targetId}&email=${encodeURIComponent(studentEmail)}&firstName=${encodeURIComponent(studentFirstName)}&lastName=${encodeURIComponent(studentLastName)}&phone=${encodeURIComponent(studentPhone)}`);
+                                router.push(`/staff/chat-customer?userId=${targetId}`);
                             }}
                             className="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm transition-all flex items-center gap-2 cursor-pointer"
                         >

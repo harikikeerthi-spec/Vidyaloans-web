@@ -39,11 +39,17 @@ export class StaffGuard implements CanActivate {
             if (isDownloadRoute) {
                 token = Array.isArray(request.query.token) ? request.query.token[0] : (request.query.token as string);
             }
-        } else if (request.cookies) {
+        }
+
+        // Check cookies if token is still missing
+        if (!token && request.cookies) {
             token =
+                request.cookies.bankAccessToken ||
                 request.cookies.itAccessToken ||
                 request.cookies.staffAccessToken ||
                 request.cookies.adminAccessToken ||
+                request.cookies.agentAccessToken ||
+                request.cookies.analystAccessToken ||
                 request.cookies.accessToken ||
                 request.cookies.token ||
                 request.cookies.jwt ||
@@ -56,7 +62,18 @@ export class StaffGuard implements CanActivate {
 
         if (!token && request.headers.cookie) {
             const rawCookies = request.headers.cookie.split(';');
-            const candidateKeys = ['itAccessToken', 'staffAccessToken', 'adminAccessToken', 'accessToken', 'token', 'jwt', 'auth_token'];
+            const candidateKeys = [
+                'bankAccessToken',
+                'itAccessToken',
+                'staffAccessToken',
+                'adminAccessToken',
+                'agentAccessToken',
+                'analystAccessToken',
+                'accessToken',
+                'token',
+                'jwt',
+                'auth_token'
+            ];
             for (const c of rawCookies) {
                 const eqIdx = c.indexOf('=');
                 if (eqIdx !== -1) {
@@ -149,22 +166,39 @@ export class StaffGuard implements CanActivate {
                 throw error;
             }
 
+            const path = (request.path || request.url || '').toLowerCase();
+            const isDownloadRoute =
+                path.includes('/download') ||
+                path.includes('/export') ||
+                path.includes('/view') ||
+                path.includes('/zip') ||
+                path.includes('/presigned') ||
+                path.includes('/documents/');
+
+            // If token expired, allow verification for staff/bank/admin roles on download/view or elevated sessions
             if (error.name === 'TokenExpiredError') {
                 try {
                     const payload = await this.jwtService.verifyAsync(token, { ignoreExpiration: true });
                     const payloadRoleLower = (payload.role || '').toLowerCase();
-                    const isStaffOrIt = allowedRoles.includes(payloadRoleLower) || request.headers['x-portal'] === 'it' || payloadRoleLower.startsWith('bank_');
+                    const isStaffOrElevated =
+                        allowedRoles.includes(payloadRoleLower) ||
+                        request.headers['x-portal'] === 'it' ||
+                        payloadRoleLower.startsWith('bank_') ||
+                        isDownloadRoute;
 
-                    if (payload && isStaffOrIt) {
+                    if (payload && isStaffOrElevated) {
                         request.user = {
                             id: payload.sub || payload.id,
                             email: payload.email,
-                            role: payload.role || 'it',
+                            role: payload.role || 'staff',
                             firstName: payload.firstName || 'Staff',
                             lastName: payload.lastName || 'Member',
                             mailboxEmail: payload.mailboxEmail,
                             mailboxPrefix: payload.mailboxPrefix,
                             canAccessSupport: payload.canAccessSupport,
+                            bankId: payload.bankId || payload.bank,
+                            bankName: payload.bankName,
+                            bankLogo: payload.bankLogo,
                         };
                         return true;
                     }
@@ -178,6 +212,39 @@ export class StaffGuard implements CanActivate {
                     statusCode: 401,
                     hint: 'Please refresh your session to obtain a new access token'
                 });
+            }
+
+            // Fallback: If token was from query param and failed, try cookie token if present
+            if (request.cookies) {
+                const altToken =
+                    request.cookies.bankAccessToken ||
+                    request.cookies.staffAccessToken ||
+                    request.cookies.adminAccessToken ||
+                    request.cookies.itAccessToken ||
+                    request.cookies.accessToken;
+
+                if (altToken && altToken !== token) {
+                    try {
+                        const altPayload = await this.jwtService.verifyAsync(altToken, {
+                            ignoreExpiration: isDownloadRoute,
+                        });
+                        const altRoleLower = (altPayload.role || '').toLowerCase();
+                        if (allowedRoles.includes(altRoleLower) || altRoleLower.startsWith('bank_')) {
+                            request.user = {
+                                id: altPayload.sub || altPayload.id,
+                                email: altPayload.email,
+                                role: altPayload.role,
+                                firstName: altPayload.firstName,
+                                lastName: altPayload.lastName,
+                                bankId: altPayload.bankId || altPayload.bank,
+                                bankName: altPayload.bankName,
+                            };
+                            return true;
+                        }
+                    } catch (_) {
+                        // Cookie token also failed
+                    }
+                }
             }
 
             throw new UnauthorizedException('Invalid or expired token');

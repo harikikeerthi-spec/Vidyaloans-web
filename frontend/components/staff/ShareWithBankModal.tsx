@@ -135,6 +135,10 @@ export default function ShareWithBankModal({
           })
         });
 
+        if (res?.success === false) {
+          throw new Error(res?.message || "Failed to submit application to selected banks.");
+        }
+
         if (res?.applicationNumber) {
           setGeneratedAppNumber(res.applicationNumber);
         }
@@ -142,7 +146,7 @@ export default function ShareWithBankModal({
         if (res?.submissions?.[0]?.id) {
           setSubmissionId(res.submissions[0].id);
         } else {
-          setSubmissionId(`MULT-${applicationId.slice(-6).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`);
+          throw new Error(res?.message || "No bank submissions were recorded on the server. Application was not routed.");
         }
 
         const effectiveAppNum = res?.applicationNumber || applicationNumber;
@@ -206,15 +210,14 @@ export default function ShareWithBankModal({
           realSubmissionId = workflowRes.data.id;
         } else if (workflowRes?.submission?.id) {
           realSubmissionId = workflowRes.submission.id;
-        } else if (!workflowRes?.success && workflowRes?.message) {
-          throw new Error(workflowRes.message);
+        } else if (workflowRes?.id) {
+          realSubmissionId = workflowRes.id;
+        } else {
+          throw new Error(workflowRes?.message || "Failed to create real bank submission record on server. Application was not routed.");
         }
 
         // Store submission reference for the success UI
-        const submissionRef =
-          realSubmissionId ||
-          `SUB-${applicationId.slice(-6).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
-        setSubmissionId(submissionRef);
+        setSubmissionId(realSubmissionId);
 
         // Auto-create a bank chat conversation so it shows in staff BANKS tab
         try {
