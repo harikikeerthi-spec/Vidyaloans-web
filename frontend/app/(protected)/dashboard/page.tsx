@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useAuth } from "@/contexts/AuthContext";
@@ -59,203 +59,15 @@ interface DashboardData {
     family?: any;
 }
 
-interface Stage {
-    order: number;
-    label: string;
-    icon: string;
-    progress: number;
-}
-
-const STAGES_CONFIG: Record<string, Stage> = {
-    application_created: { order: 1, label: 'Created', icon: 'bolt', progress: 10 },
-    application_submitted: { order: 2, label: 'Submitted', icon: 'send', progress: 25 },
-    document_verification: { order: 3, label: 'Documents', icon: 'verified', progress: 40 },
-    submit_to_bank: { order: 4, label: 'Submit to Bank', icon: 'account_balance', progress: 50 },
-    credit_check: { order: 5, label: 'Credit Check', icon: 'credit_score', progress: 75 },
-    bank_review: { order: 6, label: 'Review', icon: 'rate_review', progress: 90 },
-    sanction: { order: 7, label: 'Sanction', icon: 'assignment_turned_in', progress: 95 },
-    disbursement: { order: 8, label: 'Disbursed', icon: 'payments', progress: 100 },
-};
-
-const STAGES_LIST = Object.entries(STAGES_CONFIG)
-    .sort(([, a], [, b]) => a.order - b.order)
-    .map(([key, value]) => ({ id: key, ...value }));
-
 function ApplicationProgressCollapse({ app, documents = [], profile }: { app: any; documents?: any[]; profile?: any }) {
-    const isRejected = app.status?.toLowerCase() === 'rejected' || app.status?.toLowerCase() === 'cancelled';
-    const statusLower = app.status?.toLowerCase() || '';
-    const isSanctionedOrApproved = ['sanctioned', 'approved', 'sanction', 'conditional_sanction', 'partial_sanction', 'counter_offer', 'sanction_issued'].includes(statusLower) || app.stage === 'sanction' || app.stage === 'sanctioned';
-    const isDisbursedOrClosed = ['disbursed', 'disbursement_confirmed', 'closed'].includes(statusLower) || app.stage === 'disbursement' || app.stage === 'disbursed';
-
-    const currentProgress = getDynamicProgress(app, documents, profile);
-    const currentStageKey = isRejected ? null : getStageKeyForApp(app, currentProgress, documents, profile);
-    const currentStage = currentStageKey ? STAGES_CONFIG[currentStageKey] : null;
-
-    const maxCompletedOrder = isDisbursedOrClosed
-        ? 8
-        : isSanctionedOrApproved
-            ? 7
-            : (currentStage ? (currentStageKey === 'disbursement' && currentProgress >= 100 ? 8 : currentStage.order - 1) : 0);
-
-    const appCreatedAt = app.createdAt || app.created_at || app.submittedAt || app.submitted_at || app.date;
-    const appUpdatedAt = app.updatedAt || app.updated_at || appCreatedAt;
-
-    const lastCompletedIdx = maxCompletedOrder - 1;
-
-    const getStageTimestamp = (stageIdx: number, completed: boolean, active?: boolean): string | undefined => {
-        if (!completed && !active) return undefined;
-        if (stageIdx === 0) return appCreatedAt;
-        if (active || stageIdx === lastCompletedIdx) return appUpdatedAt || appCreatedAt;
-
-        // Give intermediate steps a small simulated progressive delay for realism
-        try {
-            const baseDate = new Date(appCreatedAt);
-            if (stageIdx > 0 && !isNaN(baseDate.getTime())) {
-                const offsetDate = new Date(baseDate.getTime() + stageIdx * 18 * 60 * 60 * 1000);
-                const updatedDate = new Date(appUpdatedAt);
-                if (offsetDate.getTime() < updatedDate.getTime()) {
-                    return offsetDate.toISOString();
-                }
-            }
-        } catch { }
-        return appCreatedAt;
-    };
-
-    const formatToIST = (dateVal: any): { date: string; time: string } | null => {
-        if (!dateVal) return null;
-        try {
-            let str = String(dateVal).trim();
-            if (!str) return null;
-            if (/^\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}/.test(str) && !/[Zz+\-]\d{0,2}:?\d{0,2}$/.test(str)) {
-                str = str.replace(' ', 'T') + 'Z';
-            }
-            const d = new Date(str);
-            if (isNaN(d.getTime())) return null;
-
-            const parts = new Intl.DateTimeFormat("en-US", {
-                timeZone: "Asia/Kolkata",
-                year: "numeric",
-                month: "short",
-                day: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-                hour12: true
-            }).formatToParts(d);
-
-            const getPart = (type: string) => parts.find(p => p.type === type)?.value || "";
-
-            const month = getPart("month");
-            const day = getPart("day");
-            const hour = getPart("hour");
-            const minute = getPart("minute");
-            const dayPeriod = getPart("dayPeriod").toUpperCase();
-
-            return {
-                date: `${month} ${day}`,
-                time: `${hour}:${minute} ${dayPeriod}`
-            };
-        } catch {
-            return null;
-        }
-    };
-
-    if (isRejected) {
-        return (
-            <div className="mt-4 bg-red-50/50 border border-red-100 rounded-xl p-6 shadow-sm animate-fadeIn">
-                <div className="flex items-center gap-4 mb-4">
-                    <div className="w-10 h-10 bg-red-500 rounded-lg flex items-center justify-center text-white shadow-md shrink-0">
-                        <span className="material-symbols-outlined text-xl">cancel</span>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                        <h3 className="text-sm font-bold text-red-900 capitalize">Application {app.status}</h3>
-                        <p className="text-red-700/60 text-xs truncate">Your {getBankDisplayName(app.bank) ? `${getBankDisplayName(app.bank)} ` : ""}application was {app.status}.</p>
-                    </div>
-                </div>
-                <div className="p-3 bg-white/60 rounded-lg border border-red-100">
-                    <p className="text-xs text-red-700 font-medium">Please contact our support team or start a new application for a different bank.</p>
-                </div>
-            </div>
-        );
-    }
-
     return (
-        <div className="mt-4 bg-[#6605c7]/[0.01] border border-gray-100 rounded-xl p-6 md:p-8 shadow-inner animate-fadeIn">
-            {/* Header / Info */}
-            <div className="flex justify-between items-center mb-10">
-                <h3 className="text-xs font-black uppercase tracking-widest text-[#6605c7] flex items-center gap-2">
-                    <span className="w-5 h-5 bg-[#6605c7]/10 text-[#6605c7] rounded flex items-center justify-center">
-                        <span className="material-symbols-outlined text-xs">rocket_launch</span>
-                    </span>
-                    Application Progress
-                </h3>
-                <div className="flex items-center gap-3">
-                    <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 ${isDisbursedOrClosed || isSanctionedOrApproved
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
-                            : 'bg-emerald-50 text-emerald-700'
-                        }`}>
-                        <span className="material-symbols-outlined text-xs">
-                            {isDisbursedOrClosed ? 'payments' : isSanctionedOrApproved ? 'verified' : 'rocket_launch'}
-                        </span>
-                        {isDisbursedOrClosed ? '100% Disbursed' : isSanctionedOrApproved ? 'Sanctioned & Approved' : `${currentProgress}% Complete`}
-                    </div>
-                </div>
-            </div>
-
-            {/* Timeline */}
-            <div className="relative px-2 mb-8 select-none">
-                {/* Background Line */}
-                <div className="absolute top-5 left-0 right-0 h-[2px] bg-gray-100 rounded-full mx-6" />
-
-                {/* Active Progress Line */}
-                <div
-                    className={`absolute top-5 left-0 h-[3px] rounded-full mx-6 transition-all duration-1000 ease-out ${isDisbursedOrClosed || isSanctionedOrApproved
-                            ? 'bg-gradient-to-r from-emerald-500 to-teal-400 shadow-[0_0_10px_rgba(16,185,129,0.3)]'
-                            : 'bg-[#6605c7] shadow-[0_0_10px_rgba(102,5,199,0.3)]'
-                        }`}
-                    style={{ width: `calc(${currentProgress}% - 48px)` }}
-                />
-
-                <div className="relative flex justify-between">
-                    {STAGES_LIST.map((stage) => {
-                        const isCompleted = stage.order <= maxCompletedOrder;
-                        const isCurrent = !isCompleted && currentStage && (
-                            isSanctionedOrApproved ? stage.id === 'disbursement' : stage.id === currentStageKey
-                        );
-                        const stageTimestamp = getStageTimestamp(stage.order - 1, isCompleted, Boolean(isCurrent));
-                        const stageTimestampFormatted = formatToIST(stageTimestamp);
-
-                        return (
-                            <div key={stage.id} className="flex flex-col items-center group relative" style={{ width: '40px' }}>
-                                {/* Step Circle */}
-                                <div className={`
-                                    w-10 h-10 rounded-full flex items-center justify-center z-10 transition-all duration-500 border-2
-                                    ${isCompleted ? 'bg-emerald-500 border-emerald-100 text-white shadow-lg shadow-emerald-500/10' :
-                                        isCurrent ? 'bg-white border-[#6605c7] text-[#6605c7] shadow-lg shadow-[#6605c7]/10 scale-110' :
-                                            'bg-white border-gray-100 text-gray-300'}
-                                `}>
-                                    <span className={`material-symbols-outlined text-[18px] ${isCurrent ? 'animate-pulse' : ''}`}>
-                                        {isCompleted ? 'check' : stage.icon}
-                                    </span>
-                                </div>
-
-                                {/* Label & Completion Timestamp */}
-                                <div className="absolute top-12 whitespace-nowrap text-center flex flex-col items-center">
-                                    <span className={`text-[10px] font-bold uppercase tracking-tighter ${isCompleted ? 'text-emerald-600' : isCurrent ? 'text-[#6605c7]' : 'text-gray-400'}`}>
-                                        {stage.label}
-                                    </span>
-                                    {stageTimestampFormatted && (
-                                        <div className="text-[8px] leading-tight text-gray-400 font-bold tracking-wider mt-1 select-none tabular-nums text-center">
-                                            <div>{stageTimestampFormatted.date}</div>
-                                            <div className="text-gray-400/80 font-medium mt-0.5">{stageTimestampFormatted.time}</div>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            </div>
-        </div>
+        <ProgressTracker
+            application={app}
+            documents={documents}
+            profile={profile}
+            orientation="horizontal"
+            className="mt-4"
+        />
     );
 }
 
@@ -637,7 +449,15 @@ export default function DashboardPage() {
         }
     }, [hasDataApps, hasUserApps, loading, user?.id, user?.email]);
 
-    const firstApp = (data.applications && data.applications.length > 0) ? data.applications[0] : null;
+    const firstApp = useMemo(() => {
+        if (!data.applications || data.applications.length === 0) return null;
+        const sorted = [...data.applications].sort((a: any, b: any) => {
+            const pA = getDynamicProgress(a, data.documents || [], data.profile);
+            const pB = getDynamicProgress(b, data.documents || [], data.profile);
+            return pB - pA;
+        });
+        return sorted[0];
+    }, [data.applications, data.documents, data.profile]);
     const isApproved = !!(firstApp && ['sanctioned', 'approved', 'disbursed'].includes(firstApp.status?.toLowerCase()));
 
     const getStaffDetails = (app: any) => {

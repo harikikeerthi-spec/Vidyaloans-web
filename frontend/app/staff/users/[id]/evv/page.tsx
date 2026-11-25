@@ -15,9 +15,10 @@ export default function EvvTab() {
     const handleEVVComplete = async (result: EVVResult) => {
         if (!activeApp) return;
         try {
+            const isBlockedOrManualReview = Boolean(result.isScoreBlocked || result.requiresManualReview || result.statusBand !== "Green");
             const payload = {
-                evvOverall: result.overallEVV,
-                evvStatus: "COMPUTED",
+                evvOverall: isBlockedOrManualReview ? 0 : result.overallEVV,
+                evvStatus: isBlockedOrManualReview ? "NEEDS_MANUAL_REVIEW" : "COMPUTED",
                 evvMonthlyBreakdown: result.monthlyMetrics.map(m => ({
                     label: m.label,
                     points: m.points,

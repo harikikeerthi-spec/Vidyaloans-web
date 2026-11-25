@@ -29,9 +29,6 @@ export const metadata: Metadata = {
     "abroad education loan",
     "collateral free education loan",
   ],
-  alternates: {
-    canonical: "./",
-  },
   openGraph: {
     title: "VidyaLoans - Fund Your Dream Education Abroad",
     description:

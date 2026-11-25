@@ -250,8 +250,26 @@ export const agentApi = {
         apiFetch<any>(`${API_URL}/referrals/analytics`),
 };
 
+export function isTokenExpired(token: string | null): boolean {
+    if (!token) return true;
+    try {
+        const parts = token.split('.');
+        if (parts.length !== 3) return true;
+        const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+        if (!payload.exp) return false;
+        // Expired or expiring within 60 seconds
+        return Date.now() >= (payload.exp - 60) * 1000;
+    } catch {
+        return false;
+    }
+}
+
 export function getToken(): string | null {
     if (typeof window === "undefined") return null;
+
+    if (activeInMemoryToken && !isTokenExpired(activeInMemoryToken)) {
+        return activeInMemoryToken;
+    }
 
     const portal = getPortalFromPathname(window.location.pathname);
     const keys = getStorageKeys(portal);
@@ -575,13 +593,9 @@ export async function tryRefreshAccessToken(): Promise<string | null> {
 function notifySessionExpired() {
     if (typeof window === "undefined") return;
 
-    // Never kick user out of IT dashboard; clear invalid token and stay on current page, but preserve refresh token for recovery
+    // Never kick user out of IT dashboard; never wipe active tokens during composing, silently attempt refresh
     if (window.location.pathname.startsWith("/it")) {
-        localStorage.removeItem("itAccessToken");
-        localStorage.removeItem("staffAccessToken");
-        sessionStorage.removeItem("itAccessToken");
-        sessionStorage.removeItem("staffAccessToken");
-        notifyTokenChange(null);
+        tryRefreshAccessToken().catch(() => {});
         return;
     }
 
@@ -670,9 +684,10 @@ export async function apiFetch<T>(
         }
     }
 
-    // Proactive refresh: if endpoint requires authentication but no Authorization header is present,
+    // Proactive refresh: if endpoint requires authentication and Authorization header is missing or expired,
     // silently acquire a fresh token before sending a doomed request
-    if (!isPublicAuthUrl(url) && !headersObj["Authorization"] && !headersObj["authorization"]) {
+    const existingAuthToken = (headersObj["Authorization"] || headersObj["authorization"])?.replace(/^Bearer\s+/i, "");
+    if (!isPublicAuthUrl(url) && (!existingAuthToken || isTokenExpired(existingAuthToken))) {
         const freshToken = await tryRefreshAccessToken();
         if (freshToken) {
             headersObj["Authorization"] = `Bearer ${freshToken}`;
@@ -791,7 +806,13 @@ async function handleResponse<T>(res: Response, url?: string, alreadyRetried = f
             }
         }
 
-        throw new Error(err.message || "API request failed");
+        const rawMsg = err?.message || (typeof err === "string" ? err : "API request failed");
+        const sanitizedMsg =
+            rawMsg.toLowerCase().includes("no authorization token") ||
+            rawMsg.toLowerCase().includes("unauthorized")
+                ? "Your login session has expired. Please refresh your session or log in again."
+                : rawMsg;
+        throw new Error(sanitizedMsg);
     }
 
     return body as T;

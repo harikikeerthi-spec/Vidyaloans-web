@@ -193,6 +193,12 @@ export interface EVVResult {
   disclaimer?: string;
   deterministicEngineResult?: DeterministicEVVResult;
   auditSnapshot?: AuditSnapshot;
+  isScoreBlocked?: boolean;
+  requiresManualReview?: boolean;
+  manualReviewReasons?: string[];
+  validationIssues?: string[];
+  statementSpanDays?: number;
+  ocrConfidenceScore?: number;
   riskAnalysis: {
     lowBalanceDays: number;
     negativeBalanceDays: number;
@@ -206,6 +212,126 @@ export interface EVVResult {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Statement Validation & OCR Confidence
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface StatementValidationResult {
+  isValid: boolean;
+  requiresManualReview: boolean;
+  issues: string[];
+  statementSpanDays: number;
+  statementSpanMonths: number;
+  futureDatesCount: number;
+  earliestDate: Date | null;
+  latestDate: Date | null;
+  ocrConfidence: number; // 0 - 100
+}
+
+export function validateStatementTransactions(
+  transactions: Transaction[],
+  ocrQuality?: { skippedCount?: number; totalLines?: number; detectedDpi?: number; fileName?: string }
+): StatementValidationResult {
+  const issues: string[] = [];
+  if (!transactions || transactions.length === 0) {
+    return {
+      isValid: false,
+      requiresManualReview: true,
+      issues: ["No valid transactions could be parsed from the statement."],
+      statementSpanDays: 0,
+      statementSpanMonths: 0,
+      futureDatesCount: 0,
+      earliestDate: null,
+      latestDate: null,
+      ocrConfidence: 0,
+    };
+  }
+
+  const now = new Date();
+  // 1-day buffer for timezone differences
+  const maxAllowedDate = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+  let earliest: Date = transactions[0].date;
+  let latest: Date = transactions[0].date;
+  let futureDatesCount = 0;
+  const futureSamples: string[] = [];
+
+  for (const t of transactions) {
+    if (t.date.getTime() < earliest.getTime()) earliest = t.date;
+    if (t.date.getTime() > latest.getTime()) latest = t.date;
+
+    if (t.date.getTime() > maxAllowedDate.getTime()) {
+      futureDatesCount++;
+      const dateStr = t.date.toISOString().slice(0, 10);
+      if (!futureSamples.includes(dateStr) && futureSamples.length < 3) {
+        futureSamples.push(dateStr);
+      }
+    }
+  }
+
+  // 1. Future date check
+  if (futureDatesCount > 0) {
+    issues.push(
+      `Future transaction dates detected (${futureDatesCount} transactions, e.g. ${futureSamples.join(", ")}). Scanned statement contains invalid or misread dates.`
+    );
+  }
+
+  // 2. Statement span check (Max 8.5 months ~ 260 days for a standard 6-month bank statement)
+  const spanMs = latest.getTime() - earliest.getTime();
+  const spanDays = Math.round(spanMs / (1000 * 60 * 60 * 24));
+  const spanMonths = Number((spanDays / 30.44).toFixed(1));
+
+  if (spanDays > 260) {
+    issues.push(
+      `Statement span "${earliest.toISOString().slice(0, 10)} to ${latest.toISOString().slice(0, 10)}" (${spanDays} days / ${spanMonths} months) far exceeds allowable 6-month window (maximum 8 months). Date misreads detected from scan quality.`
+    );
+  }
+
+  // 3. Stale statement check (Latest transaction older than 18 months)
+  const eighteenMonthsAgo = new Date(now.getTime() - 18 * 30.44 * 24 * 60 * 60 * 1000);
+  if (latest.getTime() < eighteenMonthsAgo.getTime()) {
+    issues.push(
+      `Statement is outdated: Latest transaction date is ${latest.toISOString().slice(0, 10)}, which is older than 18 months.`
+    );
+  }
+
+  // 4. OCR Confidence / scan quality estimation
+  let ocrConfidence = 100;
+  if (ocrQuality?.totalLines && ocrQuality.totalLines > 0) {
+    const skipRate = (ocrQuality.skippedCount || 0) / ocrQuality.totalLines;
+    if (skipRate > 0.35) {
+      ocrConfidence -= Math.min(40, Math.round(skipRate * 100));
+      issues.push(`Low OCR parsing confidence: ${Math.round(skipRate * 100)}% of candidate lines could not be reliably parsed.`);
+    }
+  }
+
+  const fnLower = (ocrQuality?.fileName || "").toLowerCase();
+  const isLowDpiName = fnLower.includes("144") || fnLower.includes("144dpi") || fnLower.includes("lowres") || fnLower.includes("low_dpi");
+  if (isLowDpiName || (ocrQuality?.detectedDpi && ocrQuality.detectedDpi < 200)) {
+    const dpi = ocrQuality?.detectedDpi || 144;
+    ocrConfidence -= 30;
+    issues.push(`Low-resolution scan detected (~${dpi} DPI). Scanned PDF exhibits OCR character ambiguity. Standard underwriting requires minimum 200-300 DPI for automated verification.`);
+  }
+
+  if (futureDatesCount > 0) ocrConfidence -= 40;
+  if (spanDays > 260) ocrConfidence -= 30;
+  ocrConfidence = Math.max(0, Math.min(100, ocrConfidence));
+
+  const requiresManualReview = issues.length > 0 || ocrConfidence < 70;
+
+  return {
+    isValid: issues.length === 0,
+    requiresManualReview,
+    issues,
+    statementSpanDays: spanDays,
+    statementSpanMonths: spanMonths,
+    futureDatesCount,
+    earliestDate: earliest,
+    latestDate: latest,
+    ocrConfidence,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Internals
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -215,19 +341,39 @@ const MONTHS: Record<string, number> = {
 };
 
 function parseDateToken(tok: string): Date | null {
-  // DD/MM/YYYY  or  DD-MM-YYYY
-  let m = tok.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  // DD/MM/YYYY  or  DD-MM-YYYY  or  DD.MM.YYYY
+  let m = tok.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})$/);
   if (m) {
-    const year = m[3].length === 2 ? "20" + m[3] : m[3];
-    return new Date(+year, +m[2] - 1, +m[1]);
+    let yearNum = +m[3];
+    if (m[3].length === 2) {
+      yearNum = 2000 + yearNum;
+    }
+    const day = +m[1];
+    const monthIndex = +m[2] - 1;
+    if (monthIndex < 0 || monthIndex > 11 || day < 1 || day > 31) return null;
+    return new Date(yearNum, monthIndex, day);
+  }
+  // YYYY-MM-DD or YYYY/MM/DD
+  m = tok.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+  if (m) {
+    const yearNum = +m[1];
+    const monthIndex = +m[2] - 1;
+    const day = +m[3];
+    if (monthIndex < 0 || monthIndex > 11 || day < 1 || day > 31) return null;
+    return new Date(yearNum, monthIndex, day);
   }
   // DD-MMM-YYYY  or  DD MMM YYYY  or  DD-MMM-YY
   m = tok.match(/^(\d{1,2})[\-\s]([A-Za-z]{3,})[\-\s](\d{2,4})$/);
   if (m) {
     const mi = MONTHS[m[2].slice(0, 3).toLowerCase()];
     if (mi === undefined) return null;
-    const year = m[3].length === 2 ? "20" + m[3] : m[3];
-    return new Date(+year, mi, +m[1]);
+    let yearNum = +m[3];
+    if (m[3].length === 2) {
+      yearNum = 2000 + yearNum;
+    }
+    const day = +m[1];
+    if (day < 1 || day > 31) return null;
+    return new Date(yearNum, mi, day);
   }
   return null;
 }
@@ -316,10 +462,11 @@ export async function extractPdfText(file: File): Promise<string> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function parseTransactions(
-  text: string
-): { transactions: Transaction[]; skipped: number } {
+  text: string,
+  fileName?: string
+): { transactions: Transaction[]; skipped: number; validation: StatementValidationResult } {
   const lines      = text.split("\n").map((l) => l.trim()).filter(Boolean);
-  const dateRegex  = /(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{1,2}[\-\s][A-Za-z]{3,}[\-\s]\d{2,4})/;
+  const dateRegex  = /(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}|\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}|\d{1,2}[\-\s][A-Za-z]{3,}[\-\s]\d{2,4})/;
   const numToken   = /[\d,]+(?:\.\d{1,2})?/g;   // matches "1,23,456.78" and "8000"
 
   const rows: (Transaction & { _idx: number })[] = [];
@@ -366,9 +513,18 @@ export function parseTransactions(
   // Sort chronologically; preserve original order for same-date entries
   rows.sort((a, b) => a.date.getTime() - b.date.getTime() || a._idx - b._idx);
 
+  const parsedTransactions = rows.map(({ _idx, ...t }) => t);
+
+  const validation = validateStatementTransactions(parsedTransactions, {
+    skippedCount: skipped,
+    totalLines: lines.length,
+    fileName,
+  });
+
   return {
-    transactions: rows.map(({ _idx, ...t }) => t),
+    transactions: parsedTransactions,
     skipped,
+    validation,
   };
 }
 
@@ -644,14 +800,43 @@ export function calculateEVV(
     riskGrade: m.benchmarkMet ? "A" : "C",
   }));
 
+  const validation = validateStatementTransactions(transactions);
+
+  const isValidationFailed = !validation.isValid || validation.requiresManualReview || Boolean(detResult.isScoreBlocked) || detResult.requiresManualReview;
+  const isScoreBlocked = !validation.isValid || validation.futureDatesCount > 0 || validation.statementSpanDays > 260 || Boolean(detResult.isScoreBlocked);
+
+  // Merge validation issues into manualReviewReasons
+  const allManualReviewReasons = Array.from(new Set([
+    ...validation.issues,
+    ...detResult.manualReviewReasons
+  ]));
+
+  const finalStatusBand: "Green" | "Amber" | "Red" = isValidationFailed
+    ? (detResult.statusBand === "RED" ? "Red" : "Amber")
+    : (detResult.statusBand === "GREEN" ? "Green" : detResult.statusBand === "AMBER" ? "Amber" : "Red");
+
+  const finalScore = isScoreBlocked ? 0 : detResult.effectiveScoreOutOf100;
+
+  const finalGrade = isScoreBlocked || isValidationFailed
+    ? "Needs manual review"
+    : detResult.statusBand === "GREEN"
+    ? detResult.effectiveScoreOutOf100 >= 90
+      ? "A+"
+      : "A"
+    : detResult.statusBand === "AMBER"
+    ? "B"
+    : detResult.effectiveScoreOutOf100 >= 50
+    ? "C"
+    : "D";
+
   const evv6Components: EVV6ComponentResult = {
     component1: {
       name: detResult.component1.name,
       maxScore: detResult.component1.maxScore,
-      score: detResult.component1.score,
-      sixMonthSampledAMB: detResult.component1.sixMonthSampledAMBRupees,
+      score: isScoreBlocked ? 0 : detResult.component1.score,
+      sixMonthSampledAMB: isScoreBlocked ? 0 : detResult.component1.sixMonthSampledAMBRupees,
       strongBalanceTarget: detResult.component1.strongBalanceTargetRupees,
-      baseScore: detResult.component1.basePoints,
+      baseScore: isScoreBlocked ? 0 : detResult.component1.basePoints,
       consistencyDeduction: detResult.component1.consistencyDeduction,
       monthsMeetingBenchmark: detResult.component1.monthsMeetingBenchmarkCount,
       trendDeduction: detResult.component1.trendDeduction,
@@ -669,7 +854,7 @@ export function calculateEVV(
     component2: {
       name: detResult.component2.name,
       maxScore: detResult.component2.maxScore,
-      score: detResult.component2.score,
+      score: isScoreBlocked ? 0 : detResult.component2.score,
       benchmarkM: detResult.component2.benchmarkMRupees,
       sampledLowRatio: detResult.component2.sampledLowRatio,
       dailyLowRatio: detResult.component2.dailyLowRatio,
@@ -684,7 +869,7 @@ export function calculateEVV(
     component3: {
       name: detResult.component3.name,
       maxScore: detResult.component3.maxScore,
-      score: detResult.component3.score,
+      score: isScoreBlocked ? 0 : detResult.component3.score,
       confirmedBounces: detResult.component3.confirmedBouncesCount,
       candidateCount: detResult.component3.candidates.length,
       recentBounceWithin30Days: detResult.component3.recentBounceWithin30Days,
@@ -703,11 +888,11 @@ export function calculateEVV(
     component4: {
       name: detResult.component4.name,
       maxScore: detResult.component4.maxScore,
-      score: detResult.component4.score,
+      score: isScoreBlocked ? 0 : detResult.component4.score,
       isRepaymentIncomeContributor: detResult.component4.isRepaymentIncomeContributor,
       profileType: detResult.component4.profileType,
       recurringMonthsCount: detResult.component4.verifiedInflowMonthsCount,
-      baseScore: detResult.component4.baseScore,
+      baseScore: isScoreBlocked ? 0 : detResult.component4.baseScore,
       verificationCap: detResult.component4.verificationCap,
       verificationCondition: detResult.component4.verificationStatusLabel,
       evidence:
@@ -719,7 +904,7 @@ export function calculateEVV(
     component5: {
       name: detResult.component5.name,
       maxScore: detResult.component5.maxScore,
-      score: detResult.component5.score,
+      score: isScoreBlocked ? 0 : detResult.component5.score,
       totalCashDeposits: detResult.component5.totalConfirmedCashRupees,
       totalCredits: detResult.component5.totalCreditsRupees,
       cashRatio: detResult.component5.cashDepositRatio,
@@ -732,7 +917,7 @@ export function calculateEVV(
     component6: {
       name: detResult.component6.name,
       maxScore: detResult.component6.maxScore,
-      score: detResult.component6.score,
+      score: isScoreBlocked ? 0 : detResult.component6.score,
       consecutiveDrops: detResult.component6.balanceDropEvents.map((bd) => ({
         fromDate: bd.fromDate,
         toDate: bd.toDate,
@@ -751,10 +936,10 @@ export function calculateEVV(
       formulaExplanation: detResult.component6.formulaExplanation,
     },
     bankPolicy: detResult.policyUsed,
-    rawTotalScore: detResult.numericTotalScore,
-    finalTotalScore: detResult.effectiveScoreOutOf100,
-    statusBand: detResult.statusBand === "GREEN" ? "Green" : detResult.statusBand === "AMBER" ? "Amber" : "Red",
-    hardRiskFlags: detResult.manualReviewReasons,
+    rawTotalScore: isScoreBlocked ? 0 : detResult.numericTotalScore,
+    finalTotalScore: finalScore,
+    statusBand: finalStatusBand,
+    hardRiskFlags: allManualReviewReasons,
     mandatoryDisclaimer: MANDATORY_EVV_DISCLAIMER,
   };
 
@@ -762,28 +947,20 @@ export function calculateEVV(
   const totalDebitsSum = monthlyMetrics.reduce((s, m) => s + m.debits, 0);
 
   return {
-    overallEVV: detResult.effectiveScoreOutOf100,
-    overallEVVValue: detResult.component1.sixMonthSampledAMBRupees,
-    overallGrade:
-      detResult.statusBand === "GREEN"
-        ? detResult.effectiveScoreOutOf100 >= 90
-          ? "A+"
-          : "A"
-        : detResult.statusBand === "AMBER"
-        ? "B"
-        : detResult.effectiveScoreOutOf100 >= 50
-        ? "C"
-        : "D",
-    overallRisk:
-      detResult.statusBand === "GREEN" && detResult.manualReviewReasons.length === 0
-        ? "Low"
-        : detResult.statusBand === "AMBER"
-        ? "Medium"
-        : "High",
-    statusBand: detResult.statusBand === "GREEN" ? "Green" : detResult.statusBand === "AMBER" ? "Amber" : "Red",
+    overallEVV: finalScore,
+    overallEVVValue: isScoreBlocked ? 0 : detResult.component1.sixMonthSampledAMBRupees,
+    overallGrade: finalGrade,
+    overallRisk: isValidationFailed || isScoreBlocked ? "High" : detResult.statusBand === "GREEN" ? "Low" : "Medium",
+    statusBand: finalStatusBand,
+    isScoreBlocked,
+    requiresManualReview: isValidationFailed,
+    manualReviewReasons: allManualReviewReasons,
+    validationIssues: validation.issues,
+    statementSpanDays: validation.statementSpanDays,
+    ocrConfidenceScore: validation.ocrConfidence,
     totalMonths: detResult.completedCalendarMonths.length,
     totalTransactions: transactions.length,
-    overallAverageBalance: detResult.component1.sixMonthSampledAMBRupees,
+    overallAverageBalance: isScoreBlocked ? 0 : detResult.component1.sixMonthSampledAMBRupees,
     overallAverageCredits: totalCreditsSum / (monthlyMetrics.length || 1),
     overallAverageDebits: totalDebitsSum / (monthlyMetrics.length || 1),
     salaryStability: detResult.component4.score === "N/A" ? 100 : Math.round((detResult.component4.verifiedInflowMonthsCount / (detResult.completedCalendarMonths.length || 1)) * 100),
@@ -810,7 +987,14 @@ export function calculateEVV(
       emiPaymentsCount: transactions.filter((t) => (t.narration || '').toUpperCase().includes("EMI")).length,
       emiTransactions: transactions.filter((t) => (t.narration || '').toUpperCase().includes("EMI")),
     },
-    deterministicEngineResult: detResult,
+    deterministicEngineResult: {
+      ...detResult,
+      isScoreBlocked,
+      effectiveScoreOutOf100: finalScore,
+      requiresManualReview: isValidationFailed,
+      manualReviewReasons: allManualReviewReasons,
+      statusBand: finalStatusBand === "Green" ? "GREEN" : finalStatusBand === "Amber" ? "AMBER" : "RED",
+    },
     auditSnapshot: detResult.auditSnapshot,
   };
 }

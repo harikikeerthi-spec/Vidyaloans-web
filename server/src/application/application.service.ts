@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { DigilockerService } from '../integration/digilocker.service';
 import { DocumentVerificationService } from '../ai/services/document-verification.service';
@@ -760,8 +760,66 @@ export class ApplicationService {
     return { success: true, data: updated, message: 'Application updated successfully' };
   }
 
+  async verifyApplicationBelongsToBank(applicationId: string, bankIdentifier?: string | null): Promise<boolean> {
+    if (!applicationId || !bankIdentifier) return false;
+    const application = await this.getApplicationById(applicationId);
+    if (!application) return false;
+
+    const b = bankIdentifier.toLowerCase().trim();
+    let searchPatterns: string[] = [];
+    if (b.includes('avanse')) searchPatterns = ['avanse'];
+    else if (b.includes('auxilo')) searchPatterns = ['auxilo'];
+    else if (b.includes('idfc')) searchPatterns = ['idfc'];
+    else if (b.includes('credila') || b.includes('hdfc')) searchPatterns = ['credila', 'hdfc'];
+    else if (b.includes('poonawalla')) searchPatterns = ['poonawalla'];
+    else searchPatterns = [b];
+
+    const appBank = (application.bank || '').toLowerCase();
+    const appBankName = (application.bankName || '').toLowerCase();
+    const directMatch = searchPatterns.some(p => appBank.includes(p) || appBankName.includes(p));
+    if (directMatch) return true;
+
+    // Check BankSubmission table
+    try {
+      const { data: submissions } = await this.db
+        .from('BankSubmission')
+        .select('id, bankId, bankName')
+        .eq('applicationId', applicationId);
+
+      if (submissions && submissions.length > 0) {
+        return submissions.some((sub: any) => {
+          const sBankId = (sub.bankId || '').toLowerCase();
+          const sBankName = (sub.bankName || '').toLowerCase();
+          return searchPatterns.some(p => sBankId.includes(p) || sBankName.includes(p));
+        });
+      }
+    } catch (err) {
+      console.warn('[verifyApplicationBelongsToBank] Error checking BankSubmission:', err);
+    }
+
+    return false;
+  }
+
   async adminUpdateApplication(applicationId: string, data: any, user?: any) {
     const application = await this.getApplicationById(applicationId);
+
+    const userRole = (user?.role || '').toLowerCase();
+    const isBank = userRole === 'bank' || userRole === 'partner_bank' || userRole.startsWith('bank_');
+    if (isBank) {
+      let sessionBank = user?.bankName || user?.bank || user?.bankId;
+      if (!sessionBank && user?.email) {
+        const lowerEmail = user.email.toLowerCase().trim();
+        if (lowerEmail.includes("auxilo.com")) sessionBank = 'Auxilo';
+        else if (lowerEmail.includes("avanse.com")) sessionBank = 'Avanse';
+        else if (lowerEmail.includes("credila.com") || lowerEmail.includes("hdfccredila.com")) sessionBank = 'HDFC Credila';
+        else if (lowerEmail.includes("idfcfirstbank.com") || lowerEmail.includes("idfcbank.com")) sessionBank = 'IDFC';
+        else if (lowerEmail.includes("poonawallafincorp.com")) sessionBank = 'Poonawalla';
+      }
+      const belongs = await this.verifyApplicationBelongsToBank(applicationId, sessionBank);
+      if (!belongs) {
+        throw new ForbiddenException("Access denied: You do not have permission to update another institution's application");
+      }
+    }
 
     const targetBank = data.bank !== undefined ? data.bank : application.bank;
     const targetCountry = (data.country || data.studyDestination || data.countryOfStudy || data.destinationCountry) !== undefined

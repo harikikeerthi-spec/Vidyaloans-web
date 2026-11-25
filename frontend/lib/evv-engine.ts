@@ -283,6 +283,7 @@ export interface DeterministicEVVResult {
   disclaimer: string;
   calculatedAt: string;
   auditSnapshot: AuditSnapshot;
+  isScoreBlocked?: boolean;
 }
 
 export interface AuditSnapshot {
@@ -788,10 +789,19 @@ export function identifyCompletedMonths(
 
   const completedMonths: string[] = [];
 
+  const now = new Date();
+  const currentY = now.getFullYear();
+  const currentM = now.getMonth() + 1; // 1-12
+
   let curY = startY;
   let curM = startM;
 
   while (curY < endY || (curY === endY && curM <= endM)) {
+    // CLAMP: Future calendar months cannot be completed historical months
+    if (curY > currentY || (curY === currentY && curM > currentM)) {
+      break;
+    }
+
     const mStr = `${curY}-${String(curM).padStart(2, '0')}`;
     const isFirstMonth = mStr === startMonthStr;
     const isLastMonth = mStr === endMonthStr;
@@ -816,7 +826,9 @@ export function identifyCompletedMonths(
   const isLimited = latestCompleted.length < requiredMonths;
 
   let warning: string | undefined;
-  if (isLimited) {
+  if (endY > currentY || (endY === currentY && endM > currentM)) {
+    warning = `Statement contains future transaction dates (${endDateStr}) which are excluded from completed month analysis.`;
+  } else if (isLimited) {
     warning = `Insufficient statement period: Found ${latestCompleted.length} complete calendar months (minimum ${requiredMonths} required for standard EVV). Scoring on available full months as Limited-period EVV.`;
   }
 
@@ -1138,6 +1150,31 @@ export function calculateDeterministicEVV(input: EVVEngineInput): DeterministicE
   });
 
   const manualReviewReasons: string[] = [];
+
+  // Validate statement dates and span
+  const now = new Date();
+  const maxAllowedDate = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const futureTxs = normalizedTxs.filter((t) => new Date(t.date).getTime() > maxAllowedDate.getTime());
+  const hasFutureDates = futureTxs.length > 0;
+
+  const startD = new Date(startDateStr);
+  const endD = new Date(endDateStr);
+  const spanMs = Math.abs(endD.getTime() - startD.getTime());
+  const spanDays = Math.round(spanMs / (1000 * 60 * 60 * 24));
+
+  if (hasFutureDates) {
+    const sampleFuture = Array.from(new Set(futureTxs.map(t => t.date))).slice(0, 3).join(", ");
+    manualReviewReasons.push(
+      `Future transaction dates detected (${futureTxs.length} transactions, e.g. ${sampleFuture}). Scanned statement contains invalid or misread dates.`
+    );
+  }
+
+  if (spanDays > 260) {
+    const spanMonths = (spanDays / 30.44).toFixed(1);
+    manualReviewReasons.push(
+      `Statement span "${startDateStr} to ${endDateStr}" (${spanDays} days / ${spanMonths} months) far exceeds allowable 6-month window (maximum 8 months). Date misreads detected from scan quality.`
+    );
+  }
 
   // =========================================================================
   // COMPONENT 1 — AVERAGE BALANCE TREND (MAX 25)
@@ -1707,17 +1744,30 @@ export function calculateDeterministicEVV(input: EVVEngineInput): DeterministicE
     Math.min(100, c1FinalScore + c2Score + c3Score + numericC4 + c5Score + c6FinalScore)
   );
 
-  const effectiveScoreOutOf100 = numericTotalScore;
-
-  let statusBand: 'GREEN' | 'AMBER' | 'RED' = 'RED';
-  if (effectiveScoreOutOf100 >= 80) statusBand = 'GREEN';
-  else if (effectiveScoreOutOf100 >= 60) statusBand = 'AMBER';
-  else statusBand = 'RED';
-
   const requiresManualReview = manualReviewReasons.length > 0;
+  const isDateValidationFailure = hasFutureDates || spanDays > 260;
+  const isScoreBlocked = isDateValidationFailure;
+
+  let effectiveScoreOutOf100 = numericTotalScore;
+  let statusBand: 'GREEN' | 'AMBER' | 'RED' = 'RED';
+
+  if (isScoreBlocked) {
+    effectiveScoreOutOf100 = 0;
+    statusBand = 'AMBER';
+  } else if (requiresManualReview) {
+    // If manual review is required, statusBand can NEVER be GREEN
+    if (numericTotalScore >= 60) statusBand = 'AMBER';
+    else statusBand = 'RED';
+  } else {
+    if (effectiveScoreOutOf100 >= 80) statusBand = 'GREEN';
+    else if (effectiveScoreOutOf100 >= 60) statusBand = 'AMBER';
+    else statusBand = 'RED';
+  }
 
   const recommendedStaffActions: string[] = [];
-  if (requiresManualReview) {
+  if (isScoreBlocked) {
+    recommendedStaffActions.push("Statement dates failed validation (future dates or span exceeding allowable 6-month window). Score blocked. Request clear original netbanking PDF from customer.");
+  } else if (requiresManualReview) {
     recommendedStaffActions.push("Review flagged manual-review events with applicant/co-applicant before proceeding to credit sanction.");
   }
   if (confirmedBouncesCount > 0) {
@@ -1728,7 +1778,7 @@ export function calculateDeterministicEVV(input: EVVEngineInput): DeterministicE
   }
   if (statusBand === 'GREEN' && !requiresManualReview) {
     recommendedStaffActions.push("EVV assessment clean. Proceed with standard credit underwriting and bureau check.");
-  } else if (statusBand === 'AMBER') {
+  } else if (statusBand === 'AMBER' && !isScoreBlocked) {
     recommendedStaffActions.push("Moderate EVV score. Review banking consistency, secondary documents, or consider additional collateral/guarantor.");
   } else if (statusBand === 'RED') {
     recommendedStaffActions.push("Sub-benchmark banking health. Detailed credit appraisal, salary/ITR reconciliation, and senior underwriter approval required.");
@@ -1752,12 +1802,12 @@ export function calculateDeterministicEVV(input: EVVEngineInput): DeterministicE
       closingBalanceRupees: s.closingBalanceRupees,
     })),
     components: {
-      c1: { score: c1FinalScore, sixMonthSampledAMBRupees, trendPercent },
-      c2: { score: c2Score, finalSafetyRatio, governingRatio: governingRatioType },
-      c3: { score: c3Score, confirmedBounces: confirmedBouncesCount },
-      c4: { score: c4Score, verifiedMonths: verifiedInflowMonthsCount, cap: verificationCap },
-      c5: { score: c5Score, cashRatio: cashDepositRatio, confirmedCashRupees: totalConfirmedCashRupees },
-      c6: { score: c6FinalScore, dropsScore, passThroughScore },
+      c1: { score: isScoreBlocked ? 0 : c1FinalScore, sixMonthSampledAMBRupees: isScoreBlocked ? 0 : sixMonthSampledAMBRupees, trendPercent },
+      c2: { score: isScoreBlocked ? 0 : c2Score, finalSafetyRatio, governingRatio: governingRatioType },
+      c3: { score: isScoreBlocked ? 0 : c3Score, confirmedBounces: confirmedBouncesCount },
+      c4: { score: isScoreBlocked ? 0 : c4Score, verifiedMonths: verifiedInflowMonthsCount, cap: verificationCap },
+      c5: { score: isScoreBlocked ? 0 : c5Score, cashRatio: cashDepositRatio, confirmedCashRupees: totalConfirmedCashRupees },
+      c6: { score: isScoreBlocked ? 0 : c6FinalScore, dropsScore, passThroughScore },
     },
     finalScore: effectiveScoreOutOf100,
     statusBand,
@@ -1790,10 +1840,11 @@ export function calculateDeterministicEVV(input: EVVEngineInput): DeterministicE
     component4,
     component5,
     component6,
-    numericTotalScore,
+    numericTotalScore: isScoreBlocked ? 0 : numericTotalScore,
     effectiveScoreOutOf100,
     statusBand,
     requiresManualReview,
+    isScoreBlocked,
     manualReviewReasons,
     recommendedStaffActions,
     disclaimer: MANDATORY_EVV_DISCLAIMER,

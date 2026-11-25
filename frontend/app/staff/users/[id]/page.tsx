@@ -1,12 +1,12 @@
 "use client";
 
 import { useUserDossier } from "./DossierContext";
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { adminApi, authApi, documentApi } from "@/lib/api";
 import { parseNumberFromWords } from "@/lib/academic-ocr";
-import ProgressTracker from "@/components/ProgressTracker";
+import ProgressTracker, { getDynamicProgress } from "@/components/ProgressTracker";
 
 // Premium 3D Interactive Card Component
 function TiltCard({ children, className = "" }: { children: React.ReactNode; className?: string }) {
@@ -426,7 +426,16 @@ export default function ProfileTab() {
     const passportBirthCountry = parsedPassportObj.birthCountry || parsedPassportObj.passportBirthCountry || parsedPassportObj.birth_country || parsedPassportObj.countryOfBirth || userData?.passportBirthCountry || userData?.birthCountry || getExtractedField(passportDoc, ['birth_country', 'country_of_birth']) || null;
     const passportFullName = parsedPassportObj.fullName || parsedPassportObj.full_name || userData?.passportOriginalName || userData?.nameAsInPassport || userData?.aadhaarOriginalName || userData?.nameAsInAadhaar || getExtractedField(passportDoc, ['full_name', 'fullName', 'name', 'printed_name', 'holder_name']) || null;
 
-    const activeApp = userApplications && userApplications.length > 0 ? userApplications[0] : null;
+    const activeApp = useMemo(() => {
+        if (!userApplications || userApplications.length === 0) return null;
+        // Prioritize the application with highest dynamic progress
+        const sorted = [...userApplications].sort((a: any, b: any) => {
+            const pA = getDynamicProgress(a, userDocuments || [], userData);
+            const pB = getDynamicProgress(b, userDocuments || [], userData);
+            return pB - pA;
+        });
+        return sorted[0];
+    }, [userApplications, userDocuments, userData]);
 
     const getEvvScore = (months: 3 | 6 | 12) => {
         if (activeApp) {
@@ -1423,9 +1432,9 @@ export default function ProfileTab() {
                 {/* Application Progress Widget */}
                 <div>
                     <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-4">Application Progress</h4>
-                    {userApplications.length > 0 ? (
+                    {activeApp ? (
                         <ProgressTracker
-                            application={userApplications[0]}
+                            application={activeApp}
                             documents={userDocuments || []}
                             profile={userData}
                             orientation="vertical"

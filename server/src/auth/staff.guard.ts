@@ -144,6 +144,25 @@ export class StaffGuard implements CanActivate {
                     }
                 }
 
+                let bankId = payload.bankId || payload.bank;
+                let bankName = payload.bankName;
+                let bankLogo = payload.bankLogo;
+
+                const isBankOfficer = userRole === 'bank' || userRole === 'partner_bank' || userRole.startsWith('bank_');
+                if (isBankOfficer && (!bankId || !bankName)) {
+                    try {
+                        const dbUser = await this.usersService.findOne(payload.email);
+                        if (dbUser && dbUser.bank) {
+                            const resolved = await this.usersService.resolveBankInfo(dbUser.bank);
+                            bankId = bankId || resolved?.bankId || dbUser.bank;
+                            bankName = bankName || resolved?.bankName || dbUser.bank;
+                            bankLogo = bankLogo || resolved?.bankLogo;
+                        }
+                    } catch (e) {
+                        // Non-blocking lookup
+                    }
+                }
+
                 request.user = {
                     id: payload.sub || payload.id,
                     email: payload.email,
@@ -153,6 +172,10 @@ export class StaffGuard implements CanActivate {
                     mailboxEmail,
                     mailboxPrefix,
                     canAccessSupport,
+                    bankId: bankId || null,
+                    bankName: bankName || null,
+                    bankLogo: bankLogo || null,
+                    bank: bankId || bankName || null,
                 };
             }
 

@@ -239,7 +239,13 @@ export class AuthService {
       payload.staffId = user.staffId || null;
     }
 
-    const isStaff = user.role === 'staff' || user.role === 'staff_admin';
+    const isStaff =
+      user.role === 'staff' ||
+      user.role === 'staff_admin' ||
+      user.role === 'it' ||
+      user.role === 'it_admin' ||
+      user.role === 'admin' ||
+      user.role === 'super_admin';
     const standardAccessExpStr = this.configService.get<string>('JWT_ACCESS_TOKEN_EXPIRATION') || '24h';
     const standardRefreshExpStr = this.configService.get<string>('JWT_REFRESH_TOKEN_EXPIRATION') || '7d';
 
@@ -257,8 +263,8 @@ export class AuthService {
 
       const remainingSec = Math.floor(remainingMs / 1000);
 
-      // Parse standard access expiration to seconds
-      let standardAccessSec = isStaff ? 7200 : 1800; // default 2h for staff, 30m for users
+      // Parse standard access expiration to seconds: 24h for operational/staff/IT/admin, 1h for students
+      let standardAccessSec = isStaff ? 86400 : 3600;
       if (standardAccessExpStr.endsWith('m')) {
         standardAccessSec = parseInt(standardAccessExpStr) * 60;
       } else if (standardAccessExpStr.endsWith('h')) {

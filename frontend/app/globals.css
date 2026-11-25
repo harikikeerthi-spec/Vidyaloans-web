@@ -1402,11 +1402,13 @@ a.blog-btn:active {
 .blog-cta-card {
   margin: 2rem 0 !important;
   padding: 2rem !important;
-  background: linear-gradient(135deg, #eef2ff 0%, #faf5ff 100%) !important;
   border-radius: 1.5rem !important;
-  border: 1px solid #e0e7ff !important;
-  text-align: center !important;
   box-shadow: 0 4px 20px -2px rgba(79, 70, 229, 0.08) !important;
+}
+
+.blog-cta-card:not([style*="background"]):not([data-theme]):not([data-gradient]) {
+  background: linear-gradient(135deg, #0d213f 0%, #152e55 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
 }
 
 

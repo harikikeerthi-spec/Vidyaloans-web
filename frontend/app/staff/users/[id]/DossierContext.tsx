@@ -88,10 +88,10 @@ export function UserDossierProvider({ userId, children }: { userId: string; chil
             // Keep the client-side filter as a safety net
             const userApps = fetchedApps.filter((app: any) =>
                 app.userId === userId || app.user_id === userId || app.applicantId === userId || app.linkedUserId === userId ||
-                (userRes.data && (app.userId === userRes.data.id || app.user_id === userRes.data.id || app.applicantId === userRes.data.id))
+                (userRes.data && (app.userId === userRes.data.id || app.user_id === userRes.data.id || app.applicantId === userRes.data.id || (userRes.data.studentId && (app.userId === userRes.data.studentId || app.studentId === userRes.data.studentId))))
             ).length > 0 ? fetchedApps.filter((app: any) =>
                 app.userId === userId || app.user_id === userId || app.applicantId === userId || app.linkedUserId === userId ||
-                (userRes.data && (app.userId === userRes.data.id || app.user_id === userRes.data.id || app.applicantId === userRes.data.id))
+                (userRes.data && (app.userId === userRes.data.id || app.user_id === userRes.data.id || app.applicantId === userRes.data.id || (userRes.data.studentId && (app.userId === userRes.data.studentId || app.studentId === userRes.data.studentId))))
             ) : fetchedApps; // if filter results in nothing (e.g. userId mismatch), fall back to all returned apps
             setUserApplications(userApps);
 

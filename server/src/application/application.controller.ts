@@ -255,19 +255,48 @@ export class ApplicationController {
         @Query('assignedStaffId') assignedStaffIdQuery?: string,
         @Request() req?: any,
     ) {
+        const user = req?.user;
+        const userRole = (user?.role || '').toLowerCase();
+        const isBank = userRole === 'bank' || userRole === 'partner_bank' || userRole.startsWith('bank_');
+
         let dbBankName: string | undefined = bank;
-        if (bank) {
-            const mappings: Record<string, string> = {
-                credila: 'HDFC Credila',
-                poonawalla: 'Poonawalla',
-                idfc: 'IDFC',
-                avanse: 'Avanse',
-                auxilo: 'Auxilo'
-            };
-            dbBankName = mappings[bank.toLowerCase()] || bank;
+
+        if (isBank) {
+            // STRICT MULTI-TENANT ISOLATION (CG-04 / S-03):
+            // Bank officers can ONLY view applications belonging to their own financial institution.
+            // Ignore client query parameter ?bank= and derive institution strictly from authenticated session.
+            let sessionBank = user?.bankName || user?.bank || user?.bankId;
+
+            if (!sessionBank && user?.email) {
+                const lowerEmail = user.email.toLowerCase().trim();
+                if (lowerEmail.includes("auxilo.com")) sessionBank = 'Auxilo';
+                else if (lowerEmail.includes("avanse.com")) sessionBank = 'Avanse';
+                else if (lowerEmail.includes("credila.com") || lowerEmail.includes("hdfccredila.com")) sessionBank = 'HDFC Credila';
+                else if (lowerEmail.includes("idfcfirstbank.com") || lowerEmail.includes("idfcbank.com")) sessionBank = 'IDFC';
+                else if (lowerEmail.includes("poonawallafincorp.com")) sessionBank = 'Poonawalla';
+            }
+
+            if (!sessionBank) {
+                throw new ForbiddenException('Access denied: Bank officer account is not assigned to any institution');
+            }
+
+            const lowerSession = sessionBank.toLowerCase();
+            if (lowerSession.includes('credila') || lowerSession.includes('hdfc')) dbBankName = 'HDFC Credila';
+            else if (lowerSession.includes('poonawalla')) dbBankName = 'Poonawalla';
+            else if (lowerSession.includes('idfc')) dbBankName = 'IDFC';
+            else if (lowerSession.includes('avanse')) dbBankName = 'Avanse';
+            else if (lowerSession.includes('auxilo')) dbBankName = 'Auxilo';
+            else dbBankName = sessionBank;
+        } else if (bank) {
+            const lowerBank = bank.toLowerCase();
+            if (lowerBank.includes('credila') || lowerBank.includes('hdfc')) dbBankName = 'HDFC Credila';
+            else if (lowerBank.includes('poonawalla')) dbBankName = 'Poonawalla';
+            else if (lowerBank.includes('idfc')) dbBankName = 'IDFC';
+            else if (lowerBank.includes('avanse')) dbBankName = 'Avanse';
+            else if (lowerBank.includes('auxilo')) dbBankName = 'Auxilo';
+            else dbBankName = bank;
         }
 
-        const user = req?.user;
         // Per-staff isolation: staff role users see ONLY applications assigned to them.
         // Admins and super_admins see all applications (no filter applied), unless assignedStaffId query is passed.
         let assignedStaffId: string | undefined = undefined;
@@ -767,11 +796,34 @@ export class ApplicationController {
     @UseGuards(UserGuard)
     async getApplicationById(@Request() req, @Param('id') id: string) {
         let application = await this.applicationService.getApplicationById(id);
+        if (!application) {
+            throw new NotFoundException('Application not found');
+        }
 
-        // Verify ownership (unless admin/staff/bank/support)
-        const allowedRoles = ['admin', 'super_admin', 'staff', 'support', 'bank', 'partner_bank'];
-        if (!allowedRoles.includes(req.user.role) && application.userId !== req.user.id) {
-            throw new ForbiddenException("Access denied: You do not have permission to view another user's application");
+        const user = req.user;
+        const userRole = (user?.role || '').toLowerCase();
+        const isBank = userRole === 'bank' || userRole === 'partner_bank' || userRole.startsWith('bank_');
+
+        if (isBank) {
+            let sessionBank = user?.bankName || user?.bank || user?.bankId;
+            if (!sessionBank && user?.email) {
+                const lowerEmail = user.email.toLowerCase().trim();
+                if (lowerEmail.includes("auxilo.com")) sessionBank = 'Auxilo';
+                else if (lowerEmail.includes("avanse.com")) sessionBank = 'Avanse';
+                else if (lowerEmail.includes("credila.com") || lowerEmail.includes("hdfccredila.com")) sessionBank = 'HDFC Credila';
+                else if (lowerEmail.includes("idfcfirstbank.com") || lowerEmail.includes("idfcbank.com")) sessionBank = 'IDFC';
+                else if (lowerEmail.includes("poonawallafincorp.com")) sessionBank = 'Poonawalla';
+            }
+            const isMatch = await this.applicationService.verifyApplicationBelongsToBank(id, sessionBank);
+            if (!isMatch) {
+                throw new ForbiddenException("Access denied: You do not have permission to view another institution's application");
+            }
+        } else {
+            // Verify ownership (unless admin/staff/support)
+            const allowedRoles = ['admin', 'super_admin', 'staff', 'support'];
+            if (!allowedRoles.includes(userRole) && application.userId !== user?.id) {
+                throw new ForbiddenException("Access denied: You do not have permission to view another user's application");
+            }
         }
 
         // Trigger staff review start email if viewed by staff/admin for the first time while status is 'submitted'

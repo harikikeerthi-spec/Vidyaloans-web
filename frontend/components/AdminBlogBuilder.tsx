@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, DragEvent, useMemo, useCallback } from "re
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { adminApi, blogApi, getToken, tryRefreshAccessToken } from "@/lib/api";
+import { adminApi, blogApi, getToken, tryRefreshAccessToken, isTokenExpired } from "@/lib/api";
 import { cleanHtmlContent, RichTextBlock, TEXT_COLORS, FONT_SIZES, FONT_FAMILIES, TableData, CURATED_COVERS } from "./DynamicBlogEditor";
 import BlogTableOfContents from "./BlogTableOfContents";
 import { cleanBlogContent, extractHeadingsAndEnhanceHtml } from "@/lib/blogUtils";
@@ -336,6 +336,17 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
     const editorRefs = useRef<Record<string, HTMLDivElement | null>>({});
     const loadedBlogIdRef = useRef<string | null>(null);
 
+    // Background session heartbeat: keeps session alive and refreshes token before expiry while user is composing
+    useEffect(() => {
+        const keepAliveInterval = setInterval(async () => {
+            const tok = getToken();
+            if (!tok || isTokenExpired(tok)) {
+                await tryRefreshAccessToken().catch(() => {});
+            }
+        }, 3 * 60 * 1000); // Check every 3 minutes
+        return () => clearInterval(keepAliveInterval);
+    }, []);
+
     // Populate from initialBlog when it changes
     useEffect(() => {
         if (!initialBlog) return;
@@ -445,6 +456,21 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                             const cBtn = cardEl.querySelector("a, button");
                             const btnText = cBtn?.textContent?.replace(/→|&rarr;/, "").trim() || "Visit VidyaLoans →";
                             const btnUrl = cBtn?.getAttribute("href") || "/apply-loan";
+                            const cardStyle = cardEl.getAttribute("style") || "";
+                            let extractedBg = cardEl.getAttribute("data-gradient") || "";
+                            if (!extractedBg && cardStyle) {
+                                const bgMatch = cardStyle.match(/background(?:-image)?:\s*([^;!]+)/i);
+                                if (bgMatch && bgMatch[1]) {
+                                    extractedBg = bgMatch[1].trim();
+                                }
+                            }
+                            if (!extractedBg) {
+                                extractedBg = "linear-gradient(135deg, #0d213f 0%, #152e55 100%)";
+                            }
+                            const hexMatches = extractedBg.match(/#[0-9a-fA-F]{3,8}/g) || [];
+                            const c1 = hexMatches[0] || "#0d213f";
+                            const c2 = hexMatches[1] || hexMatches[0] || "#152e55";
+
                             parsedBlocks.push({
                                 id: bId,
                                 type: "journey_card",
@@ -453,6 +479,9 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                 content: cSub,
                                 buttonText: btnText,
                                 buttonUrl: btnUrl,
+                                bgGradient: extractedBg,
+                                _bgC1: c1,
+                                _bgC2: c2,
                             });
                             return;
                         }
@@ -1473,6 +1502,9 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
             buttonAlign: type === "button" ? "center" : undefined,
             content: defaults[type],
             title: type === "journey_card" ? "Start Your Education Loan Journey" : (type === "cover_image" ? (title || "Your Blog Cover") : (type === "table_of_contents" ? "In This Comprehensive Guide" : undefined)),
+            bgGradient: type === "journey_card" ? "linear-gradient(135deg, #0d213f 0%, #152e55 100%)" : undefined,
+            _bgC1: type === "journey_card" ? "#0d213f" : undefined,
+            _bgC2: type === "journey_card" ? "#152e55" : undefined,
             splitConfig: (type === "split_content" || type === "container") ? defaultSplitConfig : undefined,
             formConfig: type === "registration_form" ? defaultFormConfig : undefined,
             tableData: type === "table" ? defaultTableData : undefined,
@@ -2353,7 +2385,7 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                             const bgGradient = b.bgGradient || "linear-gradient(135deg, #0d213f 0%, #152e55 100%)";
 
                             return `
-                            <div class="blog-cta-card not-prose my-10 rounded-2xl p-6 md:p-8 shadow-xl" style="background: ${bgGradient}; border: 1px solid rgba(255, 255, 255, 0.08); color: #ffffff;">
+                            <div class="blog-cta-card not-prose my-10 rounded-2xl p-6 md:p-8 shadow-xl" data-gradient="${bgGradient}" style="background: ${bgGradient} !important; border: 1px solid rgba(255, 255, 255, 0.08) !important; color: #ffffff !important;">
                                 <h3 class="text-xl md:text-2xl font-bold tracking-tight mb-2" style="color: #ffffff !important; margin-top: 0;">${cardTitle}</h3>
                                 <p class="text-sm md:text-base leading-relaxed mb-6" style="color: #cbd5e1 !important;">${cardDesc}</p>
                                 <div class="mb-2">
@@ -2636,12 +2668,12 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
 
         // Proactively verify or refresh authentication before sending request
         let currentToken = getToken();
-        if (!currentToken) {
+        if (!currentToken || isTokenExpired(currentToken)) {
             currentToken = await tryRefreshAccessToken();
         }
         if (!currentToken) {
             alert(
-                "⚠️ Login Session Expired\n\nYour article draft with all content and SEO settings is safely saved in your browser storage.\n\nPlease log in again at /it/login (or /staff/login) in a new tab, then return here and click Publish again."
+                "⚠️ Login Session Expired\n\nYour article draft with all content and SEO settings is safely saved in your browser storage.\n\nPlease log in again at /it/login (or /staff/login) in a new tab, then return here and click Publish again without losing any work!"
             );
             return;
         }
@@ -2698,12 +2730,30 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
             const editId = initialBlog?.id || initialBlog?._id;
             let res: any;
             if (isEditing) {
-                res = await blogApi.update(editId, blogData).catch((err: any) => {
-                    return { success: false, message: err?.message || "Failed to update blog" };
+                res = await blogApi.update(editId, blogData).catch(async (err: any) => {
+                    const msg = err?.message || "";
+                    if (msg.toLowerCase().includes("token") || msg.toLowerCase().includes("unauthor")) {
+                        await tryRefreshAccessToken();
+                        return await blogApi.update(editId, blogData).catch((e2: any) => ({
+                            success: false,
+                            message: e2?.message || "Failed to update blog",
+                        }));
+                    }
+                    return { success: false, message: msg || "Failed to update blog" };
                 });
             } else {
                 res = await blogApi.create(blogData).catch(async (err: any) => {
-                    return await adminApi.createBlog(blogData).catch(() => ({ success: false, message: err?.message || "Failed to create blog" }));
+                    const msg = err?.message || "";
+                    if (msg.toLowerCase().includes("token") || msg.toLowerCase().includes("unauthor")) {
+                        await tryRefreshAccessToken();
+                        return await blogApi.create(blogData).catch(() =>
+                            adminApi.createBlog(blogData).catch(() => ({
+                                success: false,
+                                message: "Your session expired. Draft is safely saved — please log in again.",
+                            }))
+                        );
+                    }
+                    return await adminApi.createBlog(blogData).catch(() => ({ success: false, message: msg || "Failed to create blog" }));
                 });
             }
 

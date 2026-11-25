@@ -1,6 +1,15 @@
+import type { Metadata } from "next";
 import Navbar from "@/components/Navbar";
 import LoginWall from "@/components/LoginWall";
 import ProfileGate from "@/components/ProfileGate";
+
+export const metadata: Metadata = {
+    title: "Student Onboarding",
+    description: "Complete your onboarding profile to get matched with top study abroad education loan lenders.",
+    alternates: {
+        canonical: "/onboarding",
+    },
+};
 
 const GRADRIGHT_ONBOARDING =
     "https://app.gradright.com/onboarding-flow?utm_source=Web&utm_source=Web&utm_source=Web&utm_medium=/&utm_medium=/&utm_medium=/&_gl=1*16ycscw*_gcl_au*MTY3NzM0MjQ0NC4xNzcxODI1MjM1*_ga*MTIwOTMyNzM3NS4xNzcxODI1MTk0*_ga_EYTYT4HGR8*czE3NzE4MjM3NTUkbzMwJGcxJHQxNzcxODI1MjUxJGo2MCRsMCRoMA..&_ga=2.72188819.1002705351.1771823755-193882490.1768800242";

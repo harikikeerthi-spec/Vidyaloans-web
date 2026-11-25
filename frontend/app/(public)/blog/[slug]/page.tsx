@@ -428,6 +428,13 @@ export default async function BlogPostPage({ params }: Props) {
               box-shadow: none !important;
               text-decoration: none !important;
             }
+            .blog-cta-card h3,
+            .blog-cta-card h4 {
+              color: #ffffff !important;
+            }
+            .blog-cta-card p {
+              color: #cbd5e1 !important;
+            }
             .blog-prose-content ul:not(.blog-toc ul) {
               list-style-type: disc !important;
               padding-left: 1.5rem !important;

@@ -254,11 +254,18 @@ export default function UserDirectoryPage() {
                                                         <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${isUserOnline ? 'bg-emerald-500 animate-pulse shadow-sm shadow-emerald-500/30' : 'bg-slate-300'}`} title={isUserOnline ? "Online now" : "Offline"} />
                                                     </div>
                                                     <div className="min-w-0">
-                                                        <p className="text-[16px] font-bold text-[#0d1b2a] leading-tight">
+                                                        <p
+                                                            onClick={() => {
+                                                                const uid = item.studentId || item.id || item._id;
+                                                                if (uid) window.open(`/staff/users/${uid}`, '_blank');
+                                                            }}
+                                                            className="text-[16px] font-bold text-[#0d1b2a] hover:text-indigo-600 cursor-pointer transition-colors leading-tight"
+                                                            title="Click to view student profile"
+                                                        >
                                                             {getUserDisplayName(item)}
                                                         </p>
                                                         <p className="text-[12px] text-slate-900 font-bold font-mono mt-1">
-                                                            ID: {item.id || item._id || ''}
+                                                            ID: {item.studentId || item.id || item._id || ''}
                                                         </p>
                                                     </div>
                                                 </div>
@@ -327,7 +334,7 @@ export default function UserDirectoryPage() {
                                                 <div className="flex items-center justify-center gap-2">
                                                     <button
                                                         onClick={() => {
-                                                            const uid = item.id || item._id;
+                                                            const uid = item.studentId || item.id || item._id;
                                                             window.open(`/staff/users/${uid}`, '_blank');
                                                         }}
                                                         className="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50 flex items-center justify-center transition-all shadow-sm"

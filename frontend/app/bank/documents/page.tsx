@@ -184,6 +184,9 @@ export default function DocumentReviewCenter() {
     };
 
     const handleDownloadAllZip = async (appId: string) => {
+        if (!currentDocs || currentDocs.length <= 2) {
+            return;
+        }
         setZippingId(appId);
         try {
             const blob = await bankApi.downloadDocumentsZip(appId);
@@ -556,18 +559,20 @@ export default function DocumentReviewCenter() {
                                             </div>
                                         </div>
 
-                                        {/* Action Cleanliness: Download All ZIP */}
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleDownloadAllZip(selectedApp.id);
-                                            }}
-                                            disabled={zippingId === selectedApp.id}
-                                            className="px-4 py-2.5 bg-white border border-gray-200 text-gray-700 hover:text-[#6605c7] hover:border-[#6605c7]/40 rounded-md text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-sm"
-                                        >
-                                            <span className="material-symbols-outlined text-sm">archive</span>
-                                            {zippingId === selectedApp.id ? "Zipping..." : "Download All ZIP (.zip)"}
-                                        </button>
+                                        {/* Action Cleanliness: Download All ZIP - only present when more than 2 documents are present */}
+                                        {currentDocs && currentDocs.length > 2 && (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleDownloadAllZip(selectedApp.id);
+                                                }}
+                                                disabled={zippingId === selectedApp.id}
+                                                className="px-4 py-2.5 bg-white border border-gray-200 text-gray-700 hover:text-[#6605c7] hover:border-[#6605c7]/40 rounded-md text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-sm"
+                                            >
+                                                <span className="material-symbols-outlined text-sm">archive</span>
+                                                {zippingId === selectedApp.id ? "Zipping..." : "Download All ZIP (.zip)"}
+                                            </button>
+                                        )}
                                     </div>
 
                                     {/* Study Abroad Travel & Visa Validation Banner */}

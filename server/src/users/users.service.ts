@@ -332,9 +332,25 @@ export class UsersService implements OnModuleInit {
   }
 
   async findById(id: string) {
-    const { data } = await this.db.from('User').select('*').eq('id', id).single();
+    if (!id) return null;
+    let data: any = null;
+
+    // 1. Look up by primary id (UUID or direct ID)
+    const { data: userById } = await this.db.from('User').select('*').eq('id', id).maybeSingle();
+    data = userById;
+
+    // 2. Fallback: Look up by opaque studentId (e.g. VL-STU-2026-00009)
+    if (!data) {
+      const { data: userByStudentId } = await this.db.from('User').select('*').eq('studentId', id).maybeSingle();
+      data = userByStudentId;
+    }
+
     if (data) {
-      const { data: parents } = await this.db.from('parents').select('*').eq('userId', id);
+      const internalId = data.id;
+      const studentId = data.studentId;
+      const idOrStudentId = studentId ? `userId.eq.${internalId},userId.eq.${studentId}` : `userId.eq.${internalId}`;
+
+      const { data: parents } = await this.db.from('parents').select('*').or(idOrStudentId);
       data.parents = parents || [];
 
       // Fetch office if assigned
@@ -351,7 +367,7 @@ export class UsersService implements OnModuleInit {
           const { data: sp } = await this.db
             .from('StaffProfile')
             .select('*')
-            .or(`linkedUserId.eq.${id},email.eq.${data.email}`)
+            .or(`linkedUserId.eq.${internalId},email.eq.${data.email}`)
             .maybeSingle();
           data.staffProfile = sp || null;
         } catch (_) {}
@@ -362,7 +378,7 @@ export class UsersService implements OnModuleInit {
         const { data: latestApp } = await this.db
           .from('LoanApplication')
           .select('coApplicantName, coApplicantRelation, coApplicantPhone, coApplicantEmail, coApplicantIncome')
-          .eq('userId', id)
+          .or(idOrStudentId)
           .order('createdAt', { ascending: false })
           .limit(1)
           .maybeSingle();
@@ -2873,11 +2889,26 @@ export class UsersService implements OnModuleInit {
   }
 
   async getUserDocuments(userId: string) {
-    const { data } = await this.db
-      .from('UserDocument')
-      .select('*')
-      .eq('userId', userId)
-      .order('docType', { ascending: true });
+    if (!userId) return [];
+    let targetId = userId;
+    let studentId = null;
+
+    if (userId.startsWith('VL-STU-') || userId.startsWith('VTU-') || userId.includes('STU')) {
+      const u = await this.findById(userId);
+      if (u) {
+        targetId = u.id;
+        studentId = u.studentId;
+      }
+    }
+
+    let query = this.db.from('UserDocument').select('*');
+    if (studentId) {
+      query = query.or(`userId.eq.${targetId},userId.eq.${studentId}`);
+    } else {
+      query = query.eq('userId', targetId);
+    }
+
+    const { data } = await query.order('docType', { ascending: true });
     return data || [];
   }
 

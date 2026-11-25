@@ -45,17 +45,50 @@ export const isApplicationDocumentsComplete = (documents: any[] = [], profile?: 
 
 export const getDynamicProgress = (app: any, documents: any[] = [], profile?: any): number => {
     if (!app) return 10;
-    const s = String(app.status || '').toLowerCase();
-    const stg = String(app.stage || '').toLowerCase();
-    if (['disbursed', 'closed', 'disbursement_confirmed'].includes(s) || stg === 'disbursement') return 100;
-    if (['sanctioned', 'approved', 'sanction', 'conditional_sanction', 'partial_sanction', 'counter_offer', 'sanction_issued'].includes(s) || stg === 'sanction') return 95;
+    const s = String(app.status || '').toLowerCase().trim();
+    const stg = String(app.stage || '').toLowerCase().trim();
 
+    // 1. Disbursed (100%) - crossed Sanction
+    if (['disbursed', 'closed', 'disbursement_confirmed'].includes(s) || stg === 'disbursement' || stg === 'disbursed') {
+        return 100;
+    }
+
+    // 2. Approved / Sanction stage (95%) - crossed Review
+    const isApprovedOrSanctioned = ['sanctioned', 'approved', 'sanction', 'conditional_sanction', 'partial_sanction', 'counter_offer', 'sanction_issued', 'bank_approved', 'approved_by_bank'].includes(s) ||
+        stg === 'sanction' || stg === 'sanctioned' || Boolean(app.sanctionLetterUrl);
+    if (isApprovedOrSanctioned) {
+        return 95;
+    }
+
+    // 3. Bank member adds LAN number -> crosses Credit Check, enters Review stage (90%)
+    const hasLan = Boolean(app.lanNumber || app.lanEnteredAt);
+    const isUnderBankReview = hasLan || ['file_logged', 'under_bank_review', 'bank_review', 'processing'].includes(s) || stg === 'bank_review';
+    if (isUnderBankReview) {
+        return 90;
+    }
+
+    // 4. Submitted to bank -> crosses Submit to Bank, enters Credit Check stage (75%)
+    const isSentToBank = Boolean(
+        app.submittedToBankAt || app.bankSubmittedAt || app.routedToBankAt || app.bankSubmissionId ||
+        (app.bankWorkflowStatus && !['PENDING', 'DRAFT'].includes(String(app.bankWorkflowStatus).toUpperCase())) ||
+        ['submitted_to_bank', 'routed_multiparty', 'credit_check', 'query_raised'].includes(s) ||
+        stg === 'credit_check' ||
+        (app.bank && !['any bank', '—', 'pending partner', 'none'].includes(String(app.bank).toLowerCase()) && !['draft', 'pending', 'application_created'].includes(s))
+    );
+    if (isSentToBank) {
+        return 75;
+    }
+
+    // 5. Submit to bank stage (50%)
+    if (['submit_to_bank', 'bank_submission', 'staff_verified', 'verification', 'documents_verified', 'document_verification'].includes(s) || stg === 'submit_to_bank' || stg === 'document_verification') {
+        return 50;
+    }
+
+    // 6. Pre-bank: Document verification vs Submitted vs Created
     const docsComplete = isApplicationDocumentsComplete(documents, profile);
-
-    // If documents are not yet uploaded, strictly enforce progress cap at 40% (Document stage)
     if (!docsComplete) {
         let base = typeof app.progress === 'number' && app.progress > 0 ? app.progress : 10;
-        if (['submitted', 'application_submitted', 'docs_received', 'docs_uploaded', 'under_review', 'processing'].includes(s)) {
+        if (['submitted', 'application_submitted', 'docs_received', 'docs_uploaded', 'under_review'].includes(s)) {
             base = Math.max(base, 25);
         }
         if (documents && documents.length > 0) {
@@ -67,27 +100,53 @@ export const getDynamicProgress = (app: any, documents: any[] = [], profile?: an
         return Math.min(base, 40);
     }
 
-    if (['file_logged', 'under_bank_review', 'bank_review'].includes(s) || stg === 'bank_review') return 90;
-    if (['submitted_to_bank', 'routed_multiparty', 'credit_check', 'query_raised'].includes(s) || stg === 'credit_check') return 75;
-    if (['submit_to_bank', 'bank_submission'].includes(s) || stg === 'submit_to_bank') return 50;
-    if (['staff_verified', 'verification', 'documents_verified', 'document_verification'].includes(s) || stg === 'document_verification') return 50;
-
     let baseProgress = typeof app.progress === 'number' && app.progress > 0 ? app.progress : 50;
     return Math.max(baseProgress, 50);
 };
 
 export const getStageKeyForApp = (app: any, calculatedProgress?: number, documents: any[] = [], profile?: any): string => {
     if (!app) return 'application_created';
-    const status = String(app.status || '').toLowerCase();
+    const status = String(app.status || '').toLowerCase().trim();
     if (status === 'rejected' || status === 'cancelled') return 'application_created';
 
-    let stageKey = app.stage;
-    if (['disbursed', 'disbursement_confirmed', 'closed'].includes(status) || stageKey === 'disbursement' || stageKey === 'disbursed') return 'disbursement';
-    if (['sanctioned', 'approved', 'sanction', 'conditional_sanction', 'partial_sanction', 'counter_offer', 'sanction_issued'].includes(status) || stageKey === 'sanction' || stageKey === 'sanctioned') return 'sanction';
+    const stageKey = String(app.stage || '').toLowerCase().trim();
 
+    // 1. Disbursed (crossed Sanction)
+    if (['disbursed', 'disbursement_confirmed', 'closed'].includes(status) || stageKey === 'disbursement' || stageKey === 'disbursed') {
+        return 'disbursement';
+    }
+
+    // 2. Approved / Sanction stage (crossed Review)
+    if (['sanctioned', 'approved', 'sanction', 'conditional_sanction', 'partial_sanction', 'counter_offer', 'sanction_issued', 'bank_approved', 'approved_by_bank'].includes(status) ||
+        stageKey === 'sanction' || stageKey === 'sanctioned' || Boolean(app.sanctionLetterUrl)) {
+        return 'sanction';
+    }
+
+    // 3. Bank member adds LAN number -> crosses Credit Check, enters Review stage
+    const hasLan = Boolean(app.lanNumber || app.lanEnteredAt);
+    if (hasLan || ['file_logged', 'under_bank_review', 'bank_review', 'processing'].includes(status) || stageKey === 'bank_review') {
+        return 'bank_review';
+    }
+
+    // 4. Submitted to bank -> crosses Submit to Bank, enters Credit Check stage
+    const isSentToBank = Boolean(
+        app.submittedToBankAt || app.bankSubmittedAt || app.routedToBankAt || app.bankSubmissionId ||
+        (app.bankWorkflowStatus && !['PENDING', 'DRAFT'].includes(String(app.bankWorkflowStatus).toUpperCase())) ||
+        ['submitted_to_bank', 'routed_multiparty', 'credit_check', 'query_raised'].includes(status) ||
+        stageKey === 'credit_check' ||
+        (app.bank && !['any bank', '—', 'pending partner', 'none'].includes(String(app.bank).toLowerCase()) && !['draft', 'pending', 'application_created'].includes(status))
+    );
+    if (isSentToBank) {
+        return 'credit_check';
+    }
+
+    // 5. Submit to Bank stage
+    if (['submit_to_bank', 'bank_submission'].includes(status) || stageKey === 'submit_to_bank') {
+        return 'submit_to_bank';
+    }
+
+    // 6. Check documents completeness for earlier stages
     const docsComplete = isApplicationDocumentsComplete(documents, profile);
-
-    // Prerequisite: Never allow bank review or submission stages while documents are open/incomplete
     if (!docsComplete) {
         if (status === 'submitted' || status === 'application_submitted' || (calculatedProgress && calculatedProgress >= 25)) {
             return 'document_verification';
@@ -95,10 +154,10 @@ export const getStageKeyForApp = (app: any, calculatedProgress?: number, documen
         return 'application_created';
     }
 
-    if (['file_logged', 'under_bank_review', 'bank_review'].includes(status) || stageKey === 'bank_review') return 'bank_review';
-    if (['submitted_to_bank', 'routed_multiparty', 'credit_check', 'query_raised'].includes(status) || stageKey === 'credit_check') return 'credit_check';
-    if (['submit_to_bank', 'bank_submission'].includes(status) || stageKey === 'submit_to_bank') return 'submit_to_bank';
-    if (['staff_verified', 'verification', 'documents_verified', 'document_verification'].includes(status) || stageKey === 'document_verification') return 'submit_to_bank';
+    // If documents complete but not yet submitted to bank:
+    if (['staff_verified', 'verification', 'documents_verified', 'document_verification'].includes(status) || stageKey === 'document_verification') {
+        return 'submit_to_bank';
+    }
 
     const p = calculatedProgress !== undefined ? calculatedProgress : (app.progress || 50);
     if (p >= 100) return 'disbursement';
@@ -183,17 +242,15 @@ export default function ProgressTracker({
     }, [targetApp, calculatedProgress, documents, profile]);
 
     const statusLower = targetApp?.status?.toLowerCase() || '';
-    const isSanctionedOrApproved = ['sanctioned', 'approved', 'sanction', 'conditional_sanction', 'partial_sanction', 'counter_offer', 'sanction_issued'].includes(statusLower) || targetApp?.stage === 'sanction' || targetApp?.stage === 'sanctioned';
-    const isDisbursedOrClosed = ['disbursed', 'disbursement_confirmed', 'closed'].includes(statusLower) || targetApp?.stage === 'disbursement' || targetApp?.stage === 'disbursed';
+    const isDisbursedOrClosed = ['disbursed', 'disbursement_confirmed', 'closed'].includes(statusLower) || targetApp?.stage === 'disbursement' || targetApp?.stage === 'disbursed' || calculatedProgress >= 100;
+    const isSanctionedOrApproved = !isDisbursedOrClosed && (['sanctioned', 'approved', 'sanction', 'conditional_sanction', 'partial_sanction', 'counter_offer', 'sanction_issued', 'bank_approved', 'approved_by_bank'].includes(statusLower) || targetApp?.stage === 'sanction' || targetApp?.stage === 'sanctioned' || Boolean(targetApp?.sanctionLetterUrl) || currentStageKey === 'sanction' || calculatedProgress === 95);
     const isRejected = targetApp?.status?.toLowerCase() === 'rejected' || targetApp?.status?.toLowerCase() === 'cancelled';
 
     const currentStage = currentStageKey ? STAGES_CONFIG[currentStageKey] : null;
 
-    const maxCompletedOrder = isDisbursedOrClosed
+    const maxCompletedOrder = isDisbursedOrClosed || calculatedProgress >= 100
         ? 8
-        : isSanctionedOrApproved
-            ? 7
-            : (currentStage ? (currentStageKey === 'disbursement' && calculatedProgress >= 100 ? 8 : currentStage.order - 1) : 0);
+        : (currentStage ? currentStage.order - 1 : 0);
 
     const appCreatedAt = targetApp?.createdAt || targetApp?.created_at || targetApp?.submittedAt || targetApp?.submitted_at || targetApp?.date;
     const appUpdatedAt = targetApp?.updatedAt || targetApp?.updated_at || appCreatedAt;
@@ -202,6 +259,14 @@ export default function ProgressTracker({
     const getStageTimestamp = (stageIdx: number, completed: boolean, active?: boolean): string | undefined => {
         if (!completed && !active) return undefined;
         if (stageIdx === 0) return appCreatedAt;
+        if (stageIdx === 1) return targetApp?.submittedAt || targetApp?.submitted_at || appCreatedAt;
+        if (stageIdx === 2) return targetApp?.documentsVerifiedAt || targetApp?.verifiedAt || appUpdatedAt || appCreatedAt;
+        if (stageIdx === 3) return targetApp?.submittedToBankAt || targetApp?.bankSubmittedAt || targetApp?.routedToBankAt || appUpdatedAt || appCreatedAt;
+        if (stageIdx === 4) return targetApp?.creditCheckedAt || targetApp?.submittedToBankAt || appUpdatedAt || appCreatedAt;
+        if (stageIdx === 5) return targetApp?.lanEnteredAt || targetApp?.fileLoggedAt || appUpdatedAt || appCreatedAt;
+        if (stageIdx === 6) return targetApp?.approvedAt || targetApp?.sanctionedAt || appUpdatedAt || appCreatedAt;
+        if (stageIdx === 7) return targetApp?.disbursedAt || appUpdatedAt || appCreatedAt;
+
         if (active || stageIdx === lastCompletedIdx) return appUpdatedAt || appCreatedAt;
 
         try {
@@ -277,9 +342,7 @@ export default function ProgressTracker({
 
                     {STAGES_LIST.map((stage) => {
                         const isCompleted = stage.order <= maxCompletedOrder;
-                        const isCurrent = !isCompleted && currentStage && (
-                            isSanctionedOrApproved ? stage.id === 'disbursement' : stage.id === currentStageKey
-                        );
+                        const isCurrent = !isCompleted && Boolean(currentStage) && stage.id === currentStageKey;
                         const stageTimestamp = getStageTimestamp(stage.order - 1, isCompleted, Boolean(isCurrent));
                         const stageTimestampFormatted = formatToIST(stageTimestamp);
 
@@ -369,9 +432,7 @@ export default function ProgressTracker({
                     <div className="relative flex justify-between">
                         {STAGES_LIST.map((stage) => {
                             const isCompleted = stage.order <= maxCompletedOrder;
-                            const isCurrent = !isCompleted && currentStage && (
-                                isSanctionedOrApproved ? stage.id === 'disbursement' : stage.id === currentStageKey
-                            );
+                            const isCurrent = !isCompleted && Boolean(currentStage) && stage.id === currentStageKey;
                             const stageTimestamp = getStageTimestamp(stage.order - 1, isCompleted, Boolean(isCurrent));
                             const stageTimestampFormatted = formatToIST(stageTimestamp);
 

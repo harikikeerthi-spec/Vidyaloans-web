@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { blogApi, adminApi, getToken, tryRefreshAccessToken } from "@/lib/api";
+import { blogApi, adminApi, getToken, tryRefreshAccessToken, isTokenExpired } from "@/lib/api";
 import Link from "next/link";
 import DynamicBlogEditor from "@/components/DynamicBlogEditor";
 import AdminBlogBuilder from "@/components/AdminBlogBuilder";
@@ -545,6 +545,17 @@ export default function ITBlogsPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
+
+  // Keepalive heartbeat to silently refresh token while composing
+  useEffect(() => {
+    const keepAlive = setInterval(async () => {
+      const tok = getToken();
+      if (!tok || isTokenExpired(tok)) {
+        await tryRefreshAccessToken().catch(() => {});
+      }
+    }, 3 * 60 * 1000);
+    return () => clearInterval(keepAlive);
+  }, []);
 
   // Form states
   const [blogTitle, setBlogTitle] = useState("");
@@ -2320,7 +2331,7 @@ export default function ITBlogsPage() {
 
     // Proactively verify or refresh authentication before sending request
     let currentToken = getToken();
-    if (!currentToken) {
+    if (!currentToken || isTokenExpired(currentToken)) {
       currentToken = await tryRefreshAccessToken();
     }
     if (!currentToken) {

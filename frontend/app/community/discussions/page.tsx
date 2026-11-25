@@ -852,9 +852,38 @@ function DiscussionsInner() {
 export default function DiscussionsPage() {
     return (
         <Suspense fallback={
-            <div className="min-h-screen flex items-center justify-center bg-transparent">
-                <div style={{ width: 40, height: 40, border: "3px solid #e9d5ff", borderTopColor: "#6605c7", borderRadius: "50%", animation: "spin 0.9s linear infinite" }} />
-                <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+            <div className="min-h-screen relative overflow-x-hidden pt-28 pb-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+                <div className="mb-10">
+                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+                        <div className="space-y-2">
+                            <Link
+                                href="/community"
+                                className="text-xs font-bold uppercase tracking-widest"
+                                style={{ color: "#6605c7", textDecoration: "none" }}
+                            >
+                                ← Community Hub
+                            </Link>
+                            <h1
+                                className="text-5xl md:text-6xl font-bold"
+                                style={{
+                                    fontFamily: "'Noto Serif', serif",
+                                    background: "linear-gradient(to right,#111827,#4b5563)",
+                                    WebkitBackgroundClip: "text",
+                                    WebkitTextFillColor: "transparent",
+                                }}
+                            >
+                                Discussions
+                            </h1>
+                            <p className="text-lg text-gray-600 max-w-2xl leading-relaxed">
+                                Join the community — ask questions from mentors, share your journey, and help others.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div className="flex items-center justify-center py-20">
+                    <div style={{ width: 40, height: 40, border: "3px solid #e9d5ff", borderTopColor: "#6605c7", borderRadius: "50%", animation: "spin 0.9s linear infinite" }} />
+                    <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                </div>
             </div>
         }>
             <DiscussionsInner />

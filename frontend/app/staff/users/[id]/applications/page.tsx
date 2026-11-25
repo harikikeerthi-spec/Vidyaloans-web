@@ -544,7 +544,7 @@ export default function ApplicationsTab() {
             return true;
         }
         const status = (app.status || '').toLowerCase().trim();
-        const preBankStatuses = ['draft', 'submitted', 'pending', 'staff_review', 'staff_verified', 'under_review', 'in_progress', 'new', 'waiting', 'received'];
+        const preBankStatuses = ['draft', 'submitted', 'pending', 'staff_review', 'staff_verified', 'under_review', 'in_progress', 'new', 'waiting', 'received', 'documents', 'documents_verified', 'document_verification', 'docs_received', 'docs_uploaded'];
         const bankWorkflowStatuses = [
             'submitted_to_bank', 'submitting_to_bank', 'file_logged', 'under_bank_review',
             'in_bank_review', 'bank_review', 'query_raised', 'bank_approved', 'approved_by_bank',

@@ -505,7 +505,7 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
                                                     setShowSearchSuggestions(false);
                                                     setSearchQuery("");
                                                     setSearchResults([]);
-                                                    router.push(`/staff/users/${app.userId}`);
+                                                    router.push(`/staff/users/${app.studentId || app.userId}`);
                                                 }}
                                                 className="p-3 hover:bg-slate-50 rounded-xl flex items-center justify-between cursor-pointer transition-colors group"
                                             >

@@ -518,7 +518,7 @@ function ApplicationsPageInner() {
                                                         <p
                                                              onClick={(e) => {
                                                                  e.stopPropagation();
-                                                                 const uid = item.userId || item.user_id || item.student?.id;
+                                                                 const uid = item.studentId || item.student?.studentId || item.userId || item.user_id || item.student?.id;
                                                                  if (uid) {
                                                                      window.open(`/staff/users/${uid}`, '_blank');
                                                                  } else {

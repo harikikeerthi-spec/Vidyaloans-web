@@ -187,6 +187,18 @@ export const metadata: Metadata = {
         title: "VidyaLoans - Fund Your Dream Education Abroad",
         description:
             "Compare education loans from 5+ partner banks & NBFCs. Get the best rates, 48-hour approvals, and expert guidance — all in one place.",
+        url: "https://vidyaloans.in",
+        siteName: "VidyaLoans",
+        locale: "en_IN",
+        type: "website",
+        images: [
+            {
+                url: "/images/og-image.png",
+                width: 1200,
+                height: 630,
+                alt: "VidyaLoans - Fund Your Dream Education Abroad",
+            },
+        ],
     },
 };
 

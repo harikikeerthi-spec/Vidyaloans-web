@@ -259,7 +259,7 @@ export default function InactivePipelinePage() {
                                                     <div>
                                                         <p
                                                             onClick={() => {
-                                                                const uid = item.userId || item.user_id || item.student?.id || item.student?._id;
+                                                                const uid = item.studentId || item.student?.studentId || item.userId || item.user_id || item.student?.id || item.student?._id;
                                                                 if (uid) {
                                                                     window.open(`/staff/users/${uid}`, '_blank');
                                                                 } else {

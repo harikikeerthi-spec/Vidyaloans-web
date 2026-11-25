@@ -204,7 +204,7 @@ export default function EmiCalculatorPage() {
                                             <div className="w-12 h-12 rounded-full bg-purple-50 flex items-center justify-center mb-3">
                                                 <span className="material-symbols-outlined text-[#6605c7] text-xl">lock</span>
                                             </div>
-                                            <p className="text-gray-900 font-bold text-sm mb-3">Login to unlock full 12-month amortization schedule</p>
+                                            <p className="text-gray-900 font-bold text-sm mb-3">Login to unlock the full-tenure schedule</p>
                                             <button 
                                                 onClick={() => {
                                                     localStorage.setItem("pending_emi_data", JSON.stringify({ principal, rate, tenure }));

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Official Webmail - VidyaLoans',
+  title: 'Official Webmail',
   description: 'Confidential corporate communication portal.',
   robots: {
     index: false,

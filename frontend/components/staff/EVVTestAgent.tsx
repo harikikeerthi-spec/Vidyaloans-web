@@ -1461,10 +1461,19 @@ export const EVVTestAgent: React.FC<{
       // 1. Upload file directly to AWS S3 and document record
       if (targetUserId) {
         try {
-          const uploadRes: any = await documentApi.upload(targetUserId, "bank_statement", pendingPdfFile);
+          try {
+            await documentApi.upload(targetUserId, "coapplicant_bank_statement", pendingPdfFile, undefined, "Co-Applicant 6-Month Bank Statement");
+          } catch (innerErr) {
+            // Ignore if coapplicant slot upload had a conflict
+          }
+          const uploadRes: any = await documentApi.upload(targetUserId, "bank_statement", pendingPdfFile, undefined, "6-Month Bank Statement");
           log("Document stored in S3 bucket successfully.", "ok");
           if (uploadRes && uploadRes.data) {
             setLatestDoc(uploadRes.data);
+          }
+          // Notify parent DossierContext to immediately refresh documents tab so slot updates to uploaded
+          if (onRefreshDocs) {
+            onRefreshDocs();
           }
         } catch (s3Err: any) {
           log(`S3 Direct Storage note: ${s3Err.message || 'Stored via application pipeline'}`);
@@ -1555,7 +1564,7 @@ export const EVVTestAgent: React.FC<{
           }
         }
 
-        const parsed = parseTransactions(text);
+        const parsed = parseTransactions(text, pendingPdfFile.name);
         if (parsed && parsed.transactions && parsed.transactions.length > 0) {
           transactions = parsed.transactions;
         }
@@ -1582,8 +1591,15 @@ export const EVVTestAgent: React.FC<{
       if (onComplete) {
         onComplete(computedResult);
       }
+      if (onRefreshDocs) {
+        onRefreshDocs();
+      }
 
-      log(`EVV Analysis complete! 6-Component Underwriting Score: ${computedResult.overallEVV} / 100 (${computedResult.sixComponent?.statusBand || 'Green'} Band)`, "ok");
+      if (computedResult.isScoreBlocked || computedResult.requiresManualReview || computedResult.statusBand !== 'Green') {
+        log(`EVV Underwriting Validation: Score Blocked (${computedResult.overallEVV}/100) — Needs manual review (${computedResult.sixComponent?.statusBand || 'Amber'} Band)`, "warn");
+      } else {
+        log(`EVV Analysis complete! 6-Component Underwriting Score: ${computedResult.overallEVV} / 100 (${computedResult.sixComponent?.statusBand || 'Green'} Band)`, "ok");
+      }
     } catch (err: any) {
       log(`Execution error: ${err.message || err}`, "error");
       alert(`EVV verification failed: ${err.message || err}`);
@@ -2316,52 +2332,125 @@ export const EVVTestAgent: React.FC<{
     </div>
   ) : (
     <div className="space-y-6">
-      {/* Verified Statement Top Bar */}
-      <div className="bg-gradient-to-r from-emerald-50 via-teal-50/50 to-white border border-emerald-200/80 rounded-2xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shadow-xs no-print">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center shadow-xs shrink-0">
-            <span className="material-symbols-outlined text-xl">verified</span>
-          </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="text-sm font-black text-slate-900">Bank Statement Verified</h3>
-              <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase tracking-wider rounded-md border border-emerald-200">
-                {evvResult.sixComponent?.statusBand || 'Green'} Band
-              </span>
+      {/* Verified or Needs Manual Review Statement Top Bar */}
+      {evvResult.isScoreBlocked || evvResult.requiresManualReview || evvResult.sixComponent?.statusBand !== 'Green' ? (
+        <div className="bg-gradient-to-r from-amber-50 via-orange-50/50 to-white border-2 border-amber-300 rounded-2xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shadow-xs no-print">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-xs shrink-0">
+              <span className="material-symbols-outlined text-xl">warning</span>
             </div>
-            <p className="text-xs text-slate-500 font-medium mt-0.5">
-              {fileNameDisplay || (activeDocId ? `Document: ${activeDocId}` : "Customer Bank Statement")} • EVV Score: <strong className="text-emerald-700 font-black">{evvResult.overallEVV}/100</strong> ({evvResult.overallGrade} Grade)
-            </p>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-sm font-black text-slate-900">Needs Manual Review</h3>
+                <span className="px-2 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black uppercase tracking-wider rounded-md border border-amber-300">
+                  {evvResult.sixComponent?.statusBand || 'Amber'} Band • Validation Flagged
+                </span>
+              </div>
+              <p className="text-xs text-slate-600 font-medium mt-0.5">
+                {fileNameDisplay || (activeDocId ? `Document: ${activeDocId}` : "Customer Bank Statement")} • EVV Score: <strong className="text-amber-800 font-black">Score Blocked ({evvResult.overallEVV}/100)</strong> ({evvResult.overallGrade})
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            <button
+              type="button"
+              onClick={handleDownloadAuditSnapshot}
+              className="px-3.5 py-2 bg-white hover:bg-slate-50 text-violet-700 border border-violet-200 hover:border-violet-300 text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+              title="Download complete JSON audit snapshot (ledger, sample dates, intermediate deductions, and legal disclaimer)"
+            >
+              <span className="material-symbols-outlined text-base text-violet-600">data_object</span>
+              Download Audit Snapshot (JSON)
+            </button>
+            <button
+              type="button"
+              onClick={handleStartNewStatement}
+              className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 hover:border-slate-300 text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-base text-violet-600">upload_file</span>
+              Upload Another Statement
+            </button>
+            <button
+              type="button"
+              onClick={handlePrintStatement}
+              className="px-3.5 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-base">print</span>
+              Print Report
+            </button>
           </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0 flex-wrap">
-          <button
-            type="button"
-            onClick={handleDownloadAuditSnapshot}
-            className="px-3.5 py-2 bg-white hover:bg-slate-50 text-violet-700 border border-violet-200 hover:border-violet-300 text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
-            title="Download complete JSON audit snapshot (ledger, sample dates, intermediate deductions, and legal disclaimer)"
-          >
-            <span className="material-symbols-outlined text-base text-violet-600">data_object</span>
-            Download Audit Snapshot (JSON)
-          </button>
-          <button
-            type="button"
-            onClick={handleStartNewStatement}
-            className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 hover:border-slate-300 text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-base text-violet-600">upload_file</span>
-            Upload Another Statement
-          </button>
-          <button
-            type="button"
-            onClick={handlePrintStatement}
-            className="px-3.5 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-base">print</span>
-            Print Report
-          </button>
+      ) : (
+        <div className="bg-gradient-to-r from-emerald-50 via-teal-50/50 to-white border border-emerald-200/80 rounded-2xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shadow-xs no-print">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center shadow-xs shrink-0">
+              <span className="material-symbols-outlined text-xl">verified</span>
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-sm font-black text-slate-900">Bank Statement Verified</h3>
+                <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase tracking-wider rounded-md border border-emerald-200">
+                  {evvResult.sixComponent?.statusBand || 'Green'} Band
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 font-medium mt-0.5">
+                {fileNameDisplay || (activeDocId ? `Document: ${activeDocId}` : "Customer Bank Statement")} • EVV Score: <strong className="text-emerald-700 font-black">{evvResult.overallEVV}/100</strong> ({evvResult.overallGrade} Grade)
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            <button
+              type="button"
+              onClick={handleDownloadAuditSnapshot}
+              className="px-3.5 py-2 bg-white hover:bg-slate-50 text-violet-700 border border-violet-200 hover:border-violet-300 text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+              title="Download complete JSON audit snapshot (ledger, sample dates, intermediate deductions, and legal disclaimer)"
+            >
+              <span className="material-symbols-outlined text-base text-violet-600">data_object</span>
+              Download Audit Snapshot (JSON)
+            </button>
+            <button
+              type="button"
+              onClick={handleStartNewStatement}
+              className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 hover:border-slate-300 text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-base text-violet-600">upload_file</span>
+              Upload Another Statement
+            </button>
+            <button
+              type="button"
+              onClick={handlePrintStatement}
+              className="px-3.5 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-base">print</span>
+              Print Report
+            </button>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Prominent Warning Callout if Manual Review / Date Validation Failed */}
+      {(evvResult.isScoreBlocked || evvResult.requiresManualReview || (evvResult.manualReviewReasons && evvResult.manualReviewReasons.length > 0)) && (
+        <div className="bg-amber-50/95 border-2 border-amber-300 rounded-2xl p-5 shadow-xs space-y-3 no-print">
+          <div className="flex items-center gap-2.5 text-amber-900 font-black text-sm">
+            <span className="material-symbols-outlined text-amber-600 text-2xl">report_problem</span>
+            <span>Underwriting Review Required — Statement Date & Scan Validation Alert</span>
+          </div>
+          <p className="text-xs text-amber-800 leading-relaxed font-medium">
+            This statement cannot be verified automatically. Dates in the document are misread or span exceeds the allowable 6-month window (e.g. future dates or multi-year range). The balances behind the score are unreliable, and automated scoring has been blocked (0/100).
+          </p>
+          <div className="bg-white/90 rounded-xl p-3.5 border border-amber-200 space-y-1.5 text-xs">
+            <span className="font-bold text-amber-950 uppercase text-[10px] tracking-wider block">Identified Issues & Reasons:</span>
+            <ul className="list-disc list-inside space-y-1 text-amber-900 font-medium">
+              {(evvResult.manualReviewReasons || evvResult.validationIssues || []).map((reason, idx) => (
+                <li key={idx} className="leading-snug">{reason}</li>
+              ))}
+            </ul>
+          </div>
+          <div className="flex items-center gap-2 text-xs font-bold text-amber-900 pt-1">
+            <span className="material-symbols-outlined text-base text-amber-700">info</span>
+            <span>Recommended Action: Staff must request the customer upload the original computer-generated e-statement PDF directly from their netbanking portal.</span>
+          </div>
+        </div>
+      )}
 
       {/* ── Official Bank Statement Health Report (Matching Executive Presentation Spec) ── */}
       <div className="bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-8 shadow-xs space-y-8 print:p-0 print:border-none print:shadow-none print:space-y-6" id="bank-statement-health-report">
