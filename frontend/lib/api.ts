@@ -2577,6 +2577,14 @@ export const mailApi = {
             method: "POST",
             body: JSON.stringify({ emailIds, ...data }),
         }),
+    markAllRead: (folder?: string) => {
+        const queryStr = folder ? `?folder=${encodeURIComponent(folder)}` : "";
+        return apiFetch(`${API_URL}/mail/mark-all-read${queryStr}`, { method: "POST" });
+    },
+    triageBounces: (folder?: string) => {
+        const queryStr = folder ? `?folder=${encodeURIComponent(folder)}` : "";
+        return apiFetch(`${API_URL}/mail/triage-bounces${queryStr}`, { method: "POST" });
+    },
     getUserStates: () => apiFetch(`${API_URL}/mail/states`),
 };
 

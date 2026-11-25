@@ -1316,7 +1316,11 @@ function StaffInboxContent() {
             return next;
         });
         setEmails((prev) => prev.map((e) => ids.includes(e.id) ? { ...e, read: true } : e));
-        mailApi.batchUpdateState(ids, { isRead: true }).catch(() => { });
+        if (selectedIds.size === filteredEmails.length && filteredEmails.length > 20) {
+            mailApi.markAllRead(selectedFolder).catch(() => { });
+        } else {
+            mailApi.batchUpdateState(ids, { isRead: true }).catch(() => { });
+        }
         setFeedbackToast({ type: "success", message: `Marked ${ids.length} email(s) as Read.` });
         setTimeout(() => setFeedbackToast(null), 2500);
     };
@@ -2178,9 +2182,34 @@ function StaffInboxContent() {
                                 </button>
                             </div>
 
-                            <span className="text-[11px] text-slate-400 font-medium">
-                                {filteredEmails.length} messages
-                            </span>
+                            <div className="flex items-center gap-2">
+                                {emails.some((e) => !readIds.has(e.id) && !trashedIds.has(e.id)) && (
+                                    <button
+                                        onClick={async () => {
+                                            const unreadList = emails.filter((e) => !readIds.has(e.id) && !trashedIds.has(e.id));
+                                            const unreadIds = unreadList.map((e) => e.id);
+                                            setReadIds((prev) => {
+                                                const next = new Set(prev);
+                                                unreadIds.forEach((id) => next.add(id));
+                                                try {
+                                                    localStorage.setItem("vidya_mail_read_ids", JSON.stringify(Array.from(next)));
+                                                } catch { }
+                                                return next;
+                                            });
+                                            setEmails((prev) => prev.map((e) => ({ ...e, read: true })));
+                                            await mailApi.markAllRead(selectedFolder).catch(() => { });
+                                            setFeedbackToast({ type: "success", message: `All ${unreadIds.length} email(s) marked as read.` });
+                                            setTimeout(() => setFeedbackToast(null), 2500);
+                                        }}
+                                        className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer"
+                                    >
+                                        Mark all read
+                                    </button>
+                                )}
+                                <span className="text-[11px] text-slate-400 font-medium">
+                                    {filteredEmails.length} messages
+                                </span>
+                            </div>
                         </div>
                     </div>
 

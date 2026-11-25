@@ -683,6 +683,12 @@ export class MailService implements OnModuleInit {
           // Run Spam & Junk Analysis
           const spamAnalysis = this.analyzeSpam(parsed);
 
+          const isDeliveryReport =
+            fromText.toLowerCase().includes('mailer-daemon') ||
+            fromText.toLowerCase().includes('amazonses.com') ||
+            subject.toLowerCase().includes('delivery status notification') ||
+            subject.toLowerCase().includes('undelivered mail');
+
           return {
             id,
             key: obj.Key!,
@@ -696,6 +702,7 @@ export class MailService implements OnModuleInit {
             trashed: false,
             folder: prefix,
             snippet: textSnippet,
+            isDeliveryReport,
             isSpam: spamAnalysis.isSpam,
             spamScore: spamAnalysis.spamScore,
             spamVerdict: spamAnalysis.spamVerdict,
@@ -983,6 +990,11 @@ export class MailService implements OnModuleInit {
         read: false,
         starred: false,
         trashed: false,
+        isDeliveryReport:
+          fromText.toLowerCase().includes('mailer-daemon') ||
+          fromText.toLowerCase().includes('amazonses.com') ||
+          subject.toLowerCase().includes('delivery status notification') ||
+          subject.toLowerCase().includes('undelivered mail'),
         isSpam: spamAnalysis.isSpam,
         spamScore: spamAnalysis.spamScore,
         spamVerdict: spamAnalysis.spamVerdict,
@@ -1068,8 +1080,45 @@ export class MailService implements OnModuleInit {
    */
   async batchUpdateEmailState(userId: string, emailIds: string[], dto: UpdateEmailStateDto) {
     if (!emailIds || emailIds.length === 0) return { updated: 0 };
-    await Promise.all(emailIds.map((id) => this.updateEmailState(userId, id, dto)));
+    // Process in controlled chunks of 15 to stay within database pooler concurrency limits
+    const chunkSize = 15;
+    for (let i = 0; i < emailIds.length; i += chunkSize) {
+      const chunk = emailIds.slice(i, i + chunkSize);
+      await Promise.all(
+        chunk.map((id) =>
+          this.updateEmailState(userId, id, dto).catch((err) => {
+            this.logger.warn(`[MailService.batchUpdateEmailState] Failed for ${id}: ${err.message}`);
+          }),
+        ),
+      );
+    }
     return { updated: emailIds.length };
+  }
+
+  /**
+   * Mark all emails in the user's active folder/mailbox as read
+   */
+  async markAllRead(userId: string, folder?: string, currentUser?: any) {
+    const emails = await this.listSupport(folder, undefined, userId, currentUser);
+    const unreadIds = emails.filter((e) => !e.read && !e.trashed).map((e) => e.id);
+    if (unreadIds.length > 0) {
+      await this.batchUpdateEmailState(userId, unreadIds, { isRead: true });
+    }
+    return { markedRead: unreadIds.length, total: emails.length };
+  }
+
+  /**
+   * Triage delivery failure bounces and system notifications, marking them as processed
+   */
+  async triageBounces(userId: string, folder?: string, currentUser?: any) {
+    const emails = await this.listSupport(folder, undefined, userId, currentUser);
+    const bounceIds = emails
+      .filter((e) => e.isDeliveryReport && !e.read && !e.trashed)
+      .map((e) => e.id);
+    if (bounceIds.length > 0) {
+      await this.batchUpdateEmailState(userId, bounceIds, { isRead: true });
+    }
+    return { triaged: bounceIds.length, total: emails.length };
   }
 
   /**

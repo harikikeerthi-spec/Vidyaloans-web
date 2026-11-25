@@ -254,10 +254,17 @@ export default function StaffDashboardPage() {
             setRecentDrafts(dbDrafts);
             const dynamicDraftsCount = s.drafts !== undefined ? Number(s.drafts) : dbDrafts.length;
 
+            const serverTotal = Number(s.total || 0);
+            const serverRead = Number(s.read || 0);
+            const serverUnread = Number(s.unread || 0);
+            const effectiveRead = Math.max(serverRead, localReadCount);
+            const readDifference = Math.max(0, effectiveRead - serverRead);
+            const effectiveUnread = Math.max(0, serverUnread - readDifference);
+
             setMailStats({
-                total: Number(s.total || 0),
-                unread: Number(s.unread || 0),
-                read: Math.max(Number(s.read || 0), localReadCount),
+                total: serverTotal,
+                unread: effectiveUnread,
+                read: effectiveRead,
                 sent: Math.max(Number(s.sent || 0), localSentCount),
                 drafts: Math.max(dynamicDraftsCount, localDraftsCount),
                 starred: Math.max(Number(s.starred || 0), localStarredCount),

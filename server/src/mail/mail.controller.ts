@@ -155,6 +155,24 @@ export class MailController {
     return { success: true, ...result };
   }
 
+  // ─── Mark All Emails As Read ────────────────────────────────────────────────
+  @Post(['mail/mark-all-read', 'support/mail/mark-all-read'])
+  @ApiOperation({ summary: 'Mark all emails in folder or mailbox as read' })
+  async markAllRead(@Query('folder') folder?: string, @Req() req?: any) {
+    const userId = req?.user?.id;
+    const result = await this.mailService.markAllRead(userId, folder, req?.user);
+    return { success: true, ...result };
+  }
+
+  // ─── Triage Delivery Bounces & System Alerts ─────────────────────────────────
+  @Post(['mail/triage-bounces', 'support/mail/triage-bounces'])
+  @ApiOperation({ summary: 'Triage and mark all automated delivery bounce notifications as read' })
+  async triageBounces(@Query('folder') folder?: string, @Req() req?: any) {
+    const userId = req?.user?.id;
+    const result = await this.mailService.triageBounces(userId, folder, req?.user);
+    return { success: true, ...result };
+  }
+
   // ─── Update Single Email State (Read, Star, Spam, Trash) ─────────────────────
   @Patch(['mail/state/:id', 'support/mail/state/:id'])
   @ApiOperation({ summary: 'Update state (read, star, spam, trash) for an email' })

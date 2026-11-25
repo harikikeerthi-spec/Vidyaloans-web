@@ -10,7 +10,7 @@ import { extname, join } from 'path';
 
 // Ticket status transitions
 const VALID_STATUS_TRANSITIONS: Record<string, string[]> = {
-  open: ['assigned', 'in_progress', 'out_of_scope', 'closed'],
+  open: ['assigned', 'in_progress', 'resolved', 'out_of_scope', 'closed'],
   assigned: ['in_progress', 'waiting_customer', 'out_of_scope', 'resolved', 'closed'],
   in_progress: ['waiting_customer', 'out_of_scope', 'resolved', 'closed'],
   waiting_customer: ['in_progress', 'out_of_scope', 'resolved', 'closed'],

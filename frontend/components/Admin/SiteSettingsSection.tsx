@@ -232,7 +232,7 @@ function cleanSettingsData(data: Partial<SiteSettings>): Partial<SiteSettings> {
   if (cleaned.address && (cleaned.address.includes("Sector 44") || cleaned.address.includes("Gurgaon"))) {
     cleaned.address = "Jyothi Bose Complex, Bus Stand Road (Opposite to Municipal Office), Nuzvid, Krishna District, Andhra Pradesh 521201, India";
   }
-  if (cleaned.instagramUrl && (cleaned.instagramUrl === "https://instagram.com/vidyaloans" || cleaned.instagramUrl === "https://instagram.com/" || cleaned.instagramUrl === "https://instagram.com")) {
+  if (cleaned.instagramUrl && (cleaned.instagramUrl === "https://instagram.com/vidyaloans")) {
     cleaned.instagramUrl = "https://www.instagram.com/vidya_loans/";
   }
   if (cleaned.twitterUrl && (cleaned.twitterUrl === "https://x.com/vidyaloans" || cleaned.twitterUrl === "https://twitter.com/vidyaloans")) {
@@ -244,7 +244,9 @@ function cleanSettingsData(data: Partial<SiteSettings>): Partial<SiteSettings> {
   if (cleaned.posthogApiKey === "phc_vidyaloans_live_key_998877") cleaned.posthogApiKey = "";
   if (cleaned.mixpanelToken === "mp_token_vidyaloans_production") cleaned.mixpanelToken = "";
   if (cleaned.hotjarSiteId === "3456789") cleaned.hotjarSiteId = "";
-  cleaned.enableAppBanner = false;
+  if (cleaned.enableAppBanner !== undefined) {
+    cleaned.enableAppBanner = Boolean(cleaned.enableAppBanner);
+  }
   return cleaned;
 }
 

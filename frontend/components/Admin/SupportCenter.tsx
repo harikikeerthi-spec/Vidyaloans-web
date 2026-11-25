@@ -980,7 +980,7 @@ const TicketDetail = ({ ticket: initialTicket, onBack, user }: { ticket: Ticket;
   };
 
   const STATUS_TRANSITIONS: Record<string, string[]> = {
-    open: ["assigned", "in_progress", "out_of_scope", "closed"],
+    open: ["assigned", "in_progress", "resolved", "out_of_scope", "closed"],
     assigned: ["in_progress", "waiting_customer", "out_of_scope", "resolved", "closed"],
     in_progress: ["waiting_customer", "out_of_scope", "resolved", "closed"],
     waiting_customer: ["in_progress", "out_of_scope", "resolved", "closed"],
@@ -1393,7 +1393,7 @@ const SLAMonitor = ({ onSelectTicket }: { onSelectTicket: (t: Ticket) => void })
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supportApi.getTickets({ limit: 100, status: "open" })
+    supportApi.getTickets({ limit: 100, status: "all" })
       .then((r: any) => {
         const d = r.data || r;
         setTickets(Array.isArray(d.data) ? d.data : Array.isArray(d) ? d : []);
@@ -1403,15 +1403,15 @@ const SLAMonitor = ({ onSelectTicket }: { onSelectTicket: (t: Ticket) => void })
   }, []);
 
   const categorized = {
-    breached: tickets.filter(t => t.slaResolveAt && new Date(t.slaResolveAt) < new Date()),
-    critical: tickets.filter(t => t.priority === "critical" && !t.slaBreached),
+    breached: tickets.filter(t => !["resolved", "closed"].includes(t.status) && t.slaResolveAt && new Date(t.slaResolveAt) < new Date()),
+    critical: tickets.filter(t => !["resolved", "closed"].includes(t.status) && t.priority === "critical" && !t.slaBreached),
     warning: tickets.filter(t => {
-      if (!t.slaResolveAt) return false;
+      if (["resolved", "closed"].includes(t.status) || !t.slaResolveAt) return false;
       const remain = new Date(t.slaResolveAt).getTime() - Date.now();
       return remain > 0 && remain < 2 * 60 * 60 * 1000 && t.priority !== "critical";
     }),
     ok: tickets.filter(t => {
-      if (!t.slaResolveAt) return false;
+      if (["resolved", "closed"].includes(t.status) || !t.slaResolveAt) return false;
       const remain = new Date(t.slaResolveAt).getTime() - Date.now();
       return remain > 2 * 60 * 60 * 1000;
     }),
@@ -1420,7 +1420,8 @@ const SLAMonitor = ({ onSelectTicket }: { onSelectTicket: (t: Ticket) => void })
   const SLARow = ({ t }: { t: Ticket }) => {
     const deadline = t.slaResolveAt ? new Date(t.slaResolveAt) : null;
     const remaining = deadline ? deadline.getTime() - Date.now() : null;
-    const breached = remaining !== null && remaining < 0;
+    const isCompleted = ["resolved", "closed"].includes(t.status);
+    const breached = !isCompleted && remaining !== null && remaining < 0;
     return (
       <tr className={`border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors ${breached ? "bg-red-50/50" : ""}`}
         onClick={() => onSelectTicket(t)}>
@@ -1431,8 +1432,8 @@ const SLAMonitor = ({ onSelectTicket }: { onSelectTicket: (t: Ticket) => void })
         <td className="px-4 py-3">
           {deadline ? (
             <div>
-              <div className={`text-[11px] font-bold ${breached ? "text-red-600" : remaining! < 3600000 ? "text-orange-600" : "text-emerald-700"}`}>
-                {breached ? "⚠ BREACHED" : `${Math.floor(remaining! / 3600000)}h ${Math.floor((remaining! % 3600000) / 60000)}m`}
+              <div className={`text-[11px] font-bold ${isCompleted ? "text-slate-500" : breached ? "text-red-600" : remaining! < 3600000 ? "text-orange-600" : "text-emerald-700"}`}>
+                {isCompleted ? "COMPLETED" : breached ? "⚠ BREACHED" : `${Math.floor(remaining! / 3600000)}h ${Math.floor((remaining! % 3600000) / 60000)}m`}
               </div>
               <div className="text-[9px] text-slate-400">{format(deadline, "MMM d, h:mm a")}</div>
             </div>

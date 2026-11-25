@@ -19,6 +19,7 @@ export interface MailSummary {
   userSpamOverride?: boolean | null;
   folder?: string;
   snippet?: string;
+  isDeliveryReport?: boolean;
   // Spam / Junk metadata
   isSpam?: boolean;
   spamScore?: number;

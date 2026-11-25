@@ -26,10 +26,10 @@ const DEFAULT_SETTINGS = {
   copyrightText: '© 2026 VidyaLoans Inc. All rights reserved.',
 
   // Social Media Links
-  facebookUrl: 'https://facebook.com/vidyaloans',
+  facebookUrl: 'https://facebook.com/',
   instagramUrl: 'https://www.instagram.com/vidya_loans/',
   twitterUrl: 'https://x.com/VidyaLoans07',
-  linkedinUrl: 'https://linkedin.com/company/vidyaloans',
+  linkedinUrl: 'https://linkedin.com/company/',
   youtubeUrl: 'https://youtube.com/@vidyaloans',
   whatsappNumber: '+918143797779',
   telegramUrl: 'https://t.me/vidyaloans',
@@ -145,49 +145,76 @@ function filterPrismaSiteSettingFields(data: any): Record<string, any> {
   return filtered;
 }
 
-export function cleanPlaceholderSettings(settings: any) {
+export function cleanPlaceholderSettings(settings: any, isUpdate = false) {
   if (!settings || typeof settings !== 'object') return settings;
   const cleaned = { ...settings };
 
   // Phone & TollFree
-  if (!cleaned.phone || cleaned.phone.includes('1800-123-4567') || cleaned.phone.includes('94945 68851')) {
+  if (cleaned.phone) {
+    if (cleaned.phone.includes('1800-123-4567') || cleaned.phone.includes('94945 68851')) {
+      cleaned.phone = '+91 81437 97779';
+    }
+  } else if (!isUpdate) {
     cleaned.phone = '+91 81437 97779';
   }
-  if (!cleaned.tollFree || cleaned.tollFree.includes('1800-123-4567') || cleaned.tollFree.includes('9494568851')) {
+
+  if (cleaned.tollFree) {
+    if (cleaned.tollFree.includes('1800-123-4567') || cleaned.tollFree.includes('9494568851')) {
+      cleaned.tollFree = '+91 81437 97779';
+    }
+  } else if (!isUpdate) {
     cleaned.tollFree = '+91 81437 97779';
   }
 
   // Emails
-  if (!cleaned.supportEmail || cleaned.supportEmail.includes('@vidyaloans.com')) {
+  if (cleaned.supportEmail) {
+    if (cleaned.supportEmail.includes('@vidyaloans.com')) {
+      cleaned.supportEmail = 'support@vidyaloans.in';
+    }
+  } else if (!isUpdate) {
     cleaned.supportEmail = 'support@vidyaloans.in';
   }
-  if (!cleaned.contactEmail || cleaned.contactEmail.includes('@vidyaloans.com')) {
+
+  if (cleaned.contactEmail) {
+    if (cleaned.contactEmail.includes('@vidyaloans.com')) {
+      cleaned.contactEmail = 'contact@vidyaloans.in';
+    }
+  } else if (!isUpdate) {
     cleaned.contactEmail = 'contact@vidyaloans.in';
   }
+
   if (cleaned.awsSesSenderEmail && cleaned.awsSesSenderEmail.includes('@vidyaloans.com')) {
     cleaned.awsSesSenderEmail = 'support@vidyaloans.in';
   }
 
   // WhatsApp
-  if (!cleaned.whatsappNumber || cleaned.whatsappNumber.includes('9876543210')) {
+  if (cleaned.whatsappNumber) {
+    if (cleaned.whatsappNumber.includes('9876543210')) {
+      cleaned.whatsappNumber = '+918143797779';
+    }
+  } else if (!isUpdate) {
     cleaned.whatsappNumber = '+918143797779';
   }
 
   // Address
-  if (!cleaned.address || cleaned.address.includes('Sector 44') || cleaned.address.includes('Gurgaon')) {
+  if (cleaned.address) {
+    if (cleaned.address.includes('Sector 44') || cleaned.address.includes('Gurgaon')) {
+      cleaned.address = 'Jyothi Bose Complex, Bus Stand Road (Opposite to Municipal Office), Nuzvid, Krishna District, Andhra Pradesh 521201, India';
+    }
+  } else if (!isUpdate) {
     cleaned.address = 'Jyothi Bose Complex, Bus Stand Road (Opposite to Municipal Office), Nuzvid, Krishna District, Andhra Pradesh 521201, India';
   }
 
   // Social
-  if (!cleaned.instagramUrl || cleaned.instagramUrl === 'https://instagram.com/vidyaloans' || cleaned.instagramUrl === 'https://instagram.com/' || cleaned.instagramUrl === 'https://instagram.com') {
+  if (cleaned.instagramUrl && (cleaned.instagramUrl === 'https://instagram.com/vidyaloans' || cleaned.instagramUrl === 'https://instagram.com/' || cleaned.instagramUrl === 'https://instagram.com')) {
     cleaned.instagramUrl = 'https://www.instagram.com/vidya_loans/';
   }
-  if (!cleaned.twitterUrl || cleaned.twitterUrl === 'https://x.com/vidyaloans' || cleaned.twitterUrl === 'https://twitter.com/vidyaloans') {
+  if (cleaned.twitterUrl && (cleaned.twitterUrl === 'https://x.com/vidyaloans' || cleaned.twitterUrl === 'https://twitter.com/vidyaloans')) {
     cleaned.twitterUrl = 'https://x.com/VidyaLoans07';
   }
 
   // Webhook
-  if (!cleaned.webhookUrl || cleaned.webhookUrl.includes('api.vidyaloans.com')) {
+  if (cleaned.webhookUrl && cleaned.webhookUrl.includes('api.vidyaloans.com')) {
     cleaned.webhookUrl = 'https://api.vidyaloans.in/v1/webhooks/events';
   }
 
@@ -202,8 +229,12 @@ export function cleanPlaceholderSettings(settings: any) {
     cleaned.hotjarSiteId = '';
   }
 
-  // App banner suspended
-  cleaned.enableAppBanner = false;
+  // App banner
+  if (cleaned.enableAppBanner !== undefined) {
+    cleaned.enableAppBanner = Boolean(cleaned.enableAppBanner);
+  } else if (!isUpdate) {
+    cleaned.enableAppBanner = false;
+  }
 
   return cleaned;
 }
@@ -317,10 +348,17 @@ export class SiteSettingsService {
   }
 
   async updateSettings(dto: UpdateSiteSettingsDto) {
-    const cleanDto = cleanPlaceholderSettings(dto);
+    const cleanDto = cleanPlaceholderSettings(dto, true);
+    const definedUpdates: Record<string, any> = {};
+    for (const [key, val] of Object.entries(cleanDto)) {
+      if (val !== undefined) {
+        definedUpdates[key] = val;
+      }
+    }
+
     try {
       if ((this.prisma as any).siteSetting) {
-        const dbUpdateData = filterPrismaSiteSettingFields(cleanDto);
+        const dbUpdateData = filterPrismaSiteSettingFields(definedUpdates);
         const dbCreateData = {
           id: 'default',
           ...filterPrismaSiteSettingFields(DEFAULT_SETTINGS),
@@ -334,10 +372,10 @@ export class SiteSettingsService {
         });
         memorySettingsStore = cleanPlaceholderSettings({
           ...memorySettingsStore,
-          ...cleanDto,
+          ...definedUpdates,
           ...updated,
           updatedAt: new Date(),
-        });
+        }, false);
         this.persistToFile(memorySettingsStore);
         return memorySettingsStore;
       }
@@ -347,9 +385,9 @@ export class SiteSettingsService {
 
     memorySettingsStore = cleanPlaceholderSettings({
       ...memorySettingsStore,
-      ...cleanDto,
+      ...definedUpdates,
       updatedAt: new Date(),
-    });
+    }, false);
     this.persistToFile(memorySettingsStore);
 
     return memorySettingsStore;
