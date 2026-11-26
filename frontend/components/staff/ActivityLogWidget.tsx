@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { io, Socket } from "socket.io-client";
-import { staffProfileApi } from "@/lib/api";
+import { staffProfileApi, getToken } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatDateTime } from "@/lib/utils";
 
@@ -90,11 +90,6 @@ export default function ActivityLogWidget({
 
   // Fetch activities from backend
   const fetchActivities = async () => {
-    const token =
-      localStorage.getItem("staffAccessToken") ||
-      localStorage.getItem("adminAccessToken");
-    if (!token) return;
-
     try {
       setLoading(true);
       const res: any = await staffProfileApi.getDashboardActivities(limit, isPureStaff ? "me" : selectedStaffId);
@@ -122,11 +117,7 @@ export default function ActivityLogWidget({
 
   // Initialize WebSocket connection for real-time updates
   useEffect(() => {
-    const token =
-      localStorage.getItem("staffAccessToken") ||
-      localStorage.getItem("adminAccessToken") ||
-      localStorage.getItem("accessToken");
-    if (!token) return;
+    const token = getToken();
 
     const baseApiUrl = typeof window !== "undefined" && (window.location.hostname.includes("localhost") || window.location.hostname.includes("127.0.0.1"))
       ? "http://localhost:5000"
@@ -137,7 +128,8 @@ export default function ActivityLogWidget({
       : `${baseApiUrl.replace(/\/$/, "")}/chat`;
 
     const socket = io(socketUrl, {
-      auth: { token },
+      withCredentials: true,
+      auth: token ? { token } : undefined,
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,

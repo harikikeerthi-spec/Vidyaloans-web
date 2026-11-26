@@ -257,7 +257,13 @@ export class ApplicationController {
     ) {
         const user = req?.user;
         const userRole = (user?.role || '').toLowerCase();
+        const isAdmin = ['admin', 'super_admin', 'staff_admin'].includes(userRole);
         const isBank = userRole === 'bank' || userRole === 'partner_bank' || userRole.startsWith('bank_');
+        const isStaff = userRole === 'staff' || userRole === 'support';
+
+        if (!isAdmin && !isBank && !isStaff) {
+            throw new ForbiddenException('Access denied: Your role does not have permission to list applications');
+        }
 
         let dbBankName: string | undefined = bank;
 
@@ -301,12 +307,19 @@ export class ApplicationController {
         // Admins and super_admins see all applications (no filter applied), unless assignedStaffId query is passed.
         let assignedStaffId: string | undefined = undefined;
         let staffEmail: string | undefined = undefined;
-        if (user && user.role === 'staff') {
+        let allowUnassigned = false;
+
+        if (isStaff) {
             // Pass both the user ID and email — service resolves all matching candidate IDs
+            // Ignore client-supplied assignedStaffIdQuery and includeUnassigned for non-admins
             assignedStaffId = user.id || user.uid;
             staffEmail = user.email;
-        } else if (assignedStaffIdQuery) {
-            assignedStaffId = assignedStaffIdQuery;
+            allowUnassigned = false;
+        } else if (isAdmin) {
+            if (assignedStaffIdQuery) {
+                assignedStaffId = assignedStaffIdQuery;
+            }
+            allowUnassigned = includeUnassigned === 'true';
         }
 
         return this.applicationService.getAllApplications({
@@ -325,7 +338,7 @@ export class ApplicationController {
             excludeStatus,
             assignedStaffId,
             staffEmail,
-            includeUnassigned: includeUnassigned === 'true',
+            includeUnassigned: allowUnassigned,
         });
     }
 
@@ -345,7 +358,8 @@ export class ApplicationController {
      */
     @Get('admin/:id/documents')
     @UseGuards(StaffGuard)
-    async getDocumentsAdmin(@Param('id') id: string) {
+    async getDocumentsAdmin(@Request() req, @Param('id') id: string) {
+        await this.applicationService.verifyStaffOrBankApplicationAccess(id, req.user);
         return this.applicationService.getApplicationDocuments(id);
     }
 
@@ -355,7 +369,8 @@ export class ApplicationController {
      */
     @Post('admin/:id/sync-vault')
     @UseGuards(StaffGuard)
-    async syncVaultDocuments(@Param('id') id: string) {
+    async syncVaultDocuments(@Request() req, @Param('id') id: string) {
+        await this.applicationService.verifyStaffOrBankApplicationAccess(id, req.user);
         return this.applicationService.syncApplicationDocuments(id);
     }
 
@@ -390,6 +405,7 @@ export class ApplicationController {
             rejectionReason?: string;
         }
     ) {
+        await this.applicationService.verifyStaffOrBankApplicationAccess(id, req.user);
         const adminName = `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email;
         return this.applicationService.updateApplicationStatus(id, req.user.id, adminName, body, req.user.role);
     }
@@ -404,6 +420,7 @@ export class ApplicationController {
         @Request() req,
         @Param('id') id: string,
     ) {
+        await this.applicationService.verifyStaffOrBankApplicationAccess(id, req.user);
         try {
             const adminName = `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email;
             console.log(`[AI Review] Starting review for application ${id} by admin ${adminName}`);
@@ -424,6 +441,7 @@ export class ApplicationController {
         @Request() req,
         @Param('id') id: string,
     ) {
+        await this.applicationService.verifyStaffOrBankApplicationAccess(id, req.user);
         const adminName = `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email;
         return this.applicationService.shareApplication(id, req.user.id, adminName);
     }
@@ -435,11 +453,13 @@ export class ApplicationController {
     @Get('admin/:id/documents/:documentId/view')
     @UseGuards(StaffGuard)
     async viewDocumentAdmin(
+        @Request() req,
         @Param('id') applicationId: string,
         @Param('documentId') documentId: string,
         @Query('download') download: string,
         @Res() res: Response,
     ) {
+        await this.applicationService.verifyStaffOrBankApplicationAccess(applicationId, req.user);
         const doc = await this.applicationService.getSingleDocument(applicationId, documentId);
 
         if (!doc || !doc.filePath) {
@@ -607,9 +627,11 @@ export class ApplicationController {
     @UseGuards(StaffGuard)
     @Header('Content-Type', 'application/zip')
     async downloadDocumentsZipAdmin(
+        @Request() req,
         @Param('id') applicationId: string,
         @Res() res: Response,
     ) {
+        await this.applicationService.verifyStaffOrBankApplicationAccess(applicationId, req.user);
         const zipData = await this.bankService.generateDocumentsZip(applicationId);
         res.setHeader('Content-Disposition', `attachment; filename="${zipData.fileName}"`);
         return res.status(HttpStatus.OK).send(zipData.buffer);
@@ -623,10 +645,11 @@ export class ApplicationController {
     @UseGuards(StaffGuard)
     @Header('Content-Type', 'application/zip')
     async downloadDocumentsZip(
+        @Request() req,
         @Param('id') applicationId: string,
         @Res() res: Response,
     ) {
-        return this.downloadDocumentsZipAdmin(applicationId, res);
+        return this.downloadDocumentsZipAdmin(req, applicationId, res);
     }
 
     /**
@@ -643,6 +666,7 @@ export class ApplicationController {
             rejectionReason?: string;
         }
     ) {
+        await this.applicationService.verifyDocumentAccess(documentId, req.user);
         return this.applicationService.verifyDocument(documentId, req.user.id, body);
     }
 
@@ -652,7 +676,8 @@ export class ApplicationController {
      */
     @Get('admin/:id/tracking')
     @UseGuards(StaffGuard)
-    async getTrackingAdmin(@Param('id') id: string) {
+    async getTrackingAdmin(@Request() req, @Param('id') id: string) {
+        await this.applicationService.verifyStaffOrBankApplicationAccess(id, req.user);
         return this.applicationService.getApplicationTracking(id);
     }
 
@@ -662,7 +687,8 @@ export class ApplicationController {
      */
     @Get('admin/:id/notes')
     @UseGuards(StaffGuard)
-    async getApplicationNotes(@Param('id') id: string) {
+    async getApplicationNotes(@Request() req, @Param('id') id: string) {
+        await this.applicationService.verifyStaffOrBankApplicationAccess(id, req.user);
         return this.applicationService.getApplicationNotes(id, true);
     }
 
@@ -681,6 +707,7 @@ export class ApplicationController {
             isInternal?: boolean;
         }
     ) {
+        await this.applicationService.verifyStaffOrBankApplicationAccess(id, req.user);
         const authorName = `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email;
         return this.applicationService.addApplicationNote(id, req.user.id, authorName, body);
     }
@@ -739,9 +766,12 @@ export class ApplicationController {
             throw new NotFoundException('Application not found');
         }
 
-        // Verify ownership (unless admin/staff/bank/support)
-        const allowedRoles = ['admin', 'super_admin', 'staff', 'support', 'bank', 'partner_bank'];
-        if (!allowedRoles.includes(req.user.role) && application.userId !== req.user.id) {
+        // Verify ownership / role & assignment scoping
+        const userRole = (req.user?.role || '').toLowerCase();
+        const isStaffOrBank = ['admin', 'super_admin', 'staff_admin', 'staff', 'support', 'bank', 'partner_bank'].includes(userRole) || userRole.startsWith('bank_');
+        if (isStaffOrBank) {
+            await this.applicationService.verifyStaffOrBankApplicationAccess(id, req.user);
+        } else if (application.userId !== req.user?.id) {
             throw new ForbiddenException("Access denied: You do not have permission to view another user's application");
         }
 
@@ -802,7 +832,9 @@ export class ApplicationController {
 
         const user = req.user;
         const userRole = (user?.role || '').toLowerCase();
+        const isAdmin = ['admin', 'super_admin', 'staff_admin'].includes(userRole);
         const isBank = userRole === 'bank' || userRole === 'partner_bank' || userRole.startsWith('bank_');
+        const isStaffOrSupport = userRole === 'staff' || userRole === 'support';
 
         if (isBank) {
             let sessionBank = user?.bankName || user?.bank || user?.bankId;
@@ -818,12 +850,10 @@ export class ApplicationController {
             if (!isMatch) {
                 throw new ForbiddenException("Access denied: You do not have permission to view another institution's application");
             }
-        } else {
-            // Verify ownership (unless admin/staff/support)
-            const allowedRoles = ['admin', 'super_admin', 'staff', 'support'];
-            if (!allowedRoles.includes(userRole) && application.userId !== user?.id) {
-                throw new ForbiddenException("Access denied: You do not have permission to view another user's application");
-            }
+        } else if (isStaffOrSupport) {
+            await this.applicationService.verifyStaffOrBankApplicationAccess(id, user);
+        } else if (!isAdmin && application.userId !== user?.id) {
+            throw new ForbiddenException("Access denied: You do not have permission to view another user's application");
         }
 
         // Trigger staff review start email if viewed by staff/admin for the first time while status is 'submitted'

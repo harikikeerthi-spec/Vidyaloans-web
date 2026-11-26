@@ -1,4 +1,4 @@
-import { getCsrfToken, initializeCsrf } from "./api";
+import { getCsrfToken, initializeCsrf, getToken } from "./api";
 
 /**
  * Bank Dashboard API Client
@@ -25,10 +25,11 @@ class BankDashboardAPI {
   }
 
   private async getHeaders(method: string = "GET"): Promise<Record<string, string>> {
+    const token = getToken();
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       "x-bank-id": this.bankId,
-      Authorization: `Bearer ${localStorage.getItem("authToken") || ""}`,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     };
 
     if (["POST", "PUT", "PATCH", "DELETE"].includes(method.toUpperCase())) {

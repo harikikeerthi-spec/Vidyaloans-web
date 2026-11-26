@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { io, Socket } from "socket.io-client";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
-import { adminApi, apiFetch } from "@/lib/api";
+import { adminApi, apiFetch, getToken } from "@/lib/api";
 
 interface Notification {
   id: string;
@@ -255,20 +255,15 @@ const NotificationsPanel = ({
     const baseApiUrl = typeof window !== 'undefined' && (window.location.hostname.includes('localhost') || window.location.hostname.includes('127.0.0.1'))
       ? 'http://127.0.0.1:5000'
       : (process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://127.0.0.1:5000'));
-    // Use portal-specific token keys (staff portal uses "staffAccessToken")
-    const token =
-      localStorage.getItem("staffAccessToken") ||
-      localStorage.getItem("adminAccessToken") ||
-      localStorage.getItem("accessToken");
+    const token = getToken();
 
     const socketUrl = baseApiUrl.endsWith("/api")
       ? baseApiUrl.replace("/api", "/chat")
       : `${baseApiUrl.replace(/\/$/, "")}/chat`;
 
     socketRef.current = io(socketUrl, {
-      auth: {
-        token,
-      },
+      withCredentials: true,
+      auth: token ? { token } : undefined,
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
@@ -287,7 +282,7 @@ const NotificationsPanel = ({
       // Filter out notifications targeted specifically to a different user
       const currentUserId = staffId || (typeof window !== "undefined" ? (localStorage.getItem("staffUserId") || localStorage.getItem("adminUserId") || localStorage.getItem("userId")) : null);
       const currentUserEmail = (typeof window !== "undefined" ? (localStorage.getItem("staffUserEmail") || localStorage.getItem("adminUserEmail") || localStorage.getItem("userEmail")) : null)?.toLowerCase();
-      const isAdmin = typeof window !== "undefined" && Boolean(localStorage.getItem("adminAccessToken"));
+      const isAdmin = typeof window !== "undefined" && (Boolean(localStorage.getItem("adminAuthUser")) || Boolean(localStorage.getItem("adminUserId")));
       const targetUserId = (payload as any)?.userId;
 
       if (

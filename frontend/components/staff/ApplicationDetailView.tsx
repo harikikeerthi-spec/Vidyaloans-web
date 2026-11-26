@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { format, formatDistanceToNow } from "date-fns";
-import { documentApi, staffProfileApi, adminApi, chatApi } from "@/lib/api";
+import { documentApi, staffProfileApi, adminApi, chatApi, getToken } from "@/lib/api";
 import { formatDateTime } from "@/lib/utils";
 import { useDialog } from "@/contexts/DialogContext";
 import { io, Socket } from "socket.io-client";
@@ -3784,8 +3784,9 @@ export const EvvAnalysisTab = ({
     if (!isPolling) return;
     const interval = setInterval(async () => {
       try {
-        const token = localStorage.getItem("staffAccessToken") || localStorage.getItem("adminAccessToken") || localStorage.getItem("accessToken");
+        const token = getToken();
         const res = await fetch(`/api/applications/${application.id || application._id}`, {
+          credentials: 'include',
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         if (res.ok) {
@@ -3820,9 +3821,10 @@ export const EvvAnalysisTab = ({
     formData.append("file", file);
 
     try {
-      const token = localStorage.getItem("staffAccessToken") || localStorage.getItem("adminAccessToken") || localStorage.getItem("accessToken");
+      const token = getToken();
       const res = await fetch(`/api/applications/${application.id || application._id}/upload-statement`, {
         method: "POST",
+        credentials: 'include',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: formData,
       });

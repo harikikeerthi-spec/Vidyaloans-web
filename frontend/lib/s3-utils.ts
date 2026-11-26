@@ -26,7 +26,7 @@ interface S3Document {
     rejectionReason?: string;
 }
 
-import { initializeCsrf, getCsrfToken } from './api';
+import { initializeCsrf, getCsrfToken, getToken } from './api';
 
 /**
  * Get presigned URL for file upload from backend
@@ -41,9 +41,7 @@ export const getS3PresignedUrl = async (
     s3Key: string;
     docId: string;
 }> => {
-    const token = typeof window !== 'undefined' 
-        ? localStorage.getItem('staffAccessToken') || localStorage.getItem('adminAccessToken')
-        : null;
+    const token = getToken();
 
     let csrfToken = getCsrfToken();
     if (!csrfToken) {
@@ -52,6 +50,7 @@ export const getS3PresignedUrl = async (
 
     const response = await fetch('/api/documents/presigned-url', {
         method: 'POST',
+        credentials: 'include',
         headers: {
             'Content-Type': 'application/json',
             ...(token && { Authorization: `Bearer ${token}` }),
@@ -132,9 +131,7 @@ export const completeDocumentUpload = async (
     personType: 'applicant' | 'father' | 'mother' | 'coapplicant',
     employmentType?: string
 ): Promise<S3Document> => {
-    const token = typeof window !== 'undefined'
-        ? localStorage.getItem('staffAccessToken') || localStorage.getItem('adminAccessToken')
-        : null;
+    const token = getToken();
 
     let csrfToken = getCsrfToken();
     if (!csrfToken) {
@@ -143,6 +140,7 @@ export const completeDocumentUpload = async (
 
     const response = await fetch('/api/documents/complete-upload', {
         method: 'POST',
+        credentials: 'include',
         headers: {
             'Content-Type': 'application/json',
             ...(token && { Authorization: `Bearer ${token}` }),
@@ -170,11 +168,10 @@ export const completeDocumentUpload = async (
  * Fetch all documents for a user from database
  */
 export const fetchUserS3Documents = async (userId: string): Promise<S3Document[]> => {
-    const token = typeof window !== 'undefined'
-        ? localStorage.getItem('staffAccessToken') || localStorage.getItem('adminAccessToken')
-        : null;
+    const token = getToken();
 
     const response = await fetch(`/api/documents/user/${userId}`, {
+        credentials: 'include',
         headers: {
             ...(token && { Authorization: `Bearer ${token}` })
         }
@@ -191,12 +188,11 @@ export const fetchUserS3Documents = async (userId: string): Promise<S3Document[]
  * Delete document from S3 and database
  */
 export const deleteS3Document = async (docId: string): Promise<void> => {
-    const token = typeof window !== 'undefined'
-        ? localStorage.getItem('staffAccessToken') || localStorage.getItem('adminAccessToken')
-        : null;
+    const token = getToken();
 
     const response = await fetch(`/api/documents/${docId}`, {
         method: 'DELETE',
+        credentials: 'include',
         headers: {
             ...(token && { Authorization: `Bearer ${token}` })
         }
@@ -211,12 +207,11 @@ export const deleteS3Document = async (docId: string): Promise<void> => {
  * Download document from S3
  */
 export const downloadS3Document = async (s3Key: string, fileName: string): Promise<void> => {
-    const token = typeof window !== 'undefined'
-        ? localStorage.getItem('staffAccessToken') || localStorage.getItem('adminAccessToken')
-        : null;
+    const token = getToken();
 
     const response = await fetch(`/api/documents/download`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
             'Content-Type': 'application/json',
             ...(token && { Authorization: `Bearer ${token}` })

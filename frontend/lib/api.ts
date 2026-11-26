@@ -24,7 +24,7 @@ export function notifyTokenChange(token: string | null) {
     tokenChangeListeners.forEach(cb => cb(token));
 }
 
-type Portal = "student" | "staff" | "admin" | "bank" | "agent" | "it";
+type Portal = "student" | "staff" | "admin" | "bank" | "agent" | "it" | "analyst" | "marketing";
 
 function getPortalFromPathname(pathname?: string): Portal {
     if (!pathname) return "student";
@@ -98,7 +98,8 @@ function getStorageKeys(portal: Portal) {
 }
 
 function clearAllPortalAuthStorage() {
-    const portals: Portal[] = ["student", "staff", "admin", "bank", "agent", "it"];
+    if (typeof window === "undefined") return;
+    const portals: Portal[] = ["student", "staff", "admin", "bank", "agent", "it", "analyst", "marketing"];
     for (const portal of portals) {
         const keys = getStorageKeys(portal);
         localStorage.removeItem(keys.token);
@@ -106,6 +107,23 @@ function clearAllPortalAuthStorage() {
         localStorage.removeItem(keys.email);
         localStorage.removeItem(keys.userId);
         localStorage.removeItem(keys.user);
+    }
+    const tokenKeys = [
+        "accessToken", "refreshToken", "token", "authToken", "userToken", "jwt",
+        "adminAccessToken", "adminRefreshToken",
+        "itAccessToken", "itRefreshToken",
+        "staffAccessToken", "staffRefreshToken",
+        "bankAccessToken", "bankRefreshToken",
+        "agentAccessToken", "agentRefreshToken",
+        "analystAccessToken", "analystRefreshToken",
+        "marketingAccessToken", "marketingRefreshToken",
+    ];
+    for (const k of tokenKeys) {
+        try {
+            localStorage.removeItem(k);
+            sessionStorage.removeItem(k);
+            document.cookie = `${k}=; path=/; max-age=0;`;
+        } catch { }
     }
 }
 
@@ -271,158 +289,7 @@ export function getToken(): string | null {
         return activeInMemoryToken;
     }
 
-    const portal = getPortalFromPathname(window.location.pathname);
-    const keys = getStorageKeys(portal);
-
-    // 1. Try portal-specific token from localStorage
-    const portalToken = localStorage.getItem(keys.token);
-    if (portalToken) return portalToken;
-
-    // 2. Try portal-specific token from sessionStorage
-    try {
-        const sessionToken = sessionStorage.getItem(keys.token);
-        if (sessionToken) return sessionToken;
-    } catch { }
-
-    // 3. Try portal-specific token from cookies
-    try {
-        const getCookie = (name: string) => {
-            const match = document.cookie.match(new RegExp('(?:^|;\\s*)' + name + '=([^;]*)'));
-            return match ? decodeURIComponent(match[1]) : null;
-        };
-        const cookieToken = getCookie(keys.token);
-        if (cookieToken) return cookieToken;
-    } catch { }
-
-    // 2. IT portal can authenticate via staff, admin, or any available credentials
-    if (portal === "it") {
-        const itTok =
-            localStorage.getItem("itAccessToken") ||
-            localStorage.getItem("staffAccessToken") ||
-            localStorage.getItem("adminAccessToken") ||
-            localStorage.getItem("accessToken") ||
-            localStorage.getItem("token") ||
-            localStorage.getItem("userToken");
-        if (itTok) return itTok;
-
-        try {
-            const sessionToken =
-                sessionStorage.getItem("itAccessToken") ||
-                sessionStorage.getItem("staffAccessToken") ||
-                sessionStorage.getItem("adminAccessToken");
-            if (sessionToken) return sessionToken;
-        } catch { }
-
-        try {
-            const getCookie = (name: string) => {
-                const match = document.cookie.match(new RegExp('(?:^|;\\s*)' + name + '=([^;]*)'));
-                return match ? decodeURIComponent(match[1]) : null;
-            };
-            const cookieToken =
-                getCookie("itAccessToken") ||
-                getCookie("staffAccessToken") ||
-                getCookie("adminAccessToken") ||
-                getCookie("accessToken");
-            if (cookieToken) return cookieToken;
-        } catch { }
-    }
-
-    // 3. Staff portal can fall back to admin credentials, but never to student credentials
-    if (portal === "staff") {
-        const staffTok =
-            localStorage.getItem("staffAccessToken") ||
-            localStorage.getItem("adminAccessToken");
-        if (staffTok) return staffTok;
-
-        try {
-            const sessionToken =
-                sessionStorage.getItem("staffAccessToken") ||
-                sessionStorage.getItem("adminAccessToken");
-            if (sessionToken) return sessionToken;
-        } catch { }
-
-        try {
-            const getCookie = (name: string) => {
-                const match = document.cookie.match(new RegExp('(?:^|;\\s*)' + name + '=([^;]*)'));
-                return match ? decodeURIComponent(match[1]) : null;
-            };
-            const cookieToken =
-                getCookie("staffAccessToken") ||
-                getCookie("adminAccessToken");
-            if (cookieToken) return cookieToken;
-        } catch { }
-
-        return null;
-    }
-
-    // 4. Admin portal strictly uses admin credentials
-    if (portal === "admin") {
-        const adminTok = localStorage.getItem("adminAccessToken");
-        if (adminTok) return adminTok;
-
-        try {
-            const sessionToken = sessionStorage.getItem("adminAccessToken");
-            if (sessionToken) return sessionToken;
-        } catch { }
-
-        try {
-            const getCookie = (name: string) => {
-                const match = document.cookie.match(new RegExp('(?:^|;\\s*)' + name + '=([^;]*)'));
-                return match ? decodeURIComponent(match[1]) : null;
-            };
-            const cookieToken = getCookie("adminAccessToken");
-            if (cookieToken) return cookieToken;
-        } catch { }
-
-        return null;
-    }
-
-    // 5. Bank portal strictly uses bank credentials
-    if (portal === "bank") {
-        const bankTok = localStorage.getItem("bankAccessToken");
-        if (bankTok) return bankTok;
-        return null;
-    }
-
-    // 6. Agent portal strictly uses agent credentials
-    if (portal === "agent") {
-        const agentTok = localStorage.getItem("agentAccessToken");
-        if (agentTok) return agentTok;
-        return null;
-    }
-
-    // 7. Student portal checks standard user token aliases
-    if (portal === "student") {
-        const studentTok =
-            localStorage.getItem("token") ||
-            localStorage.getItem("userToken") ||
-            localStorage.getItem("jwt") ||
-            localStorage.getItem("accessToken");
-        if (studentTok) return studentTok;
-    }
-
-    const generalToken =
-        localStorage.getItem("accessToken") ||
-        localStorage.getItem("token") ||
-        localStorage.getItem("userToken");
-    if (generalToken) return generalToken;
-
-    // Check sessionStorage
-    try {
-        const sessionToken = sessionStorage.getItem(keys.token);
-        if (sessionToken) return sessionToken;
-    } catch { }
-
-    // Fallback to browser cookies if localStorage is not set
-    try {
-        const getCookie = (name: string) => {
-            const match = document.cookie.match(new RegExp('(?:^|;\\s*)' + name + '=([^;]*)'));
-            return match ? decodeURIComponent(match[1]) : null;
-        };
-        const cookieToken = getCookie(keys.token);
-        if (cookieToken) return cookieToken;
-    } catch { }
-
+    // Session tokens are strictly maintained in HttpOnly cookies to prevent script injection / XSS token theft
     return null;
 }
 
@@ -482,38 +349,13 @@ export async function tryRefreshAccessToken(): Promise<string | null> {
     }
 
     activeRefreshPromise = (async () => {
-        const portal = getPortalFromPathname(window.location.pathname);
-        const keys = getStorageKeys(portal);
-
-        const getCookie = (name: string) => {
-            try {
-                const match = document.cookie.match(new RegExp('(?:^|;\\s*)' + name + '=([^;]*)'));
-                return match ? decodeURIComponent(match[1]) : null;
-            } catch { return null; }
-        };
-
-        const refreshToken =
-            localStorage.getItem(keys.refreshToken) ||
-            sessionStorage.getItem(keys.refreshToken) ||
-            getCookie(keys.refreshToken) ||
-            localStorage.getItem("itRefreshToken") ||
-            localStorage.getItem("staffRefreshToken") ||
-            localStorage.getItem("adminRefreshToken") ||
-            localStorage.getItem("refreshToken") ||
-            sessionStorage.getItem("itRefreshToken") ||
-            sessionStorage.getItem("staffRefreshToken") ||
-            getCookie("itRefreshToken") ||
-            getCookie("staffRefreshToken") ||
-            getCookie("adminRefreshToken") ||
-            getCookie("refreshToken");
-
-        if (!refreshToken) return null;
-
         try {
+            // Transport HttpOnly refresh cookie automatically via credentials: "include"
             const refreshRes = await fetch(`${API_URL}/auth/refresh`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ refresh_token: refreshToken }),
+                credentials: "include",
+                body: JSON.stringify({}),
             });
 
             if (!refreshRes.ok) {
@@ -527,56 +369,6 @@ export async function tryRefreshAccessToken(): Promise<string | null> {
             const data = await refreshRes.json();
             const newToken = data.access_token || data.accessToken;
             if (!newToken) return null;
-
-            localStorage.setItem(keys.token, newToken);
-            sessionStorage.setItem(keys.token, newToken);
-            try {
-                document.cookie = `${keys.token}=${newToken}; path=/; max-age=2592000; SameSite=Lax`;
-            } catch { }
-
-            if (data.refresh_token) {
-                localStorage.setItem(keys.refreshToken, data.refresh_token);
-                sessionStorage.setItem(keys.refreshToken, data.refresh_token);
-                try {
-                    document.cookie = `${keys.refreshToken}=${data.refresh_token}; path=/; max-age=604800; SameSite=Lax`;
-                } catch { }
-            }
-
-            // Sync with staff or admin tokens if on IT portal
-            if (portal === "it") {
-                localStorage.setItem("itAccessToken", newToken);
-                sessionStorage.setItem("itAccessToken", newToken);
-                try {
-                    document.cookie = `itAccessToken=${newToken}; path=/; max-age=2592000; SameSite=Lax`;
-                    document.cookie = `staffAccessToken=${newToken}; path=/; max-age=2592000; SameSite=Lax`;
-                } catch { }
-
-                if (data.refresh_token) {
-                    localStorage.setItem("itRefreshToken", data.refresh_token);
-                    sessionStorage.setItem("itRefreshToken", data.refresh_token);
-                    try {
-                        document.cookie = `itRefreshToken=${data.refresh_token}; path=/; max-age=604800; SameSite=Lax`;
-                        document.cookie = `staffRefreshToken=${data.refresh_token}; path=/; max-age=604800; SameSite=Lax`;
-                    } catch { }
-                }
-
-                if (localStorage.getItem("staffRefreshToken") || sessionStorage.getItem("staffRefreshToken")) {
-                    localStorage.setItem("staffAccessToken", newToken);
-                    sessionStorage.setItem("staffAccessToken", newToken);
-                    if (data.refresh_token) {
-                        localStorage.setItem("staffRefreshToken", data.refresh_token);
-                        sessionStorage.setItem("staffRefreshToken", data.refresh_token);
-                    }
-                }
-                if (localStorage.getItem("adminRefreshToken") || sessionStorage.getItem("adminRefreshToken")) {
-                    localStorage.setItem("adminAccessToken", newToken);
-                    sessionStorage.setItem("adminAccessToken", newToken);
-                    if (data.refresh_token) {
-                        localStorage.setItem("adminRefreshToken", data.refresh_token);
-                        sessionStorage.setItem("adminRefreshToken", data.refresh_token);
-                    }
-                }
-            }
 
             notifyTokenChange(newToken);
             return newToken;
@@ -595,7 +387,7 @@ function notifySessionExpired() {
 
     // Never kick user out of IT dashboard; never wipe active tokens during composing, silently attempt refresh
     if (window.location.pathname.startsWith("/it")) {
-        tryRefreshAccessToken().catch(() => {});
+        tryRefreshAccessToken().catch(() => { });
         return;
     }
 
@@ -687,7 +479,7 @@ export async function apiFetch<T>(
     // Proactive refresh: if endpoint requires authentication and Authorization header is missing or expired,
     // silently acquire a fresh token before sending a doomed request
     const existingAuthToken = (headersObj["Authorization"] || headersObj["authorization"])?.replace(/^Bearer\s+/i, "");
-    if (!isPublicAuthUrl(url) && (!existingAuthToken || isTokenExpired(existingAuthToken))) {
+    if (!isPublicAuthUrl(url) && existingAuthToken && isTokenExpired(existingAuthToken)) {
         const freshToken = await tryRefreshAccessToken();
         if (freshToken) {
             headersObj["Authorization"] = `Bearer ${freshToken}`;
@@ -809,7 +601,7 @@ async function handleResponse<T>(res: Response, url?: string, alreadyRetried = f
         const rawMsg = err?.message || (typeof err === "string" ? err : "API request failed");
         const sanitizedMsg =
             rawMsg.toLowerCase().includes("no authorization token") ||
-            rawMsg.toLowerCase().includes("unauthorized")
+                rawMsg.toLowerCase().includes("unauthorized")
                 ? "Your login session has expired. Please refresh your session or log in again."
                 : rawMsg;
         throw new Error(sanitizedMsg);
@@ -918,11 +710,12 @@ export const authApi = {
             body: JSON.stringify({ idToken }),
         }),
 
-    refresh: async (refreshToken: string) => {
+    refresh: async (refreshToken?: string) => {
         const res = await fetch(HttpApiPaths.auth.refresh(), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ refresh_token: refreshToken }),
+            credentials: "include",
+            body: JSON.stringify(refreshToken ? { refresh_token: refreshToken } : {}),
         });
         const body = await res.json();
         if (!res.ok) {
@@ -1805,10 +1598,7 @@ export const documentApi = {
         skipOcr?: boolean
     ) => {
         return new Promise(async (resolve, reject) => {
-            const token = (() => {
-                if (typeof window === 'undefined') return null;
-                return localStorage.getItem('agentAccessToken') || localStorage.getItem('staffAccessToken') || localStorage.getItem('adminAccessToken') || localStorage.getItem('accessToken');
-            })();
+            const token = getToken();
 
             let csrfToken = getCsrfToken();
             if (!csrfToken) {
@@ -2048,10 +1838,7 @@ export const staffProfileApi = {
     // Staff manually uploads a document and attaches it
     uploadDocument: (profileId: string, file: File, docType: string, onProgress?: (progress: number) => void, description?: string) => {
         return new Promise(async (resolve, reject) => {
-            const token = (() => {
-                if (typeof window === 'undefined') return null;
-                return localStorage.getItem('staffAccessToken') || localStorage.getItem('adminAccessToken');
-            })();
+            const token = getToken();
 
             let csrfToken = getCsrfToken();
             if (!csrfToken) {
@@ -2358,6 +2145,10 @@ export const bankApi = {
     getBranches: () => apiFetch(HttpApiPaths.bank.branches()),
     createBranch: (data: any) => apiFetch(HttpApiPaths.bank.branches(), { method: "POST", body: JSON.stringify(data) }),
     getOfficers: () => apiFetch(HttpApiPaths.bank.officers()),
+    getTasks: () => apiFetch<any>('/api/bank/tasks'),
+    createTask: (data: any) => apiFetch<any>('/api/bank/tasks', { method: "POST", body: JSON.stringify(data) }),
+    updateTask: (taskId: string, data: any) => apiFetch<any>(`/api/bank/tasks/${encodeURIComponent(taskId)}`, { method: "PUT", body: JSON.stringify(data) }),
+    deleteTask: (taskId: string) => apiFetch<any>(`/api/bank/tasks/${encodeURIComponent(taskId)}`, { method: "DELETE" }),
     getFileDetail: (id: string) => apiFetch<any>(HttpApiPaths.bank.fileDetail(id)),
     lookupByLan: (lan: string) => apiFetch(HttpApiPaths.bank.lookupByLan(lan)),
     getMyFiles: (filters?: any) => apiFetch(HttpApiPaths.bank.myFiles(filters)),

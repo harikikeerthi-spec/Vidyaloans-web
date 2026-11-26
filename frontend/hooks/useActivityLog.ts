@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { staffProfileApi } from '@/lib/api';
+import { staffProfileApi, getToken } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 
 export interface Activity {
@@ -65,9 +65,6 @@ export const useActivityLog = (options: ActivityLogOptions = {}) => {
 
   // Fetch activities from backend
   const fetchActivities = useCallback(async () => {
-    const activeToken = token || (typeof window !== "undefined" ? (localStorage.getItem("staffAccessToken") || localStorage.getItem("adminAccessToken")) : null);
-    if (!activeToken) return;
-
     const now = Date.now();
     if (now - lastFetchRef.current < 1000) return; // Debounce
 
@@ -108,8 +105,10 @@ export const useActivityLog = (options: ActivityLogOptions = {}) => {
       ? baseApiUrl.replace('/api', '/chat')
       : `${baseApiUrl.replace(/\/$/, '')}/chat`;
 
+    const activeToken = token || getToken();
     const socket = io(socketUrl, {
-      auth: { token },
+      withCredentials: true,
+      auth: activeToken ? { token: activeToken } : undefined,
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,

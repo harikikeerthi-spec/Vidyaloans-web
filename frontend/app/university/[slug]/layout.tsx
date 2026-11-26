@@ -12,7 +12,7 @@ export default function UniversityLayout({
     return (
         <div className="min-h-screen bg-transparent">
             {/* Navbar and Footer are hidden to use the custom integrated ones in the university page */}
-            <main className="relative z-10">
+            <main id="main-content" tabIndex={-1} className="relative z-10 focus:outline-none">
                 <ProfileGate>
                     <LoginWall>
                         {children}

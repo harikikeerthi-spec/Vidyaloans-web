@@ -3,7 +3,7 @@
 import { useUserDossier } from "../DossierContext";
 import { useState, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { documentApi, staffProfileApi } from "@/lib/api";
+import { documentApi, staffProfileApi, getToken } from "@/lib/api";
 import { getProfileDocumentRequirements, getDocumentRequirementName, isDocTypeMatchingRequirement } from "@/lib/documentRequirements";
 import JSZip from "jszip";
 
@@ -256,12 +256,11 @@ export default function DocumentsTab() {
 
                     // Fetch the document blob from the live view route
                     try {
-                        const token = typeof window !== "undefined"
-                            ? (localStorage.getItem("staffAccessToken") || localStorage.getItem("adminAccessToken") || localStorage.getItem("accessToken"))
-                            : null;
+                        const token = getToken();
                         const tokenParam = token ? `?token=${encodeURIComponent(token)}` : "";
                         const viewUrl = `/api/documents/view/${encodeURIComponent(userId)}/${encodeURIComponent(doc.docType)}${tokenParam}`;
                         const res = await fetch(viewUrl, {
+                            credentials: "include",
                             headers: token ? { Authorization: `Bearer ${token}` } : {},
                         });
                         if (res.ok) {
@@ -698,9 +697,7 @@ export default function DocumentsTab() {
 
     // ── Document URL Generator (with Auth Token Query Fallback) ───────
     const getViewUrl = (docType: string) => {
-        const token = typeof window !== "undefined"
-            ? (localStorage.getItem("staffAccessToken") || localStorage.getItem("adminAccessToken") || localStorage.getItem("accessToken"))
-            : null;
+        const token = getToken();
         const tokenParam = token ? `?token=${encodeURIComponent(token)}` : "";
         return `/api/documents/view/${encodeURIComponent(userId)}/${encodeURIComponent(docType)}${tokenParam}`;
     };
@@ -712,9 +709,7 @@ export default function DocumentsTab() {
         try {
             const res = await documentApi.getPresignedView(userId, doc.docType) as any;
             if (res && res.url) {
-                const token = typeof window !== "undefined"
-                    ? (localStorage.getItem("staffAccessToken") || localStorage.getItem("adminAccessToken") || localStorage.getItem("accessToken"))
-                    : null;
+                const token = getToken();
                 const finalUrl = (!res.url.includes("token=") && !res.url.startsWith("http") && token)
                     ? `${res.url}${res.url.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}`
                     : res.url;

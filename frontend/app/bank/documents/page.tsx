@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { adminApi, bankApi } from "@/lib/api";
+import { adminApi, bankApi, getToken } from "@/lib/api";
 import { PageHeader, StatusBadge, Spinner, EmptyState } from "@/components/bank/SharedUI";
 
 export default function DocumentReviewCenter() {
@@ -221,11 +221,9 @@ export default function DocumentReviewCenter() {
     };
 
     const getDocumentViewUrl = (appId: string, docId: string) => {
-        const token = typeof window !== "undefined"
-            ? (localStorage.getItem("bankAccessToken") || localStorage.getItem("adminAccessToken") || localStorage.getItem("staffAccessToken") || "")
-            : "";
-        // If we have a token, pass it as a query param for optional auth
-        // The endpoint works without auth too, so this is best-effort
+        const token = getToken() || "";
+        // If we have a token in memory, pass it as a query param for optional auth.
+        // The endpoint also verifies HttpOnly session cookies sent automatically by the browser.
         const base = `/api/applications/admin/${appId}/documents/${docId}/view`;
         return token ? `${base}?token=${token}` : base;
     };

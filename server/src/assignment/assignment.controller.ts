@@ -8,6 +8,7 @@ import {
   Query,
   Req,
   UseGuards,
+  ForbiddenException,
 } from '@nestjs/common';
 import { AssignmentService } from './assignment.service';
 import { StaffGuard } from '../auth/staff.guard';
@@ -18,6 +19,23 @@ import { ReassignLoanDto, BulkReassignDto, LockApplicationDto, UpdateStaffAvaila
 export class AssignmentController {
   constructor(private readonly assignmentService: AssignmentService) {}
 
+  private getRole(req: any): string {
+    return (req?.user?.role || '').toLowerCase();
+  }
+
+  private assertAdminRole(req: any) {
+    if (!['admin', 'super_admin', 'staff_admin'].includes(this.getRole(req))) {
+      throw new ForbiddenException('Access denied: Admin privileges required');
+    }
+  }
+
+  private assertAdminOrStaffRole(req: any) {
+    const role = this.getRole(req);
+    if (!['admin', 'super_admin', 'staff_admin', 'staff', 'support'].includes(role)) {
+      throw new ForbiddenException('Access denied: Insufficient role permissions for case assignment');
+    }
+  }
+
   /**
    * Trigger round-robin assignment for a single loan application.
    * POST /assignment/assign/:loanId
@@ -27,6 +45,7 @@ export class AssignmentController {
     @Param('loanId') loanId: string,
     @Req() req: any,
   ) {
+    this.assertAdminOrStaffRole(req);
     const triggeredBy = req.user?.id || req.user?.uid || 'staff';
     const result = await this.assignmentService.assignLoan(loanId, triggeredBy);
     return { success: result.success, data: result };
@@ -39,6 +58,7 @@ export class AssignmentController {
    */
   @Post('assign-all-unassigned')
   async assignAllUnassigned(@Req() req: any) {
+    this.assertAdminRole(req);
     const triggeredBy = req.user?.id || req.user?.uid || 'system';
     const result = await this.assignmentService.assignAllUnassigned(triggeredBy);
     return { success: true, message: `Auto-assignment completed. Assigned: ${result.assigned}, Skipped: ${result.skipped}, Failed: ${result.failed}`, data: result };
@@ -46,6 +66,7 @@ export class AssignmentController {
 
   @Post('auto-assign-all-unassigned')
   async autoAssignAllUnassigned(@Req() req: any) {
+    this.assertAdminRole(req);
     const triggeredBy = req.user?.id || req.user?.uid || 'system';
     const result = await this.assignmentService.assignAllUnassigned(triggeredBy);
     return { success: true, message: `Auto-assignment completed. Assigned: ${result.assigned}, Skipped: ${result.skipped}, Failed: ${result.failed}`, data: result };
@@ -53,6 +74,7 @@ export class AssignmentController {
 
   @Post('auto-assign')
   async autoAssign(@Req() req: any) {
+    this.assertAdminRole(req);
     const triggeredBy = req.user?.id || req.user?.uid || 'system';
     const result = await this.assignmentService.assignAllUnassigned(triggeredBy);
     return { success: true, message: `Auto-assignment completed. Assigned: ${result.assigned}, Skipped: ${result.skipped}, Failed: ${result.failed}`, data: result };
@@ -64,6 +86,7 @@ export class AssignmentController {
     @Body() dto: ReassignLoanDto,
     @Req() req: any,
   ) {
+    this.assertAdminRole(req);
     const assignedBy = req.user?.id || req.user?.uid || 'manager';
     return await this.assignmentService.reassignLoan(
       loanId,
@@ -79,6 +102,7 @@ export class AssignmentController {
     @Body() dto: ReassignLoanDto,
     @Req() req: any,
   ) {
+    this.assertAdminRole(req);
     const assignedBy = req.user?.id || req.user?.uid || 'manager';
     return await this.assignmentService.reassignLoan(
       loanId,
@@ -93,6 +117,7 @@ export class AssignmentController {
     @Body() dto: BulkReassignDto,
     @Req() req: any,
   ) {
+    this.assertAdminRole(req);
     const assignedBy = req.user?.id || req.user?.uid || 'admin';
     return await this.assignmentService.bulkReassignLoans(
       dto.loanIds,
@@ -108,7 +133,9 @@ export class AssignmentController {
     @Body() dto: LockApplicationDto,
     @Req() req: any,
   ) {
-    const staffId = dto.staffId || req.user?.id || 'staff';
+    this.assertAdminOrStaffRole(req);
+    const isAdmin = ['admin', 'super_admin', 'staff_admin'].includes(this.getRole(req));
+    const staffId = isAdmin ? (dto.staffId || req.user?.id || 'staff') : (req.user?.id || req.user?.uid);
     return await this.assignmentService.lockApplication(loanId, staffId);
   }
 
@@ -119,26 +146,31 @@ export class AssignmentController {
     @Query('status') status?: string,
     @Query('includeUnassigned') includeUnassignedQuery?: string,
   ) {
-    const staffId = staffIdQuery || req.user?.id || req.user?.uid;
-    const includeUnassigned = includeUnassignedQuery === 'true' || includeUnassignedQuery === '1';
+    this.assertAdminOrStaffRole(req);
+    const isAdmin = ['admin', 'super_admin', 'staff_admin'].includes(this.getRole(req));
+    const staffId = isAdmin ? (staffIdQuery || req.user?.id || req.user?.uid) : (req.user?.id || req.user?.uid);
+    const includeUnassigned = isAdmin && (includeUnassignedQuery === 'true' || includeUnassignedQuery === '1');
     const applications = await this.assignmentService.getMyApplications(staffId, status, includeUnassigned);
     return { success: true, data: applications, count: applications.length };
   }
 
   @Get('team-dashboard')
-  async getTeamWorkloadSummary() {
+  async getTeamWorkloadSummary(@Req() req: any) {
+    this.assertAdminRole(req);
     const summary = await this.assignmentService.getTeamWorkloadSummary();
     return { success: true, data: summary };
   }
 
   @Get('unassigned-queue')
-  async getUnassignedQueue() {
+  async getUnassignedQueue(@Req() req: any) {
+    this.assertAdminRole(req);
     const queue = await this.assignmentService.getUnassignedQueue();
     return { success: true, data: queue, count: queue.length };
   }
 
   @Get('history')
-  async getAssignmentHistory(@Query('loanId') loanId?: string) {
+  async getAssignmentHistory(@Req() req: any, @Query('loanId') loanId?: string) {
+    this.assertAdminOrStaffRole(req);
     const history = await this.assignmentService.getAssignmentHistory(loanId);
     return { success: true, data: history };
   }

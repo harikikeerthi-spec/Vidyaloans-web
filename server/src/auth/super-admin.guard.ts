@@ -18,15 +18,25 @@ export class SuperAdminGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
     const authHeader = request.headers.authorization;
+    let token: string | undefined;
 
-    if (!authHeader) {
-      throw new UnauthorizedException('No authorization token provided');
+    if (authHeader) {
+      const [type, tokenStr] = authHeader.split(' ');
+      if (type !== 'Bearer' || !tokenStr) {
+        throw new UnauthorizedException('Invalid authorization format');
+      }
+      token = tokenStr;
+    } else if (request.cookies) {
+      token =
+        request.cookies.superAdminAccessToken ||
+        request.cookies.adminAccessToken ||
+        request.cookies.staffAccessToken ||
+        request.cookies.accessToken ||
+        request.cookies.token;
     }
 
-    const [type, token] = authHeader.split(' ');
-
-    if (type !== 'Bearer' || !token) {
-      throw new UnauthorizedException('Invalid authorization format');
+    if (!token) {
+      throw new UnauthorizedException('No authorization token provided');
     }
 
     try {

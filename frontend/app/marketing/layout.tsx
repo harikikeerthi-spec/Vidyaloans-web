@@ -249,7 +249,9 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
 
             {/* Main Content Area */}
             <main
-                className={`flex-1 flex flex-col min-w-0 h-screen overflow-hidden bg-[#f8fafc] transition-all duration-300 ${
+                id="main-content"
+                tabIndex={-1}
+                className={`flex-1 flex flex-col min-w-0 h-screen overflow-hidden bg-[#f8fafc] transition-all duration-300 focus:outline-none ${
                     sidebarOpen ? "lg:pl-[240px]" : "lg:pl-[68px]"
                 }`}
             >

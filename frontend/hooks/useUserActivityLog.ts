@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { io, Socket } from "socket.io-client";
-import { authApi } from "@/lib/api";
+import { authApi, getToken } from "@/lib/api";
 
 interface Activity {
   id: string;
@@ -44,8 +44,6 @@ export function useUserActivityLog(options: UseUserActivityLogOptions = {}) {
   // Fetch activities from backend
   const fetchActivities = useCallback(async () => {
     if (!userId || !enabled) return;
-    const token = typeof window !== "undefined" ? (localStorage.getItem("accessToken") || localStorage.getItem("token")) : null;
-    if (!token) return;
 
     try {
       setLoading(true);
@@ -72,8 +70,7 @@ export function useUserActivityLog(options: UseUserActivityLogOptions = {}) {
   useEffect(() => {
     if (!enabled || !userId) return;
 
-    const token = localStorage.getItem("accessToken");
-    if (!token) return;
+    const token = getToken();
 
     const baseApiUrl = typeof window !== "undefined" && (window.location.hostname.includes("localhost") || window.location.hostname.includes("127.0.0.1"))
       ? "http://localhost:5000"
@@ -84,7 +81,8 @@ export function useUserActivityLog(options: UseUserActivityLogOptions = {}) {
       : `${baseApiUrl.replace(/\/$/, "")}/chat`;
 
     const socket = io(socketUrl, {
-      auth: { token },
+      withCredentials: true,
+      auth: token ? { token } : undefined,
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,

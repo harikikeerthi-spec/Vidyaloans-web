@@ -209,31 +209,34 @@ function getStoredUser(portal: Portal): AuthUser | null {
     }
 }
 
+function scrubLegacyTokenStorage() {
+    if (typeof window === "undefined") return;
+    const TOKEN_KEYS = [
+        "accessToken", "refreshToken", "token", "authToken", "userToken", "jwt",
+        "adminAccessToken", "adminRefreshToken",
+        "itAccessToken", "itRefreshToken",
+        "staffAccessToken", "staffRefreshToken",
+        "bankAccessToken", "bankRefreshToken",
+        "agentAccessToken", "agentRefreshToken",
+        "analystAccessToken", "analystRefreshToken",
+        "marketingAccessToken", "marketingRefreshToken",
+    ];
+    for (const k of TOKEN_KEYS) {
+        try {
+            localStorage.removeItem(k);
+            sessionStorage.removeItem(k);
+            document.cookie = `${k}=; path=/; max-age=0;`;
+        } catch { }
+    }
+}
+
 function getStoredToken(portal: Portal): string | null {
-    if (typeof window === "undefined") return null;
-    const keys = getStorageKeys(portal);
-    const token = localStorage.getItem(keys.token);
-    if (token) return token;
-    if (portal === "it") {
-        return localStorage.getItem("staffAccessToken") || localStorage.getItem("adminAccessToken") || null;
-    }
-    if (portal === "student") {
-        return localStorage.getItem("accessToken") || localStorage.getItem("token") || localStorage.getItem("userToken") || null;
-    }
+    // Tokens are strictly maintained in HttpOnly cookies to prevent script injection / XSS token theft
     return null;
 }
 
 function getStoredRefreshToken(portal: Portal): string | null {
-    if (typeof window === "undefined") return null;
-    const keys = getStorageKeys(portal);
-    const token = localStorage.getItem(keys.refreshToken);
-    if (token) return token;
-    if (portal === "it") {
-        return localStorage.getItem("staffRefreshToken") || localStorage.getItem("adminRefreshToken") || null;
-    }
-    if (portal === "student") {
-        return localStorage.getItem("refreshToken") || null;
-    }
+    // Refresh tokens are strictly maintained in HttpOnly cookies
     return null;
 }
 
@@ -278,32 +281,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return () => window.removeEventListener("auth:session-expired", onSessionExpired);
     }, [router]);
 
-    // Restore session from localStorage — trust cached tokens, no refresh on load
+    // Restore session and profile info — session token is authenticated via HttpOnly cookie
     useEffect(() => {
+        scrubLegacyTokenStorage();
+
         const keys = getStorageKeys(portal);
         const storedUser = getStoredUser(portal);
-        const storedToken = getStoredToken(portal);
 
-        if (storedUser && storedToken) {
+        if (storedUser) {
             setUser(storedUser);
-            setToken(storedToken);
+            setToken("session-cookie");
             if (storedUser.id) {
                 syncUserSessionToDataLayer(storedUser.id);
             }
-            if (typeof window !== "undefined") {
-                if (portal === "staff") {
-                    // Session-only cookie for staff
-                    document.cookie = `${keys.token}=${storedToken}; path=/; SameSite=Lax`;
-                } else {
-                    document.cookie = `${keys.token}=${storedToken}; path=/; max-age=2592000; SameSite=Lax`;
-                }
-            }
-        } else if (storedToken && !storedUser) {
+        } else {
             const email = localStorage.getItem(keys.email) || (portal === "it" ? (localStorage.getItem("staffUserEmail") || localStorage.getItem("adminUserEmail")) : null);
             const userId = localStorage.getItem(keys.userId) || (portal === "it" ? (localStorage.getItem("staffUserId") || localStorage.getItem("adminUserId")) : null);
             if (email) {
                 setUser({ id: userId || "", email });
-                setToken(storedToken);
+                setToken("session-cookie");
                 if (userId) {
                     syncUserSessionToDataLayer(userId);
                 }
@@ -311,9 +307,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 setUser(null);
                 setToken(null);
             }
-        } else {
-            setUser(null);
-            setToken(null);
         }
 
         setIsLoading(false);
@@ -322,8 +315,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     /** Re-fetch the latest user profile from the backend and update state */
     const refreshUser = useCallback(async (fallbackData?: Partial<AuthUser>): Promise<void> => {
         const keys = getStorageKeys(portal);
-        const email = localStorage.getItem(keys.email);
-        const accessToken = getStoredToken(portal);
+        const email = localStorage.getItem(keys.email) || user?.email;
 
         // If fallbackData provided, eagerly update user state and localStorage immediately
         if (fallbackData) {
@@ -343,7 +335,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             });
         }
 
-        if (!email || !accessToken) return;
+        if (!email) return;
         try {
             const data = await authApi.getDashboard(email) as {
                 success?: boolean;
@@ -410,6 +402,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             accessToken: string,
             userData?: Partial<AuthUser> & { refresh_token?: string }
         ) => {
+            scrubLegacyTokenStorage();
             const keys = getStorageKeys(portal);
             const email = userData?.email ?? localStorage.getItem(keys.email) ?? "";
             const newUser: AuthUser = {
@@ -421,22 +414,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 ...userData,
             };
 
-            localStorage.setItem(keys.token, accessToken);
-            if (userData?.refresh_token) {
-                localStorage.setItem(keys.refreshToken, userData.refresh_token);
-            }
+            // Tokens are managed exclusively in HttpOnly cookies by the server;
+            // only non-sensitive profile state is preserved in client storage.
             localStorage.setItem(keys.email, email);
             if (newUser.id) localStorage.setItem(keys.userId, newUser.id);
             localStorage.setItem(keys.user, JSON.stringify(newUser));
-
-            if (typeof window !== "undefined") {
-                if (portal === "staff") {
-                    // Session-only cookie for staff (expires when browser closes)
-                    document.cookie = `${keys.token}=${accessToken}; path=/; SameSite=Lax`;
-                } else {
-                    document.cookie = `${keys.token}=${accessToken}; path=/; max-age=2592000; SameSite=Lax`;
-                }
-            }
 
             notifyTokenChange(accessToken);
 
@@ -452,12 +434,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     /** Attempt a silent token refresh; returns true on success */
     const refreshAuth = useCallback(async (): Promise<boolean> => {
-        const keys = getStorageKeys(portal);
-        const storedRefreshToken = getStoredRefreshToken(portal);
-        if (!storedRefreshToken) return false;
-
         try {
-            const data = (await authApi.refresh(storedRefreshToken)) as {
+            const data = (await authApi.refresh()) as {
                 access_token?: string;
                 accessToken?: string;
                 refresh_token?: string;
@@ -465,13 +443,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const newToken = data.access_token ?? data.accessToken;
             if (!newToken) return false;
 
-            localStorage.setItem(keys.token, newToken);
-            if (data.refresh_token) {
-                localStorage.setItem(keys.refreshToken, data.refresh_token);
-            }
-            if (typeof window !== "undefined") {
-                document.cookie = `${keys.token}=${newToken}; path=/; max-age=2592000; SameSite=Lax`;
-            }
+            scrubLegacyTokenStorage();
             notifyTokenChange(newToken);
             setToken(newToken);
             return true;
@@ -484,7 +456,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const keys = getStorageKeys(portal);
         const email = user?.email ?? localStorage.getItem(keys.email) ?? "";
 
-        // Best-effort server logout
+        // Best-effort server logout (invalidates refresh token in DB and clears HttpOnly cookies)
         if (email) {
             try {
                 await authApi.logout(email);
@@ -493,16 +465,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
         }
 
-        // Clear current portal auth state only
-        localStorage.removeItem(keys.token);
-        localStorage.removeItem(keys.refreshToken);
+        // Scrub all portal auth and token keys from client storage
+        scrubLegacyTokenStorage();
         localStorage.removeItem(keys.email);
         localStorage.removeItem(keys.userId);
         localStorage.removeItem(keys.user);
-
-        if (typeof window !== "undefined") {
-            document.cookie = `${keys.token}=; path=/; max-age=0;`;
-        }
 
         notifyTokenChange(null);
 

@@ -1218,10 +1218,14 @@ export class BlogService {
     
     // Map published to isPublished
     const isPub = data.published !== undefined ? !!data.published : (data.isPublished !== undefined ? !!data.isPublished : false);
+    const requestedStatus = isPub ? 'published' : (data.status === 'pending' ? 'pending' : 'draft');
     dbData.isPublished = isPub;
-    dbData.status = isPub ? 'published' : 'draft';
+    dbData.status = requestedStatus;
     dbData.visibility = isPub ? 'public' : 'private';
-    dbData.publishedAt = isPub ? new Date().toISOString() : null;
+    dbData.publishedAt = isPub ? now : null;
+    if (requestedStatus === 'pending') {
+      dbData.submittedAt = now;
+    }
 
     // Map coverImage to featuredImage
     dbData.featuredImage = data.coverImage || data.featuredImage || '';
@@ -1778,9 +1782,17 @@ export class BlogService {
   }
 
   async approveBlog(blogId: string, approvedBy: string, notes?: string) {
+    const now = new Date().toISOString();
     const { data, error } = await this.db
       .from('Blog')
-      .update({ approvedAt: new Date().toISOString(), approvedBy })
+      .update({
+        status: 'published',
+        isPublished: true,
+        visibility: 'public',
+        publishedAt: now,
+        approvedAt: now,
+        approvedBy,
+      })
       .eq('id', blogId)
       .select()
       .single();

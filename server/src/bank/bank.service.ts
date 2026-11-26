@@ -2064,10 +2064,209 @@ export class BankService {
   }
 
   async getOfficers(bankName: string): Promise<any[]> {
+    try {
+      const { data: users } = await this.db
+        .from('User')
+        .select('id, firstName, lastName, email, bank, role')
+        .in('role', ['bank', 'partner_bank']);
+
+      const lowerTarget = (bankName || '').toLowerCase();
+      const matched = (users || [])
+        .filter((u: any) => {
+          if (!lowerTarget) return true;
+          const b = (u.bank || '').toLowerCase();
+          const e = (u.email || '').toLowerCase();
+          const fn = (u.firstName || '').toLowerCase();
+          return b.includes(lowerTarget) || lowerTarget.includes(b) || e.includes(lowerTarget) || fn.includes(lowerTarget);
+        })
+        .map((u: any) => ({
+          id: u.id,
+          name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email,
+          email: u.email,
+        }));
+
+      if (matched.length > 0) return matched;
+    } catch (e) {
+      // Fallback below
+    }
+
     return [
-      { id: 'o1', name: 'John Doe' },
-      { id: 'o2', name: 'Jane Smith' }
+      { id: 'o1', name: 'Aditya Varma' },
+      { id: 'o2', name: 'Sneha Nair' },
+      { id: 'o3', name: 'Vikram Rathore' },
+      { id: 'o4', name: 'Karthik Raja' },
+      { id: 'o5', name: 'Priya Sharma' },
     ];
+  }
+
+  private normalizeBankKey(bankName?: string): string {
+    return (bankName || 'default').toLowerCase().trim();
+  }
+
+  async getBankTasks(bankName: string): Promise<{ success: boolean; data: any[] }> {
+    const { data: logs, error } = await this.db
+      .from('AuditLog')
+      .select('id, action, entityId, initiatedBy, changes, createdAt')
+      .eq('entityType', 'BANK_TASK')
+      .order('createdAt', { ascending: true });
+
+    if (error) throw error;
+
+    const targetBank = this.normalizeBankKey(bankName);
+    const taskMap = new Map<string, any>();
+
+    for (const log of logs || []) {
+      const changes = (log.changes && typeof log.changes === 'object') ? log.changes : {};
+      const logBank = this.normalizeBankKey(changes.bankName);
+      if (targetBank !== 'default' && logBank !== targetBank) continue;
+
+      if (log.action === 'create') {
+        taskMap.set(log.entityId, {
+          id: log.entityId,
+          ...changes,
+          createdAt: log.createdAt,
+          updatedAt: log.createdAt,
+        });
+      } else if (log.action === 'update') {
+        const existing = taskMap.get(log.entityId);
+        if (existing) {
+          taskMap.set(log.entityId, {
+            ...existing,
+            ...changes,
+            updatedAt: log.createdAt,
+          });
+        }
+      } else if (log.action === 'delete') {
+        taskMap.delete(log.entityId);
+      }
+    }
+
+    const tasks = Array.from(taskMap.values())
+      .filter((t) => !t.deleted)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    return { success: true, data: tasks };
+  }
+
+  private async resolveInitiatorId(user: any): Promise<string> {
+    if (user?.id) {
+      const { data: byId } = await this.db.from('User').select('id').eq('id', user.id).maybeSingle();
+      if (byId?.id) return byId.id;
+    }
+    if (user?.email) {
+      const { data: byEmail } = await this.db.from('User').select('id').eq('email', user.email).maybeSingle();
+      if (byEmail?.id) return byEmail.id;
+    }
+    const { data: anyUser } = await this.db.from('User').select('id').limit(1).maybeSingle();
+    return anyUser?.id || user?.id || randomUUID();
+  }
+
+  async createBankTask(bankName: string, user: any, body: any): Promise<{ success: boolean; data: any }> {
+    const taskId = randomUUID();
+    const now = new Date().toISOString();
+    const initiatedBy = await this.resolveInitiatorId(user);
+    const taskPayload = {
+      bankName: bankName || 'Partner Bank',
+      title: (body?.title || '').trim() || 'Untitled Bank Task',
+      description: body?.description || '',
+      stage: body?.stage || 'pre_screening',
+      priority: body?.priority || 'medium',
+      status: body?.status || 'todo',
+      dueDate: body?.dueDate || now.slice(0, 10),
+      eventType: body?.eventType || 'task',
+      assignedOfficer: body?.assignedOfficer || 'Unassigned',
+      applicationId: body?.applicationId || null,
+      applicationNumber: body?.applicationNumber || null,
+      studentName: body?.studentName || null,
+      createdBy: user?.email || 'bank_officer',
+    };
+
+    const { error } = await this.db.from('AuditLog').insert({
+      id: randomUUID(),
+      action: 'create',
+      entityType: 'BANK_TASK',
+      entityId: taskId,
+      initiatedBy,
+      changes: taskPayload,
+      createdAt: now,
+    });
+
+    if (error) throw error;
+
+    return {
+      success: true,
+      data: {
+        id: taskId,
+        ...taskPayload,
+        createdAt: now,
+        updatedAt: now,
+      },
+    };
+  }
+
+  async updateBankTask(bankName: string, taskId: string, user: any, body: any): Promise<{ success: boolean; data: any }> {
+    const { data: existingTasks } = await this.getBankTasks(bankName);
+    const existing = existingTasks.find((t) => t.id === taskId);
+    if (!existing) {
+      throw new NotFoundException('Bank task not found');
+    }
+
+    const now = new Date().toISOString();
+    const initiatedBy = await this.resolveInitiatorId(user);
+    const updatedFields = {
+      bankName: existing.bankName,
+      title: body?.title !== undefined ? body.title : existing.title,
+      description: body?.description !== undefined ? body.description : existing.description,
+      stage: body?.stage !== undefined ? body.stage : existing.stage,
+      priority: body?.priority !== undefined ? body.priority : existing.priority,
+      status: body?.status !== undefined ? body.status : existing.status,
+      dueDate: body?.dueDate !== undefined ? body.dueDate : existing.dueDate,
+      eventType: body?.eventType !== undefined ? body.eventType : existing.eventType,
+      assignedOfficer: body?.assignedOfficer !== undefined ? body.assignedOfficer : existing.assignedOfficer,
+    };
+
+    const { error } = await this.db.from('AuditLog').insert({
+      id: randomUUID(),
+      action: 'update',
+      entityType: 'BANK_TASK',
+      entityId: taskId,
+      initiatedBy,
+      changes: updatedFields,
+      createdAt: now,
+    });
+
+    if (error) throw error;
+
+    return {
+      success: true,
+      data: {
+        ...existing,
+        ...updatedFields,
+        updatedAt: now,
+      },
+    };
+  }
+
+  async deleteBankTask(bankName: string, taskId: string, user: any): Promise<{ success: boolean; message: string }> {
+    const { data: existingTasks } = await this.getBankTasks(bankName);
+    const existing = existingTasks.find((t) => t.id === taskId);
+    if (!existing) {
+      throw new NotFoundException('Bank task not found');
+    }
+
+    const initiatedBy = await this.resolveInitiatorId(user);
+    const { error } = await this.db.from('AuditLog').insert({
+      id: randomUUID(),
+      action: 'delete',
+      entityType: 'BANK_TASK',
+      entityId: taskId,
+      initiatedBy,
+      changes: { bankName: existing.bankName, deleted: true },
+      createdAt: new Date().toISOString(),
+    });
+
+    if (error) throw error;
+    return { success: true, message: 'Task deleted successfully' };
   }
 
   async exportApplicationsCsv(bankName: string): Promise<any> {

@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Official Webmail',
-  description: 'Confidential corporate communication portal.',
+  title: {
+    absolute: "Official Webmail | VidyaLoans",
+  },
+  description: "Confidential corporate communication portal.",
   robots: {
     index: false,
     follow: false,

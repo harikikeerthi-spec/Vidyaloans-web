@@ -159,12 +159,12 @@ export default async function BankPage({ params }: Props) {
         <main className="relative z-10 pt-32 pb-24">
             <div className="max-w-7xl mx-auto px-6">
                 {/* Breadcrumb */}
-                <nav className="mb-8">
+                <nav aria-label="Breadcrumb" className="mb-8">
                     <ol className="flex items-center gap-2 text-sm text-gray-500">
                         <li><Link href="/" className="hover:text-[#6605c7]">Home</Link></li>
-                        <li><span className="material-symbols-outlined text-xs">chevron_right</span></li>
+                        <li aria-hidden="true"><span className="material-symbols-outlined text-xs" aria-hidden="true">chevron_right</span></li>
                         <li><Link href="/bank-reviews" className="hover:text-[#6605c7]">Education Loans</Link></li>
-                        <li><span className="material-symbols-outlined text-xs">chevron_right</span></li>
+                        <li aria-hidden="true"><span className="material-symbols-outlined text-xs" aria-hidden="true">chevron_right</span></li>
                         <li className="text-gray-900 font-medium">{bank.name}</li>
                     </ol>
                 </nav>
@@ -182,7 +182,7 @@ export default async function BankPage({ params }: Props) {
                                         {bank.name} Education Loan
                                     </h1>
                                     <div className="flex items-center gap-2 bg-green-50 px-3 py-1.5 rounded-full border border-green-100">
-                                        <span className="material-symbols-outlined text-green-600 text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
+                                        <span className="material-symbols-outlined text-green-600 text-sm" style={{ fontVariationSettings: "'FILL' 1" }} aria-hidden="true">star</span>
                                         <span className="text-sm font-bold text-green-700">{bank.rating}</span>
                                     </div>
                                     <span className="px-3 py-1 bg-[#6605c7]/10 text-[#6605c7] rounded-full text-xs font-bold uppercase tracking-wider">Verified Partner</span>
@@ -195,7 +195,7 @@ export default async function BankPage({ params }: Props) {
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
                                     <div className="bg-gradient-to-br from-[#6605c7]/5 to-[#6605c7]/10 p-5 rounded-2xl border border-[#6605c7]/10">
                                         <div className="flex items-center gap-2 mb-2">
-                                            <span className="material-symbols-outlined text-[#6605c7] text-lg">percent</span>
+                                            <span className="material-symbols-outlined text-[#6605c7] text-lg" aria-hidden="true">percent</span>
                                             <span className="text-xs font-bold text-[#6605c7] uppercase tracking-wider">Interest Rate</span>
                                         </div>
                                         <p className="text-2xl font-bold text-gray-900">{bank.interestRate}</p>
@@ -203,7 +203,7 @@ export default async function BankPage({ params }: Props) {
                                     </div>
                                     <div className="bg-gradient-to-br from-green-50 to-green-100/50 p-5 rounded-2xl border border-green-100">
                                         <div className="flex items-center gap-2 mb-2">
-                                            <span className="material-symbols-outlined text-green-600 text-lg">account_balance</span>
+                                            <span className="material-symbols-outlined text-green-600 text-lg" aria-hidden="true">account_balance</span>
                                             <span className="text-xs font-bold text-green-600 uppercase tracking-wider">Max Loan</span>
                                         </div>
                                         <p className="text-2xl font-bold text-gray-900">{bank.maxLoan}</p>
@@ -211,7 +211,7 @@ export default async function BankPage({ params }: Props) {
                                     </div>
                                     <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 p-5 rounded-2xl border border-blue-100">
                                         <div className="flex items-center gap-2 mb-2">
-                                            <span className="material-symbols-outlined text-blue-600 text-lg">schedule</span>
+                                            <span className="material-symbols-outlined text-blue-600 text-lg" aria-hidden="true">schedule</span>
                                             <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">Approval</span>
                                         </div>
                                         <p className="text-2xl font-bold text-gray-900">{bank.approvalTime}</p>
@@ -222,15 +222,15 @@ export default async function BankPage({ params }: Props) {
                                 {/* CTA Buttons */}
                                 <div className="flex flex-wrap gap-4">
                                     <Link href={`/apply-loan?bank=${bank.slug}`} className="px-8 py-4 rounded-xl font-bold text-white shadow-lg hover:scale-[1.02] active:scale-95 transition-all text-sm uppercase tracking-wider flex items-center gap-2" style={{ background: bank.gradient }}>
-                                        <span className="material-symbols-outlined">send</span>
+                                        <span className="material-symbols-outlined" aria-hidden="true">send</span>
                                         Apply Now
                                     </Link>
                                     <Link href="/loan-eligibility" className="px-8 py-4 bg-white border-2 border-[#6605c7]/20 rounded-xl font-bold text-[#6605c7] hover:bg-[#6605c7]/5 hover:scale-[1.02] active:scale-95 transition-all text-sm uppercase tracking-wider flex items-center gap-2">
-                                        <span className="material-symbols-outlined">verified_user</span>
+                                        <span className="material-symbols-outlined" aria-hidden="true">verified_user</span>
                                         Check Eligibility
                                     </Link>
                                     {/* <Link href="/referral" className="px-8 py-4 bg-gradient-to-r from-[#e0c389] to-[#d4a743] rounded-xl font-bold text-gray-900 shadow-lg hover:scale-[1.02] active:scale-95 transition-all text-sm uppercase tracking-wider flex items-center gap-2">
-                                        <span className="material-symbols-outlined">card_giftcard</span>
+                                        <span className="material-symbols-outlined" aria-hidden="true">card_giftcard</span>
                                         Refer & Earn ₹3,000
                                     </Link> */}
                                 </div>
@@ -256,7 +256,7 @@ export default async function BankPage({ params }: Props) {
                                         {i + 1}
                                     </div>
                                     <div className="w-16 h-16 bg-[#6605c7]/10 rounded-2xl flex items-center justify-center mx-auto mb-4 mt-4 group-hover:scale-110 group-hover:bg-[#6605c7]/20 transition-all">
-                                        <span className="material-symbols-outlined text-3xl text-[#6605c7]">{step.icon}</span>
+                                        <span className="material-symbols-outlined text-3xl text-[#6605c7]" aria-hidden="true">{step.icon}</span>
                                     </div>
                                     <h3 className="font-bold text-gray-900 mb-2">{step.title}</h3>
                                     <p className="text-sm text-gray-500 leading-relaxed">{step.desc}</p>
@@ -279,7 +279,7 @@ export default async function BankPage({ params }: Props) {
                             ].map((stat, i) => (
                                 <div key={i} className="text-center">
                                     <div className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center mx-auto mb-4">
-                                        <span className="material-symbols-outlined text-2xl">{stat.icon}</span>
+                                        <span className="material-symbols-outlined text-2xl" aria-hidden="true">{stat.icon}</span>
                                     </div>
                                     <p className="text-4xl font-bold font-display mb-1">{stat.value}</p>
                                     <p className="text-sm opacity-80 uppercase tracking-wider">{stat.label}</p>
@@ -327,7 +327,7 @@ export default async function BankPage({ params }: Props) {
                         {bank.features.map((feature, i) => (
                             <div key={i} className="bg-white/80 backdrop-blur-xl border border-gray-100 p-8 rounded-2xl hover:shadow-2xl transition-all hover:-translate-y-2 group">
                                 <div className={`w-16 h-16 ${feature.bgColor} rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform`}>
-                                    <span className={`material-symbols-outlined text-3xl ${feature.iconColor}`}>{feature.icon}</span>
+                                    <span className={`material-symbols-outlined text-3xl ${feature.iconColor}`} aria-hidden="true">{feature.icon}</span>
                                 </div>
                                 <h3 className="font-bold text-gray-900 text-lg mb-3">{feature.title}</h3>
                                 <p className="text-sm text-gray-500 leading-relaxed">{feature.desc}</p>
@@ -343,7 +343,7 @@ export default async function BankPage({ params }: Props) {
                         <div className="bg-white/80 backdrop-blur-xl border border-gray-100 rounded-3xl p-8 shadow-lg">
                             <div className="flex items-center gap-3 mb-8">
                                 <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                                    <span className="material-symbols-outlined text-2xl text-green-600">task_alt</span>
+                                    <span className="material-symbols-outlined text-2xl text-green-600" aria-hidden="true">task_alt</span>
                                 </div>
                                 <h2 className="text-2xl font-bold font-display">Eligibility Criteria</h2>
                             </div>
@@ -351,7 +351,7 @@ export default async function BankPage({ params }: Props) {
                                 {bank.eligibility.map((item, i) => (
                                     <div key={i} className="flex items-start gap-4 p-4 bg-gray-50/50 rounded-xl hover:bg-green-50/50 transition-colors group">
                                         <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0 group-hover:bg-green-200 transition-colors">
-                                            <span className="material-symbols-outlined text-green-600 text-lg">check</span>
+                                            <span className="material-symbols-outlined text-green-600 text-lg" aria-hidden="true">check</span>
                                         </div>
                                         <div>
                                             <p className="font-bold text-gray-900 mb-1">{item.title}</p>
@@ -366,7 +366,7 @@ export default async function BankPage({ params }: Props) {
                         <div className="bg-white/80 backdrop-blur-xl border border-gray-100 rounded-3xl p-8 shadow-lg">
                             <div className="flex items-center gap-3 mb-8">
                                 <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                                    <span className="material-symbols-outlined text-2xl text-blue-600">folder_open</span>
+                                    <span className="material-symbols-outlined text-2xl text-blue-600" aria-hidden="true">folder_open</span>
                                 </div>
                                 <h2 className="text-2xl font-bold font-display">Documents Required</h2>
                             </div>
@@ -374,7 +374,7 @@ export default async function BankPage({ params }: Props) {
                                 {bank.documents.map((doc, i) => (
                                     <div key={i} className="flex items-start gap-3 p-4 bg-gray-50/50 rounded-xl hover:bg-blue-50/50 transition-colors group">
                                         <div className="w-10 h-10 bg-white rounded-xl shadow-sm flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
-                                            <span className="material-symbols-outlined text-xl" style={{ color: bank.primaryColor }}>{doc.icon}</span>
+                                            <span className="material-symbols-outlined text-xl" style={{ color: bank.primaryColor }} aria-hidden="true">{doc.icon}</span>
                                         </div>
                                         <div>
                                             <p className="font-bold text-sm text-gray-900">{doc.title}</p>
@@ -402,7 +402,7 @@ export default async function BankPage({ params }: Props) {
                                         <th className="text-left p-6 font-bold text-gray-900 uppercase text-xs tracking-wider">Comparison</th>
                                         <th className="text-center p-6">
                                             <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#6605c7] text-white rounded-full text-sm font-bold">
-                                                <span className="material-symbols-outlined text-lg">verified</span>
+                                                <span className="material-symbols-outlined text-lg" aria-hidden="true">verified</span>
                                                 With VidyaLoan
                                             </div>
                                         </th>
@@ -423,7 +423,7 @@ export default async function BankPage({ params }: Props) {
                                             <td className="p-6 font-medium text-gray-700">{row.feature}</td>
                                             <td className="p-6 text-center">
                                                 <span className="inline-flex items-center gap-2 text-green-600 font-bold">
-                                                    <span className="material-symbols-outlined text-lg">check_circle</span>
+                                                    <span className="material-symbols-outlined text-lg" aria-hidden="true">check_circle</span>
                                                     {row.withUs}
                                                 </span>
                                             </td>
@@ -444,7 +444,7 @@ export default async function BankPage({ params }: Props) {
                         <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-8">
                             <div className="flex items-center gap-6">
                                 <div className="w-20 h-20 bg-white/30 backdrop-blur-sm rounded-2xl flex items-center justify-center">
-                                    <span className="material-symbols-outlined text-5xl text-gray-900">campaign</span>
+                                    <span className="material-symbols-outlined text-5xl text-gray-900" aria-hidden="true">campaign</span>
                                 </div>
                                 <div>
                                     <h3 className="text-3xl font-bold font-display text-gray-900 mb-2">Refer & Earn Unlimited!</h3>
@@ -453,7 +453,7 @@ export default async function BankPage({ params }: Props) {
                                 </div>
                             </div>
                             {/* <Link href="/referral" className="px-10 py-5 bg-gray-900 text-white rounded-xl font-bold text-lg hover:bg-gray-800 hover:scale-105 active:scale-95 transition-all shadow-xl uppercase tracking-wider flex items-center gap-3 whitespace-nowrap">
-                                <span className="material-symbols-outlined text-xl">card_giftcard</span>
+                                <span className="material-symbols-outlined text-xl" aria-hidden="true">card_giftcard</span>
                                 Refer Now
                             </Link> */}
                         </div>
@@ -470,7 +470,7 @@ export default async function BankPage({ params }: Props) {
                         {bank.courses.map((course, i) => (
                             <div key={i} className="bg-white/80 border border-gray-100 p-6 rounded-2xl text-center hover:shadow-lg transition-all hover:scale-105 cursor-default group">
                                 <div className="w-14 h-14 bg-gray-50 rounded-xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform" style={{ backgroundColor: `${bank.primaryColor}10` }}>
-                                    <span className="material-symbols-outlined text-3xl" style={{ color: bank.primaryColor }}>{course.icon}</span>
+                                    <span className="material-symbols-outlined text-3xl" style={{ color: bank.primaryColor }} aria-hidden="true">{course.icon}</span>
                                 </div>
                                 <p className="font-bold text-xs uppercase tracking-wider text-gray-700">{course.title}</p>
                             </div>
@@ -492,7 +492,7 @@ export default async function BankPage({ params }: Props) {
                                         <span className="w-8 h-8 bg-[#6605c7]/10 rounded-lg flex items-center justify-center text-[#6605c7] font-bold text-sm">{i + 1}</span>
                                         {faq.q}
                                     </span>
-                                    <span className="material-symbols-outlined text-gray-400 group-open:rotate-180 transition-transform">expand_more</span>
+                                    <span className="material-symbols-outlined text-gray-400 group-open:rotate-180 transition-transform" aria-hidden="true">expand_more</span>
                                 </summary>
                                 <div className="px-6 pb-6 pt-2 text-gray-600 leading-relaxed ml-12">
                                     {faq.a}
@@ -522,7 +522,7 @@ export default async function BankPage({ params }: Props) {
                                 </div>
                                 <p className="text-gray-600 mb-4">"{testimonial.quote}"</p>
                                 <div className="flex items-center gap-2 text-sm text-gray-500">
-                                    <span className="material-symbols-outlined text-lg">star</span>
+                                    <span className="material-symbols-outlined text-lg" aria-hidden="true">star</span>
                                     {testimonial.highlight || "5 Stars"}
                                 </div>
                             </div>
@@ -547,15 +547,15 @@ export default async function BankPage({ params }: Props) {
                                     Check Eligibility
                                 </Link>
                                 {/* <Link href="/referral" className="px-12 py-5 bg-gradient-to-r from-[#e0c389] to-[#d4a743] text-gray-900 rounded-xl font-bold text-base hover:shadow-2xl hover:scale-105 active:scale-95 transition-all uppercase tracking-wider flex items-center gap-2">
-                                    <span className="material-symbols-outlined">card_giftcard</span>
+                                    <span className="material-symbols-outlined" aria-hidden="true">card_giftcard</span>
                                     Refer & Earn
                                 </Link> */}
                             </div>
                             <div className="flex flex-wrap justify-center gap-8 items-center opacity-80 text-sm font-medium">
-                                <span className="flex items-center gap-2"><span className="material-symbols-outlined text-lg">verified</span> 100% Free Service</span>
-                                <span className="flex items-center gap-2"><span className="material-symbols-outlined text-lg">verified</span> No Hidden Fees</span>
-                                <span className="flex items-center gap-2"><span className="material-symbols-outlined text-lg">verified</span> Dedicated Support</span>
-                                <span className="flex items-center gap-2"><span className="material-symbols-outlined text-lg">verified</span> Tax Benefits</span>
+                                <span className="flex items-center gap-2"><span className="material-symbols-outlined text-lg" aria-hidden="true">verified</span> 100% Free Service</span>
+                                <span className="flex items-center gap-2"><span className="material-symbols-outlined text-lg" aria-hidden="true">verified</span> No Hidden Fees</span>
+                                <span className="flex items-center gap-2"><span className="material-symbols-outlined text-lg" aria-hidden="true">verified</span> Dedicated Support</span>
+                                <span className="flex items-center gap-2"><span className="material-symbols-outlined text-lg" aria-hidden="true">verified</span> Tax Benefits</span>
                             </div>
                         </div>
                     </div>

@@ -18,7 +18,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
     return (
         <div className="min-h-screen text-gray-900 bg-transparent relative">
             {showNavbar && <Navbar />}
-            <main className="relative z-10">
+            <main id="main-content" tabIndex={-1} className="relative z-10 focus:outline-none">
                 <ProfileGate>
                     <LoginWall>
                         {children}

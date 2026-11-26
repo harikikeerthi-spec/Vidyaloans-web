@@ -1,5 +1,53 @@
 @import "tailwindcss";
 
+/* ==========================================================================
+   WCAG 2.1 & 2.4.7 Focus Visible & Keyboard Navigation Pass (PUB-033)
+   ========================================================================== */
+
+/* High-visibility focus indicator for keyboard users */
+:focus-visible {
+  outline: 2px solid #6605c7;
+  outline-offset: 2px;
+}
+
+/* Suppress redundant focus outline when interacting via mouse/pointer */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Ensure skip-link target container does not show a box outline when focused programmatically */
+#main-content:focus {
+  outline: none !important;
+}
+
+/* Dedicated Skip Link visibility and positioning rules */
+.skip-to-content:focus {
+  position: fixed !important;
+  top: 1rem !important;
+  left: 1rem !important;
+  z-index: 99999 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  padding: 0.75rem 1.25rem !important;
+  background-color: #6605c7 !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  font-size: 0.875rem !important;
+  line-height: 1.25rem !important;
+  border-radius: 0.75rem !important;
+  box-shadow: 0 10px 25px -5px rgba(102, 5, 199, 0.4), 0 8px 10px -6px rgba(102, 5, 199, 0.2) !important;
+  outline: 3px solid #d8b4fe !important;
+  outline-offset: 2px !important;
+  text-decoration: none !important;
+  width: auto !important;
+  height: auto !important;
+  clip: auto !important;
+  clip-path: none !important;
+  overflow: visible !important;
+  white-space: nowrap !important;
+}
+
 /* Ensure contenteditable rich text live editors and blog articles render lists with visible bullets and numbering */
 [contenteditable] ul,
 .rich-text-content ul,

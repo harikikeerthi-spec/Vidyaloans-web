@@ -257,8 +257,9 @@ export default function CreateAgentPage() {
                             onClick={() => router.push("/admin/users/agents")}
                             className="w-9 h-9 rounded-md border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors cursor-pointer"
                             title="Back to Agent Partners"
+                            aria-label="Back to Agent Partners"
                         >
-                            <span className="material-symbols-outlined text-lg">arrow_back</span>
+                            <span className="material-symbols-outlined text-lg" aria-hidden="true">arrow_back</span>
                         </button>
                         <div>
                             <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-400">

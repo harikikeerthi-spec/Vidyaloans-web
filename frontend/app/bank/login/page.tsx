@@ -417,8 +417,6 @@ function BankLoginContent() {
                 throw new Error("Unauthorized role. You must be bank staff to access this portal.");
             }
 
-            if (data.refresh_token) localStorage.setItem("refreshToken", data.refresh_token);
-
             const finalBankId = data.bankId || data.bank || selectedBank;
             if (!finalBankId) {
                 throw new Error("No bank partner assigned to your account. Please contact administrator.");

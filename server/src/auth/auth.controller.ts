@@ -11,6 +11,7 @@ import { OptionalUserGuard } from './optional-user.guard';
 import { StaffGuard } from './staff.guard';
 import { AdminGuard } from './admin.guard';
 import { OwnershipOrStaffGuard } from './ownership.guard';
+import { setAuthCookies, clearAuthCookies } from './auth-cookie.helper';
 
 @Controller('auth')
 export class AuthController {
@@ -193,6 +194,7 @@ export class AuthController {
   @Post('verify-otp')
   async verifyOtp(
     @Req() req: any,
+    @Res({ passthrough: true }) res: any,
     @Body() body: { email: string; otp: string; referralCode?: string }
   ) {
     if (!body || !body.email || !body.otp) {
@@ -222,6 +224,15 @@ export class AuthController {
       }
     }
 
+    // Set secure HttpOnly, SameSite session cookies on successful authentication
+    if (result.success && result.access_token) {
+      setAuthCookies(res, {
+        accessToken: result.access_token,
+        refreshToken: result.refresh_token,
+        role: result.role || result.user?.role,
+      });
+    }
+
     return result;
   }
 
@@ -230,14 +241,25 @@ export class AuthController {
    * POST /auth/landing-page-submit
    */
   @Post('landing-page-submit')
-  async landingPageSubmit(@Body() body: any) {
+  async landingPageSubmit(
+    @Res({ passthrough: true }) res: any,
+    @Body() body: any
+  ) {
     if (!body || !body.email || !body.otp) {
       return {
         success: false,
         message: 'Email and OTP verification code are required',
       };
     }
-    return this.authService.submitLandingPageApplication(body);
+    const result = await this.authService.submitLandingPageApplication(body);
+    if (result?.success && (result as any).access_token) {
+      setAuthCookies(res, {
+        accessToken: (result as any).access_token,
+        refreshToken: (result as any).refresh_token,
+        role: (result as any).role || (result as any).user?.role,
+      });
+    }
+    return result;
   }
 
 
@@ -248,14 +270,25 @@ export class AuthController {
    * @returns Internal JWT tokens and user profile
    */
   @Post('firebase')
-  async firebaseLogin(@Body() body: { idToken: string }) {
+  async firebaseLogin(
+    @Res({ passthrough: true }) res: any,
+    @Body() body: { idToken: string }
+  ) {
     if (!body || !body.idToken) {
       return {
         success: false,
         message: 'Firebase ID Token is required',
       };
     }
-    return this.authService.authenticateFirebaseUser(body.idToken);
+    const result = await this.authService.authenticateFirebaseUser(body.idToken);
+    if (result?.success && (result as any).access_token) {
+      setAuthCookies(res, {
+        accessToken: (result as any).access_token,
+        refreshToken: (result as any).refresh_token,
+        role: (result as any).role || (result as any).user?.role,
+      });
+    }
+    return result;
   }
 
   /**
@@ -263,42 +296,79 @@ export class AuthController {
    * POST /auth/it/login
    */
   @Post('it/login')
-  async itLogin(@Body() body: { email: string; password: string }) {
-    return this.authService.itLogin(body.email, body.password);
+  async itLogin(
+    @Res({ passthrough: true }) res: any,
+    @Body() body: { email: string; password: string }
+  ) {
+    const result = await this.authService.itLogin(body.email, body.password);
+    if (result?.success && result.access_token) {
+      setAuthCookies(res, {
+        accessToken: result.access_token,
+        refreshToken: result.refresh_token,
+        role: result.user?.role || 'it',
+      });
+    }
+    return result;
   }
 
   /**
-   * Refresh access token using refresh token
+   * Refresh access token using refresh token (from body or HttpOnly cookie)
    * POST /auth/refresh
-   * @body refresh_token: string (required)
+   * @body refresh_token?: string
    * @returns { success: boolean, access_token: string, refresh_token: string, message: string }
    */
   @Post('refresh')
-  async refreshToken(@Body() body: { refresh_token: string }) {
-    if (!body || !body.refresh_token) {
+  async refreshToken(
+    @Req() req: any,
+    @Res({ passthrough: true }) res: any,
+    @Body() body: { refresh_token?: string }
+  ) {
+    const token =
+      body?.refresh_token ||
+      req?.cookies?.refreshToken ||
+      req?.cookies?.adminRefreshToken ||
+      req?.cookies?.itRefreshToken ||
+      req?.cookies?.bankRefreshToken ||
+      req?.cookies?.staffRefreshToken ||
+      req?.cookies?.agentRefreshToken;
+
+    if (!token) {
       return {
         success: false,
         message: 'Refresh token is required',
       };
     }
-    return this.authService.refreshTokens(body.refresh_token);
+    const result = await this.authService.refreshTokens(token);
+    if (result?.success && result.access_token) {
+      setAuthCookies(res, {
+        accessToken: result.access_token,
+        refreshToken: result.refresh_token,
+      });
+    }
+    return result;
   }
 
   /**
-   * Logout user by invalidating refresh token
+   * Logout user by invalidating refresh token and clearing HttpOnly cookies
    * POST /auth/logout
-   * @body email: string (required)
+   * @body email?: string
    * @returns { success: boolean, message: string }
    */
   @Post('logout')
-  async logout(@Body() body: { email: string }) {
-    if (!body || !body.email) {
-      return {
-        success: false,
-        message: 'Email is required',
-      };
+  async logout(
+    @Req() req: any,
+    @Res({ passthrough: true }) res: any,
+    @Body() body: { email?: string }
+  ) {
+    clearAuthCookies(res);
+    const email = body?.email || req?.user?.email;
+    if (email) {
+      await this.authService.logout(email);
     }
-    return this.authService.logout(body.email);
+    return {
+      success: true,
+      message: 'Logged out successfully',
+    };
   }
 
   // ==================== USER DASHBOARD ====================
@@ -559,6 +629,7 @@ export class AuthController {
   @UseGuards(OptionalUserGuard)
   async createApplication(
     @Req() req: any,
+    @Res({ passthrough: true }) res: any,
     @Body() body: {
       userId?: string;
       bank?: string;
@@ -760,6 +831,13 @@ export class AuthController {
       if (isAuthenticatedSession) {
         try {
           tokens = await this.authService.generateTokens(targetUser);
+          if (tokens?.access_token) {
+            setAuthCookies(res, {
+              accessToken: tokens.access_token,
+              refreshToken: tokens.refresh_token,
+              role: targetUser.role,
+            });
+          }
         } catch (tokenErr) {
           console.warn('[AuthController.createApplication] Token generation error:', tokenErr);
         }
@@ -1035,9 +1113,7 @@ export class AuthController {
 
       // Clear cookies if present
       if (res && res.clearCookie) {
-        res.clearCookie('accessToken');
-        res.clearCookie('refreshToken');
-        res.clearCookie('token');
+        clearAuthCookies(res);
       }
 
       return {

@@ -221,7 +221,7 @@ function DiscussionsInner() {
                                     WebkitTextFillColor: "transparent",
                                 }}
                             >
-                                Discussions
+                                Community Discussions
                             </h1>
                             <p className="text-lg text-gray-600 max-w-2xl leading-relaxed">
                                 Join the community — ask questions from mentors, share your journey, and help
@@ -872,7 +872,7 @@ export default function DiscussionsPage() {
                                     WebkitTextFillColor: "transparent",
                                 }}
                             >
-                                Discussions
+                                Community Discussions
                             </h1>
                             <p className="text-lg text-gray-600 max-w-2xl leading-relaxed">
                                 Join the community — ask questions from mentors, share your journey, and help others.

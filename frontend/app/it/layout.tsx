@@ -108,12 +108,9 @@ export default function ITLayout({ children }: { children: React.ReactNode }) {
     const handleSignOut = async () => {
         await logout();
         if (typeof window !== "undefined") {
-            localStorage.removeItem("itAccessToken");
-            localStorage.removeItem("itRefreshToken");
             localStorage.removeItem("itUserEmail");
             localStorage.removeItem("itUserId");
             localStorage.removeItem("itAuthUser");
-            document.cookie = "itAccessToken=; path=/; max-age=0;";
         }
         router.replace("/it/login");
     };
@@ -222,7 +219,7 @@ export default function ITLayout({ children }: { children: React.ReactNode }) {
                     </div>
                 </header>
 
-                <main className="flex-1 p-6 md:p-8">
+                <main id="main-content" tabIndex={-1} className="flex-1 p-6 md:p-8 focus:outline-none">
                     {children}
                 </main>
             </div>

@@ -37,7 +37,17 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   async handleConnection(client: Socket) {
     try {
-      const token = client.handshake.auth.token || client.handshake.headers['authorization']?.split(' ')[1];
+      let token = client.handshake.auth.token || client.handshake.headers['authorization']?.split(' ')[1];
+      if (!token && client.handshake.headers.cookie) {
+        const rawCookies = client.handshake.headers.cookie.split(';');
+        for (const c of rawCookies) {
+          const [k, v] = c.trim().split('=');
+          if (['bankAccessToken', 'staffAccessToken', 'adminAccessToken', 'itAccessToken', 'agentAccessToken', 'accessToken', 'token'].includes(k)) {
+            token = decodeURIComponent(v || '');
+            break;
+          }
+        }
+      }
       
       // Allow simulator connections without full JWT if flagged
       const isSimulator = client.handshake.auth.simulator === true;

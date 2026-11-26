@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { io, Socket } from "socket.io-client";
-import { authApi } from "@/lib/api";
+import { authApi, getToken } from "@/lib/api";
 
 interface Activity {
   id: string;
@@ -121,8 +121,8 @@ export default function UserActivityLog({
 
   // Initialize WebSocket connection for real-time updates
   useEffect(() => {
-    const token = localStorage.getItem("accessToken");
-    if (!token || !userId) return;
+    const token = getToken();
+    if (!userId) return;
 
     const baseApiUrl = typeof window !== "undefined" && (window.location.hostname.includes("localhost") || window.location.hostname.includes("127.0.0.1"))
       ? "http://localhost:5000"
@@ -133,7 +133,8 @@ export default function UserActivityLog({
       : `${baseApiUrl.replace(/\/$/, "")}/chat`;
 
     const socket = io(socketUrl, {
-      auth: { token },
+      withCredentials: true,
+      auth: token ? { token } : undefined,
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,

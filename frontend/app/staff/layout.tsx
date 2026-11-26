@@ -467,7 +467,7 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
                 </aside>
 
                 {/* Main Content */}
-                <main className={`flex-1 flex flex-col min-w-0 h-screen overflow-hidden bg-[#f8fafc] transition-all duration-300 ${sidebarOpen ? 'lg:pl-[240px]' : 'lg:pl-[68px]'} print:h-auto print:min-h-0 print:overflow-visible print:pl-0 print:p-0 print:m-0 print:bg-white`}>
+                <main id="main-content" tabIndex={-1} className={`flex-1 flex flex-col min-w-0 h-screen overflow-hidden bg-[#f8fafc] transition-all duration-300 focus:outline-none ${sidebarOpen ? 'lg:pl-[240px]' : 'lg:pl-[68px]'} print:h-auto print:min-h-0 print:overflow-visible print:pl-0 print:p-0 print:m-0 print:bg-white`}>
                     {/* Top Header Navbar */}
                     <header className="h-[54px] bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-6 flex items-center justify-between sticky top-0 z-40 flex-shrink-0 no-print">
                         {/* Left: Section Title */}

@@ -175,13 +175,14 @@ async function getDisbursedAmount() {
 }
 
 export const metadata: Metadata = {
+    metadataBase: new URL("https://vidyaloans.in"),
     title: {
         absolute: "VidyaLoans - Fund Your Dream Education Abroad",
     },
     description:
         "Compare education loans from 5+ partner banks & NBFCs. Get the best rates, 48-hour approvals, and expert guidance — all in one place.",
     alternates: {
-        canonical: "/",
+        canonical: "https://vidyaloans.in",
     },
     openGraph: {
         title: "VidyaLoans - Fund Your Dream Education Abroad",
@@ -193,12 +194,19 @@ export const metadata: Metadata = {
         type: "website",
         images: [
             {
-                url: "/images/og-image.png",
+                url: "https://vidyaloans.in/images/og-image.png",
                 width: 1200,
                 height: 630,
                 alt: "VidyaLoans - Fund Your Dream Education Abroad",
             },
         ],
+    },
+    twitter: {
+        card: "summary_large_image",
+        title: "VidyaLoans - Fund Your Dream Education Abroad",
+        description:
+            "Compare education loans from 5+ partner banks & NBFCs. Get the best rates, 48-hour approvals, and expert guidance — all in one place.",
+        images: ["https://vidyaloans.in/images/og-image.png"],
     },
 };
 

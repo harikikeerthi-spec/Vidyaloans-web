@@ -20,7 +20,7 @@ import {
     Filler
 } from 'chart.js';
 import { Line, Doughnut } from 'react-chartjs-2';
-import { adminApi } from "@/lib/api";
+import { adminApi, getToken } from "@/lib/api";
 import ChatInterface from "@/components/Chat/ChatInterface";
 
 ChartJS.register(
@@ -198,11 +198,7 @@ export default function BankDashboard() {
     }, [currentBankId, user]);
 
     useEffect(() => {
-        const token =
-            localStorage.getItem("bankAccessToken") ||
-            localStorage.getItem("accessToken") ||
-            localStorage.getItem("token");
-        if (!token) return;
+        const token = getToken();
 
         const baseApiUrl = typeof window !== "undefined" && (window.location.hostname.includes("localhost") || window.location.hostname.includes("127.0.0.1"))
             ? "http://localhost:5000"
@@ -213,7 +209,8 @@ export default function BankDashboard() {
             : `${baseApiUrl.replace(/\/$/, "")}/chat`;
 
         const socket = io(socketUrl, {
-            auth: { token },
+            withCredentials: true,
+            auth: token ? { token } : undefined,
             reconnection: true,
             reconnectionDelay: 1000,
             reconnectionDelayMax: 5000,

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { io, Socket } from "socket.io-client";
-import { bankApi } from "@/lib/api";
+import { bankApi, getToken } from "@/lib/api";
 
 interface SharedApplication {
   id: string;
@@ -70,11 +70,7 @@ const BankDashboardActivity = ({ bankId, limit = 15 }: BankDashboardActivityProp
 
   // Initialize WebSocket for real-time updates
   useEffect(() => {
-    const token =
-      localStorage.getItem("bankAccessToken") ||
-      localStorage.getItem("accessToken") ||
-      localStorage.getItem("token");
-    if (!token) return;
+    const token = getToken();
 
     const baseApiUrl = typeof window !== "undefined" && (window.location.hostname.includes("localhost") || window.location.hostname.includes("127.0.0.1"))
       ? "http://localhost:5000"
@@ -85,7 +81,8 @@ const BankDashboardActivity = ({ bankId, limit = 15 }: BankDashboardActivityProp
       : `${baseApiUrl.replace(/\/$/, "")}/chat`;
 
     const socket = io(socketUrl, {
-      auth: { token },
+      withCredentials: true,
+      auth: token ? { token } : undefined,
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,

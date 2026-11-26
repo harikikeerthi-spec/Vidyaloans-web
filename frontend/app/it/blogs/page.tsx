@@ -2371,6 +2371,7 @@ export default function ITBlogsPage() {
           .replace(/[^a-z0-9]+/g, "-")
           .replace(/(^-|-$)/g, "");
 
+      const isAdminApprover = user?.role === "admin" || user?.role === "super_admin";
       const payload = {
         title: blogTitle,
         slug: finalSlug,
@@ -2379,16 +2380,21 @@ export default function ITBlogsPage() {
         coverImage,
         blocks,
         tags: blogTags,
-        published: publishStatus,
+        published: isAdminApprover ? publishStatus : false,
+        submitForApproval: !isAdminApprover && publishStatus,
         authorName: user?.firstName ? `${user.firstName} ${user.lastName || ""}`.trim() : "IT Staff",
       };
 
       if (editingBlogId) {
         await blogApi.update(editingBlogId, payload);
-        alert("Blog article updated successfully!");
+        alert(!isAdminApprover && publishStatus
+          ? "Blog article submitted for Admin approval!"
+          : "Blog article updated successfully!");
       } else {
         await blogApi.create(payload);
-        alert("Blog article created successfully!");
+        alert(!isAdminApprover && publishStatus
+          ? "Blog article created and submitted for Admin approval!"
+          : "Blog article saved as draft!");
       }
 
       // Clear local backup on successful server save
@@ -2805,14 +2811,23 @@ export default function ITBlogsPage() {
                             </span>
                           </td>
                           <td className="px-6 py-4">
-                            <span
-                              className={`px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider ${(blog.isPublished !== undefined ? blog.isPublished : blog.published)
-                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                : "bg-amber-50 text-amber-700 border border-amber-200"
-                                }`}
-                            >
-                              {(blog.isPublished !== undefined ? blog.isPublished : blog.published) ? "Published" : "Draft"}
-                            </span>
+                            {(() => {
+                              const isPub = blog.isPublished !== undefined ? blog.isPublished : blog.published;
+                              const isPending = !isPub && blog.status === "pending";
+                              return (
+                                <span
+                                  className={`px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider ${
+                                    isPub
+                                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                      : isPending
+                                        ? "bg-indigo-50 text-indigo-700 border border-indigo-200"
+                                        : "bg-amber-50 text-amber-700 border border-amber-200"
+                                  }`}
+                                >
+                                  {isPub ? "Published" : isPending ? "Pending Approval" : "Draft"}
+                                </span>
+                              );
+                            })()}
                           </td>
                           <td className="px-6 py-4 text-center">
                             <div className="flex items-center justify-center gap-1.5">
@@ -2823,7 +2838,7 @@ export default function ITBlogsPage() {
                                 className="px-2.5 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold rounded-xl transition-all border border-purple-200 cursor-pointer flex items-center gap-1 shadow-2xs"
                                 title="Compare this blog with another"
                               >
-                                <span className="material-symbols-outlined text-[14px]">compare</span>
+                                <span className="material-symbols-outlined text-[14px]" aria-hidden="true">compare</span>
                                 Compare
                               </button>
                               {/* Open live link */}
@@ -2832,23 +2847,37 @@ export default function ITBlogsPage() {
                                 target="_blank"
                                 className="p-2 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl transition-all border border-slate-200"
                                 title="Open Live Blog Page"
+                                aria-label="Open Live Blog Page"
                               >
-                                <span className="material-symbols-outlined text-[16px]">open_in_new</span>
+                                <span className="material-symbols-outlined text-[16px]" aria-hidden="true">open_in_new</span>
                               </Link>
-                              <button
-                                onClick={() => handleEditBlog(blog)}
-                                className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-xl transition-all border border-indigo-200 cursor-pointer flex items-center gap-1"
-                              >
-                                <span className="material-symbols-outlined text-[14px]">edit</span>
-                                Edit
-                              </button>
-                              <button
-                                onClick={() => handleDeleteBlog(blog.id || blog._id, blog.title)}
-                                className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold rounded-xl transition-all border border-rose-200 cursor-pointer flex items-center gap-1"
-                              >
-                                <span className="material-symbols-outlined text-[14px]">delete</span>
-                                Delete
-                              </button>
+                              {(() => {
+                                const isPub = blog.isPublished !== undefined ? blog.isPublished : blog.published;
+                                const isAdminApprover = user?.role === "admin" || user?.role === "super_admin";
+                                const lockLive = Boolean(isPub && !isAdminApprover);
+                                return (
+                                  <>
+                                    <button
+                                      onClick={() => handleEditBlog(blog)}
+                                      disabled={lockLive}
+                                      title={lockLive ? "Live published posts require Admin unpublish before editing" : "Edit draft"}
+                                      className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-xl transition-all border border-indigo-200 cursor-pointer flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
+                                    >
+                                      <span className="material-symbols-outlined text-[14px]" aria-hidden="true">edit</span>
+                                      Edit
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteBlog(blog.id || blog._id, blog.title)}
+                                      disabled={lockLive}
+                                      title={lockLive ? "Live published posts cannot be deleted by IT" : "Delete draft"}
+                                      className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold rounded-xl transition-all border border-rose-200 cursor-pointer flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
+                                    >
+                                      <span className="material-symbols-outlined text-[14px]" aria-hidden="true">delete</span>
+                                      Delete
+                                    </button>
+                                  </>
+                                );
+                              })()}
                             </div>
                           </td>
                         </tr>

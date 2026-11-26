@@ -760,6 +760,144 @@ export class ApplicationService {
     return { success: true, data: updated, message: 'Application updated successfully' };
   }
 
+  resolveBankFromUser(user?: any): string | null {
+    if (!user) return null;
+    let sessionBank = user?.bankName || user?.bank || user?.bankId;
+
+    if (!sessionBank && user?.email) {
+      const lowerEmail = user.email.toLowerCase().trim();
+      if (lowerEmail.includes('auxilo.com')) sessionBank = 'Auxilo';
+      else if (lowerEmail.includes('avanse.com')) sessionBank = 'Avanse';
+      else if (lowerEmail.includes('credila.com') || lowerEmail.includes('hdfccredila.com')) sessionBank = 'HDFC Credila';
+      else if (lowerEmail.includes('idfcfirstbank.com') || lowerEmail.includes('idfcbank.com')) sessionBank = 'IDFC';
+      else if (lowerEmail.includes('poonawallafincorp.com')) sessionBank = 'Poonawalla';
+    }
+
+    if (!sessionBank) return null;
+    const lowerSession = String(sessionBank).toLowerCase();
+    if (lowerSession.includes('credila') || lowerSession.includes('hdfc')) return 'HDFC Credila';
+    if (lowerSession.includes('poonawalla')) return 'Poonawalla';
+    if (lowerSession.includes('idfc')) return 'IDFC';
+    if (lowerSession.includes('avanse')) return 'Avanse';
+    if (lowerSession.includes('auxilo')) return 'Auxilo';
+    return sessionBank;
+  }
+
+  async resolveStaffCandidateIds(staffId?: string, staffEmail?: string): Promise<string[]> {
+    const candidateIds: string[] = [];
+    if (staffId) candidateIds.push(staffId);
+    if (staffEmail) {
+      candidateIds.push(staffEmail);
+      candidateIds.push(staffEmail.toLowerCase());
+    }
+
+    // 1. Resolve the User record by email or by the raw staffId — get their real UUID
+    try {
+      const orFilter = [
+        staffId ? `id.eq.${staffId}` : null,
+        staffEmail ? `email.eq.${staffEmail}` : null,
+      ].filter(Boolean).join(',');
+
+      if (orFilter) {
+        const { data: userRecord } = await this.db
+          .from('User')
+          .select('id, email')
+          .or(orFilter)
+          .maybeSingle();
+
+        if (userRecord) {
+          if (userRecord.id) candidateIds.push(userRecord.id);
+          if (userRecord.email) candidateIds.push(userRecord.email);
+        }
+      }
+    } catch (_) {}
+
+    // 2. Resolve via StaffProfile — get all IDs associated with this staff member's profile
+    try {
+      const { data: profiles } = await this.db
+        .from('StaffProfile')
+        .select('id, linkedUserId, email');
+
+      if (profiles && profiles.length > 0) {
+        profiles.forEach((p: any) => {
+          const pEmail = (p.email || '').toLowerCase();
+          const reqEmail = (staffEmail || '').toLowerCase();
+          const pLink = (p.linkedUserId || '').toLowerCase();
+          const reqStaffId = (staffId || '').toLowerCase();
+          const pId = (p.id || '').toLowerCase();
+
+          if (
+            (reqStaffId && (pLink === reqStaffId || pId === reqStaffId)) ||
+            (reqEmail && pEmail === reqEmail)
+          ) {
+            if (p.id) candidateIds.push(p.id);
+            if (p.linkedUserId) candidateIds.push(p.linkedUserId);
+            if (p.email) candidateIds.push(p.email);
+          }
+        });
+      }
+    } catch (_) {}
+
+    return Array.from(new Set(candidateIds.filter(Boolean)));
+  }
+
+  /**
+   * Enforces server-side role and assignment/institution isolation on a single application.
+   */
+  async verifyStaffOrBankApplicationAccess(applicationId: string, user: any): Promise<any> {
+    const application = await this.getApplicationById(applicationId);
+    const userRole = (user?.role || '').toLowerCase();
+
+    if (['admin', 'super_admin', 'staff_admin'].includes(userRole)) {
+      return application;
+    }
+
+    const isBank = userRole === 'bank' || userRole === 'partner_bank' || userRole.startsWith('bank_');
+    if (isBank) {
+      const sessionBank = this.resolveBankFromUser(user);
+      if (!sessionBank) {
+        throw new ForbiddenException('Access denied: Bank officer account is not assigned to any institution');
+      }
+      const belongs = await this.verifyApplicationBelongsToBank(applicationId, sessionBank);
+      if (!belongs) {
+        throw new ForbiddenException("Access denied: You do not have permission to access another institution's application");
+      }
+      return application;
+    }
+
+    if (userRole === 'staff' || userRole === 'support') {
+      const candidateIds = await this.resolveStaffCandidateIds(user?.id || user?.uid, user?.email);
+      const lowerCandidates = new Set(candidateIds.map((id) => String(id).toLowerCase()));
+      const assignedId = (application.assignedStaffId || '').toLowerCase().trim();
+      const assignedEmail = (application.assignedStaffEmail || '').toLowerCase().trim();
+
+      const isAssigned =
+        (assignedId && lowerCandidates.has(assignedId)) ||
+        (assignedEmail && lowerCandidates.has(assignedEmail));
+
+      if (!isAssigned) {
+        throw new ForbiddenException('Access denied: This application is not assigned to you');
+      }
+      return application;
+    }
+
+    throw new ForbiddenException('Access denied: Insufficient role permissions for this application');
+  }
+
+  async verifyDocumentAccess(documentId: string, user: any): Promise<void> {
+    const { data: doc } = await this.db
+      .from('ApplicationDocument')
+      .select('id, applicationId')
+      .eq('id', documentId)
+      .maybeSingle();
+
+    if (!doc || !doc.applicationId) {
+      throw new NotFoundException('Document not found');
+    }
+
+    await this.verifyStaffOrBankApplicationAccess(doc.applicationId, user);
+  }
+
   async verifyApplicationBelongsToBank(applicationId: string, bankIdentifier?: string | null): Promise<boolean> {
     if (!applicationId || !bankIdentifier) return false;
     const application = await this.getApplicationById(applicationId);
@@ -801,25 +939,9 @@ export class ApplicationService {
   }
 
   async adminUpdateApplication(applicationId: string, data: any, user?: any) {
-    const application = await this.getApplicationById(applicationId);
-
-    const userRole = (user?.role || '').toLowerCase();
-    const isBank = userRole === 'bank' || userRole === 'partner_bank' || userRole.startsWith('bank_');
-    if (isBank) {
-      let sessionBank = user?.bankName || user?.bank || user?.bankId;
-      if (!sessionBank && user?.email) {
-        const lowerEmail = user.email.toLowerCase().trim();
-        if (lowerEmail.includes("auxilo.com")) sessionBank = 'Auxilo';
-        else if (lowerEmail.includes("avanse.com")) sessionBank = 'Avanse';
-        else if (lowerEmail.includes("credila.com") || lowerEmail.includes("hdfccredila.com")) sessionBank = 'HDFC Credila';
-        else if (lowerEmail.includes("idfcfirstbank.com") || lowerEmail.includes("idfcbank.com")) sessionBank = 'IDFC';
-        else if (lowerEmail.includes("poonawallafincorp.com")) sessionBank = 'Poonawalla';
-      }
-      const belongs = await this.verifyApplicationBelongsToBank(applicationId, sessionBank);
-      if (!belongs) {
-        throw new ForbiddenException("Access denied: You do not have permission to update another institution's application");
-      }
-    }
+    const application = user
+      ? await this.verifyStaffOrBankApplicationAccess(applicationId, user)
+      : await this.getApplicationById(applicationId);
 
     const targetBank = data.bank !== undefined ? data.bank : application.bank;
     const targetCountry = (data.country || data.studyDestination || data.countryOfStudy || data.destinationCountry) !== undefined
@@ -1368,63 +1490,18 @@ export class ApplicationService {
       // When a non-admin staff member makes the request, return ONLY applications
       // assigned strictly to them (by user ID, email, or staff profile ID).
       if (filters?.assignedStaffId) {
-        let candidateIds: string[] = [filters.assignedStaffId];
-        if (filters.staffEmail) {
-          candidateIds.push(filters.staffEmail);
-          candidateIds.push(filters.staffEmail.toLowerCase());
-        }
-
-        // 1. Resolve the User record by email or by the raw staffId — get their real UUID
-        try {
-          const orFilter = [
-            filters.assignedStaffId ? `id.eq.${filters.assignedStaffId}` : null,
-            filters.staffEmail ? `email.eq.${filters.staffEmail}` : null,
-          ].filter(Boolean).join(',');
-
-          if (orFilter) {
-            const { data: userRecord } = await this.db
-              .from('User')
-              .select('id, email')
-              .or(orFilter)
-              .maybeSingle();
-
-            if (userRecord) {
-              if (userRecord.id) candidateIds.push(userRecord.id);
-              if (userRecord.email) candidateIds.push(userRecord.email);
-            }
-          }
-        } catch (_) {}
-
-        // 2. Resolve via StaffProfile — get all IDs associated with this staff member's profile
-        try {
-          const { data: profiles } = await this.db
-            .from('StaffProfile')
-            .select('id, linkedUserId, email');
-
-          if (profiles && profiles.length > 0) {
-            profiles.forEach((p: any) => {
-              const pEmail = (p.email || '').toLowerCase();
-              const reqEmail = (filters.staffEmail || '').toLowerCase();
-              const pLink = (p.linkedUserId || '').toLowerCase();
-              const reqStaffId = (filters.assignedStaffId || '').toLowerCase();
-              const pId = (p.id || '').toLowerCase();
-
-              if (pLink === reqStaffId || pId === reqStaffId || (reqEmail && pEmail === reqEmail)) {
-                if (p.id) candidateIds.push(p.id);
-                if (p.linkedUserId) candidateIds.push(p.linkedUserId);
-                if (p.email) candidateIds.push(p.email);
-              }
-            });
-          }
-        } catch (_) {}
-
-        const uniqueIds = Array.from(new Set(candidateIds.filter(Boolean)));
+        const uniqueIds = await this.resolveStaffCandidateIds(filters.assignedStaffId, filters.staffEmail);
         console.log(`[ApplicationService] Staff filter — candidateIds: ${uniqueIds.join(', ')}`);
-        const orConditions = uniqueIds.map(id => `assignedStaffId.eq.${id}`);
-        if (filters?.includeUnassigned) {
-          orConditions.push('assignedStaffId.is.null');
+        if (uniqueIds.length > 0) {
+          const orConditions = uniqueIds.map(id => `assignedStaffId.eq.${id}`);
+          if (filters?.includeUnassigned) {
+            orConditions.push('assignedStaffId.is.null');
+          }
+          query = query.or(orConditions.join(','));
+        } else {
+          // No matching staff IDs; return empty result safely
+          query = query.eq('assignedStaffId', '__none__');
         }
-        query = query.or(orConditions.join(','));
       }
 
       // Apply sorting
@@ -2037,63 +2114,46 @@ export class ApplicationService {
   }
 
   async getApplicationStats(user?: any, bankId?: string) {
+    if (!user) {
+      throw new ForbiddenException('Access denied: Authentication required');
+    }
+
+    const userRole = (user?.role || '').toLowerCase();
+    const isAdmin = ['admin', 'super_admin', 'staff_admin'].includes(userRole);
+    const isBank = userRole === 'bank' || userRole === 'partner_bank' || userRole.startsWith('bank_');
+    const isStaff = userRole === 'staff' || userRole === 'support';
+
+    if (!isAdmin && !isBank && !isStaff) {
+      throw new ForbiddenException('Access denied: Insufficient role permissions for application statistics');
+    }
+
+    let bankName: string | null = null;
+    if (isBank) {
+      bankName = this.resolveBankFromUser(user);
+      if (!bankName) {
+        throw new ForbiddenException('Access denied: Bank officer account is not assigned to any institution');
+      }
+    }
+
     try {
       const now = new Date();
       const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
       const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
-
-      const isBank = (user?.role === 'bank' || user?.role === 'partner_bank');
-      let bankName: string | null = null;
-      if (isBank) {
-        if (user?.bankName) {
-          bankName = user.bankName;
-        } else if (user?.bank) {
-          const lowerB = user.bank.toLowerCase();
-          if (lowerB.includes('credila') || lowerB.includes('hdfc')) bankName = 'HDFC Credila';
-          else if (lowerB.includes('poonawalla')) bankName = 'Poonawalla';
-          else if (lowerB.includes('idfc')) bankName = 'IDFC';
-          else if (lowerB.includes('avanse')) bankName = 'Avanse';
-          else if (lowerB.includes('auxilo')) bankName = 'Auxilo';
-          else bankName = user.bank;
-        }
-
-        // Try email corporate domain next
-        if (!bankName && user?.email) {
-          const lowerEmail = user.email.toLowerCase().trim();
-          if (lowerEmail.includes("auxilo.com")) bankName = 'Auxilo';
-          else if (lowerEmail.includes("avanse.com")) bankName = 'Avanse';
-          else if (lowerEmail.includes("credila.com") || lowerEmail.includes("hdfccredila.com")) bankName = 'HDFC Credila';
-          else if (lowerEmail.includes("idfcfirstbank.com") || lowerEmail.includes("idfcbank.com")) bankName = 'IDFC';
-          else if (lowerEmail.includes("poonawallafincorp.com")) bankName = 'Poonawalla';
-        }
-
-        if (!bankName) {
-          const bId = bankId || user?.firstName;
-          if (bId) {
-            const lower = bId.toLowerCase();
-            if (lower.includes('credila')) bankName = 'HDFC Credila';
-            else if (lower.includes('poonawalla')) bankName = 'Poonawalla';
-            else if (lower.includes('idfc')) bankName = 'IDFC';
-            else if (lower.includes('avanse')) bankName = 'Avanse';
-            else if (lower.includes('auxilo')) bankName = 'Auxilo';
-            else bankName = bId;
-          }
-        }
-      }
 
       let allAppsQuery = this.db.from('LoanApplication').select('id, applicationNumber, loanType, amount, status, submittedAt, firstName, lastName, assignedStaffId');
 
       if (isBank && bankName) {
         const excludeStr = '(submitted,pending,draft,docs_received,staff_verified,application_submitted)';
         allAppsQuery = allAppsQuery.ilike('bank', `%${bankName}%`).not('status', 'in', excludeStr);
-      } else if (user && user.role !== 'admin' && user.role !== 'super_admin' && !isBank) {
-        const staffId = user.id || user.uid;
-        const staffEmail = user.email;
-        if (staffId && staffEmail) {
-          allAppsQuery = allAppsQuery.or(`assignedStaffId.eq.${staffId},assignedStaffId.eq.${staffEmail}`);
-        } else if (staffId) {
-          allAppsQuery = allAppsQuery.eq('assignedStaffId', staffId);
+      } else if (isStaff) {
+        const candidateIds = await this.resolveStaffCandidateIds(user.id || user.uid, user.email);
+        if (candidateIds.length > 0) {
+          allAppsQuery = allAppsQuery.or(candidateIds.map(id => `assignedStaffId.eq.${id}`).join(','));
+        } else {
+          allAppsQuery = allAppsQuery.eq('assignedStaffId', '__none__');
         }
+      } else if (isAdmin && bankId) {
+        allAppsQuery = allAppsQuery.ilike('bank', `%${bankId}%`);
       }
 
       console.log(`[Stats] Executing single query for ${bankName || 'all banks'}...`);

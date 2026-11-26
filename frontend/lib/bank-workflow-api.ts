@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getToken } from './api';
 
 const getBaseUrl = () => {
   if (typeof window !== 'undefined') return '';
@@ -7,6 +8,7 @@ const getBaseUrl = () => {
 
 const instance = axios.create({
   baseURL: `${getBaseUrl()}/api/bank/workflow`,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -14,11 +16,7 @@ const instance = axios.create({
 
 instance.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
-    const token =
-      localStorage.getItem('staffAccessToken') ||
-      localStorage.getItem('adminAccessToken') ||
-      localStorage.getItem('accessToken') ||
-      localStorage.getItem('authToken');
+    const token = getToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }

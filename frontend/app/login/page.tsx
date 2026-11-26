@@ -227,8 +227,6 @@ function LoginContent() {
     };
 
     const triggerSuccessAndRedirect = (data: LoginResponse, emailVal: string) => {
-        if (data.refresh_token) localStorage.setItem("refreshToken", data.refresh_token);
-
         login(data.access_token, {
             id: data.userId,
             email: emailVal,

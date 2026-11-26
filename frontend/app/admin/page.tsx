@@ -104,10 +104,11 @@ const NavItem = ({ section, active, icon, label, badge, onClick, expanded }: any
     <button
         onClick={() => onClick(section)}
         title={label}
+        aria-label={label}
         className={`w-full text-left px-3 py-2 rounded-xl flex items-center gap-3 transition-colors text-xs font-medium ${active === section ? "bg-indigo-500/10 text-indigo-400 font-bold" : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"}`}
     >
         <div className="w-6 h-6 flex items-center justify-center flex-shrink-0">
-            <span className={`material-symbols-outlined text-[18px] ${active === section ? "text-indigo-400" : "text-slate-500"}`}>{icon}</span>
+            <span className={`material-symbols-outlined text-[18px] ${active === section ? "text-indigo-400" : "text-slate-500"}`} aria-hidden="true">{icon}</span>
         </div>
         <span className={`flex-1 transition-all duration-200 whitespace-nowrap truncate ${expanded ? 'opacity-100' : 'opacity-0 w-0 group-hover/sidebar:opacity-100 group-hover/sidebar:w-auto'}`}>
             {label}
@@ -2021,15 +2022,17 @@ export default function AdminDashboardPage() {
                         <button
                             onClick={() => { setUsersExpanded(e => !e); if (!usersExpanded && !isUserOrWebmailSection) setActiveSection('users_students'); }}
                             title="User Management"
+                            aria-label="User Management"
+                            aria-expanded={usersExpanded || isUserOrWebmailSection}
                             className={`w-full text-left px-3 py-2 rounded-xl flex items-center gap-3 transition-colors text-xs font-medium ${isUserOrWebmailSection ? 'bg-indigo-500/10 text-indigo-400 font-bold' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}
                         >
                             <div className="w-6 h-6 flex items-center justify-center flex-shrink-0">
-                                <span className={`material-symbols-outlined text-[18px] ${isUserOrWebmailSection ? 'text-indigo-400' : 'text-slate-500'}`}>people</span>
+                                <span className={`material-symbols-outlined text-[18px] ${isUserOrWebmailSection ? 'text-indigo-400' : 'text-slate-500'}`} aria-hidden="true">people</span>
                             </div>
                             <span className={`flex-1 transition-all duration-200 whitespace-nowrap truncate ${sidebarOpen ? 'opacity-100' : 'opacity-0 w-0 group-hover/sidebar:opacity-100 group-hover/sidebar:w-auto'}`}>
                                 User Management
                             </span>
-                            <span className={`material-symbols-outlined text-[14px] opacity-50 transition-opacity duration-200 ${sidebarOpen ? 'inline-block' : 'hidden group-hover/sidebar:inline-block'}`}>
+                            <span className={`material-symbols-outlined text-[14px] opacity-50 transition-opacity duration-200 ${sidebarOpen ? 'inline-block' : 'hidden group-hover/sidebar:inline-block'}`} aria-hidden="true">
                                 {usersExpanded || isUserOrWebmailSection ? 'expand_less' : 'expand_more'}
                             </span>
                         </button>
@@ -2042,7 +2045,7 @@ export default function AdminDashboardPage() {
                                         className={`w-full text-left px-2 py-1 rounded flex items-center gap-2 transition-colors text-[11px] ${activeSection === item.section ? 'bg-indigo-500/10 text-indigo-400 font-semibold' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-300'
                                             }`}
                                     >
-                                        <span className={`material-symbols-outlined text-[13px] ${activeSection === item.section ? 'text-indigo-400' : 'text-slate-500'}`}>{item.icon}</span>
+                                        <span className={`material-symbols-outlined text-[13px] ${activeSection === item.section ? 'text-indigo-400' : 'text-slate-500'}`} aria-hidden="true">{item.icon}</span>
                                         <span>{item.label}</span>
                                     </button>
                                 ))}
@@ -2061,15 +2064,17 @@ export default function AdminDashboardPage() {
                         <button
                             onClick={() => { setMarketingExpanded(e => !e); if (!marketingExpanded) setActiveSection('campaigns_dashboard'); }}
                             title="Email Campaigns"
+                            aria-label="Email Campaigns"
+                            aria-expanded={marketingExpanded || activeSection.startsWith('campaigns_')}
                             className={`w-full text-left px-3 py-2 rounded-xl flex items-center gap-3 transition-colors text-xs font-medium ${activeSection.startsWith('campaigns_') ? 'bg-indigo-500/10 text-indigo-400 font-bold' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}
                         >
                             <div className="w-6 h-6 flex items-center justify-center flex-shrink-0">
-                                <span className={`material-symbols-outlined text-[18px] ${activeSection.startsWith('campaigns_') ? 'text-indigo-400' : 'text-slate-500'}`}>campaign</span>
+                                <span className={`material-symbols-outlined text-[18px] ${activeSection.startsWith('campaigns_') ? 'text-indigo-400' : 'text-slate-500'}`} aria-hidden="true">campaign</span>
                             </div>
                             <span className={`flex-1 transition-all duration-200 whitespace-nowrap truncate ${sidebarOpen ? 'opacity-100' : 'opacity-0 w-0 group-hover/sidebar:opacity-100 group-hover/sidebar:w-auto'}`}>
                                 Email Campaigns
                             </span>
-                            <span className={`material-symbols-outlined text-[14px] opacity-50 transition-opacity duration-200 ${sidebarOpen ? 'inline-block' : 'hidden group-hover/sidebar:inline-block'}`}>
+                            <span className={`material-symbols-outlined text-[14px] opacity-50 transition-opacity duration-200 ${sidebarOpen ? 'inline-block' : 'hidden group-hover/sidebar:inline-block'}`} aria-hidden="true">
                                 {marketingExpanded || activeSection.startsWith('campaigns_') ? 'expand_less' : 'expand_more'}
                             </span>
                         </button>
@@ -2082,7 +2087,7 @@ export default function AdminDashboardPage() {
                                         className={`w-full text-left px-2 py-1 rounded flex items-center gap-2 transition-colors text-[11px] ${activeSection === item.section ? 'bg-indigo-500/10 text-indigo-400' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-300'
                                             }`}
                                     >
-                                        <span className={`material-symbols-outlined text-[13px] ${activeSection === item.section ? 'text-indigo-400' : 'text-slate-500'}`}>{item.icon}</span>
+                                        <span className={`material-symbols-outlined text-[13px] ${activeSection === item.section ? 'text-indigo-400' : 'text-slate-500'}`} aria-hidden="true">{item.icon}</span>
                                         <span>{item.label}</span>
                                     </button>
                                 ))}
@@ -2099,8 +2104,8 @@ export default function AdminDashboardPage() {
                             <p className="text-[10px] text-slate-500 capitalize truncate">{user?.role?.replace('_', ' ')}</p>
                         </div>
                     </div>
-                    <button onClick={logout} className={`w-full px-3 py-2 rounded bg-slate-800 hover:bg-rose-500/10 hover:text-rose-400 text-slate-300 border border-slate-700 hover:border-rose-500/30 transition-all text-[11px] font-semibold flex items-center justify-center gap-2 ${sidebarOpen ? 'opacity-100' : 'opacity-0 group-hover/sidebar:opacity-100'}`}>
-                        <span className="material-symbols-outlined text-[14px]">logout</span>
+                    <button onClick={logout} aria-label="Sign Out" className={`w-full px-3 py-2 rounded bg-slate-800 hover:bg-rose-500/10 hover:text-rose-400 text-slate-300 border border-slate-700 hover:border-rose-500/30 transition-all text-[11px] font-semibold flex items-center justify-center gap-2 ${sidebarOpen ? 'opacity-100' : 'opacity-0 group-hover/sidebar:opacity-100'}`}>
+                        <span className="material-symbols-outlined text-[14px]" aria-hidden="true">logout</span>
                         <span className={`whitespace-nowrap transition-all duration-300 ${sidebarOpen ? 'inline' : 'hidden group-hover/sidebar:inline'}`}>Sign Out</span>
                     </button>
                 </div>
@@ -2111,8 +2116,13 @@ export default function AdminDashboardPage() {
                 {/* Header */}
                 <header className="h-14 bg-white border-b border-slate-200 px-5 flex justify-between items-center sticky top-0 z-40 flex-shrink-0 shadow-sm">
                     <div className="flex items-center gap-3">
-                        <button onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden p-1.5 text-slate-500 hover:bg-slate-100 rounded transition-all">
-                            <span className="material-symbols-outlined text-[20px]">menu</span>
+                        <button
+                            onClick={() => setSidebarOpen(!sidebarOpen)}
+                            aria-label={sidebarOpen ? "Close sidebar menu" : "Open sidebar menu"}
+                            aria-expanded={sidebarOpen}
+                            className="lg:hidden p-1.5 text-slate-500 hover:bg-slate-100 rounded transition-all"
+                        >
+                            <span className="material-symbols-outlined text-[20px]" aria-hidden="true">menu</span>
                         </button>
                         <h1 className="text-[14px] font-semibold text-slate-800 flex items-center gap-2">
                             {sectionTitles[activeSection] || activeSection}
@@ -2122,12 +2132,13 @@ export default function AdminDashboardPage() {
 
                     <div className="flex items-center gap-3">
                         <div className="relative hidden md:block">
-                            <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[16px]">search</span>
+                            <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[16px]" aria-hidden="true">search</span>
                             <input
                                 type="text"
                                 value={searchQuery}
                                 onChange={e => setSearchQuery(e.target.value)}
                                 placeholder="Search..."
+                                aria-label="Search"
                                 className="pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded text-[12px] focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 w-56 transition-all text-slate-700 placeholder:text-slate-400"
                             />
                         </div>
@@ -2135,9 +2146,11 @@ export default function AdminDashboardPage() {
                         <div className="relative">
                             <button
                                 onClick={() => setNotifOpen(!notifOpen)}
+                                aria-label="Notifications"
+                                aria-expanded={notifOpen}
                                 className="relative p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded transition-all flex items-center justify-center"
                             >
-                                <span className="material-symbols-outlined text-[18px]">notifications</span>
+                                <span className="material-symbols-outlined text-[18px]" aria-hidden="true">notifications</span>
                                 {pendingCount > 0 && <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 border-2 border-white shadow-sm" />}
                             </button>
                             {notifOpen && (
@@ -2145,10 +2158,10 @@ export default function AdminDashboardPage() {
                                     <div className="px-4 py-2 border-b border-slate-100 bg-slate-50/80"><h4 className="font-semibold text-slate-700 text-[11px] uppercase tracking-wider">Notifications</h4></div>
                                     {pendingCount > 0 ? (
                                         <button className="w-full text-left px-4 py-3 hover:bg-slate-50 transition-all flex items-start gap-3 border-b border-slate-50">
-                                            <div className="w-8 h-8 rounded bg-amber-50 text-amber-600 flex items-center justify-center flex-shrink-0 mt-0.5 border border-amber-100"><span className="material-symbols-outlined text-[16px]">assignment</span></div>
+                                            <div className="w-8 h-8 rounded bg-amber-50 text-amber-600 flex items-center justify-center flex-shrink-0 mt-0.5 border border-amber-100"><span className="material-symbols-outlined text-[16px]" aria-hidden="true">assignment</span></div>
                                             <div><p className="text-[12px] font-semibold text-slate-800">{pendingCount} Pending Applications</p><p className="text-[11px] text-slate-500 mt-0.5">Awaiting review</p></div>
                                         </button>
-                                    ) : <div className="p-6 text-center text-slate-400 bg-white"><span className="material-symbols-outlined text-2xl mb-1 text-slate-300">task_alt</span><p className="text-[11px]">All caught up</p></div>}
+                                    ) : <div className="p-6 text-center text-slate-400 bg-white"><span className="material-symbols-outlined text-2xl mb-1 text-slate-300" aria-hidden="true">task_alt</span><p className="text-[11px]">All caught up</p></div>}
                                 </div>
                             )}
                         </div>

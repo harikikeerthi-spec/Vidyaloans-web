@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useSiteSettings } from "@/contexts/SiteSettingsContext";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { adminApi, referenceApi } from "@/lib/api";
+import { adminApi, apiFetch, referenceApi } from "@/lib/api";
 import { format } from "date-fns";
 import BankNotificationsPanel from "@/components/bank/BankNotificationsPanel";
 import SupportTicketModal from "@/components/SupportTicketModal";
@@ -85,7 +85,7 @@ export default function BankLayout({ children }: { children: React.ReactNode }) 
 
     // Fetch unread chat count dynamically on 15s interval
     useEffect(() => {
-        if (isLoading || !user || !token) return;
+        if (isLoading || !user || !token || pathname === "/bank/login") return;
 
         const fetchChatUnreadCount = async () => {
             try {
@@ -108,18 +108,12 @@ export default function BankLayout({ children }: { children: React.ReactNode }) 
                     currentBank = user.bankName || user.firstName || "Avanse";
                 }
 
-                const res = await fetch(`/api/chat/conversations?role=bank&bankName=${encodeURIComponent(currentBank)}`, {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        "Content-Type": "application/json",
-                    },
-                });
-                if (res.ok) {
-                    const data = await res.json();
-                    if (Array.isArray(data)) {
-                        const totalUnread = data.reduce((sum: number, c: any) => sum + (c.unreadCount || 0), 0);
-                        setChatCount(totalUnread);
-                    }
+                const data = await apiFetch<any[]>(
+                    `/api/chat/conversations?role=bank&bankName=${encodeURIComponent(currentBank)}`
+                );
+                if (Array.isArray(data)) {
+                    const totalUnread = data.reduce((sum: number, c: any) => sum + (c.unreadCount || 0), 0);
+                    setChatCount(totalUnread);
                 }
             } catch (err) {
                 console.error("Failed to load chat unread count:", err);
@@ -129,7 +123,7 @@ export default function BankLayout({ children }: { children: React.ReactNode }) 
         fetchChatUnreadCount();
         const interval = setInterval(fetchChatUnreadCount, 15000);
         return () => clearInterval(interval);
-    }, [user, isLoading, token, bankName]);
+    }, [user, isLoading, token, bankName, pathname]);
 
     useEffect(() => {
         const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -436,7 +430,9 @@ export default function BankLayout({ children }: { children: React.ReactNode }) 
 
             {/* Main Content */}
             <main
-                className="flex-1 min-h-screen relative transition-all duration-300 flex flex-col"
+                id="main-content"
+                tabIndex={-1}
+                className="flex-1 min-h-screen relative transition-all duration-300 flex flex-col focus:outline-none"
                 style={{ paddingLeft: contentShiftWidth }}
             >
                 {/* Persistent Top Header (F16 Notification Center & F30 Global Search) */}

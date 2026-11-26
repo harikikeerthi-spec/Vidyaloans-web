@@ -7,7 +7,7 @@ export default function CommunityLayout({ children }: { children: React.ReactNod
     return (
         <div className="min-h-screen relative overflow-x-hidden">
             <Navbar />
-            <main className="relative z-10">
+            <main id="main-content" tabIndex={-1} className="relative z-10 focus:outline-none">
                 <ProfileGate>
                     <LoginWall>
                         {children}

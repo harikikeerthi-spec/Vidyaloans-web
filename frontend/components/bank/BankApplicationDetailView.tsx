@@ -967,7 +967,7 @@ export default function BankApplicationDetailView({
                                     const docTypeLabel = doc.docType || doc.category || "Uploaded File";
                                     
                                     const token = typeof window !== "undefined"
-                                        ? (getToken() || localStorage.getItem("bankAccessToken") || localStorage.getItem("adminAccessToken") || localStorage.getItem("staffAccessToken") || "")
+                                        ? (getToken() || "")
                                         : "";
                                     const docIdentifier = doc.id || doc.docType;
                                     const tokenParam = token ? `?token=${encodeURIComponent(token)}` : "";
@@ -980,7 +980,7 @@ export default function BankApplicationDetailView({
                                     const handleOpenDoc = (e: React.MouseEvent, targetDoc: any, isDownload = false) => {
                                         e.preventDefault();
                                         const freshToken = typeof window !== "undefined"
-                                            ? (getToken() || localStorage.getItem("bankAccessToken") || localStorage.getItem("adminAccessToken") || localStorage.getItem("staffAccessToken") || "")
+                                            ? (getToken() || "")
                                             : "";
                                         const docIdentifier = targetDoc.id || targetDoc.docType;
                                         let finalUrl = targetDoc.url && String(targetDoc.url).startsWith("http")

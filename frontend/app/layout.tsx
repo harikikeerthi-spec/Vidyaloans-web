@@ -9,6 +9,7 @@ import SelectedUniversityWidget from "@/components/SelectedUniversityWidget";
 import ReferralTracker from "@/components/ReferralTracker";
 import CookieConsentBanner from "@/components/CookieConsentBanner";
 import MobileAppDownloadBanner from "@/components/MobileAppDownloadBanner";
+import SkipLink from "@/components/SkipLink";
 
 const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "https://vidyaloans.in").replace(/\/$/, "");
 
@@ -33,13 +34,13 @@ export const metadata: Metadata = {
     title: "VidyaLoans - Fund Your Dream Education Abroad",
     description:
       "Compare education loans from our curated network of top lending partners. Get the best rates, quick approvals, and expert guidance.",
-    url: siteUrl,
+    url: "https://vidyaloans.in",
     siteName: "VidyaLoans",
     locale: "en_IN",
     type: "website",
     images: [
       {
-        url: "/images/og-image.png",
+        url: "https://vidyaloans.in/images/og-image.png",
         width: 1200,
         height: 630,
         alt: "VidyaLoans - Fund Your Dream Education Abroad",
@@ -51,7 +52,7 @@ export const metadata: Metadata = {
     title: "VidyaLoans - Fund Your Dream Education Abroad",
     description:
       "Compare education loans from our curated network of top lending partners. Get the best rates, quick approvals, and expert guidance.",
-    images: ["/images/og-image.png"],
+    images: ["https://vidyaloans.in/images/og-image.png"],
   },
   icons: {
     icon: [
@@ -167,6 +168,7 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-screen transition-colors duration-500 overflow-x-clip bg-white">
+        <SkipLink />
         {/* Google Tag Manager (Head / Interactive Script) */}
         <Script
           id="gtm-script"

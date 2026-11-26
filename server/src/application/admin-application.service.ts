@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 
 interface ApplicationRemark {
@@ -295,53 +295,66 @@ export class AdminApplicationService {
         }
     }
 
+    private resolveRoleScope(user?: any): { isAdmin: boolean; isBank: boolean; isStaff: boolean; bankName: string | null } {
+        if (!user) {
+            throw new ForbiddenException('Access denied: Authentication required');
+        }
+        const role = (user.role || '').toLowerCase();
+        const isAdmin = ['admin', 'super_admin', 'staff_admin'].includes(role);
+        const isBank = role === 'bank' || role === 'partner_bank' || role.startsWith('bank_');
+        const isStaff = role === 'staff' || role === 'support';
+
+        if (!isAdmin && !isBank && !isStaff) {
+            throw new ForbiddenException('Access denied: Insufficient role permissions');
+        }
+
+        let bankName: string | null = null;
+        if (isBank) {
+            let sessionBank = user?.bankName || user?.bank || user?.bankId;
+            if (!sessionBank && user?.email) {
+                const lowerEmail = user.email.toLowerCase().trim();
+                if (lowerEmail.includes('auxilo.com')) sessionBank = 'Auxilo';
+                else if (lowerEmail.includes('avanse.com')) sessionBank = 'Avanse';
+                else if (lowerEmail.includes('credila.com') || lowerEmail.includes('hdfccredila.com')) sessionBank = 'HDFC Credila';
+                else if (lowerEmail.includes('idfcfirstbank.com') || lowerEmail.includes('idfcbank.com')) sessionBank = 'IDFC';
+                else if (lowerEmail.includes('poonawallafincorp.com')) sessionBank = 'Poonawalla';
+            }
+            if (!sessionBank) {
+                throw new ForbiddenException('Access denied: Bank officer account is not assigned to any institution');
+            }
+            const lowerB = String(sessionBank).toLowerCase();
+            if (lowerB.includes('credila') || lowerB.includes('hdfc')) bankName = 'HDFC Credila';
+            else if (lowerB.includes('poonawalla')) bankName = 'Poonawalla';
+            else if (lowerB.includes('idfc')) bankName = 'IDFC';
+            else if (lowerB.includes('avanse')) bankName = 'Avanse';
+            else if (lowerB.includes('auxilo')) bankName = 'Auxilo';
+            else bankName = sessionBank;
+        }
+
+        return { isAdmin, isBank, isStaff, bankName };
+    }
+
     /**
      * Get portfolio analysis and health metrics
      */
     async getPortfolioAnalysis(user?: any, bankId?: string) {
+        const { isAdmin, isBank, isStaff, bankName } = this.resolveRoleScope(user);
         try {
-            const isBank = (user?.role === 'bank' || user?.role === 'partner_bank');
-            let bankName: string | null = null;
-            if (isBank) {
-                if (user?.bankName) {
-                    bankName = user.bankName;
-                } else if (user?.bank) {
-                    const lowerB = user.bank.toLowerCase();
-                    if (lowerB.includes('credila') || lowerB.includes('hdfc')) bankName = 'HDFC Credila';
-                    else if (lowerB.includes('poonawalla')) bankName = 'Poonawalla';
-                    else if (lowerB.includes('idfc')) bankName = 'IDFC';
-                    else if (lowerB.includes('avanse')) bankName = 'Avanse';
-                    else if (lowerB.includes('auxilo')) bankName = 'Auxilo';
-                    else bankName = user.bank;
-                }
-
-                // Try email corporate domain next
-                if (!bankName && user?.email) {
-                    const lowerEmail = user.email.toLowerCase().trim();
-                    if (lowerEmail.includes("auxilo.com")) bankName = 'Auxilo';
-                    else if (lowerEmail.includes("avanse.com")) bankName = 'Avanse';
-                    else if (lowerEmail.includes("credila.com") || lowerEmail.includes("hdfccredila.com")) bankName = 'HDFC Credila';
-                    else if (lowerEmail.includes("idfcfirstbank.com") || lowerEmail.includes("idfcbank.com")) bankName = 'IDFC';
-                    else if (lowerEmail.includes("poonawallafincorp.com")) bankName = 'Poonawalla';
-                }
-
-                if (!bankName) {
-                    const bId = bankId || user?.firstName;
-                    if (bId) {
-                        const lower = bId.toLowerCase();
-                        if (lower.includes('credila')) bankName = 'HDFC Credila';
-                        else if (lower.includes('poonawalla')) bankName = 'Poonawalla';
-                        else if (lower.includes('idfc')) bankName = 'IDFC';
-                        else if (lower.includes('avanse')) bankName = 'Avanse';
-                        else if (lower.includes('auxilo')) bankName = 'Auxilo';
-                        else bankName = bId;
-                    }
-                }
-            }
-
             let query = this.db.from('LoanApplication').select('*');
             if (isBank && bankName) {
                 query = query.ilike('bank', `%${bankName}%`);
+            } else if (isStaff) {
+                const staffId = user.id || user.uid;
+                const staffEmail = user.email;
+                if (staffId && staffEmail) {
+                    query = query.or(`assignedStaffId.eq.${staffId},assignedStaffId.eq.${staffEmail}`);
+                } else if (staffId) {
+                    query = query.eq('assignedStaffId', staffId);
+                } else {
+                    query = query.eq('assignedStaffId', '__none__');
+                }
+            } else if (isAdmin && bankId) {
+                query = query.ilike('bank', `%${bankId}%`);
             }
 
             const { data: applications, error } = await query;
@@ -422,49 +435,23 @@ export class AdminApplicationService {
     }
 
     async getComplianceReport(user?: any, bankId?: string) {
+        const { isAdmin, isBank, isStaff, bankName } = this.resolveRoleScope(user);
         try {
-            const isBank = (user?.role === 'bank' || user?.role === 'partner_bank');
-            let bankName: string | null = null;
-            if (isBank) {
-                if (user?.bankName) {
-                    bankName = user.bankName;
-                } else if (user?.bank) {
-                    const lowerB = user.bank.toLowerCase();
-                    if (lowerB.includes('credila') || lowerB.includes('hdfc')) bankName = 'HDFC Credila';
-                    else if (lowerB.includes('poonawalla')) bankName = 'Poonawalla';
-                    else if (lowerB.includes('idfc')) bankName = 'IDFC';
-                    else if (lowerB.includes('avanse')) bankName = 'Avanse';
-                    else if (lowerB.includes('auxilo')) bankName = 'Auxilo';
-                    else bankName = user.bank;
-                }
-
-                // Try email corporate domain next
-                if (!bankName && user?.email) {
-                    const lowerEmail = user.email.toLowerCase().trim();
-                    if (lowerEmail.includes("auxilo.com")) bankName = 'Auxilo';
-                    else if (lowerEmail.includes("avanse.com")) bankName = 'Avanse';
-                    else if (lowerEmail.includes("credila.com") || lowerEmail.includes("hdfccredila.com")) bankName = 'HDFC Credila';
-                    else if (lowerEmail.includes("idfcfirstbank.com") || lowerEmail.includes("idfcbank.com")) bankName = 'IDFC';
-                    else if (lowerEmail.includes("poonawallafincorp.com")) bankName = 'Poonawalla';
-                }
-
-                if (!bankName) {
-                    const bId = bankId || user?.firstName;
-                    if (bId) {
-                        const lower = bId.toLowerCase();
-                        if (lower.includes('credila')) bankName = 'HDFC Credila';
-                        else if (lower.includes('poonawalla')) bankName = 'Poonawalla';
-                        else if (lower.includes('idfc')) bankName = 'IDFC';
-                        else if (lower.includes('avanse')) bankName = 'Avanse';
-                        else if (lower.includes('auxilo')) bankName = 'Auxilo';
-                        else bankName = bId;
-                    }
-                }
-            }
-
             let query = this.db.from('LoanApplication').select('*');
             if (isBank && bankName) {
                 query = query.ilike('bank', `%${bankName}%`);
+            } else if (isStaff) {
+                const staffId = user.id || user.uid;
+                const staffEmail = user.email;
+                if (staffId && staffEmail) {
+                    query = query.or(`assignedStaffId.eq.${staffId},assignedStaffId.eq.${staffEmail}`);
+                } else if (staffId) {
+                    query = query.eq('assignedStaffId', staffId);
+                } else {
+                    query = query.eq('assignedStaffId', '__none__');
+                }
+            } else if (isAdmin && bankId) {
+                query = query.ilike('bank', `%${bankId}%`);
             }
 
             const { data: applications, error } = await query;

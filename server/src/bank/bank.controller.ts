@@ -332,6 +332,32 @@ export class BankController {
     return this.bankService.getOfficers(bankName);
   }
 
+  // ==================== DYNAMIC BANK TASKS & CALENDAR EVENTS ====================
+
+  @Get('tasks')
+  async getBankTasks(@Request() req) {
+    const bankName = this.resolveBankName(req);
+    return this.bankService.getBankTasks(bankName);
+  }
+
+  @Post('tasks')
+  async createBankTask(@Request() req, @Body() body: any) {
+    const bankName = this.resolveBankName(req);
+    return this.bankService.createBankTask(bankName, req.user, body);
+  }
+
+  @Put('tasks/:taskId')
+  async updateBankTask(@Request() req, @Param('taskId') taskId: string, @Body() body: any) {
+    const bankName = this.resolveBankName(req);
+    return this.bankService.updateBankTask(bankName, taskId, req.user, body);
+  }
+
+  @Delete('tasks/:taskId')
+  async deleteBankTask(@Request() req, @Param('taskId') taskId: string) {
+    const bankName = this.resolveBankName(req);
+    return this.bankService.deleteBankTask(bankName, taskId, req.user);
+  }
+
   // ==================== NEW ENDPOINTS ====================
 
   @Get('applications/:id/detail')

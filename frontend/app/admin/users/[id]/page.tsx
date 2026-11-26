@@ -3,7 +3,7 @@
 import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
-import { referenceApi } from "@/lib/api";
+import { referenceApi, getToken } from "@/lib/api";
 
 export default function UserProfileEdit({ params }: { params?: Promise<{ id: string }> | { id: string } }) {
     const router = useRouter();
@@ -35,11 +35,10 @@ export default function UserProfileEdit({ params }: { params?: Promise<{ id: str
             try {
                 setLoading(true);
                 // Get the admin token from localStorage
-                const token = typeof window !== 'undefined'
-                    ? (localStorage.getItem('adminAccessToken') || localStorage.getItem('staffAccessToken') || localStorage.getItem('accessToken') || '')
-                    : '';
+                const token = getToken() || '';
                 const [response, banksRes] = await Promise.all([
                     fetch(`/api/users/admin/${userId}`, {
+                        credentials: 'include',
                         headers: token ? { 'Authorization': `Bearer ${token}` } : {},
                     }),
                     referenceApi.getBanks().catch(() => ({ data: [] }))

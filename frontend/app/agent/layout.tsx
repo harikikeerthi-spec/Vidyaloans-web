@@ -161,7 +161,7 @@ function AgentLayoutInner({ children }: { children: React.ReactNode }) {
             </aside>
 
             {/* Main Application Area */}
-            <main className={`flex-1 p-6 min-w-0 flex flex-col h-full overflow-hidden transition-all duration-300 ${sidebarCollapsed ? "lg:pl-[84px]" : "lg:pl-[256px]"}`}>
+            <main id="main-content" tabIndex={-1} className={`flex-1 p-6 min-w-0 flex flex-col h-full overflow-hidden transition-all duration-300 focus:outline-none ${sidebarCollapsed ? "lg:pl-[84px]" : "lg:pl-[256px]"}`}>
                 <div className="flex-1 bg-white rounded-[3rem] border border-[#6605c7]/5 shadow-[0_20px_50px_rgb(102,5,199,0.06)] overflow-hidden flex flex-col relative">
 
                     {/* Header bar */}

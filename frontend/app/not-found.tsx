@@ -2,15 +2,17 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "404 - Page Not Found",
+  title: {
+    absolute: "404 - Page Not Found | VidyaLoans",
+  },
   description: "The page you are looking for does not exist on VidyaLoans.",
   robots: {
     index: false,
     follow: false,
   },
-  // Explicitly omit any canonical URL so search engines do not canonicalize dead URLs or /_not-found
+  // Explicitly drop canonical on 404 error page so search engines do not canonicalize /_not-found or dead URLs
   alternates: {
-    canonical: undefined,
+    canonical: null,
   },
 };
 

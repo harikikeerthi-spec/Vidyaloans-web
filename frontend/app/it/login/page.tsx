@@ -42,30 +42,14 @@ export default function ITLoginPage() {
                     refresh_token: res.refresh_token,
                 });
 
-                // Set dedicated IT access token in localStorage, sessionStorage, and cookies for persistent access
+                // Set non-sensitive user metadata for IT portal profile display
+                // (Session tokens are securely managed exclusively in HttpOnly cookies by the server)
                 if (typeof window !== "undefined") {
-                    localStorage.setItem("itAccessToken", res.access_token);
-                    sessionStorage.setItem("itAccessToken", res.access_token);
-                    localStorage.setItem("staffAccessToken", res.access_token);
-                    sessionStorage.setItem("staffAccessToken", res.access_token);
-
-                    if (res.refresh_token) {
-                        localStorage.setItem("itRefreshToken", res.refresh_token);
-                        sessionStorage.setItem("itRefreshToken", res.refresh_token);
-                        localStorage.setItem("staffRefreshToken", res.refresh_token);
-                        sessionStorage.setItem("staffRefreshToken", res.refresh_token);
-                    }
                     localStorage.setItem("itUserEmail", cleanEmail);
                     if (res.user?.id) {
                         localStorage.setItem("itUserId", res.user.id);
                     }
                     localStorage.setItem("itAuthUser", JSON.stringify(res.user));
-                    document.cookie = `itAccessToken=${res.access_token}; path=/; max-age=2592000; SameSite=Lax`;
-                    document.cookie = `staffAccessToken=${res.access_token}; path=/; max-age=2592000; SameSite=Lax`;
-                    if (res.refresh_token) {
-                        document.cookie = `itRefreshToken=${res.refresh_token}; path=/; max-age=604800; SameSite=Lax`;
-                        document.cookie = `staffRefreshToken=${res.refresh_token}; path=/; max-age=604800; SameSite=Lax`;
-                    }
                 }
 
                 // Redirect to IT dashboard

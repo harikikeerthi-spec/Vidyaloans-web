@@ -287,8 +287,12 @@ export class AuthService {
       expiresIn: refreshExpiresIn as any,
     });
 
-    // Store refresh token in database
-    // await this.usersService.updateRefreshToken(user.email, refreshToken);
+    // Store refresh token in database for revocation tracking
+    try {
+      await this.usersService.updateRefreshToken(user.email, refreshToken);
+    } catch (err: any) {
+      console.warn('[AuthService.generateTokens] Failed to store refresh token:', err?.message);
+    }
 
     return {
       access_token: accessToken,
@@ -1013,10 +1017,10 @@ export class AuthService {
         throw new UnauthorizedException('User not found');
       }
 
-      // Verify that the refresh token matches the one stored in database
-      // if (user.refreshToken !== refreshToken) {
-      //   throw new UnauthorizedException('Invalid refresh token');
-      // }
+      // Verify that the refresh token matches the one stored in database (revocation check)
+      if (!user.refreshToken || user.refreshToken !== refreshToken) {
+        throw new UnauthorizedException('Refresh token has been revoked or session invalidated. Please login again.');
+      }
 
       // Extract original login timestamp, with backward compatibility fallback to iat * 1000
       const originalLoginAt = payload.loginAt || (payload.iat ? payload.iat * 1000 : undefined);
@@ -1047,7 +1051,13 @@ export class AuthService {
    * Logout user by invalidating refresh token
    */
   async logout(email: string) {
-    // Feature disabled
+    if (email) {
+      try {
+        await this.usersService.updateRefreshToken(email, null);
+      } catch (err: any) {
+        console.warn('[AuthService.logout] Failed to clear refresh token:', err?.message);
+      }
+    }
     return {
       success: true,
       message: 'Logged out successfully',

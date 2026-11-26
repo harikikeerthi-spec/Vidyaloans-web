@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { io, Socket } from "socket.io-client";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, getToken } from "@/lib/api";
 import { createPortal } from "react-dom";
 
 interface BankNotification {
@@ -268,16 +268,15 @@ export default function BankNotificationsPanel({
           ? window.location.origin
           : "http://127.0.0.1:5000");
 
-    const token =
-      localStorage.getItem("bankAccessToken") ||
-      localStorage.getItem("accessToken");
+    const token = getToken();
 
     const socketUrl = baseApiUrl.endsWith("/api")
       ? baseApiUrl.replace("/api", "/chat")
       : `${baseApiUrl.replace(/\/$/, "")}/chat`;
 
     socketRef.current = io(socketUrl, {
-      auth: { token },
+      withCredentials: true,
+      auth: token ? { token } : undefined,
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,

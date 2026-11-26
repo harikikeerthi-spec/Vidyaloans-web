@@ -254,7 +254,7 @@ export default function Navbar() {
                     {/* Desktop Nav Links */}
                     {isUserDetailsPage || isIncompleteStudent ? (
                         <div className="hidden lg:flex items-center gap-2 text-xs font-semibold text-purple-700 bg-purple-50 px-3.5 py-1.5 rounded-full border border-purple-100">
-                            <span className="material-symbols-outlined text-sm">badge</span>
+                            <span className="material-symbols-outlined text-sm" aria-hidden="true">badge</span>
                             <span>Profile Setup In Progress</span>
                         </div>
                     ) : (
@@ -519,7 +519,7 @@ export default function Navbar() {
                                                 onClick={handleLogout}
                                                 className="flex items-center justify-center gap-2 w-full px-4 py-2 text-xs font-bold text-white bg-red-500 hover:bg-red-600 rounded-xl transition-colors uppercase tracking-wider border-0 cursor-pointer"
                                             >
-                                                <span className="material-symbols-outlined text-sm">logout</span>
+                                                <span className="material-symbols-outlined text-sm" aria-hidden="true">logout</span>
                                                 Sign Out
                                             </button>
                                         </div>
@@ -543,9 +543,10 @@ export default function Navbar() {
                     <button
                         className={`lg:hidden w-9 h-9 rounded-full flex items-center justify-center transition-colors bg-[#190f23]/5 text-[#190f23]`}
                         onClick={() => setMobileOpen((o) => !o)}
-                        aria-label="Toggle menu"
+                        aria-label={mobileOpen ? "Close menu" : "Open menu"}
+                        aria-expanded={mobileOpen}
                     >
-                        <span className="material-symbols-outlined text-xl">{mobileOpen ? "close" : "menu"}</span>
+                        <span className="material-symbols-outlined text-xl" aria-hidden="true">{mobileOpen ? "close" : "menu"}</span>
                     </button>
                 </div>
             </div>

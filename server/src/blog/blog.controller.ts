@@ -344,11 +344,30 @@ export class BlogController {
         });
     }
 
+    private isAdminRole(user: any): boolean {
+        const role = (user?.role || '').toLowerCase();
+        return role === 'admin' || role === 'super_admin';
+    }
+
+    private assertEditorialContributor(user: any): void {
+        const role = (user?.role || '').toLowerCase();
+        const allowed = ['admin', 'super_admin', 'it', 'it_admin', 'staff', 'staff_admin', 'marketing'];
+        if (!allowed.includes(role)) {
+            throw new ForbiddenException('Access denied: Insufficient role permissions for blog management');
+        }
+    }
+
+    private assertAdminApprover(user: any): void {
+        if (!this.isAdminRole(user)) {
+            throw new ForbiddenException('Access denied: Admin approval is required to publish, unpublish, approve, reject, or bulk-modify posts');
+        }
+    }
+
     /**
-     * Create a new blog post - ADMIN ONLY
+     * Create a new blog post
      * POST /blogs
      * @body title, slug, excerpt, content, category, authorName, authorImage?, 
-     *       authorRole?, featuredImage?, readTime?, isFeatured?, isPublished?
+     *       authorRole?, featuredImage?, readTime?, isFeatured?, isPublished?, submitForApproval?
      * @returns { success: boolean, message: string, data: Blog }
      */
     @Post()
@@ -368,17 +387,33 @@ export class BlogController {
             readTime?: number;
             isFeatured?: boolean;
             isPublished?: boolean;
+            published?: boolean;
+            submitForApproval?: boolean;
+            status?: string;
             authorId?: string;
             tags?: string[];
         },
         @Request() req: any,
     ) {
+        this.assertEditorialContributor(req.user);
+
         const blogData: any = { ...body };
-        if (body.authorId) {
+        if (body.authorId && this.isAdminRole(req.user)) {
             blogData.authorId = body.authorId;
         } else if (req.user?.id) {
             blogData.authorId = req.user.id;
         }
+
+        // Non-admin roles (IT, staff, marketing) cannot publish directly; posts start as draft or pending approval
+        if (!this.isAdminRole(req.user)) {
+            blogData.isPublished = false;
+            blogData.published = false;
+            blogData.visibility = 'private';
+            blogData.status = (body.submitForApproval || body.published || body.isPublished || body.status === 'pending')
+                ? 'pending'
+                : 'draft';
+        }
+
         return this.blogService.createBlog(blogData);
     }
 
@@ -403,19 +438,34 @@ export class BlogController {
     }
 
     /**
-     * Delete a blog post - ADMIN ONLY
+     * Delete a blog post
      * DELETE /blogs/:id
      * @param id - Blog ID
      * @returns { success: boolean, message: string }
      */
     @Delete(':id')
     @UseGuards(StaffGuard)
-    async deleteBlog(@Param('id') id: string) {
+    async deleteBlog(@Request() req: any, @Param('id') id: string) {
+        this.assertEditorialContributor(req.user);
+
+        if (!this.isAdminRole(req.user)) {
+            const existing = await this.blogService.getAdminBlogDetail(id);
+            if (!existing) {
+                throw new NotFoundException('Blog not found');
+            }
+            if (existing.isPublished || existing.status === 'published') {
+                throw new ForbiddenException('Live published posts cannot be deleted directly by IT/Staff');
+            }
+            if (existing.authorId && req.user?.id && existing.authorId !== req.user.id) {
+                throw new ForbiddenException("Cannot delete another author's draft");
+            }
+        }
+
         return this.blogService.deleteBlog(id);
     }
 
     /**
-     * Update a blog post - ADMIN ONLY
+     * Update a blog post
      * PUT /blogs/:id
      * @param id - Blog ID
      * @body Any blog fields to update
@@ -424,6 +474,7 @@ export class BlogController {
     @Put(':id')
     @UseGuards(StaffGuard)
     async updateBlog(
+        @Request() req: any,
         @Param('id') id: string,
         @Body()
         body: {
@@ -439,10 +490,34 @@ export class BlogController {
             readTime?: number;
             isFeatured?: boolean;
             isPublished?: boolean;
+            published?: boolean;
+            status?: string;
+            submitForApproval?: boolean;
             tags?: string[];
         },
     ) {
-        return this.blogService.updateBlog(id, body);
+        this.assertEditorialContributor(req.user);
+
+        const updatePayload: any = { ...body };
+        if (!this.isAdminRole(req.user)) {
+            const existing = await this.blogService.getAdminBlogDetail(id);
+            if (!existing) {
+                throw new NotFoundException('Blog not found');
+            }
+            if (existing.isPublished || existing.status === 'published') {
+                throw new ForbiddenException('Live published posts cannot be edited directly by IT/Staff; request Admin to unpublish first');
+            }
+            if (body.isPublished === true || body.published === true || body.status === 'published') {
+                throw new ForbiddenException('Only Admins can publish blog posts; submit for approval instead');
+            }
+            updatePayload.isPublished = false;
+            updatePayload.published = false;
+            if (body.submitForApproval || body.status === 'pending') {
+                updatePayload.status = 'pending';
+            }
+        }
+
+        return this.blogService.updateBlog(id, updatePayload);
     }
 
     /**
@@ -454,8 +529,10 @@ export class BlogController {
     @Post('admin/bulk-delete')
     @UseGuards(StaffGuard)
     async bulkDeleteBlogs(
+        @Request() req: any,
         @Body() body: { blogIds: string[] }
     ) {
+        this.assertAdminApprover(req.user);
         return this.blogService.bulkDeleteBlogs(body.blogIds);
     }
 
@@ -468,8 +545,10 @@ export class BlogController {
     @Post('admin/bulk-status')
     @UseGuards(StaffGuard)
     async bulkUpdateStatus(
+        @Request() req: any,
         @Body() body: { blogIds: string[], isPublished: boolean }
     ) {
+        this.assertAdminApprover(req.user);
         return this.blogService.bulkUpdateStatus(body.blogIds, body.isPublished);
     }
 
@@ -548,6 +627,14 @@ export class BlogController {
         await this.authService.canEditBlog(blogId, req.user);
 
         const originalBlog = await this.blogService.getAdminBlogDetail(blogId);
+        if (!this.isAdminRole(req.user)) {
+            if (originalBlog?.isPublished || originalBlog?.status === 'published') {
+                throw new ForbiddenException('Live published posts cannot be edited directly by IT/Staff; request Admin to unpublish first');
+            }
+            if (body.isPublished === true || body.published === true || body.status === 'published') {
+                throw new ForbiddenException('Only Admins can publish blog posts');
+            }
+        }
         const updatedBlog = await this.blogService.updateBlog(blogId, body);
 
         // Log audit
@@ -580,6 +667,9 @@ export class BlogController {
         await this.authService.canDeleteBlog(blogId, req.user);
 
         const blog = await this.blogService.getAdminBlogDetail(blogId);
+        if (!this.isAdminRole(req.user) && (blog?.isPublished || blog?.status === 'published')) {
+            throw new ForbiddenException('Live published posts cannot be deleted directly by IT/Staff');
+        }
         await this.blogService.deleteBlog(blogId);
 
         // Log audit
@@ -632,7 +722,7 @@ export class BlogController {
     }
 
     /**
-     * Publish blog
+     * Publish blog (Admin only)
      * POST /admin/blogs/:id/publish
      */
     @Post('admin/:id/publish')
@@ -642,8 +732,7 @@ export class BlogController {
         @Param('id') blogId: string,
         @Body() body: { visibility?: 'private' | 'public' },
     ) {
-        // Check ownership
-        await this.authService.canEditBlog(blogId, req.user);
+        this.assertAdminApprover(req.user);
 
         const blog = await this.blogService.publishBlog(blogId, body.visibility || 'public');
 
@@ -665,7 +754,7 @@ export class BlogController {
     }
 
     /**
-     * Unpublish blog
+     * Unpublish blog (Admin only)
      * POST /admin/blogs/:id/unpublish
      */
     @Post('admin/:id/unpublish')
@@ -675,8 +764,7 @@ export class BlogController {
         @Param('id') blogId: string,
         @Body() body: { reason?: string },
     ) {
-        // Check ownership
-        await this.authService.canEditBlog(blogId, req.user);
+        this.assertAdminApprover(req.user);
 
         const blog = await this.blogService.unpublishBlog(blogId, body.reason);
 
@@ -772,6 +860,7 @@ export class BlogController {
         @Param('id') blogId: string,
         @Body() body: { notes?: string },
     ) {
+        this.assertAdminApprover(req.user);
         const blog = await this.blogService.approveBlog(blogId, req.user.id, body.notes);
 
         // Log audit
@@ -792,7 +881,7 @@ export class BlogController {
     }
 
     /**
-     * Reject blog (super admin only)
+     * Reject blog (admin / super admin only)
      * POST /super-admin/blogs/:id/reject
      */
     @Post('super-admin/:id/reject')
@@ -802,6 +891,7 @@ export class BlogController {
         @Param('id') blogId: string,
         @Body() body: { reason: string },
     ) {
+        this.assertAdminApprover(req.user);
         const blog = await this.blogService.rejectBlog(blogId, body.reason);
 
         // Log audit

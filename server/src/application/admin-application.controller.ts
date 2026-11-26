@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Put, Body, Param, UseGuards, Request } from '@nestjs/common';
+import { Controller, Post, Get, Put, Body, Param, UseGuards, Request, ForbiddenException } from '@nestjs/common';
 import { AdminApplicationService } from './admin-application.service';
 import { AssignmentService } from '../assignment/assignment.service';
 import { StaffGuard } from '../auth/staff.guard';
@@ -11,8 +11,28 @@ export class AdminApplicationController {
         private assignmentService: AssignmentService,
     ) {}
 
+    private assertAdminRole(req: any) {
+        const role = (req?.user?.role || '').toLowerCase();
+        if (!['admin', 'super_admin', 'staff_admin'].includes(role)) {
+            throw new ForbiddenException('Access denied: Admin privileges required');
+        }
+    }
+
+    private async assertAdminOrAssignedStaff(appId: string, req: any) {
+        const role = (req?.user?.role || '').toLowerCase();
+        if (['admin', 'super_admin', 'staff_admin'].includes(role)) {
+            return;
+        }
+        if (role === 'staff' || role === 'support') {
+            await this.assignmentService.verifyStaffAccess(appId, req.user?.id || req.user?.uid);
+            return;
+        }
+        throw new ForbiddenException('Access denied: Insufficient role permissions');
+    }
+
     @Post('assign-all-unassigned')
     async assignAllUnassigned(@Request() req: any) {
+        this.assertAdminRole(req);
         const triggeredBy = req.user?.id || req.user?.uid || 'admin';
         const result = await this.assignmentService.assignAllUnassigned(triggeredBy);
         return { success: true, message: `Auto-assignment completed. Assigned: ${result.assigned}, Skipped: ${result.skipped}, Failed: ${result.failed}`, data: result };
@@ -20,6 +40,7 @@ export class AdminApplicationController {
 
     @Post('auto-assign-all-unassigned')
     async autoAssignAllUnassigned(@Request() req: any) {
+        this.assertAdminRole(req);
         const triggeredBy = req.user?.id || req.user?.uid || 'admin';
         const result = await this.assignmentService.assignAllUnassigned(triggeredBy);
         return { success: true, message: `Auto-assignment completed. Assigned: ${result.assigned}, Skipped: ${result.skipped}, Failed: ${result.failed}`, data: result };
@@ -27,6 +48,7 @@ export class AdminApplicationController {
 
     @Post('auto-assign')
     async autoAssign(@Request() req: any) {
+        this.assertAdminRole(req);
         const triggeredBy = req.user?.id || req.user?.uid || 'admin';
         const result = await this.assignmentService.assignAllUnassigned(triggeredBy);
         return { success: true, message: `Auto-assignment completed. Assigned: ${result.assigned}, Skipped: ${result.skipped}, Failed: ${result.failed}`, data: result };
@@ -38,6 +60,7 @@ export class AdminApplicationController {
         @Body() body: { toStaffId: string; reason?: string },
         @Request() req: any,
     ) {
+        this.assertAdminRole(req);
         const assignedBy = req.user?.id || req.user?.uid || 'admin';
         return await this.assignmentService.reassignLoan(
             loanId,
@@ -53,6 +76,7 @@ export class AdminApplicationController {
         @Body() body: { toStaffId: string; reason?: string },
         @Request() req: any,
     ) {
+        this.assertAdminRole(req);
         const assignedBy = req.user?.id || req.user?.uid || 'admin';
         return await this.assignmentService.reassignLoan(
             loanId,
@@ -67,6 +91,7 @@ export class AdminApplicationController {
         @Body() body: { loanIds: string[]; toStaffId: string; reason?: string },
         @Request() req: any,
     ) {
+        this.assertAdminRole(req);
         const assignedBy = req.user?.id || req.user?.uid || 'admin';
         return await this.assignmentService.bulkReassignLoans(
             body.loanIds,
@@ -90,6 +115,7 @@ export class AdminApplicationController {
         },
         @Request() req,
     ) {
+        await this.assertAdminOrAssignedStaff(appId, req);
         return await this.adminApplicationService.addRemark(appId, {
             applicationId: appId,
             type: body.type,
@@ -105,7 +131,8 @@ export class AdminApplicationController {
      * Get all remarks for an application
      */
     @Get(':id/remarks')
-    async getRemarks(@Param('id') appId: string) {
+    async getRemarks(@Request() req, @Param('id') appId: string) {
+        await this.assertAdminOrAssignedStaff(appId, req);
         const remarks = await this.adminApplicationService.getApplicationRemarks(appId);
         return { success: true, data: remarks };
     }
@@ -126,6 +153,7 @@ export class AdminApplicationController {
         },
         @Request() req,
     ) {
+        this.assertAdminRole(req);
         return await this.adminApplicationService.assignMentorCounselor({
             applicationId: appId,
             mentorId: body.mentorId,
@@ -141,6 +169,7 @@ export class AdminApplicationController {
      */
     @Put(':id/risk-assessment')
     async assessRisk(
+        @Request() req,
         @Param('id') appId: string,
         @Body()
         body: {
@@ -149,6 +178,7 @@ export class AdminApplicationController {
             notes?: string;
         },
     ) {
+        await this.assertAdminOrAssignedStaff(appId, req);
         return await this.adminApplicationService.assessRisk({
             applicationId: appId,
             riskLevel: body.riskLevel,
@@ -171,6 +201,7 @@ export class AdminApplicationController {
         },
         @Request() req,
     ) {
+        this.assertAdminRole(req);
         return await this.adminApplicationService.batchProcessApplications(
             body.applicationIds,
             body.action,
@@ -185,7 +216,8 @@ export class AdminApplicationController {
      * Check application eligibility
      */
     @Get(':id/eligibility')
-    async checkEligibility(@Param('id') appId: string) {
+    async checkEligibility(@Request() req, @Param('id') appId: string) {
+        await this.assertAdminOrAssignedStaff(appId, req);
         const assessment = await this.adminApplicationService.checkEligibility(appId);
         return { success: true, data: assessment };
     }
