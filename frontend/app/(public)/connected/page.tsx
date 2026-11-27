@@ -516,7 +516,7 @@ function CohortApplicationForm() {
         setServerError("");
         try {
             const { connectedApi } = await import("@/lib/api");
-            await connectedApi.apply({
+            const res: any = await connectedApi.apply({
                 fullName: form.fullName,
                 email: form.email,
                 phone: form.phone,
@@ -526,6 +526,9 @@ function CohortApplicationForm() {
                 course: form.course || undefined,
                 message: form.message || undefined,
             });
+            if (res && res.success === false) {
+                throw new Error(res.message || "Failed to submit application. Please try again.");
+            }
             setSubmitted(true);
         } catch (err: any) {
             setServerError(err?.message || "Something went wrong. Please try again.");

@@ -440,27 +440,66 @@ export class UniversityInquiryService implements OnModuleInit {
   }
 
   private async sendInquiryEmails(data: any) {
+    const isNewsletter =
+      data.type === 'blog_newsletter' ||
+      data.type === 'newsletter' ||
+      data.universityName === 'Blog Newsletter Subscription';
+
     const typeLabel = data.type === 'contact'
       ? 'Contact Form Enquiry'
       : (data.type === 'fasttrack'
         ? 'Fasttrack Application'
-        : (data.type === 'blog_registration' || data.type === 'newsletter'
+        : (isNewsletter || data.type === 'blog_registration'
           ? 'Newsletter Subscription'
           : 'Request a Callback'));
 
-    const userHtml = `
+    const escapeHtml = (s: any) =>
+      String(s || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
+    const safeName = escapeHtml(data.name || 'Reader');
+    const safeUni = escapeHtml(data.universityName || '');
+    const safeMobile = escapeHtml(data.mobile || '');
+
+    const userSubject = isNewsletter
+      ? 'Subscribed: VidyaLoans Education Loan Newsletter'
+      : `Inquiry Received: ${data.universityName}`;
+
+    const userHtml = isNewsletter
+      ? `
+      <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 12px; background: #ffffff;">
+        <div style="background: linear-gradient(135deg, #6605c7 0%, #8b5cf6 100%); padding: 28px; border-radius: 10px; text-align: center; margin-bottom: 24px;">
+          <h1 style="color: white; margin: 0; font-size: 22px;">VidyaLoans</h1>
+        </div>
+        <div style="padding: 0 8px;">
+          <h2 style="color: #111827; margin-bottom: 12px;">You're subscribed to the VidyaLoans Newsletter!</h2>
+          <p style="color: #4b5563; font-size: 15px; line-height: 1.6;">Hi ${safeName},</p>
+          <p style="color: #4b5563; font-size: 15px; line-height: 1.6;">
+            Thank you for subscribing from our blog. You will receive curated education loan guides, lender rate updates, scholarship alerts, and study-abroad financing tips directly in your inbox.
+          </p>
+          <p style="color: #6b7280; font-size: 13px; margin-top: 20px;">
+            Questions? Write to us anytime at <a href="mailto:support@vidyaloans.in" style="color: #6605c7;">support@vidyaloans.in</a>.
+          </p>
+        </div>
+      </div>
+    `
+      : `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 12px;">
         <div style="background: linear-gradient(135deg, #6605c7 0%, #8b5cf6 100%); padding: 30px; border-radius: 10px; text-align: center; margin-bottom: 24px;">
-          <h1 style="color: white; margin: 0; font-size: 24px;">Vidya Loan</h1>
+          <h1 style="color: white; margin: 0; font-size: 24px;">VidyaLoans</h1>
         </div>
         <div style="padding: 0 10px;">
           <h2 style="color: #111827; margin-bottom: 16px;">We've received your request!</h2>
-          <p style="color: #4b5563; font-size: 16px; line-height: 1.5;">Hi ${data.name},</p>
-          <p style="color: #4b5563; font-size: 16px; line-height: 1.5;">We have received your ${typeLabel.toLowerCase()} inquiry for <strong>${data.universityName}</strong>.</p>
+          <p style="color: #4b5563; font-size: 16px; line-height: 1.5;">Hi ${safeName},</p>
+          <p style="color: #4b5563; font-size: 16px; line-height: 1.5;">We have received your ${typeLabel.toLowerCase()} inquiry for <strong>${safeUni}</strong>.</p>
           <div style="background: #f9fafb; padding: 20px; border-radius: 8px; margin: 20px 0;">
-            <p style="margin: 5px 0;"><strong>Name:</strong> ${data.name}</p>
-            <p style="margin: 5px 0;"><strong>Mobile:</strong> ${data.mobile}</p>
-            <p style="margin: 5px 0;"><strong>University:</strong> ${data.universityName}</p>
+            <p style="margin: 5px 0;"><strong>Name:</strong> ${safeName}</p>
+            <p style="margin: 5px 0;"><strong>Mobile:</strong> ${safeMobile}</p>
+            <p style="margin: 5px 0;"><strong>University:</strong> ${safeUni}</p>
             <p style="margin: 5px 0;"><strong>Request:</strong> ${typeLabel}</p>
           </div>
           <p style="color: #4b5563; font-size: 16px;">Our education consultants will call you shortly.</p>
@@ -471,10 +510,10 @@ export class UniversityInquiryService implements OnModuleInit {
     const adminHtml = `
       <div style="font-family: Arial, sans-serif; padding: 20px;">
         <h2>New Lead Generated</h2>
-        <p><strong>Name:</strong> ${data.name}</p>
-        <p><strong>Email:</strong> ${data.email}</p>
-        <p><strong>Mobile:</strong> ${data.mobile}</p>
-        <p><strong>University:</strong> ${data.universityName}</p>
+        <p><strong>Name:</strong> ${safeName}</p>
+        <p><strong>Email:</strong> ${escapeHtml(data.email)}</p>
+        <p><strong>Mobile:</strong> ${safeMobile}</p>
+        <p><strong>University:</strong> ${safeUni}</p>
         <p><strong>Lead Type:</strong> ${typeLabel}</p>
       </div>
     `;
@@ -485,7 +524,7 @@ export class UniversityInquiryService implements OnModuleInit {
 
       // Only send confirmation email to student if an actual student email was provided
       if (!isPlaceholder) {
-        await this.emailService.sendMail(recipientEmail, `Inquiry Received: ${data.universityName}`, userHtml);
+        await this.emailService.sendMail(recipientEmail, userSubject, userHtml);
       }
 
       // Always notify admin
