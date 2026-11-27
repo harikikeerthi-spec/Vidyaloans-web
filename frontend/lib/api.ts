@@ -1424,7 +1424,7 @@ export const adminApi = {
             method: "DELETE",
         }),
     getAuditLogs: (limit = 20) =>
-        apiFetch(HttpApiPaths.admin.matrixLogs(limit)),
+        apiFetch(HttpApiPaths.admin.auditLogs(limit)),
     sendEmail: (data: { to?: string; subject: string; content: string; role?: string; isBulk?: boolean }) =>
         apiFetch(HttpApiPaths.admin.sendEmail(), {
             method: "POST",

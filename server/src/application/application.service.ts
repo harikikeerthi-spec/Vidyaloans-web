@@ -12,6 +12,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as crypto from 'crypto';
 import { AssignmentService } from '../assignment/assignment.service';
+import { AuditLogService } from '../auth/audit-log.service';
 
 const APPLICATION_STAGES = {
   application_created: { order: 1, label: 'Created', progress: 10 },
@@ -84,6 +85,7 @@ export class ApplicationService {
     private evvEngine: EvvEngineService,
     private workflowService: BankWorkflowService,
     private assignmentService: AssignmentService,
+    private auditLogService: AuditLogService,
   ) { }
 
   private parseDate(dateStr: string | null | undefined): string | null {
@@ -1934,6 +1936,13 @@ export class ApplicationService {
             verifiedAt: syncPayload.verifiedAt,
           });
         }
+        await this.auditLogService.logAction(
+          mappedStatus === 'verified' ? 'DOCUMENT_VERIFIED' : 'DOCUMENT_REJECTED',
+          'UserDocument',
+          userDoc.id,
+          { id: adminId, email: '' },
+          { docType: userDoc.docType, status: mappedStatus, rejectionReason: data.rejectionReason || null },
+        );
       }
       return { success: true, message: `Vault document ${data.status} successfully` };
     }
@@ -1995,6 +2004,13 @@ export class ApplicationService {
               verifiedAt: syncPayload.verifiedAt,
             });
           }
+          await this.auditLogService.logAction(
+            mappedStatus === 'verified' ? 'DOCUMENT_VERIFIED' : 'DOCUMENT_REJECTED',
+            'UserDocument',
+            updatedUserDoc.id,
+            { id: adminId, email: '' },
+            { docType: updatedUserDoc.docType, status: mappedStatus, rejectionReason: data.rejectionReason || null },
+          );
         }
         return { success: true, message: `Vault document ${data.status} successfully` };
       }
@@ -2074,6 +2090,14 @@ export class ApplicationService {
       }
     }
 
+    await this.auditLogService.logAction(
+      data.status === 'verified' ? 'DOCUMENT_VERIFIED' : 'DOCUMENT_REJECTED',
+      'ApplicationDocument',
+      documentId,
+      { id: adminId, email: '' },
+      { applicationId: appDoc.applicationId, docType: appDoc.docType, status: data.status, rejectionReason: data.rejectionReason || null },
+    );
+
     return { success: true, data: updated, message: `Document ${data.status} successfully` };
   }
 
@@ -2102,6 +2126,14 @@ export class ApplicationService {
     } catch {
       // non-fatal
     }
+
+    await this.auditLogService.logAction(
+      'NOTE_ADDED',
+      'ApplicationNote',
+      note?.id || applicationId,
+      { id: authorId, email: '' },
+      { applicationId, type: data.type || 'admin_note', isInternal: data.isInternal !== undefined ? data.isInternal : true },
+    );
 
     return { success: true, data: note, message: 'Note added successfully' };
   }

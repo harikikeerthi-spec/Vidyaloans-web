@@ -555,7 +555,7 @@ export default async function HomePage() {
                                 <ToolCard href="/compare-universities" bg="bg-[#e1f0f7]" icon="/images/tools/compare-uni.png" title="University Compare" desc="Get insights on income, employability, costs, and top recruiters of up to 4 universities." cta="Compare Now" />
                             </div>
                             <div className="max-w-3xl mx-auto">
-                                <ToolCard href="/admit-predictor" bg="bg-[#e7e1f7]" icon="/images/tools/admit-predictor.png" title="Admit Predictor" desc="Check the probability of your MS in US admission. Predict your admission chances with 98% accuracy." cta="Evaluate Now" large />
+                                <ToolCard href="/admit-predictor" bg="bg-[#e7e1f7]" icon="/images/tools/admit-predictor.png" title="Admit Predictor" desc="Estimate your MS in US admission probability using historical admit profiles and academic benchmarks." cta="Evaluate Now" large />
                             </div>
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                                 <ToolCard href="/grade-converter" bg="bg-[#e1f0f7]" icon="/images/tools/calculator.png" title="Grade Converter" desc="Convert your percentage or 10-point CGPA to GPA score with just a single click." cta="Convert Now" />
@@ -565,7 +565,7 @@ export default async function HomePage() {
                         </div>
 
                         <div className="mt-12 flex flex-wrap justify-center gap-12 text-center border-t border-black/5 pt-12">
-                            {[{ num: SITE_STATS.universities, label: "Universities Covered" }, { num: "98%", label: "Accuracy Rate" }].map((s) => (
+                            {[{ num: SITE_STATS.universities, label: "Universities Covered" }, { num: "10K+", label: "Profiles Analyzed" }].map((s) => (
                                 <div key={s.label}>
                                     <div className="text-4xl font-bold text-gray-900"><AnimatedNumber value={s.num} duration={2.5} /></div>
                                     <div className="text-xs text-gray-500 uppercase font-bold tracking-widest mt-1">{s.label}</div>
@@ -608,7 +608,7 @@ export default async function HomePage() {
                                     { num: '01', emoji: '📋', title: 'Check Eligibility', desc: 'Answer a few smart questions about your university, course, and financial profile.', time: '2 mins', chips: ['No credit score', 'AI-assisted'], color: '#7c3aed', bg: '#f5f0ff', border: '#c4b5fd' },
                                     { num: '02', emoji: '⚖️', title: 'Compare Offers', desc: 'Get personalized loan offers from 5+ lenders. Compare rates and terms.', time: '5 mins', chips: ['5+ lenders', 'Best rates'], color: '#0284c7', bg: '#e0f2fe', border: '#7dd3fc' },
                                     { num: '03', emoji: '📁', title: 'Apply Online', desc: 'Complete your application digitally. Upload documents and e-sign securely.', time: '10 mins', chips: ['100% digital', 'e-KYC'], color: '#059669', bg: '#ecfdf5', border: '#6ee7b7' },
-                                    { num: '04', emoji: '💸', title: 'Get Funded', desc: 'Receive your sanction letter in 48 hours. Funds disbursed to your university.', time: '48 hrs', chips: ['Fastest', 'Zero fees'], color: '#b45309', bg: '#fffbeb', border: '#fcd34d' },
+                                    { num: '04', emoji: '💸', title: 'Get Funded', desc: 'Receive your sanction letter in 48 hours. Funds disbursed to your university.', time: '48 hrs', chips: ['Fastest', 'Zero platform fee'], color: '#b45309', bg: '#fffbeb', border: '#fcd34d' },
                                 ]}
                             />
 
@@ -618,7 +618,7 @@ export default async function HomePage() {
                                     { num: '01', emoji: '📋', title: 'Check Eligibility', desc: 'Answer a few smart questions about your university, course, and financial profile.', time: '2 mins', chips: ['No credit score', 'AI-assisted'], color: '#7c3aed', bg: '#f5f0ff', border: '#c4b5fd' },
                                     { num: '02', emoji: '⚖️', title: 'Compare Offers', desc: 'Get personalized loan offers from 5+ lenders. Compare rates and terms.', time: '5 mins', chips: ['5+ lenders', 'Best rates'], color: '#0284c7', bg: '#e0f2fe', border: '#7dd3fc' },
                                     { num: '03', emoji: '📁', title: 'Apply Online', desc: 'Complete your application digitally. Upload documents and e-sign securely.', time: '10 mins', chips: ['100% digital', 'e-KYC'], color: '#059669', bg: '#ecfdf5', border: '#6ee7b7' },
-                                    { num: '04', emoji: '💸', title: 'Get Funded', desc: 'Receive your sanction letter in 48 hours. Funds disbursed to your university.', time: '48 hrs', chips: ['Fastest', 'Zero fees'], color: '#b45309', bg: '#fffbeb', border: '#fcd34d' },
+                                    { num: '04', emoji: '💸', title: 'Get Funded', desc: 'Receive your sanction letter in 48 hours. Funds disbursed to your university.', time: '48 hrs', chips: ['Fastest', 'Zero platform fee'], color: '#b45309', bg: '#fffbeb', border: '#fcd34d' },
                                 ].map((step) => (
                                     <div key={step.num} className="group relative flex flex-col items-center text-center">
                                         <div
@@ -653,7 +653,7 @@ export default async function HomePage() {
                                 {[
                                     { icon: 'security', text: 'Bank-grade security' },
                                     { icon: 'support_agent', text: 'Dedicated advisor' },
-                                    { icon: 'verified', text: 'RBI regulated' },
+                                    { icon: 'verified', text: 'RBI-regulated lenders' },
                                 ].map(t => (
                                     <div key={t.text} className="flex items-center gap-2 text-gray-500 text-[13px] font-bold">
                                         <span className="material-symbols-outlined text-[#6605c7] text-base icon-filled" aria-hidden="true">{t.icon}</span>

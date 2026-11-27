@@ -414,4 +414,56 @@ export class ReferenceController {
     async deleteOffice(@Param('id') id: string) {
         return this.referenceService.deleteOffice(id);
     }
+
+    // ==================== VERSIONED LENDER RULES ====================
+
+    /**
+     * Get active versioned rules for all lenders (or a single lender) as of a given date
+     * GET /reference/lender-rules
+     */
+    @Get('lender-rules')
+    async getLenderRules(
+        @Query('bank') bank?: string,
+        @Query('asOf') asOf?: string,
+    ) {
+        return this.referenceService.getLenderRules(bank, asOf);
+    }
+
+    /**
+     * Get all rule versions for a specific bank
+     * GET /reference/banks/:id/rules
+     */
+    @Get('banks/:id/rules')
+    async getBankRuleVersions(@Param('id') id: string) {
+        return this.referenceService.getBankRuleVersions(id);
+    }
+
+    /**
+     * Publish a new versioned lender rule (Admin Only)
+     * POST /reference/banks/:id/rules
+     */
+    @UseGuards(AdminGuard)
+    @Post('banks/:id/rules')
+    async createBankRuleVersion(
+        @Param('id') id: string,
+        @Body() body: {
+            effectiveFrom?: string;
+            effectiveTo?: string | null;
+            interestRateMin: number;
+            interestRateMax: number;
+            moratoriumInterestType?: 'SIMPLE' | 'COMPOUND' | 'PARTIAL_SIMPLE' | 'NONE';
+            moratoriumPeriodMonths?: number;
+            processingFeePercent?: number;
+            processingFeeFlat?: number;
+            gstPercent?: number;
+            maxFoirPercent?: number;
+            maxLtvPercent?: number;
+            roundingMode?: 'NEAREST' | 'CEIL' | 'FLOOR';
+            roundingPrecision?: number;
+            approvedBy?: string;
+            notes?: string;
+        },
+    ) {
+        return this.referenceService.createBankRuleVersion(id, body);
+    }
 }

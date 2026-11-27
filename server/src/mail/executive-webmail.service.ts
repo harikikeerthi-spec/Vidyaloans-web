@@ -34,9 +34,11 @@ export class ExecutiveWebmailService implements OnModuleInit {
     await this.ensureExecutiveInboundTable();
   }
 
-  // Password hashing utility using SHA-256 + secret salt
+  // Password hashing utility using dedicated webmail salt (decoupled from JWT_SECRET rotation)
   private hashPassword(password: string): string {
-    const salt = this.config.get<string>('JWT_SECRET') || 'vidyaloans_executive_secure_salt_2026';
+    const salt =
+      this.config.get<string>('EXECUTIVE_WEBMAIL_SALT') ||
+      'vidyaloans_executive_secure_salt_2026';
     return createHash('sha256').update(password + salt).digest('hex');
   }
 
@@ -46,6 +48,7 @@ export class ExecutiveWebmailService implements OnModuleInit {
 
   private verifyPassword(rawPassword: string, storedHash: string): boolean {
     const clean = rawPassword.trim();
+    const jwtSecret = this.config.get<string>('JWT_SECRET') || '';
     const candidates = new Set<string>([clean]);
     
     // Common typo tolerance for official mailbox credentials
@@ -65,8 +68,15 @@ export class ExecutiveWebmailService implements OnModuleInit {
     for (const cand of candidates) {
       const primary = this.hashPassword(cand);
       const fallback = this.hashWithSalt(cand, 'vidyaloans_executive_secure_salt_2026');
+      const legacyJwtHash = jwtSecret ? this.hashWithSalt(cand, jwtSecret) : '';
       const plainHash = createHash('sha256').update(cand).digest('hex');
-      if (storedHash === primary || storedHash === fallback || storedHash === plainHash || storedHash === cand) {
+      if (
+        storedHash === primary ||
+        storedHash === fallback ||
+        (legacyJwtHash && storedHash === legacyJwtHash) ||
+        storedHash === plainHash ||
+        storedHash === cand
+      ) {
         return true;
       }
     }
@@ -168,12 +178,14 @@ export class ExecutiveWebmailService implements OnModuleInit {
     );
 
     if (!rows || rows.length === 0) {
+      this.logger.warn(`[WebmailLogin] No account found in executive_mailboxes for ${cleanEmail}`);
       throw new UnauthorizedException('Invalid official mailbox email or password');
     }
 
     const user = rows[0];
 
     if (!this.verifyPassword(cleanPass, user.password)) {
+      this.logger.warn(`[WebmailLogin] Password verification failed for ${cleanEmail}`);
       throw new UnauthorizedException('Invalid official mailbox email or password');
     }
 

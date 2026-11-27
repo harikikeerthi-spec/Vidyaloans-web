@@ -836,6 +836,16 @@ export class AuthService {
         ? await this.usersService.resolveBankInfo(user.bank)
         : { bankId: null, bankName: null, bankLogo: null };
 
+      if (this.auditLogService) {
+        await this.auditLogService.logAction(
+          isNewUser ? 'SIGNUP' : 'LOGIN',
+          'User',
+          user.id,
+          user,
+          { role: user.role, email: user.email },
+        );
+      }
+
       return {
         success: true,
         message: isNewUser ? 'Signup successful. Please complete your profile.' : 'Login successful.',

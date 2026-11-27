@@ -1553,7 +1553,7 @@ export default function OnboardingPage() {
                     approved: 'Usually within 7 days',
                     maxAmount: 10000000,
                     eligibility: 'Good',
-                    features: ['Zero collateral up to ₹75L', 'Multi-city co-applicant allowed', 'Competitive interest rates'],
+                    features: ['Non-collateral options per lender policy', 'Multi-city co-applicant allowed', 'Competitive interest rates'],
                     collateralRequired: loanAmount > 7500000,
                 },
                 {

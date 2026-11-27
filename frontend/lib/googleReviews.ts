@@ -13,8 +13,8 @@ export interface DynamicReview {
 
 export async function fetchTopGoogleReviews(): Promise<DynamicReview[]> {
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
-  // This is a placeholder Place ID. For BMK Study Abroad Consultants, you must replace this
-  // with the actual Google Place ID and provide a GOOGLE_PLACES_API_KEY in your .env.local
+  // Placeholder Place ID — replace with VidyaLoans' official Google Place ID
+  // and provide a GOOGLE_PLACES_API_KEY in your environment.
   const placeId = process.env.GOOGLE_PLACE_ID || 'ChIJN1t_tDeuEmsRUsoyG83frY4'; 
 
   // If we don't have the API key, return the fallback hardcoded reviews from data/home.ts

@@ -1,4 +1,5 @@
 import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { SupabaseService } from '../supabase/supabase.service';
 
 interface ApplicationRemark {
@@ -524,9 +525,13 @@ export class AdminApplicationService {
     }
 
     private async createAuditLog(data: any) {
-        await this.db.from('AuditLog').insert({
+        const { error } = await this.db.from('AuditLog').insert({
+            id: randomUUID(),
             ...data,
             createdAt: new Date().toISOString(),
         });
+        if (error) {
+            console.error('[AdminApplicationService] Failed to create audit log:', error);
+        }
     }
 }

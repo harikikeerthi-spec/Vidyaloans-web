@@ -193,3 +193,30 @@ export function extractHeadingsAndEnhanceHtml(rawHtml: string): {
   return { headings, enhancedHtml, tocTitle };
 }
 
+/**
+ * Strips homepage, `/blog` index, or internal-domain URLs from custom `canonicalUrl`
+ * inputs so blog posts always self-canonicalize to `/blog/<slug>` unless an external
+ * syndication URL is explicitly provided.
+ */
+export function sanitizeBlogCanonicalInput(rawCanonical: unknown): string {
+  const raw = typeof rawCanonical === "string" ? rawCanonical.trim() : "";
+  if (!raw || raw.startsWith("/")) return "";
+
+  try {
+    const parsed = new URL(raw);
+    if (!["http:", "https:"].includes(parsed.protocol)) return "";
+    const host = parsed.hostname.replace(/^www\./, "").toLowerCase();
+    if (
+      host === "vidyaloans.in" ||
+      host === "vidyaloans.com" ||
+      host === "localhost" ||
+      host === "127.0.0.1"
+    ) {
+      return "";
+    }
+    return parsed.toString();
+  } catch {
+    return "";
+  }
+}
+

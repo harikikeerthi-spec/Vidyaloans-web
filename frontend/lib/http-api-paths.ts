@@ -195,6 +195,8 @@ export const HttpApiPaths = {
             `${HTTP_API_PREFIX}/community/admin/resources/${enc(id)}`,
         forumPostPin: (id: string) => `${HTTP_API_PREFIX}/community/admin/forum/posts/${enc(id)}/pin`,
         forumPostDelete: (id: string) => `${HTTP_API_PREFIX}/community/forum/${enc(id)}`,
+        auditLogs: (limit: number) =>
+            `${HTTP_API_PREFIX}/users/admin/audit-logs${httpApiQuery({ limit })}`,
         matrixLogs: (limit: number) =>
             `${HTTP_API_PREFIX}/blogs/admin/matrix-logs${httpApiQuery({ limit })}`,
         sendEmail: () => `${HTTP_API_PREFIX}/users/admin/send-email`,

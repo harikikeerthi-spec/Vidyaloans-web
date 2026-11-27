@@ -870,4 +870,186 @@ export class ReferenceService {
     }
     return { success: true, message: 'Office deleted successfully' };
   }
+
+  // ==================== VERSIONED LENDER RULES ====================
+
+  private buildDefaultRuleTemplate(bank: any) {
+    const feeMatch = String(bank?.processingFee || '').match(/(\d+(?:\.\d+)?)\s*%/);
+    const processingFeePercent = feeMatch ? parseFloat(feeMatch[1]) : 1.0;
+
+    return {
+      bankId: bank.id,
+      bankName: bank.name,
+      shortName: bank.shortName || null,
+      version: 0,
+      isActive: true,
+      isApprovedTemplate: false,
+      effectiveFrom: null,
+      effectiveTo: null,
+      interestRateMin: Number(bank.interestRateMin ?? 10.25),
+      interestRateMax: Number(bank.interestRateMax ?? 14.0),
+      moratoriumInterestType: 'SIMPLE',
+      moratoriumPeriodMonths: 6,
+      processingFeePercent,
+      processingFeeFlat: 0,
+      gstPercent: 18.0,
+      maxFoirPercent: 55.0,
+      maxLtvPercent: 100.0,
+      roundingMode: 'NEAREST',
+      roundingPrecision: 0,
+      approvedBy: null,
+      approvedAt: null,
+      notes: 'Derived baseline from Bank Partner config; awaiting Product sign-off.',
+    };
+  }
+
+  async getLenderRules(bankFilter?: string, asOf?: string) {
+    const targetIso = asOf && !isNaN(Date.parse(asOf)) ? new Date(asOf).toISOString() : new Date().toISOString();
+    const banksRes = await this.getAllBanks();
+    const banks: any[] = banksRes?.data || [];
+    const normalizedFilter = bankFilter ? bankFilter.trim().toLowerCase() : '';
+
+    const filteredBanks = normalizedFilter
+      ? banks.filter(
+          (b) =>
+            b.id?.toLowerCase() === normalizedFilter ||
+            b.shortName?.toLowerCase() === normalizedFilter ||
+            b.name?.toLowerCase().includes(normalizedFilter),
+        )
+      : banks;
+
+    let ruleRows: any[] = [];
+    try {
+      const { data, error } = await this.db
+        .from('BankRuleVersion')
+        .select('*')
+        .eq('isActive', true)
+        .lte('effectiveFrom', targetIso)
+        .order('version', { ascending: false });
+
+      if (!error && Array.isArray(data)) {
+        ruleRows = data.filter((r) => !r.effectiveTo || new Date(r.effectiveTo).toISOString() >= targetIso);
+      }
+    } catch {
+      // Fall back cleanly to Bank Partner baseline if BankRuleVersion table is not yet migrated
+    }
+
+    const rules = filteredBanks.map((bank) => {
+      const matched = ruleRows.find((r) => r.bankId === bank.id);
+      if (matched) {
+        return {
+          ...matched,
+          bankName: bank.name,
+          shortName: bank.shortName || null,
+          isApprovedTemplate: Boolean(matched.approvedBy && matched.approvedAt),
+        };
+      }
+      return this.buildDefaultRuleTemplate(bank);
+    });
+
+    return {
+      success: true,
+      asOf: targetIso,
+      data: rules,
+    };
+  }
+
+  async getBankRuleVersions(bankId: string) {
+    try {
+      const { data, error } = await this.db
+        .from('BankRuleVersion')
+        .select('*')
+        .eq('bankId', bankId)
+        .order('version', { ascending: false });
+
+      if (!error && Array.isArray(data) && data.length > 0) {
+        return { success: true, data };
+      }
+    } catch {
+      // Fall back to baseline template below
+    }
+
+    const bankRes = await this.getBankById(bankId).catch(() => null);
+    const bank = bankRes?.data;
+    return {
+      success: true,
+      data: bank ? [this.buildDefaultRuleTemplate(bank)] : [],
+    };
+  }
+
+  async createBankRuleVersion(
+    bankId: string,
+    payload: {
+      effectiveFrom?: string;
+      effectiveTo?: string | null;
+      interestRateMin: number;
+      interestRateMax: number;
+      moratoriumInterestType?: 'SIMPLE' | 'COMPOUND' | 'PARTIAL_SIMPLE' | 'NONE';
+      moratoriumPeriodMonths?: number;
+      processingFeePercent?: number;
+      processingFeeFlat?: number;
+      gstPercent?: number;
+      maxFoirPercent?: number;
+      maxLtvPercent?: number;
+      roundingMode?: 'NEAREST' | 'CEIL' | 'FLOOR';
+      roundingPrecision?: number;
+      approvedBy?: string;
+      notes?: string;
+    },
+  ) {
+    const nowIso = new Date().toISOString();
+    const { data: latest } = await this.db
+      .from('BankRuleVersion')
+      .select('version')
+      .eq('bankId', bankId)
+      .order('version', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const nextVersion = (latest?.version || 0) + 1;
+
+    await this.db
+      .from('BankRuleVersion')
+      .update({ isActive: false, effectiveTo: payload.effectiveFrom || nowIso, updatedAt: nowIso })
+      .eq('bankId', bankId)
+      .eq('isActive', true);
+
+    const record = {
+      id: randomUUID(),
+      bankId,
+      version: nextVersion,
+      effectiveFrom: payload.effectiveFrom || nowIso,
+      effectiveTo: payload.effectiveTo ?? null,
+      isActive: true,
+      interestRateMin: Number(payload.interestRateMin),
+      interestRateMax: Number(payload.interestRateMax),
+      moratoriumInterestType: payload.moratoriumInterestType || 'SIMPLE',
+      moratoriumPeriodMonths: payload.moratoriumPeriodMonths ?? 6,
+      processingFeePercent: payload.processingFeePercent ?? 1.0,
+      processingFeeFlat: payload.processingFeeFlat ?? 0,
+      gstPercent: payload.gstPercent ?? 18.0,
+      maxFoirPercent: payload.maxFoirPercent ?? 55.0,
+      maxLtvPercent: payload.maxLtvPercent ?? 100.0,
+      roundingMode: payload.roundingMode || 'NEAREST',
+      roundingPrecision: payload.roundingPrecision ?? 0,
+      approvedBy: payload.approvedBy || null,
+      approvedAt: payload.approvedBy ? nowIso : null,
+      notes: payload.notes || null,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    };
+
+    const { data, error } = await this.db
+      .from('BankRuleVersion')
+      .insert(record)
+      .select('*')
+      .single();
+
+    if (error) {
+      console.error('[ReferenceService.createBankRuleVersion] Error:', error);
+      throw error;
+    }
+
+    return { success: true, data };
+  }
 }

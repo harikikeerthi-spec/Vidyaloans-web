@@ -6,6 +6,32 @@ import { EmailService } from '../auth/email.service';
 import { randomUUID } from 'crypto';
 import { sanitizeBlogContentWithMetadata } from '../common/utils/html-sanitizer.util';
 
+/**
+ * Prevents a blog post from storing our own homepage, `/blog` index, or internal
+ * paths as its `canonicalUrl`. Returns `''` so the frontend defaults to the post's
+ * own `/blog/<slug>` self-canonical; only external syndication URLs are preserved.
+ */
+function sanitizeBlogCanonicalUrl(rawCanonical: unknown): string {
+  const raw = typeof rawCanonical === 'string' ? rawCanonical.trim() : '';
+  if (!raw) return '';
+  if (raw.startsWith('/')) return '';
+
+  try {
+    const parsed = new URL(raw);
+    if (!['http:', 'https:'].includes(parsed.protocol)) return '';
+    const host = parsed.hostname.replace(/^www\./, '').toLowerCase();
+    const isOwnDomain =
+      host === 'vidyaloans.in' ||
+      host === 'vidyaloans.com' ||
+      host === 'localhost' ||
+      host === '127.0.0.1';
+    if (isOwnDomain) return '';
+    return parsed.toString();
+  } catch {
+    return '';
+  }
+}
+
 @Injectable()
 export class BlogService {
   private get db() {
@@ -926,7 +952,7 @@ export class BlogService {
         mapped.metaTitle = seoData.metaTitle || blog.metaTitle || '';
         mapped.metaDescription = seoData.metaDescription || blog.metaDescription || '';
         mapped.focusKeyword = seoData.focusKeyword || blog.focusKeyword || '';
-        mapped.canonicalUrl = seoData.canonicalUrl || blog.canonicalUrl || '';
+        mapped.canonicalUrl = sanitizeBlogCanonicalUrl(seoData.canonicalUrl || blog.canonicalUrl);
         mapped.noIndex = seoData.noIndex !== undefined ? seoData.noIndex : !!blog.noIndex;
       } catch (e) {
         // Fallback
@@ -935,7 +961,7 @@ export class BlogService {
       mapped.metaTitle = blog.metaTitle || '';
       mapped.metaDescription = blog.metaDescription || '';
       mapped.focusKeyword = blog.focusKeyword || '';
-      mapped.canonicalUrl = blog.canonicalUrl || '';
+      mapped.canonicalUrl = sanitizeBlogCanonicalUrl(blog.canonicalUrl);
       mapped.noIndex = !!blog.noIndex;
     }
 
@@ -1279,7 +1305,7 @@ export class BlogService {
       metaTitle: data.metaTitle || '',
       metaDescription: data.metaDescription || '',
       focusKeyword: data.focusKeyword || '',
-      canonicalUrl: data.canonicalUrl || '',
+      canonicalUrl: sanitizeBlogCanonicalUrl(data.canonicalUrl),
       noIndex: !!data.noIndex,
     };
     dbData.content = `${htmlContent}\n\n<!--BLOCKS_JSON_START-->${JSON.stringify(blocksArr)}<!--BLOCKS_JSON_END-->\n<!--SEO_JSON_START-->${JSON.stringify(seoObj)}<!--SEO_JSON_END-->`;
@@ -1435,7 +1461,7 @@ export class BlogService {
         metaTitle: data.metaTitle !== undefined ? data.metaTitle : (existingBlog.metaTitle || ''),
         metaDescription: data.metaDescription !== undefined ? data.metaDescription : (existingBlog.metaDescription || ''),
         focusKeyword: data.focusKeyword !== undefined ? data.focusKeyword : (existingBlog.focusKeyword || ''),
-        canonicalUrl: data.canonicalUrl !== undefined ? data.canonicalUrl : (existingBlog.canonicalUrl || ''),
+        canonicalUrl: sanitizeBlogCanonicalUrl(data.canonicalUrl !== undefined ? data.canonicalUrl : existingBlog.canonicalUrl),
         noIndex: data.noIndex !== undefined ? !!data.noIndex : false,
       };
       dbData.content = `${htmlContent}\n\n<!--BLOCKS_JSON_START-->${JSON.stringify(blocksArr)}<!--BLOCKS_JSON_END-->\n<!--SEO_JSON_START-->${JSON.stringify(seoObj)}<!--SEO_JSON_END-->`;

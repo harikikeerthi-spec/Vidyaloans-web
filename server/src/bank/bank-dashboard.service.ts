@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { SupabaseService } from '../supabase/supabase.service';
 import { LoanStateMachine } from './loan-state-machine';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -730,7 +731,8 @@ export class BankDashboardService {
   // ==================== AUDIT LOG ====================
 
   private async logAudit(auditData: any): Promise<void> {
-    await this.db.from('AuditLog').insert({
+    const { error } = await this.db.from('AuditLog').insert({
+      id: randomUUID(),
       entityType: auditData.entityType,
       entityId: auditData.entityId,
       action: auditData.action,
@@ -741,6 +743,9 @@ export class BankDashboardService {
       },
       createdAt: new Date().toISOString()
     });
+    if (error) {
+      console.error('[BankDashboardService] Failed to create audit log:', error);
+    }
   }
 
   async getAuditLogs(applicationId: string): Promise<any[]> {

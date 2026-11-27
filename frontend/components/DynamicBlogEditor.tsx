@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import Link from "next/link";
 import { blogApi } from "@/lib/api";
 import { sanitizeHtml } from "@/lib/sanitize";
+import { sanitizeBlogCanonicalInput } from "@/lib/blogUtils";
 
 export type BlockType =
   | "heading"
@@ -1667,7 +1668,7 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
         metaTitle: metaTitle.trim() || undefined,
         metaDescription: cleanMeta || undefined,
         focusKeyword: focusKeyword.trim() || undefined,
-        canonicalUrl: canonicalUrl.trim() || undefined,
+        canonicalUrl: sanitizeBlogCanonicalInput(canonicalUrl) || undefined,
         noIndex: Boolean(noIndex),
         isPublished: publish,
         published: publish,
@@ -2774,11 +2775,11 @@ console.log("Estimated Monthly EMI: ₹" + Math.round(emi));`,
                               type="text"
                               value={canonicalUrl}
                               onChange={(e) => setCanonicalUrl(e.target.value)}
-                              placeholder={`https://vidyaloans.com/blog/${slug || "article-slug"}`}
+                              placeholder={`https://vidyaloans.in/blog/${slug || "article-slug"}`}
                               className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                             />
                             <p className="text-[11px] text-slate-400 mt-1">
-                              Prevents duplicate content penalties if republished from another domain.
+                              Leave blank to auto-canonicalize to this post&apos;s own URL. Only set for external syndication (never set to the homepage).
                             </p>
                           </div>
 

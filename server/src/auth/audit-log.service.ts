@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { SupabaseService } from '../supabase/supabase.service';
 
 export type AppUser = {
@@ -18,6 +19,29 @@ export class AuditLogService {
 
   constructor(private supabase: SupabaseService) {}
 
+  private async resolveInitiatorId(user?: Partial<AppUser>): Promise<string | null> {
+    const rawId = typeof user?.id === 'string' ? user.id.trim() : '';
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawId);
+
+    if (isUuid) {
+      const { data } = await this.db.from('User').select('id').eq('id', rawId).maybeSingle();
+      if (data?.id) return data.id;
+    }
+
+    if (user?.email) {
+      const { data } = await this.db.from('User').select('id').eq('email', user.email).maybeSingle();
+      if (data?.id) return data.id;
+    }
+
+    const { data: fallback } = await this.db
+      .from('User')
+      .select('id')
+      .in('role', ['admin', 'super_admin'])
+      .limit(1)
+      .maybeSingle();
+    return fallback?.id || null;
+  }
+
   async logAction(
     action: string,
     entityType: string,
@@ -27,15 +51,26 @@ export class AuditLogService {
     request?: any,
   ) {
     try {
-      await this.db.from('AuditLog').insert({
+      const initiatedBy = await this.resolveInitiatorId(user);
+      if (!initiatedBy) {
+        console.warn('[AuditLogService] Skipping audit log insert: no valid User.id for initiatedBy');
+        return;
+      }
+
+      const { error } = await this.db.from('AuditLog').insert({
+        id: randomUUID(),
         action,
         entityType,
         entityId,
-        initiatedBy: user.id,
+        initiatedBy,
         changes: changes || {},
         ipAddress: request?.ip || null,
         userAgent: request?.get?.('user-agent') || null,
+        createdAt: new Date().toISOString(),
       });
+      if (error) {
+        console.error('Failed to create audit log:', error);
+      }
     } catch (error) {
       console.error('Failed to create audit log:', error);
     }

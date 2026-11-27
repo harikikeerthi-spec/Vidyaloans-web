@@ -1932,19 +1932,15 @@ export default function DocumentVaultPage() {
                                 </div>
                                 <h2 className="text-xl font-bold mb-4">Privacy & Data Protection</h2>
                                 <p className="text-gray-400 text-[13px] leading-relaxed mb-6">
-                                    Your documents are encrypted using AES-256 military-grade encryption before being stored.
-                                    Only authorized bank officials can access them during your application review process.
-                                    We never share your personal data with third parties.
+                                    Your documents are encrypted using AES-256 encryption before being stored.
+                                    Documents are shared only with your selected partner lenders and authorized verification providers with your consent.
                                 </p>
                                 <div className="flex flex-wrap gap-3">
                                     <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-lg border border-white/10 text-[11px] font-bold uppercase tracking-wider">
                                         <span className="material-symbols-outlined text-emerald-400 text-[16px]">verified_user</span> 256-bit SSL
                                     </div>
                                     <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-lg border border-white/10 text-[11px] font-bold uppercase tracking-wider">
-                                        <span className="material-symbols-outlined text-emerald-400 text-[16px]">verified_user</span> GDPR Compliant
-                                    </div>
-                                    <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-lg border border-white/10 text-[11px] font-bold uppercase tracking-wider">
-                                        <span className="material-symbols-outlined text-emerald-400 text-[16px]">verified_user</span> ISO 27001
+                                        <span className="material-symbols-outlined text-emerald-400 text-[16px]">verified_user</span> Consent-Based Access
                                     </div>
                                 </div>
                             </div>

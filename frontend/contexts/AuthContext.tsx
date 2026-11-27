@@ -265,16 +265,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Handle session expiry without a full page reload
     useEffect(() => {
+        const isProtectedRoute = (path: string) => {
+            const p = path.toLowerCase();
+            if (p.startsWith("/it")) return false; // Stay on IT dashboard
+            if (p === "/login" || p.endsWith("/login")) return false;
+            const protectedPrefixes = [
+                "/dashboard",
+                "/document-vault",
+                "/profile",
+                "/support-tickets",
+                "/user-details",
+                "/admin",
+                "/staff",
+                "/bank",
+                "/agent",
+                "/analyst",
+                "/webmail",
+            ];
+            return protectedPrefixes.some((prefix) => p === prefix || p.startsWith(`${prefix}/`));
+        };
+
         const onSessionExpired = (event: Event) => {
-            if (typeof window !== "undefined" && window.location.pathname.startsWith("/it")) {
-                setUser(null);
-                setToken(null);
-                return; // Stay on IT dashboard
-            }
+            const currentPath = typeof window !== "undefined" ? window.location.pathname : "";
             const loginPath = (event as CustomEvent<{ loginPath: string }>).detail?.loginPath || "/login";
             setUser(null);
             setToken(null);
-            router.replace(`${loginPath}?expired=true`);
+            // Silently clear expired session on public pages & calculators; only redirect on protected routes
+            if (currentPath && isProtectedRoute(currentPath)) {
+                router.replace(`${loginPath}?expired=true`);
+            }
         };
 
         window.addEventListener("auth:session-expired", onSessionExpired);

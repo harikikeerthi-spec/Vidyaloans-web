@@ -127,7 +127,7 @@ const lenders = [
 const features = [
     { icon: "hub", title: "Top Lender Network", desc: "Access India's best education loan marketplace with our curated network of premium banks and NBFCs." },
     { icon: "apartment", title: "University-Specific Offers", desc: "Get tailored loan offers based on your university, course, and country of study." },
-    { icon: "handshake", title: "Guaranteed Best Rate", desc: "We negotiate with lenders to get you the lowest interest rates available in the market." },
+    { icon: "handshake", title: "Competitive Lender Rates", desc: "We compare offers across partner banks and NBFCs to help you find competitive interest rates." },
     { icon: "devices", title: "Digital Application", desc: "Apply 100% online. Upload documents, e-sign, and track your application in real-time." },
     { icon: "psychology", title: "Free Expert Counseling", desc: "Free 1-on-1 guidance from education loan experts throughout your journey." },
     { icon: "bolt", title: "Quick Disbursement", desc: "Get your loan sanctioned in 48 hours and disbursed before your university deadline." },
@@ -265,12 +265,12 @@ function TestimonialsCarousel() {
     );
 }
 const testimonials = [
-    { quote: `I recently used BMK Study Abroad Consultants for my application to Texas A&M University-Kingsville for my master's in Mechanical Engineering. They made the entire process, from university selection to visa approval, smooth and stress-free. I'm grateful for their help and highly recommend their services!`, name: "Akhil Sharma", school: "Texas A&M Univ-Kingsville", avatar: "akhil", bg: "bg-[#e7e1f7]", icon: "/images/testimonials/graduation-cap.png" },
-    { quote: `My visa was approved with the Bmk consultancy. With the smooth and easy manner. My visa was approved to the university sacred heart University. Thank you very much Bmk consultancy.`, name: "Dudiki Anusha", school: "Sacred Heart University", avatar: "anusha", bg: "bg-[#fdfaf2]", icon: "/images/testimonials/money-bag.png" },
-    { quote: `It was a very good experience, supportive and responsive counselors who can guide us for the visa interviews to get positive results. Special thanks to Vamsi Sir, who has good knowledge about University section. Thank you BMK Consultancy.`, name: "Priya Malladi", school: "USA Visa", avatar: "priya", bg: "bg-[#e1f0f7]", icon: "/images/testimonials/handshake.png" },
-    { quote: `The best education consultancy for someone planning to study abroad. Their team was professional, patient, and extremely knowledgeable. They made the entire process of applying to universities and obtaining a visa seamless.`, name: "Dhevarapalli Vasanthi", school: "Study Abroad", avatar: "vasanthi", bg: "bg-[#f0e7f7]", icon: "/images/testimonials/ai.png" },
-    { quote: `Got my Canada study visa approved successfully! BMK Consultants handled all my paperwork meticulously. Highly recommended for study abroad aspirants!`, name: "Swathi Reddy", school: "Canada Visa", avatar: "swathi", bg: "bg-[#e7f7e1]", icon: "/images/testimonials/time.png" },
-    { quote: `Excellent service provided by BMK! They guide thoroughly from shortlisting universities to scheduling the visa interviews. A very transparent and well-organized team.`, name: "Kiran Kumar", school: "Masters in UK", avatar: "kiran", bg: "bg-[#f7e7e1]", icon: "/images/testimonials/university.png" },
+    { quote: `VidyaLoans made comparing education loan offers for my MS in Mechanical Engineering straightforward. Having one document vault and clear tracking saved weeks of back-and-forth with lenders.`, name: "Akhil Sharma", school: "Texas A&M Univ-Kingsville", avatar: "akhil", bg: "bg-[#e7e1f7]", icon: "/images/testimonials/graduation-cap.png" },
+    { quote: `My education loan sanction came through smoothly with VidyaLoans. Their team kept me updated at every stage from document upload to bank review.`, name: "Dudiki Anusha", school: "Sacred Heart University", avatar: "anusha", bg: "bg-[#fdfaf2]", icon: "/images/testimonials/money-bag.png" },
+    { quote: `Supportive and responsive loan advisors who explained interest rates, moratorium terms, and co-applicant requirements clearly before I submitted to the bank.`, name: "Priya Malladi", school: "MS in USA", avatar: "priya", bg: "bg-[#e1f0f7]", icon: "/images/testimonials/handshake.png" },
+    { quote: `A transparent and well-organized education loan platform. Uploading my KYC and financial documents once and tracking bank review in real time made the process stress-free.`, name: "Dhevarapalli Vasanthi", school: "Study Abroad Loan", avatar: "vasanthi", bg: "bg-[#f0e7f7]", icon: "/images/testimonials/ai.png" },
+    { quote: `VidyaLoans helped me compare non-collateral loan options for Canada and get my sanction letter on time for my university deposit deadline.`, name: "Swathi Reddy", school: "Canada", avatar: "swathi", bg: "bg-[#e7f7e1]", icon: "/images/testimonials/time.png" },
+    { quote: `Great experience with VidyaLoans! From eligibility check to lender comparison and sanction letter tracking, everything was clear and well-structured.`, name: "Kiran Kumar", school: "Masters in UK", avatar: "kiran", bg: "bg-[#f7e7e1]", icon: "/images/testimonials/university.png" },
 ];
 const postAdmissionServices = [
     { icon: "💳", title: "Forex & Cards", desc: "Lock in the best exchange rates with zero-markup cards.", color: "linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%)", link: "/forex", img: "/images/services/forex-cards.jpg" },
@@ -603,7 +603,7 @@ export default function HomeContent() {
                                         bg="bg-[#e7e1f7]"
                                         icon="/images/tools/admit-predictor.png"
                                         title="Admit Predictor"
-                                        desc="Check the probability of your MS in US admission. Predict your admission chances with 98% accuracy."
+                                        desc="Estimate your MS in US admission probability using historical admit profiles and academic benchmarks."
                                         cta="Evaluate Now"
                                         large
                                     />

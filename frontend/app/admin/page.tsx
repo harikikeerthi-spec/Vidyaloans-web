@@ -354,6 +354,7 @@ export default function AdminDashboardPage() {
     const [stats, setStats] = useState<any>({});
     const [data, setData] = useState<any[]>([]);
     const [auditLogs, setAuditLogs] = useState<any[]>([]);
+    const [systemHealth, setSystemHealth] = useState<{ api: boolean; database: boolean; auth: boolean; publicApi: boolean } | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [lastSearchQuery, setLastSearchQuery] = useState("");
     const [filterStatus, setFilterStatus] = useState("all");
@@ -847,13 +848,24 @@ export default function AdminDashboardPage() {
     const loadOverview = useCallback(async () => {
         setLoading(true);
         try {
-            const [blogStats, appStats, users, logs, banksRes]: [any, any, any, any, any] = await Promise.all([
+            const [blogStats, appStats, users, logs, banksRes, healthRes]: [any, any, any, any, any, any] = await Promise.all([
                 adminApi.getBlogStats().catch(() => ({ data: {} })),
                 adminApi.getApplicationStats().catch(() => ({ data: {} })),
                 adminApi.getUsers().catch(() => ({ data: [] })),
                 adminApi.getAuditLogs(10).catch(() => ({ data: [] })),
-                referenceApi.getBanks().catch(() => ({ data: [] }))
+                referenceApi.getBanks().catch(() => ({ data: [] })),
+                fetch('/api/health', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
             ]);
+            if (healthRes?.checks) {
+                setSystemHealth({
+                    api: Boolean(healthRes.checks.api),
+                    database: Boolean(healthRes.checks.database),
+                    auth: Boolean(healthRes.checks.auth),
+                    publicApi: Boolean(healthRes.checks.publicApi),
+                });
+            } else {
+                setSystemHealth({ api: false, database: false, auth: false, publicApi: false });
+            }
             const userList = users.data || [];
             if (banksRes?.success && Array.isArray(banksRes.data)) {
                 setBankPartners(banksRes.data);
@@ -2292,14 +2304,16 @@ export default function AdminDashboardPage() {
                                         <div className="relative z-10">
                                             <h3 className="text-xs font-semibold mb-3 tracking-wide rounded">System Status</h3>
                                             <div className="space-y-0.5 mt-2 bg-slate-800/50 rounded-lg border border-slate-700/50 p-2">
-                                                <HealthDot ok={true} label="API Core" />
-                                                <HealthDot ok={true} label="Database" />
-                                                <HealthDot ok={true} label="Auth Node" />
-                                                <HealthDot ok={!maintenanceMode} label="Public API" />
+                                                <HealthDot ok={systemHealth?.api ?? false} label="API Core" />
+                                                <HealthDot ok={systemHealth?.database ?? false} label="Database" />
+                                                <HealthDot ok={systemHealth?.auth ?? false} label="Auth Node" />
+                                                <HealthDot ok={Boolean(systemHealth?.publicApi) && !maintenanceMode} label="Public API" />
                                             </div>
                                             <div className="flex items-center gap-2 mt-4 ml-1">
-                                                <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                                                <span className="text-[9px] font-medium tracking-widest uppercase text-slate-300">Operational</span>
+                                                <div className={`w-2 h-2 rounded-full ${systemHealth?.api && systemHealth?.database && systemHealth?.auth ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+                                                <span className="text-[9px] font-medium tracking-widest uppercase text-slate-300">
+                                                    {systemHealth === null ? 'Checking...' : systemHealth.api && systemHealth.database && systemHealth.auth ? 'Operational' : 'Degraded'}
+                                                </span>
                                             </div>
                                         </div>
                                     </div>

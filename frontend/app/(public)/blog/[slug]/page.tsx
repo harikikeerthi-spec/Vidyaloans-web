@@ -24,6 +24,45 @@ interface Props {
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://vidyaloans.in").replace(/\/$/, "");
 
+/**
+ * Ensures a blog post's canonical tag always points to its own `/blog/<slug>` URL
+ * unless a valid external syndication URL is explicitly provided.
+ * Prevents homepage or `/blog` index canonicals from de-indexing blog posts.
+ */
+function resolveBlogCanonicalUrl(rawCanonical: unknown, slug: string): string {
+  const selfCanonical = `${SITE_URL}/blog/${slug}`;
+  const raw = typeof rawCanonical === "string" ? rawCanonical.trim() : "";
+  if (!raw) return selfCanonical;
+
+  try {
+    const parsed = raw.startsWith("/")
+      ? new URL(raw, SITE_URL)
+      : new URL(raw);
+    if (!["http:", "https:"].includes(parsed.protocol)) {
+      return selfCanonical;
+    }
+
+    const siteHost = new URL(SITE_URL).hostname.replace(/^www\./, "").toLowerCase();
+    const targetHost = parsed.hostname.replace(/^www\./, "").toLowerCase();
+    const cleanPath = parsed.pathname.replace(/\/+$/, "") || "/";
+
+    // Never allow a blog post to canonicalize to our homepage, /blog index, or wrong internal path
+    const isOwnDomain =
+      targetHost === siteHost ||
+      targetHost === "vidyaloans.in" ||
+      targetHost === "vidyaloans.com" ||
+      targetHost === "localhost";
+
+    if (isOwnDomain) {
+      return selfCanonical;
+    }
+
+    return parsed.toString();
+  } catch {
+    return selfCanonical;
+  }
+}
+
 async function fetchBlogBySlug(slug: string): Promise<BlogPost | null> {
   const backendUrl = process.env.BACKEND_URL || "http://127.0.0.1:5000";
   const cleanSlug = decodeURIComponent(slug).trim();
@@ -95,8 +134,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     cleanExcerptText(blog.subtitle) ||
     cleanExcerptText((blog as any).excerpt) ||
     "Read comprehensive education loan guidance, interest rates, and university funding tips on VidyaLoans.";
-  const canonicalUrl =
-    (blog as any).canonicalUrl || `${SITE_URL}/blog/${blog.slug || slug}`;
+  const canonicalUrl = resolveBlogCanonicalUrl(
+    (blog as any).canonicalUrl,
+    blog.slug || slug
+  );
   const ogImage =
     blog.coverImage ||
     blog.featuredImage ||

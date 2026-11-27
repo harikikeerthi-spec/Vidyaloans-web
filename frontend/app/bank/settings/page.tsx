@@ -25,7 +25,7 @@ export default function BankSettings() {
     // F38: Scheduled Reports Scheduler States
     const [reportFrequency, setReportFrequency] = useState("daily");
     const [reportDispatchHour, setReportDispatchHour] = useState("08:00");
-    const [reportRecipients, setReportRecipients] = useState("auditor.sbi@vidyaloans.com, risk.committee@sbi.co.in");
+    const [reportRecipients, setReportRecipients] = useState(user?.email || "");
     const [reportFormat, setReportFormat] = useState({ csv: true, pdf: false, xlsx: true });
     const [savingReports, setSavingReports] = useState(false);
     const [reportSaveStatus, setReportSaveStatus] = useState(false);
@@ -1030,7 +1030,9 @@ export default function BankSettings() {
                             </div>
                             <div>
                                 <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest block">Linked Institution</span>
-                                <span className="text-xs font-bold text-gray-700 block">State Bank of India</span>
+                                <span className="text-xs font-bold text-gray-700 block">
+                                    {(user as any)?.bankName || (user as any)?.bank || (typeof window !== "undefined" ? sessionStorage.getItem("selectedBankName") : null) || "Unassigned"}
+                                </span>
                             </div>
                             <div>
                                 <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest block">Security Protocol</span>

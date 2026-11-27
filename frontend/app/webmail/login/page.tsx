@@ -36,13 +36,14 @@ export default function WebmailLoginPage() {
       // Fetch CSRF token
       let csrfToken = "";
       try {
-        const csrfRes = await fetch("/api/csrf-token");
+        const csrfRes = await fetch("/api/csrf-token", { credentials: "include" });
         const csrfJson = await csrfRes.json();
         if (csrfJson?.csrfToken) csrfToken = csrfJson.csrfToken;
       } catch (e) { }
 
       const res = await fetch("/api/webmail/login", {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
           ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),

@@ -830,6 +830,7 @@ model Bank {
   email               String?
   logoUrl             String?
   isPopular           Boolean  @default(false)
+  ruleVersions        BankRuleVersion[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -837,6 +838,35 @@ model Bank {
   @@index([country])
   @@index([type])
   @@index([isPopular])
+}
+
+model BankRuleVersion {
+  id                     String    @id @default(uuid())
+  bankId                 String
+  bank                   Bank      @relation(fields: [bankId], references: [id], onDelete: Cascade)
+  version                Int       @default(1)
+  effectiveFrom          DateTime  @default(now())
+  effectiveTo            DateTime?
+  isActive               Boolean   @default(true)
+  interestRateMin        Float
+  interestRateMax        Float
+  moratoriumInterestType String    @default("SIMPLE") // SIMPLE | COMPOUND | PARTIAL_SIMPLE | NONE
+  moratoriumPeriodMonths Int       @default(6)
+  processingFeePercent   Float     @default(1.0)
+  processingFeeFlat      Float     @default(0)
+  gstPercent             Float     @default(18.0)
+  maxFoirPercent         Float     @default(55.0)
+  maxLtvPercent          Float     @default(100.0)
+  roundingMode           String    @default("NEAREST") // NEAREST | CEIL | FLOOR
+  roundingPrecision      Int       @default(0)
+  approvedBy             String?
+  approvedAt             DateTime?
+  notes                  String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  @@unique([bankId, version])
+  @@index([bankId, isActive, effectiveFrom])
 }
 
 model BankPriority {

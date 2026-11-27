@@ -7,7 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { adminApi, blogApi, getToken, tryRefreshAccessToken, isTokenExpired } from "@/lib/api";
 import { cleanHtmlContent, RichTextBlock, TEXT_COLORS, FONT_SIZES, FONT_FAMILIES, TableData, CURATED_COVERS } from "./DynamicBlogEditor";
 import BlogTableOfContents from "./BlogTableOfContents";
-import { cleanBlogContent, extractHeadingsAndEnhanceHtml } from "@/lib/blogUtils";
+import { cleanBlogContent, extractHeadingsAndEnhanceHtml, sanitizeBlogCanonicalInput } from "@/lib/blogUtils";
 import { sanitizeHtml } from "@/lib/sanitize";
 
 type BlockType = "cover_image" | "heading" | "container" | "split_content" | "registration_form" | "text" | "image" | "video" | "button" | "list" | "quote" | "code" | "divider" | "spacer" | "tags" | "table" | "table_of_contents" | "journey_card";
@@ -2682,11 +2682,12 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
         try {
             const htmlContent = compileCanvasToHtml();
 
+            const safeCanonicalUrl = sanitizeBlogCanonicalInput(canonicalUrl);
             const seoData = {
                 metaTitle: metaTitle.trim() || title.trim(),
                 metaDescription: metaDescription.trim() || excerpt.trim(),
                 focusKeyword: focusKeyword.trim(),
-                canonicalUrl: canonicalUrl.trim(),
+                canonicalUrl: safeCanonicalUrl,
                 noIndex,
                 faqSchema: faqSchema.filter((f) => f.question?.trim() && f.answer?.trim()),
             };
@@ -2721,7 +2722,7 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                 metaTitle: metaTitle.trim() || title.trim(),
                 metaDescription: metaDescription.trim() || excerpt.trim(),
                 focusKeyword: focusKeyword.trim() || undefined,
-                canonicalUrl: canonicalUrl.trim() || undefined,
+                canonicalUrl: safeCanonicalUrl || undefined,
                 noIndex,
                 faqSchema: seoData.faqSchema,
             };
@@ -6188,9 +6189,18 @@ export default function AdminBlogBuilder({ onBack, onPublished, backHref = "/it/
                                                     setCanonicalUrl(e.target.value);
                                                     setSaveStatus("Unsaved");
                                                 }}
-                                                placeholder={`https://www.vidyaloans.in/blog/${slug || "slug"}`}
+                                                placeholder={`https://vidyaloans.in/blog/${slug || "slug"}`}
                                                 className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-mono text-slate-700 placeholder:text-slate-400 focus:ring-2 focus:ring-indigo-200 outline-none"
                                             />
+                                            {canonicalUrl.trim() && !sanitizeBlogCanonicalInput(canonicalUrl) ? (
+                                                <p className="text-[11px] text-amber-600 font-medium mt-1">
+                                                    Internal/homepage URLs are ignored on save—this post will automatically self-canonicalize to its own URL.
+                                                </p>
+                                            ) : (
+                                                <p className="text-[11px] text-slate-400 mt-1">
+                                                    Leave blank to auto-canonicalize to this post&apos;s own URL.
+                                                </p>
+                                            )}
                                         </div>
 
                                         {/* NoIndex Toggle */}

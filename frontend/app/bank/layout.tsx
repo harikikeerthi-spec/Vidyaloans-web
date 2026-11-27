@@ -214,9 +214,9 @@ export default function BankLayout({ children }: { children: React.ReactNode }) 
             const storedBankName = sessionStorage.getItem("selectedBankName") || localStorage.getItem("selectedBankName");
             const storedBankLogo = sessionStorage.getItem("selectedBankLogo") || localStorage.getItem("selectedBankLogo");
 
-            let currentKey = storedBank || userBankId || "idfc";
-            let currentName = storedBankName || userBankName || "";
-            let currentLogo = storedBankLogo || userBankLogo || "";
+            let currentKey = userBankId || storedBank || "";
+            let currentName = userBankName || storedBankName || "";
+            let currentLogo = userBankLogo || storedBankLogo || "";
 
             try {
                 const res: any = await referenceApi.getBanks();

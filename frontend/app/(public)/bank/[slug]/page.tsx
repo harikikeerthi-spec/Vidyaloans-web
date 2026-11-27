@@ -552,8 +552,8 @@ export default async function BankPage({ params }: Props) {
                                 </Link> */}
                             </div>
                             <div className="flex flex-wrap justify-center gap-8 items-center opacity-80 text-sm font-medium">
-                                <span className="flex items-center gap-2"><span className="material-symbols-outlined text-lg" aria-hidden="true">verified</span> 100% Free Service</span>
-                                <span className="flex items-center gap-2"><span className="material-symbols-outlined text-lg" aria-hidden="true">verified</span> No Hidden Fees</span>
+                                <span className="flex items-center gap-2"><span className="material-symbols-outlined text-lg" aria-hidden="true">verified</span> Zero Platform Fee</span>
+                                <span className="flex items-center gap-2"><span className="material-symbols-outlined text-lg" aria-hidden="true">verified</span> Transparent Lender Fees</span>
                                 <span className="flex items-center gap-2"><span className="material-symbols-outlined text-lg" aria-hidden="true">verified</span> Dedicated Support</span>
                                 <span className="flex items-center gap-2"><span className="material-symbols-outlined text-lg" aria-hidden="true">verified</span> Tax Benefits</span>
                             </div>

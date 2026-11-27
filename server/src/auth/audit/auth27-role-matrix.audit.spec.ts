@@ -177,6 +177,7 @@ describe('AUTH-27: Role-Matrix & Assignment Scoping Acceptance Tests', () => {
         {} as any,
         {} as any,
         {} as any,
+        { logAction: jest.fn() } as any,
       );
     });
 

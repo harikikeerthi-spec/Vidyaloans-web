@@ -990,9 +990,9 @@ export default function BankDashboard() {
                         <div className="relative z-10">
                             <h3 className="text-sm font-black text-white mb-2 uppercase tracking-widest">Compliance Shield</h3>
                             <p className="text-white/70 text-[9px] font-bold uppercase tracking-[0.18em] mb-4 leading-relaxed">
-                                {compliance
-                                    ? `Score: ${compliance.overallCompliance || 100}% • RBI & NHB Compliant`
-                                    : 'Synchronized under RBI-GDRP-v2.0 protocol.'}
+                                {compliance?.overallCompliance !== undefined
+                                    ? `Compliance Score: ${compliance.overallCompliance}%`
+                                    : 'Compliance checks active.'}
                             </p>
                             <div className="flex items-center gap-3">
                                 <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center">

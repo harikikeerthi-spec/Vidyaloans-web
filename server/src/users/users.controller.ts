@@ -141,6 +141,23 @@ export class UsersController {
         return this.usersService.getUserStats();
     }
 
+    @Get('admin/audit-logs')
+    @UseGuards(AdminGuard)
+    async getSystemAuditLogs(
+        @Query('entityType') entityType?: string,
+        @Query('initiatedBy') initiatedBy?: string,
+        @Query('limit') limit?: string,
+        @Query('offset') offset?: string,
+    ) {
+        const logs = await this.auditLogService.getAllLogs(
+            entityType,
+            initiatedBy,
+            limit ? parseInt(limit, 10) : 100,
+            offset ? parseInt(offset, 10) : 0,
+        );
+        return { success: true, data: logs };
+    }
+
     // Staff & Admin: list all users (limited fields)
     @Get('admin/list')
     @UseGuards(StaffGuard)
