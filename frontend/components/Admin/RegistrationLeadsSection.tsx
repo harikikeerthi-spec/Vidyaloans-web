@@ -319,7 +319,12 @@ export default function RegistrationLeadsSection() {
     let admissionStatus = "Planning";
     let loanStatus = "Required";
     let city = "Not Specified";
-    let source = type === "registration_lead" ? "Registration Form" : "Knowledge Base / Blog";
+    let source =
+      type === "registration_lead"
+        ? "Registration Form"
+        : type === "connected_cohort"
+        ? "ConnectED Cohort"
+        : "Knowledge Base / Blog";
 
     // Extract [amount]
     const amountMatch = raw.match(/\[(₹[^\]]+)\]/);
@@ -370,6 +375,7 @@ export default function RegistrationLeadsSection() {
       const matchesType =
         typeFilter === "all" ||
         (typeFilter === "registration" && lead.type === "registration_lead") ||
+        (typeFilter === "connected" && lead.type === "connected_cohort") ||
         (typeFilter === "blog" && lead.type === "blog_registration") ||
         (typeFilter === "callback" && lead.type === "callback");
 
@@ -775,6 +781,7 @@ export default function RegistrationLeadsSection() {
           >
             <option value="all">All Sources</option>
             <option value="registration">Registration Form (/registration)</option>
+            <option value="connected">ConnectED Cohort (/connected)</option>
             <option value="blog">Blog Inquiries</option>
             <option value="callback">Callback Requests</option>
           </select>
@@ -1015,10 +1022,16 @@ export default function RegistrationLeadsSection() {
                         <span
                           className={`inline-block px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide border ${lead.type === "registration_lead" || parsed.source.includes("Registration")
                             ? "bg-purple-50 text-purple-700 border-purple-200"
+                            : lead.type === "connected_cohort"
+                            ? "bg-indigo-50 text-indigo-700 border-indigo-200"
                             : "bg-slate-100 text-slate-600 border-slate-200"
                             }`}
                         >
-                          {lead.type === "registration_lead" ? "Registration Form" : parsed.source}
+                          {lead.type === "registration_lead"
+                            ? "Registration Form"
+                            : lead.type === "connected_cohort"
+                            ? "ConnectED Cohort"
+                            : parsed.source}
                         </span>
                       </td>
 
@@ -1026,9 +1039,9 @@ export default function RegistrationLeadsSection() {
 
                       {/* Date */}
                       <td className="py-3.5 px-4 text-slate-500 text-[11px]">
-                        <div>{createdDate.toLocaleDateString("en-IN", { month: "short", day: "numeric" })}</div>
+                        <div>{createdDate.toLocaleDateString("en-IN", { month: "short", day: "numeric", timeZone: "Asia/Kolkata" })}</div>
                         <div className="text-[10px] text-slate-400">
-                          {createdDate.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                          {createdDate.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" })}
                         </div>
                       </td>
 
@@ -1226,7 +1239,7 @@ export default function RegistrationLeadsSection() {
                   {/* Submission Timestamp */}
                   <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
                     <Calendar className="w-3.5 h-3.5" />
-                    Submitted on {new Date(selectedLead.createdAt).toLocaleString("en-IN")}
+                    Submitted on {new Date(selectedLead.createdAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}
                   </div>
 
                   {/* Quick CTAs */}

@@ -46,8 +46,7 @@ export class UniversityInquiryService implements OnModuleInit {
     const validUserId = (data.userId && data.userId.trim() !== '') ? data.userId.trim() : null;
     const recordId = randomUUID();
 
-    const istOffsetMs = 5.5 * 60 * 60 * 1000;
-    const istNow = new Date(Date.now() + istOffsetMs);
+    const now = new Date();
 
     const cleanMobile = (data.mobile || data.phone || '0000000000').trim();
     const cleanEmail = (data.email && data.email.trim() !== '')
@@ -65,8 +64,8 @@ export class UniversityInquiryService implements OnModuleInit {
       mobile: cleanMobile,
       universityName: cleanUniversity,
       status: 'pending',
-      createdAt: istNow,
-      updatedAt: istNow,
+      createdAt: now,
+      updatedAt: now,
     };
 
     let inquiryResult: any = null;
@@ -85,8 +84,8 @@ export class UniversityInquiryService implements OnModuleInit {
         const { data: inq } = await this.db.from('UniversityInquiry').insert({
           ...baseData,
           type: finalType,
-          createdAt: istNow.toISOString(),
-          updatedAt: istNow.toISOString(),
+          createdAt: now.toISOString(),
+          updatedAt: now.toISOString(),
         }).select().maybeSingle();
         inquiryResult = inq || { ...baseData, type: finalType };
       } catch (sbErr) {
@@ -105,8 +104,8 @@ export class UniversityInquiryService implements OnModuleInit {
         try {
           await this.db.from('FastTrackApplication').insert({
             ...baseData,
-            createdAt: istNow.toISOString(),
-            updatedAt: istNow.toISOString(),
+            createdAt: now.toISOString(),
+            updatedAt: now.toISOString(),
           });
         } catch (e) {}
       }
@@ -120,8 +119,8 @@ export class UniversityInquiryService implements OnModuleInit {
         try {
           await this.db.from('CallbackRequest').insert({
             ...baseData,
-            createdAt: istNow.toISOString(),
-            updatedAt: istNow.toISOString(),
+            createdAt: now.toISOString(),
+            updatedAt: now.toISOString(),
           });
         } catch (e) {}
       }

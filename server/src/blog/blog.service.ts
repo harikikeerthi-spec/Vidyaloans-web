@@ -86,9 +86,8 @@ export class BlogService {
     else if (isRegistrationPage) parts.push(`(Source: Registration Form)`);
     const universityDescriptor = parts.filter(Boolean).join(' ');
 
-    // Calculate exact Indian Standard Time (IST, UTC+05:30) so DB table shows accurate local time
-    const istOffsetMs = 5.5 * 60 * 60 * 1000;
-    const istNow = new Date(Date.now() + istOffsetMs);
+    // Store standard UTC timestamp; frontend formats in Asia/Kolkata (IST)
+    const now = new Date();
 
     const inquiryRecord = {
       id: recordId,
@@ -98,8 +97,8 @@ export class BlogService {
       universityName: universityDescriptor.substring(0, 255),
       type: leadType,
       status: 'pending',
-      createdAt: istNow,
-      updatedAt: istNow,
+      createdAt: now,
+      updatedAt: now,
     };
 
     let savedResult: any = null;
@@ -114,8 +113,8 @@ export class BlogService {
       try {
         const { data: sbInq } = await this.db.from('UniversityInquiry').insert({
           ...inquiryRecord,
-          createdAt: istNow.toISOString(),
-          updatedAt: istNow.toISOString(),
+          createdAt: now.toISOString(),
+          updatedAt: now.toISOString(),
         }).select().maybeSingle();
         savedResult = sbInq || inquiryRecord;
       } catch (sbErr) {
@@ -133,8 +132,8 @@ export class BlogService {
           mobile: leadMobile,
           universityName: universityDescriptor.substring(0, 255),
           status: 'pending',
-          createdAt: istNow,
-          updatedAt: istNow,
+          createdAt: now,
+          updatedAt: now,
         },
       });
     } catch (cbErr) {
@@ -146,8 +145,8 @@ export class BlogService {
           mobile: leadMobile,
           universityName: universityDescriptor.substring(0, 255),
           status: 'pending',
-          createdAt: istNow.toISOString(),
-          updatedAt: istNow.toISOString(),
+          createdAt: now.toISOString(),
+          updatedAt: now.toISOString(),
         });
       } catch (e) {}
     }

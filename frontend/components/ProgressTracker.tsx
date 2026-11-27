@@ -27,26 +27,40 @@ export const STAGES_LIST = Object.entries(STAGES_CONFIG)
 
 export const isApplicationDocumentsComplete = (documents: any[] = [], profile?: any): boolean => {
     if (!documents || documents.length === 0) return false;
-    const uploadedDocs = documents.filter(d =>
-        d && (d.uploaded === true || d.status === 'uploaded' || d.status === 'verified' || Boolean(d.fileUrl || d.s3Key || d.url))
-    );
+    const verifiedDocs = documents.filter(d => d && String(d.status || '').toLowerCase() === 'verified');
     let requiredCount = 3;
     if (profile) {
         try {
-            const reqs = getProfileDocumentRequirements(profile);
+            const reqs = getProfileDocumentRequirements(profile).filter(r => r.required !== false);
             if (reqs && reqs.length > 0) {
                 requiredCount = reqs.length;
-                return reqs.every(r => uploadedDocs.some(d => isDocTypeMatchingRequirement(d.docType, r.type, d.docName || d.name)));
+                return reqs.every(r => verifiedDocs.some(d => isDocTypeMatchingRequirement(d.docType, r.type, d.docName || d.name)));
             }
         } catch { }
     }
-    return uploadedDocs.length >= requiredCount;
+    return verifiedDocs.length >= requiredCount;
 };
 
 export const getDynamicProgress = (app: any, documents: any[] = [], profile?: any): number => {
     if (!app) return 10;
     const s = String(app.status || '').toLowerCase().trim();
     const stg = String(app.stage || '').toLowerCase().trim();
+
+    // Gate: later steps (Assigned to lender, Bank review, Sanction, Disbursement) cannot complete or be in progress until Documents are Verified
+    const docsComplete = isApplicationDocumentsComplete(documents, profile);
+    if (!docsComplete) {
+        let base = typeof app.progress === 'number' && app.progress > 0 ? Math.min(app.progress, 25) : 10;
+        if (['submitted', 'application_submitted', 'docs_received', 'docs_uploaded', 'under_review'].includes(s)) {
+            base = Math.max(base, 25);
+        }
+        if (documents && documents.length > 0) {
+            const uploadedCount = documents.filter(d => d && (d.uploaded === true || d.status === 'uploaded' || d.status === 'verified' || Boolean(d.fileUrl || d.s3Key || d.url))).length;
+            if (uploadedCount > 0) {
+                base = Math.max(base, Math.min(40, 25 + Math.round((uploadedCount / 3) * 15)));
+            }
+        }
+        return Math.min(base, 40);
+    }
 
     // 1. Disbursed (100%) - crossed Sanction
     if (['disbursed', 'closed', 'disbursement_confirmed'].includes(s) || stg === 'disbursement' || stg === 'disbursed') {
@@ -79,29 +93,8 @@ export const getDynamicProgress = (app: any, documents: any[] = [], profile?: an
         return 75;
     }
 
-    // 5. Submit to bank stage (50%)
-    if (['submit_to_bank', 'bank_submission', 'staff_verified', 'verification', 'documents_verified', 'document_verification'].includes(s) || stg === 'submit_to_bank' || stg === 'document_verification') {
-        return 50;
-    }
-
-    // 6. Pre-bank: Document verification vs Submitted vs Created
-    const docsComplete = isApplicationDocumentsComplete(documents, profile);
-    if (!docsComplete) {
-        let base = typeof app.progress === 'number' && app.progress > 0 ? app.progress : 10;
-        if (['submitted', 'application_submitted', 'docs_received', 'docs_uploaded', 'under_review'].includes(s)) {
-            base = Math.max(base, 25);
-        }
-        if (documents && documents.length > 0) {
-            const uploadedCount = documents.filter(d => d && (d.uploaded === true || d.status === 'uploaded' || d.status === 'verified' || Boolean(d.fileUrl || d.s3Key || d.url))).length;
-            if (uploadedCount > 0) {
-                base = Math.max(base, Math.min(40, 25 + Math.round((uploadedCount / 3) * 15)));
-            }
-        }
-        return Math.min(base, 40);
-    }
-
-    let baseProgress = typeof app.progress === 'number' && app.progress > 0 ? app.progress : 50;
-    return Math.max(baseProgress, 50);
+    // 5. Documents complete -> Submit to bank stage (50%)
+    return 50;
 };
 
 export const getStageKeyForApp = (app: any, calculatedProgress?: number, documents: any[] = [], profile?: any): string => {
@@ -110,6 +103,15 @@ export const getStageKeyForApp = (app: any, calculatedProgress?: number, documen
     if (status === 'rejected' || status === 'cancelled') return 'application_created';
 
     const stageKey = String(app.stage || '').toLowerCase().trim();
+
+    // Gate: cannot advance past document_verification until all required slots are Verified
+    if (!isApplicationDocumentsComplete(documents, profile)) {
+        if (documents && documents.length > 0) return 'document_verification';
+        if (['submitted', 'application_submitted', 'docs_received', 'docs_uploaded', 'under_review'].includes(status)) {
+            return 'application_submitted';
+        }
+        return 'application_created';
+    }
 
     // 1. Disbursed (crossed Sanction)
     if (['disbursed', 'disbursement_confirmed', 'closed'].includes(status) || stageKey === 'disbursement' || stageKey === 'disbursed') {

@@ -1481,6 +1481,7 @@ export default function DocumentVaultPage() {
         ).map(req => ({
             type: req.type,
             label: req.label,
+            required: req.required !== false,
             icon: getDocIcon(req.type)
         })),
         ...docs.filter(doc => doc?.docType && (doc.docType.startsWith('student_other_') || doc.docType.startsWith('other_student_')) && !allRequiredDocs.some(req => req.type === doc.docType))
@@ -1497,6 +1498,7 @@ export default function DocumentVaultPage() {
         ).map(req => ({
             type: req.type,
             label: req.label,
+            required: req.required !== false,
             icon: getDocIcon(req.type)
         })),
         ...docs.filter(doc => doc?.docType && (doc.docType.startsWith('coapplicant_other_') || doc.docType.startsWith('other_coapplicant_')) && !allRequiredDocs.some(req => req.type === doc.docType))
@@ -1515,6 +1517,7 @@ export default function DocumentVaultPage() {
         ).map(req => ({
             type: req.type,
             label: req.label,
+            required: req.required !== false,
             icon: getDocIcon(req.type)
         })),
         ...docs.filter(doc => doc?.docType && (doc.docType.startsWith('parent_other_') || doc.docType.startsWith('other_parent_')) && !allRequiredDocs.some(req => req.type === doc.docType))
@@ -1579,12 +1582,14 @@ export default function DocumentVaultPage() {
                     {docList.map((req) => {
                         const existing = findDocForRequirement(req.type);
                         const isVerified = existing?.status === 'verified';
-                        const isRejected = existing?.status === 'rejected';
+                        const isReuploadRequested = existing?.status === 'reupload_requested';
+                        const isRejected = existing?.status === 'rejected' || isReuploadRequested;
                         const isPending = existing?.status === 'uploaded';
                         const isUploaded = existing?.uploaded === true;
+                        const isRequired = req.required !== false;
 
                         return (
-                            <div key={req.type} className={`bg-white rounded-xl p-5 border transition-all duration-200 ${isVerified ? 'border-emerald-100 bg-emerald-50/10' :
+                            <div key={req.type} id={`doc-slot-${req.type}`} className={`bg-white rounded-xl p-5 border transition-all duration-200 ${isVerified ? 'border-emerald-100 bg-emerald-50/10' :
                                 isRejected ? 'border-rose-100 bg-rose-50/5' :
                                     isPending ? 'border-amber-100 bg-amber-50/5' :
                                         'border-gray-100'
@@ -1597,7 +1602,12 @@ export default function DocumentVaultPage() {
                                         } rounded-xl flex items-center justify-center transition-colors`}>
                                         <span className="material-symbols-outlined text-[20px]">{req.icon}</span>
                                     </div>
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                                        {!isUploaded && (
+                                            <span className={`px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider ${isRequired ? 'bg-slate-100 text-slate-700' : 'bg-slate-50 text-slate-400'}`}>
+                                                {isRequired ? 'Required' : 'Optional'} · Not uploaded
+                                            </span>
+                                        )}
                                         {isVerified && (
                                             <div className="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-500 text-white rounded-md text-[9px] font-bold uppercase tracking-wider">
                                                 <span className="material-symbols-outlined text-[12px]">check_circle</span>
@@ -1607,13 +1617,13 @@ export default function DocumentVaultPage() {
                                         {isRejected && (
                                             <div className="flex items-center gap-1.5 px-2 py-0.5 bg-rose-500 text-white rounded-md text-[9px] font-bold uppercase tracking-wider">
                                                 <span className="material-symbols-outlined text-[12px]">cancel</span>
-                                                Rejected
+                                                {isReuploadRequested ? 'Re-upload Requested' : 'Rejected'}
                                             </div>
                                         )}
                                         {isPending && (
                                             <div className="flex items-center gap-1.5 px-2 py-0.5 bg-amber-500 text-white rounded-md text-[9px] font-bold uppercase tracking-wider">
                                                 <span className="material-symbols-outlined text-[12px]">hourglass_empty</span>
-                                                Pending Review
+                                                Uploaded (Awaiting Review)
                                             </div>
                                         )}
                                         {req.type.includes('_other_') && !isVerified && (
@@ -1671,6 +1681,15 @@ export default function DocumentVaultPage() {
                                                 title={isVerified ? "View Verified Details" : "View Extracted Details"}
                                             >
                                                 <span className="material-symbols-outlined text-[15px]">{isVerified ? "verified" : "fact_check"}</span> Details
+                                            </button>
+                                        )}
+                                        {!isVerified && isRejected && (
+                                            <button
+                                                onClick={() => document.getElementById(`file-input-${req.type}`)?.click()}
+                                                disabled={!!uploadingDocs[req.type]}
+                                                className="px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer"
+                                            >
+                                                <span className="material-symbols-outlined text-[15px]">refresh</span> Re-upload
                                             </button>
                                         )}
                                         {!isVerified && (
@@ -1809,6 +1828,54 @@ export default function DocumentVaultPage() {
                                 </div>
                             </div>
                         )}
+
+                        {/* "What we need from you" action panel */}
+                        {(() => {
+                            const actionItems = allRequiredDocs
+                                .filter((req) => req.required !== false)
+                                .map((req) => {
+                                    const existing = findDocForRequirement(req.type);
+                                    const st = existing?.status;
+                                    const reason = existing?.verificationMetadata?.rejectionReason || existing?.rejectionReason || "";
+                                    if (!existing?.uploaded) return { req, state: "Not uploaded" as const, reason: "" };
+                                    if (st === "rejected" || st === "reupload_requested") {
+                                        return { req, state: st === "reupload_requested" ? ("Re-upload requested" as const) : ("Rejected" as const), reason };
+                                    }
+                                    return null;
+                                })
+                                .filter(Boolean) as { req: any; state: "Not uploaded" | "Rejected" | "Re-upload requested"; reason: string }[];
+
+                            if (actionItems.length === 0) return null;
+                            return (
+                                <div className="mb-8 p-5 bg-amber-50/70 border border-amber-200 rounded-2xl">
+                                    <div className="flex items-center justify-between gap-2 mb-3">
+                                        <h3 className="text-sm font-bold text-amber-950 flex items-center gap-2">
+                                            <span className="material-symbols-outlined text-[18px] text-amber-600">assignment_late</span>
+                                            What we need from you ({actionItems.length})
+                                        </h3>
+                                        <span className="text-[11px] font-semibold text-amber-800">All required items must be verified before bank review</span>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                                        {actionItems.map(({ req, state, reason }) => (
+                                            <div key={req.type} className="bg-white rounded-xl p-3 border border-amber-200/80 flex items-center justify-between gap-3">
+                                                <div className="min-w-0">
+                                                    <p className="text-xs font-bold text-gray-900 truncate">{req.label}</p>
+                                                    <p className={`text-[11px] font-medium ${state === "Not uploaded" ? "text-slate-500" : "text-rose-600"}`}>
+                                                        {state}{reason ? `: ${reason}` : ""}
+                                                    </p>
+                                                </div>
+                                                <button
+                                                    onClick={() => document.getElementById(`file-input-${req.type}`)?.click()}
+                                                    className="px-3 py-1.5 bg-[#6605c7] hover:bg-[#5504a6] text-white text-[11px] font-bold rounded-lg shrink-0 cursor-pointer"
+                                                >
+                                                    {state === "Not uploaded" ? "Upload" : "Re-upload"}
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            );
+                        })()}
 
                         {/* <div className="mb-12">
                             <div className="bg-gradient-to-br from-[#004791] to-[#0b84ff] rounded-[32px] p-8 text-white relative overflow-hidden shadow-2xl shadow-blue-500/20">

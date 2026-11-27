@@ -193,6 +193,94 @@ export default function AdminBanksSection() {
 
     const [featureInput, setFeatureInput] = useState("");
 
+    // Versioned Lender Rules state
+    const [rulesBank, setRulesBank] = useState<any | null>(null);
+    const [ruleVersions, setRuleVersions] = useState<any[]>([]);
+    const [loadingRules, setLoadingRules] = useState(false);
+    const [savingRule, setSavingRule] = useState(false);
+    const [ruleForm, setRuleForm] = useState({
+        effectiveFrom: new Date().toISOString().slice(0, 10),
+        interestRateMin: 10.25,
+        interestRateMax: 14.0,
+        moratoriumInterestType: "SIMPLE" as "SIMPLE" | "COMPOUND" | "PARTIAL_SIMPLE" | "NONE",
+        moratoriumPeriodMonths: 6,
+        processingFeePercent: 1.0,
+        processingFeeFlat: 0,
+        gstPercent: 18.0,
+        maxFoirPercent: 55.0,
+        maxLtvPercent: 100.0,
+        roundingMode: "NEAREST" as "NEAREST" | "CEIL" | "FLOOR",
+        roundingPrecision: 0,
+        approvedBy: "",
+        notes: "",
+    });
+
+    const handleOpenRules = async (bank: any) => {
+        setRulesBank(bank);
+        setLoadingRules(true);
+        setRuleVersions([]);
+        try {
+            const res: any = await referenceApi.getBankRuleVersions(bank.id);
+            const list = Array.isArray(res?.data) ? res.data : [];
+            setRuleVersions(list);
+            const latest = list[0];
+            setRuleForm({
+                effectiveFrom: new Date().toISOString().slice(0, 10),
+                interestRateMin: Number(latest?.interestRateMin ?? bank.interestRateMin ?? 10.25),
+                interestRateMax: Number(latest?.interestRateMax ?? bank.interestRateMax ?? 14.0),
+                moratoriumInterestType: latest?.moratoriumInterestType || "SIMPLE",
+                moratoriumPeriodMonths: Number(latest?.moratoriumPeriodMonths ?? 6),
+                processingFeePercent: Number(latest?.processingFeePercent ?? 1.0),
+                processingFeeFlat: Number(latest?.processingFeeFlat ?? 0),
+                gstPercent: Number(latest?.gstPercent ?? 18.0),
+                maxFoirPercent: Number(latest?.maxFoirPercent ?? 55.0),
+                maxLtvPercent: Number(latest?.maxLtvPercent ?? 100.0),
+                roundingMode: latest?.roundingMode || "NEAREST",
+                roundingPrecision: Number(latest?.roundingPrecision ?? 0),
+                approvedBy: latest?.approvedBy || "",
+                notes: "",
+            });
+        } catch (err) {
+            console.error("Failed to load bank rule versions:", err);
+        } finally {
+            setLoadingRules(false);
+        }
+    };
+
+    const handleSaveRuleVersion = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!rulesBank) return;
+        if (Number(ruleForm.interestRateMin) > Number(ruleForm.interestRateMax)) {
+            return alert("Min interest rate cannot exceed Max interest rate");
+        }
+        setSavingRule(true);
+        try {
+            const res: any = await referenceApi.createBankRuleVersion(rulesBank.id, {
+                ...ruleForm,
+                effectiveFrom: ruleForm.effectiveFrom ? new Date(ruleForm.effectiveFrom).toISOString() : undefined,
+                interestRateMin: Number(ruleForm.interestRateMin),
+                interestRateMax: Number(ruleForm.interestRateMax),
+                moratoriumPeriodMonths: Number(ruleForm.moratoriumPeriodMonths),
+                processingFeePercent: Number(ruleForm.processingFeePercent),
+                processingFeeFlat: Number(ruleForm.processingFeeFlat),
+                gstPercent: Number(ruleForm.gstPercent),
+                maxFoirPercent: Number(ruleForm.maxFoirPercent),
+                maxLtvPercent: Number(ruleForm.maxLtvPercent),
+                roundingPrecision: Number(ruleForm.roundingPrecision),
+            });
+            if (res?.success) {
+                alert("New versioned lender rule published!");
+                await handleOpenRules(rulesBank);
+            } else {
+                alert(res?.message || "Failed to publish rule version");
+            }
+        } catch (err: any) {
+            alert(err?.message || "Error publishing rule version");
+        } finally {
+            setSavingRule(false);
+        }
+    };
+
     const loadBanks = async () => {
         setLoading(true);
         setError(null);
@@ -599,6 +687,13 @@ export default function AdminBanksSection() {
                                             </td>
                                             <td className="px-5 py-4 text-right">
                                                 <div className="flex justify-end items-center gap-2">
+                                                    <button
+                                                        onClick={() => handleOpenRules(bank)}
+                                                        className="p-1 text-slate-600 hover:text-emerald-600 hover:bg-slate-100 rounded transition-colors cursor-pointer"
+                                                        title="Versioned Rules (Moratorium, FOIR, LTV, Fees, Effective Dates)"
+                                                    >
+                                                        <span className="material-symbols-outlined text-[16px]">tune</span>
+                                                    </button>
                                                     <button
                                                         onClick={() => handleOpenEdit(bank)}
                                                         className="p-1 text-slate-600 hover:text-indigo-600 hover:bg-slate-100 rounded transition-colors cursor-pointer"
@@ -1054,6 +1149,141 @@ export default function AdminBanksSection() {
                                         <span>{editingBank ? "Update Bank Partner" : "Create Bank Partner"}</span>
                                     </>
                                 )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Versioned Lender Rules Modal */}
+            {rulesBank && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+                        <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between shrink-0">
+                            <div>
+                                <h3 className="text-base font-bold text-slate-900">
+                                    Versioned Lender Rules — {rulesBank.name}
+                                </h3>
+                                <p className="text-xs text-slate-500">
+                                    Effective-dated interest, moratorium, fees, FOIR, LTV, and rounding rules
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setRulesBank(null)}
+                                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200/50 rounded-lg transition-all cursor-pointer"
+                            >
+                                <span className="material-symbols-outlined text-[20px]">close</span>
+                            </button>
+                        </div>
+
+                        <div className="p-6 overflow-y-auto space-y-6 flex-1">
+                            <div>
+                                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                                    Rule Version History
+                                </h4>
+                                {loadingRules ? (
+                                    <p className="text-xs text-slate-400">Loading rule versions...</p>
+                                ) : ruleVersions.length === 0 ? (
+                                    <p className="text-xs text-slate-400">No rule versions found.</p>
+                                ) : (
+                                    <div className="space-y-2 max-h-40 overflow-y-auto">
+                                        {ruleVersions.map((rv, idx) => (
+                                            <div key={rv.id || idx} className="p-3 rounded-lg border border-slate-200 bg-slate-50/70 text-xs flex flex-wrap items-center justify-between gap-2">
+                                                <div>
+                                                    <span className="font-bold text-slate-900">v{rv.version ?? 0}</span>
+                                                    <span className="mx-2 text-slate-300">|</span>
+                                                    <span className="text-slate-600">
+                                                        {rv.interestRateMin}%–{rv.interestRateMax}% • {rv.moratoriumInterestType} ({rv.moratoriumPeriodMonths}m) • FOIR {rv.maxFoirPercent}% • LTV {rv.maxLtvPercent}% • Fee {rv.processingFeePercent}% + {rv.gstPercent}% GST • Round: {rv.roundingMode}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    {rv.effectiveFrom && (
+                                                        <span className="text-[11px] text-slate-500">
+                                                            Effective: {new Date(rv.effectiveFrom).toLocaleDateString("en-IN")}
+                                                        </span>
+                                                    )}
+                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${rv.approvedBy ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                                                        {rv.approvedBy ? `Approved (${rv.approvedBy})` : "Unapproved Template"}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            <form id="lender-rule-form" onSubmit={handleSaveRuleVersion} className="space-y-4 border-t border-slate-100 pt-4">
+                                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                                    Publish New Rule Version
+                                </h4>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                                    <div>
+                                        <label className="block font-semibold text-slate-600 mb-1">Effective From</label>
+                                        <input type="date" value={ruleForm.effectiveFrom} onChange={(e) => setRuleForm({ ...ruleForm, effectiveFrom: e.target.value })} className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg" required />
+                                    </div>
+                                    <div>
+                                        <label className="block font-semibold text-slate-600 mb-1">Min Rate (%)</label>
+                                        <input type="number" step="0.01" value={ruleForm.interestRateMin} onChange={(e) => setRuleForm({ ...ruleForm, interestRateMin: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg" required />
+                                    </div>
+                                    <div>
+                                        <label className="block font-semibold text-slate-600 mb-1">Max Rate (%)</label>
+                                        <input type="number" step="0.01" value={ruleForm.interestRateMax} onChange={(e) => setRuleForm({ ...ruleForm, interestRateMax: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg" required />
+                                    </div>
+                                    <div>
+                                        <label className="block font-semibold text-slate-600 mb-1">Moratorium Interest</label>
+                                        <select value={ruleForm.moratoriumInterestType} onChange={(e) => setRuleForm({ ...ruleForm, moratoriumInterestType: e.target.value as any })} className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg">
+                                            <option value="SIMPLE">Simple Interest</option>
+                                            <option value="COMPOUND">Compound Interest</option>
+                                            <option value="PARTIAL_SIMPLE">Partial Simple</option>
+                                            <option value="NONE">None</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block font-semibold text-slate-600 mb-1">Moratorium Grace (Mo)</label>
+                                        <input type="number" value={ruleForm.moratoriumPeriodMonths} onChange={(e) => setRuleForm({ ...ruleForm, moratoriumPeriodMonths: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg" />
+                                    </div>
+                                    <div>
+                                        <label className="block font-semibold text-slate-600 mb-1">Processing Fee (%)</label>
+                                        <input type="number" step="0.01" value={ruleForm.processingFeePercent} onChange={(e) => setRuleForm({ ...ruleForm, processingFeePercent: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg" />
+                                    </div>
+                                    <div>
+                                        <label className="block font-semibold text-slate-600 mb-1">GST (%)</label>
+                                        <input type="number" step="0.01" value={ruleForm.gstPercent} onChange={(e) => setRuleForm({ ...ruleForm, gstPercent: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg" />
+                                    </div>
+                                    <div>
+                                        <label className="block font-semibold text-slate-600 mb-1">Max FOIR (%)</label>
+                                        <input type="number" step="0.1" value={ruleForm.maxFoirPercent} onChange={(e) => setRuleForm({ ...ruleForm, maxFoirPercent: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg" />
+                                    </div>
+                                    <div>
+                                        <label className="block font-semibold text-slate-600 mb-1">Max LTV (%)</label>
+                                        <input type="number" step="0.1" value={ruleForm.maxLtvPercent} onChange={(e) => setRuleForm({ ...ruleForm, maxLtvPercent: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg" />
+                                    </div>
+                                    <div>
+                                        <label className="block font-semibold text-slate-600 mb-1">Rounding Mode</label>
+                                        <select value={ruleForm.roundingMode} onChange={(e) => setRuleForm({ ...ruleForm, roundingMode: e.target.value as any })} className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg">
+                                            <option value="NEAREST">Nearest Rupee</option>
+                                            <option value="CEIL">Round Up (Ceil)</option>
+                                            <option value="FLOOR">Round Down (Floor)</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block font-semibold text-slate-600 mb-1">Approved By (Product)</label>
+                                        <input type="text" placeholder="Product Owner name" value={ruleForm.approvedBy} onChange={(e) => setRuleForm({ ...ruleForm, approvedBy: e.target.value })} className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg" />
+                                    </div>
+                                    <div>
+                                        <label className="block font-semibold text-slate-600 mb-1">Notes</label>
+                                        <input type="text" placeholder="Rate circular / sign-off ref" value={ruleForm.notes} onChange={(e) => setRuleForm({ ...ruleForm, notes: e.target.value })} className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg" />
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+
+                        <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3 shrink-0">
+                            <button type="button" onClick={() => setRulesBank(null)} className="px-4 py-2 border border-slate-200 rounded-lg text-xs text-slate-600 hover:bg-slate-100 font-semibold cursor-pointer">
+                                Close
+                            </button>
+                            <button form="lender-rule-form" type="submit" disabled={savingRule} className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold cursor-pointer disabled:opacity-50">
+                                {savingRule ? "Publishing..." : "Publish New Rule Version"}
                             </button>
                         </div>
                     </div>

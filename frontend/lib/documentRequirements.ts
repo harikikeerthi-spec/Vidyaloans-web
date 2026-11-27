@@ -41,13 +41,12 @@ export function getStudentDocumentRequirements(student: any = {}): DocumentRequi
   const highestLevel = academic.highestLevel || student.highestLevel || student.courseLevel || student.bachelorsDegree;
 
   return [
-    requirement("Passport (Front & Back)", "passport", true, "identity"),
-    requirement("National ID / Aadhaar Card", "national_id", true, "identity"),
+    requirement("Officially Valid ID (Passport / Voter ID / Driving Licence / Masked Aadhaar)", "national_id", true, "identity"),
     requirement("PAN Card", "pan", true, "identity"),
     requirement("Passport Size Photograph", "photograph", true, "identity"),
     requirement("Admission / Offer Letter", "admission_letter", true, "academic"),
     requirement("Cost of Study / Fee Structure", "cost_of_study", true, "financial"),
-    requirement("Standardized Test Score Card (IELTS / TOEFL / GRE / GMAT)", "test_score", true, "academic"),
+    requirement("Standardized Test Score Card (IELTS / TOEFL / GRE / GMAT)", "test_score", false, "academic"),
     requirement("10th Marksheet", "marksheet_10", true, "academic"),
     requirement("12th / Diploma Marksheet", "marksheet_12", highestLevel !== "Grade 10", "academic"),
     requirement("Degree Certificate / CMM", "degree_certificate", true, "academic"),
@@ -56,7 +55,7 @@ export function getStudentDocumentRequirements(student: any = {}): DocumentRequi
     requirement("Postgraduate Transcript", "pg_transcript", highestLevel === "Postgraduate", "academic"),
     requirement("Postgraduate Degree", "pg_degree", highestLevel === "Postgraduate", "academic"),
     requirement("Work Experience Letters", "work_letters", Array.isArray(workExperience) && workExperience.some((exp) => hasValue(exp?.employer)), "academic"),
-  ].filter((doc) => doc.required);
+  ];
 }
 
 export function getPersonDocumentRequirements(
@@ -119,11 +118,11 @@ export function getProfileDocumentRequirements(profile: any = {}): DocumentRequi
     : coAppDisplayRole;
 
   // Lender-required Financial Co-Applicant documents
-  docs.push(requirement(`${coAppLabel}'s Aadhaar Card`, "coapplicant_aadhar", true, "identity"));
+  docs.push(requirement(`${coAppLabel}'s Officially Valid ID (Passport / Voter ID / Driving Licence / Masked Aadhaar)`, "coapplicant_aadhar", true, "identity"));
   docs.push(requirement(`${coAppLabel}'s PAN Card`, "coapplicant_pan", true, "identity"));
   docs.push(requirement(`${coAppLabel}'s 6-Month Bank Statement`, "coapplicant_bank_statement", true, "financial"));
-  docs.push(requirement(`${coAppLabel}'s Income Proof (Salary Slips / Form 16 / ITR)`, "coapplicant_income_proof", true, "financial"));
-  docs.push(requirement(`${coAppLabel}'s Last 2 Years ITR / Form 16`, "coapplicant_itr", true, "financial"));
+  docs.push(requirement(`${coAppLabel}'s Income Proof (Salary Slips / Business Proof)`, "coapplicant_income_proof", true, "financial"));
+  docs.push(requirement(`${coAppLabel}'s Latest ITR / Form 16`, "coapplicant_itr", true, "financial"));
 
   // Always collect Father and Mother identity documents
   if (!isFatherCoApp && fatherName) {

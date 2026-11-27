@@ -1083,6 +1083,15 @@ export const aiApi = {
 // ─── Reference Data ───────────────────────────────────────────────────
 export const referenceApi = {
     getBanks: () => apiFetch(HttpApiPaths.reference.banks()),
+    getLenderRules: (bank?: string, asOf?: string) =>
+        apiFetch(HttpApiPaths.reference.lenderRules(bank, asOf)),
+    getBankRuleVersions: (id: string) =>
+        apiFetch(HttpApiPaths.reference.bankRuleVersions(id)),
+    createBankRuleVersion: (id: string, data: any) =>
+        apiFetch(HttpApiPaths.reference.bankRuleVersions(id), {
+            method: "POST",
+            body: JSON.stringify(data),
+        }),
     getBankBySlug: (slug: string) =>
         apiFetch(`${API_URL}/reference/banks/slug/${slug}`),
     getCountries: () =>

@@ -45,6 +45,10 @@ export const HttpApiPaths = {
 
     reference: {
         banks: () => `${HTTP_API_PREFIX}/reference/banks`,
+        lenderRules: (bank?: string, asOf?: string) =>
+            `${HTTP_API_PREFIX}/reference/lender-rules${httpApiQuery({ bank, asOf })}`,
+        bankRuleVersions: (id: string) =>
+            `${HTTP_API_PREFIX}/reference/banks/${enc(id)}/rules`,
         countries: () => `${HTTP_API_PREFIX}/reference/countries`,
         universities: () => `${HTTP_API_PREFIX}/reference/universities`,
         offices: () => `${HTTP_API_PREFIX}/reference/offices`,
